@@ -28,15 +28,14 @@ fn owned_capture_data_lives_in_the_product_free_core_and_reference_types_are_exa
     }
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-vm/src/result_binding.rs")).unwrap();
-    for alias in [
-        "pub use leselang_runtime_core::ScalarBinding;",
-        "leselang_runtime_core::CapturedBindings<Computation, ProjectedResult, ProjectedGroup>",
-        "pub type ProjectedBinding = leselang_runtime_core::ProjectedBinding<ProjectedResult>;",
-        "pub type ProjectedGroupBinding = leselang_runtime_core::ProjectedGroupBinding<ProjectedGroup>;",
-        "pub type ProjectedGroup = leselang_runtime_core::ProjectedGroup<ProjectedResult>;",
-    ] {
-        assert!(reference.contains(alias));
-    }
+    assert!(reference.contains("pub use leselang_runtime_core::ScalarBinding;"));
+    let binding =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/result_binding.rs"))
+            .unwrap();
+    assert!(binding.contains(
+        "leselang_runtime_core::CapturedBindings<Computation, ProjectedResult, ProjectedGroup>"
+    ));
+    assert!(!reference.contains("pub type ResultBinding"));
     for absent in [
         "pub struct ScalarBinding",
         "pub struct ResultBinding",
@@ -47,10 +46,26 @@ fn owned_capture_data_lives_in_the_product_free_core_and_reference_types_are_exa
         assert!(!reference.contains(absent));
     }
     assert!(reference.contains("impl ReferenceResultBinding for ResultBinding"));
-    assert!(reference.contains("impl ReferenceProjectedGroup for ProjectedGroup"));
-    assert!(reference.contains("validate_projected_accesses(body, scope).map(|_| ())"));
-    assert!(reference.contains("validate_scalar_projection(&self.fields, expected)"));
-    assert!(reference.contains("pub struct ProjectedResult"));
+    assert!(reference.contains("leselang_command::ProjectedGroupExt as ReferenceProjectedGroup"));
+    assert!(reference.contains("leselang_command::validate_result_binding("));
+    assert!(reference.contains("pub use leselang_command::{"));
+    assert!(!reference.contains("pub struct ProjectedResult"));
+    let adapter =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/projected_result.rs"))
+            .unwrap();
+    assert!(adapter.contains("validate_scalar_projection(&self.fields, expected)"));
+    assert!(adapter.contains("pub struct ProjectedResult"));
+    let groups =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/projected_group.rs"))
+            .unwrap();
+    for alias in [
+        "pub type ProjectedBinding = leselang_runtime_core::ProjectedBinding<ProjectedResult>;",
+        "pub type ProjectedGroupBinding = leselang_runtime_core::ProjectedGroupBinding<ProjectedGroup>;",
+        "pub type ProjectedGroup = leselang_runtime_core::ProjectedGroup<ProjectedResult>;",
+    ] {
+        assert!(groups.contains(alias));
+        assert!(!reference.contains(alias));
+    }
 }
 
 #[test]
@@ -122,22 +137,37 @@ fn real_reference_capture_validation_uses_product_free_helpers_without_moving_au
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-vm/src/result_binding.rs")).unwrap();
     for retained in [
-        "validate_captured_bindings(",
-        "validate_projected_group(",
+        "leselang_command::validate_result_binding_structure(",
         "max_saved_bindings: MAX_EFFECT_NESTING_DEPTH",
         "max_name_bytes: MAX_BRANCH_NAME_BYTES",
         "max_members: crate::MAX_MERGE_BRANCHES - 1",
         "crate::valid_merge_branch_name",
-        "CaptureStructureError::Native { error, .. } => error",
-        "_ => invalid()",
-        "body.is_result_flow()",
-        "validate_projected_accesses(body, scope).map(|_| ())",
+        ".map_err(projection_fault)",
+        "leselang_command::validate_result_binding(",
     ] {
         assert!(
             reference.contains(retained),
             "capture adapter lost {retained}"
         );
     }
+    let binding =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/result_binding.rs"))
+            .unwrap();
+    for retained in [
+        "validate_captured_bindings(",
+        "ProjectedResult::validate",
+        "group.validate(groups, &mut validate_group_name)",
+        "body.is_result_flow()",
+        "validate_captured_projection_accesses(binding, pending, limits.accesses)?",
+    ] {
+        assert!(binding.contains(retained));
+    }
+    let adapter =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/projected_group.rs"))
+            .unwrap();
+    assert!(adapter.contains(
+        "validate_projected_group(self, limits, validate_name, ProjectedResult::validate)"
+    ));
 }
 
 #[test]
@@ -208,22 +238,33 @@ fn reference_capture_scope_assembly_uses_shared_nested_entry_but_retains_native_
     assert!(code.find("drop(scope)").unwrap() < code.rfind("output\n}").unwrap());
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+    let adapter =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/projection_access.rs"))
+            .unwrap();
     for required in [
         "with_captured_scope(",
-        "validate_projected_accesses(body, scope).map(|_| ())",
-        "CaptureScopeError::Duplicate { .. } => invalid()",
+        "validate_projected_accesses(body, scope, limits).map(|_| ())",
+        "CaptureScopeError::Duplicate { .. } => InvalidProjectedResult",
         "CaptureScopeError::Native { error, .. } => error",
         "available_fields(pending).map(AvailableProjection::Fields)",
         "field_bit(field.field)",
         "left & right",
-        "validate_in_group_scope(&scope, &groups)",
-        "validate_in_scope(&[])",
     ] {
         assert!(
-            reference.contains(required),
-            "reference capture scope lost {required}"
+            adapter.contains(required),
+            "product capture scope lost {required}"
         );
     }
+    assert!(reference.contains("leselang_command::validate_result_binding("));
+    let binding =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/result_binding.rs"))
+            .unwrap();
+    assert!(
+        binding
+            .contains("validate_captured_projection_accesses(binding, pending, limits.accesses)?")
+    );
+    assert!(binding.contains("validate_in_group_scope(&scope, &groups)"));
+    assert!(binding.contains("validate_in_scope(&[])"));
 }
 
 #[test]
@@ -308,6 +349,9 @@ fn restored_projection_access_walk_is_shared_bounded_and_uses_explicit_native_po
     );
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+    let adapter =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/projection_access.rs"))
+            .unwrap();
     for retained in [
         "observe_projection_accesses(",
         "impl<'a> ProjectionAccessPolicy<'a, ResultField, HostOperation, Effect>",
@@ -316,14 +360,19 @@ fn restored_projection_access_walk_is_shared_bounded_and_uses_explicit_native_po
         "left & right",
         "self.call(operation)",
         "member.result.operation == *operation",
-        "validate_in_group_scope(&scope, &groups)",
     ] {
         assert!(
-            reference.contains(retained),
-            "reference projection policy lost {retained}"
+            adapter.contains(retained),
+            "product projection policy lost {retained}"
         );
     }
+    assert!(reference.contains("leselang_command::validate_result_binding("));
+    let binding =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/result_binding.rs"))
+            .unwrap();
+    assert!(binding.contains("validate_in_group_scope(&scope, &groups)"));
     assert!(!reference.contains("validate_projected_accesses(value, scope)?"));
+    assert!(!adapter.contains("validate_projected_accesses(value, scope)?"));
     let proofs =
         std::fs::read_to_string(root.join("crates/leselang-hir/tests/projection_access.rs"))
             .unwrap();

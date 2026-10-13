@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod capture_replay;
 mod control_plane_reply;
 mod control_plane_request;
 mod control_plane_value;
@@ -8,14 +9,31 @@ mod presentation;
 mod presentation_reply;
 mod presentation_request;
 mod presentation_value;
+mod projected_group;
+mod projected_result;
+mod projection_access;
+mod result_binding;
+mod result_view;
 mod scalar_projection;
 mod value;
 mod value_validation;
+pub use capture_replay::{
+    CaptureReplayError, validate_group_capture_correspondence, validate_result_binding_extension,
+};
 pub use control_plane_request::{command_matches_effect, query_matches_effect};
 pub use host_protocol::{
     DebuggerCancelResult, EffectOperation, EffectResult, PresentationEnvelope,
     PresentationOperation, PresentationResult,
 };
+pub use projected_group::{
+    ProjectedBinding, ProjectedGroup, ProjectedGroupBinding, ProjectedGroupExt,
+};
+pub use projected_result::{InvalidProjectedResult, ProjectedField, ProjectedResult};
+pub use projection_access::validate_captured_projection_accesses;
+pub use result_binding::{
+    ResultBinding, ResultBindingLimits, validate_result_binding, validate_result_binding_structure,
+};
+pub use result_view::{ResultView, ResultViewError};
 pub use value::{StructuredField, Value};
 
 use std::io::{self, Write};

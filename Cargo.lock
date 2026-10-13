@@ -1093,6 +1093,7 @@ version = "2.3.0"
 dependencies = [
  "leselang-hir",
  "leselang-host-contract",
+ "leselang-runtime-core",
  "leselang-syntax",
  "leserpent-domain",
  "serde",

@@ -5,7 +5,460 @@ fn root() -> &'static Path {
 }
 
 #[test]
-fn product_scalar_projection_is_adapter_owned_without_moving_capture_or_budget_policy() {
+fn adapter_captured_execution_proof_reuses_shared_hir_without_vm_or_storage() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-command/tests/captured_execution.rs"))
+            .unwrap();
+    let compact = source.split_whitespace().collect::<String>();
+    for required in [
+        "leselang_hir::lower(&leselang_syntax::parse(source))",
+        "evaluate_effects_in_scope(",
+        "resume_captured_effects_in_scope(",
+        "snapshot_captured_scope_state(",
+        "validate_result_binding(",
+        "validate_group_capture_correspondence(",
+        "validate_result_binding_extension(",
+        "result.project_scalar(*field)",
+        "group.select_member(name, *operation)",
+        ".evaluate_computed_arguments(",
+        "operation.resolve(&arguments)",
+        "scalar_copy_cost",
+        "0..complete.spent",
+        "locals.is_empty()",
+        "adapter_executes_group_aliases_captured_successors_and_scalar_tail_without_vm",
+        "adapter_reentry_and_wire_restoration_use_one_meter_at_every_fuel_boundary",
+        "adapter_restores_all_five_closed_vocabularies_without_upgrading_successor_captures",
+        "invalid_frames_cold_fields_replies_and_revoked_admission_never_spend_or_prepare",
+        "scalar_recovery_and_conditional_successors_do_not_catch_native_projection_or_fuel_failures",
+        "malformed_group_receipts_are_rejected_before_scope_restore_with_retryable_original_data",
+    ] {
+        assert!(
+            compact.contains(&required.split_whitespace().collect::<String>()),
+            "adapter execution proof lost {required}"
+        );
+    }
+    for absent in [
+        "leselang_vm::",
+        "rusqlite::",
+        "apply_binary(",
+        "apply_unary(",
+    ] {
+        assert!(
+            !source.contains(absent),
+            "adapter fixture duplicated or coupled {absent}"
+        );
+    }
+    let workflow = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(
+        workflow
+            .contains("cargo +1.98.0 test -p leselang-command --locked --test captured_execution")
+    );
+    let output = Command::new("cargo")
+        .args([
+            "tree",
+            "--locked",
+            "--offline",
+            "-p",
+            "leselang-command",
+            "--edges",
+            "normal,build,dev",
+            "--prefix",
+            "none",
+        ])
+        .env("CARGO_TERM_COLOR", "never")
+        .current_dir(root())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let dependencies = String::from_utf8(output.stdout).unwrap();
+    for absent in ["leselang-vm ", "rusqlite ", "libsqlite3-sys "] {
+        assert!(
+            !dependencies.lines().any(|line| line.starts_with(absent)),
+            "capture proof linked {absent}"
+        );
+    }
+    for required in [
+        "leselang-command ",
+        "leselang-hir ",
+        "leselang-runtime-core ",
+        "leselang-syntax ",
+    ] {
+        assert!(dependencies.lines().any(|line| line.starts_with(required)));
+    }
+}
+
+#[test]
+fn product_result_views_are_adapter_owned_with_vm_budget_and_fault_mapping() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/result_view.rs")).unwrap();
+    for required in [
+        "pub enum ResultView<'a>",
+        "pub enum ResultViewError",
+        "pub fn project_scalar(",
+        "pub fn select_member(",
+        "pub fn capture_result(",
+        "pub fn capture_group(",
+        "limits: GroupCaptureLimits",
+        "validate_name: impl FnMut(&str) -> bool",
+        "member.name == name && member.result.operation == operation",
+        "Self::Projected(result) => Ok(result.clone())",
+        "Self::ProjectedGroup(group) => Ok(group.clone())",
+    ] {
+        assert!(adapter.contains(required), "result view lost {required}");
+    }
+    for absent in [
+        "leselang_vm",
+        "LSV",
+        "Fuel",
+        "Journal",
+        "serde",
+        "MAX_MERGE_BRANCHES",
+        "Principal",
+        "impl Default",
+    ] {
+        assert!(!adapter.contains(absent), "result view acquired {absent}");
+    }
+    let source = fs::read_to_string(root().join("crates/leselang-vm/src/computation.rs")).unwrap();
+    let production = source.split_once("#[cfg(test)]").unwrap().0;
+    for required in [
+        "pub(super) use leselang_command::ResultView;",
+        "self.project_scalar(field).map_err(view_fault)",
+        "self.capture_result().map_err(view_fault)",
+        "self.capture_group(group_capture_limits(), crate::valid_merge_branch_name)",
+        "group.select_member(name, *operation).map_err(view_fault)",
+        "ResultViewError::InvalidAccess => invalid()",
+        "ResultViewError::InvalidProjection => crate::result_binding::invalid()",
+        "error(\"LSV1402\"",
+        "resume_captured_effects_in_scope(",
+        "snapshot_captured_scope_state(",
+        "charge_projection(fuel, &result)?",
+        "charge_group_projection(fuel, &group)?",
+    ] {
+        assert!(production.contains(required), "VM lost {required}");
+    }
+    for absent in [
+        "enum ResultView",
+        "ProjectedResult::capture(",
+        "ProjectedGroup::capture(",
+        "member.name == name",
+        "field.name == name",
+        "result.field(field)",
+    ] {
+        assert!(!production.contains(absent), "VM duplicated {absent}");
+    }
+    let baseline =
+        fs::read_to_string(root().join("crates/leselang-vm/src/result_view_tests.rs")).unwrap();
+    assert!(
+        baseline.contains(
+            "result_views_preserve_frozen_projection_selection_copy_and_fault_boundaries"
+        )
+    );
+    let matrix =
+        fs::read_to_string(root().join("crates/leselang-command/tests/host_protocol.rs")).unwrap();
+    assert!(matrix.contains(
+        "adapter_result_view_lifecycle_covers_seventy_operations_and_five_saved_vocabularies"
+    ));
+    let tests =
+        fs::read_to_string(root().join("crates/leselang-command/tests/result_view.rs")).unwrap();
+    for proof in [
+        "views_borrow_original_members_and_copy_only_at_explicit_projection_boundaries",
+        "views_preserve_saved_bytes_and_first_match_without_claiming_admission",
+        "raw_capture_policy_keeps_projection_before_names_and_propagates_native_unwind",
+        "diagnostics_are_payload_free_and_legacy_fields_are_never_filled_from_raw_catalogs",
+    ] {
+        assert!(tests.contains(proof));
+    }
+}
+
+#[test]
+fn product_capture_replay_policy_is_adapter_owned_without_moving_authority_or_fault_codes() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/capture_replay.rs")).unwrap();
+    for required in [
+        "pub enum CaptureReplayError",
+        "pub fn validate_result_binding_extension(",
+        "pub fn validate_group_capture_correspondence(",
+        "max_saved_bindings: usize",
+        "limits: CaptureCorrespondenceLimits",
+        "group_limits: GroupCaptureLimits",
+        "validate_group_name: impl FnMut(&str) -> bool",
+        "fields.len() != operations.len()",
+    ] {
+        assert!(adapter.contains(required));
+    }
+    for absent in [
+        "leselang_vm",
+        "LSV",
+        "Fuel",
+        "Journal",
+        "serde",
+        ".clone()",
+        "MAX_EFFECT_NESTING_DEPTH",
+        "MAX_MERGE_BRANCHES",
+        "Continuation",
+        "Principal",
+    ] {
+        assert!(
+            !adapter.contains(absent),
+            "capture adapter acquired {absent}"
+        );
+    }
+    let successor = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let successor = successor.split_once("#[cfg(test)]").unwrap().0;
+    assert!(!successor.contains("impl CaptureExtensionDomain"));
+    assert!(!successor.contains("validate_capture_extension("));
+    assert!(successor.contains("leselang_command::validate_result_binding_extension("));
+    assert!(successor.contains("crate::result_binding::invalid()"));
+    assert!(successor.contains("code: \"LSV1407\""));
+    let group = fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+    let group = group.split_once("#[cfg(all(test").unwrap().0;
+    assert!(!group.contains("validate_capture_correspondence("));
+    assert!(group.contains("leselang_command::validate_group_capture_correspondence("));
+    assert!(group.contains("crate::result_binding::invalid()"));
+    assert!(group.contains("code: \"LSV1409\""));
+    let proofs =
+        fs::read_to_string(root().join("crates/leselang-command/tests/capture_replay.rs")).unwrap();
+    for proof in [
+        "extension_keeps_aliases_named_retention_and_distinct_late_projection_errors",
+        "correspondence_keeps_ordered_groups_full_row_scans_and_error_categories",
+        "caller_limits_and_row_shapes_precede_callbacks_without_implicit_vm_defaults",
+        "name_callback_refusal_and_unwind_keep_prefix_order_without_mutating_captures",
+    ] {
+        assert!(proofs.contains(proof));
+    }
+}
+
+#[test]
+fn complete_product_binding_validation_is_adapter_owned_with_explicit_limits_and_vm_schema() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/result_binding.rs")).unwrap();
+    for required in [
+        "pub type ResultBinding =",
+        "pub struct ResultBindingLimits",
+        "pub fn validate_result_binding_structure(",
+        "pub fn validate_result_binding(",
+        "captures: CaptureValidationLimits",
+        "groups: GroupCaptureLimits",
+        "accesses: ProjectionAccessLimits",
+        "validate_group_name: impl FnMut(&str) -> bool",
+        "validate_captured_bindings(",
+        "validate_captured_projection_accesses(",
+        "validate_in_group_scope(&scope, &groups)",
+        "validate_in_scope(&[])",
+        "binding.locals.iter().rev()",
+    ] {
+        assert!(
+            adapter.contains(required),
+            "binding adapter lost {required}"
+        );
+    }
+    for absent in [
+        "leselang_vm",
+        "LSV",
+        "Fuel",
+        "Journal",
+        "CONTINUATION_SCHEMA_VERSION",
+        "impl Default",
+        "MAX_MERGE_BRANCHES",
+    ] {
+        assert!(
+            !adapter.contains(absent),
+            "binding adapter acquired {absent}"
+        );
+    }
+    let reference =
+        fs::read_to_string(root().join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+    let production = reference.split_once("#[cfg(test)]").unwrap().0;
+    for required in [
+        "pub use leselang_command::{",
+        "ResultBinding,",
+        "fn schema_version(&self)",
+        "GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION",
+        "leselang_command::validate_result_binding(",
+        "leselang_command::validate_result_binding_structure(",
+        "result_binding_limits()",
+        "crate::valid_merge_branch_name",
+        ".map_err(projection_fault)",
+    ] {
+        assert!(production.contains(required));
+    }
+    for absent in [
+        "pub type ResultBinding",
+        "validate_captured_bindings(",
+        "GroupLocalType",
+        "validate_in_group_scope(",
+        "validate_in_scope(",
+        "Computation::Bind",
+        "self.body.clone()",
+    ] {
+        assert!(!production.contains(absent), "VM duplicated {absent}");
+    }
+    assert!(
+        reference
+            .contains("restored_binding_keeps_scalar_result_group_types_and_canonical_refusals")
+    );
+    let proofs =
+        fs::read_to_string(root().join("crates/leselang-command/tests/result_binding.rs")).unwrap();
+    for proof in [
+        "complete_validation_keeps_scalar_literal_scope_and_typed_saved_scope_paths",
+        "complete_validation_rejects_legacy_widening_names_and_forged_group_types",
+        "explicit_limits_and_ordered_name_hooks_precede_access_and_canonical_work",
+    ] {
+        assert!(proofs.contains(proof));
+    }
+}
+
+#[test]
+fn product_capture_access_policy_is_adapter_owned_without_bypassing_vm_admission() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/projection_access.rs"))
+            .unwrap();
+    for required in [
+        "pub fn validate_captured_projection_accesses(",
+        "limits: ProjectionAccessLimits",
+        "with_captured_scope(",
+        "observe_projection_accesses(",
+        "left & right",
+        "self.call(operation)",
+        "member.result.operation == *operation",
+    ] {
+        assert!(
+            adapter.contains(required),
+            "product access policy lost {required}"
+        );
+    }
+    for absent in [
+        "leselang_vm",
+        "LSV",
+        "Fuel",
+        "Journal",
+        "serde",
+        ".clone()",
+        "MAX_EFFECT_NESTING_DEPTH",
+        "MAX_COMPUTATION_NODES",
+    ] {
+        assert!(
+            !adapter.contains(absent),
+            "product access policy acquired {absent}"
+        );
+    }
+    let reference =
+        fs::read_to_string(root().join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+    let production = reference.split_once("#[cfg(test)]").unwrap().0;
+    let binding =
+        fs::read_to_string(root().join("crates/leselang-command/src/result_binding.rs")).unwrap();
+    assert!(production.contains("leselang_command::validate_result_binding("));
+    let composed = binding
+        .split_once("pub fn validate_result_binding(")
+        .unwrap()
+        .1;
+    let delegated = composed
+        .find("validate_captured_projection_accesses(")
+        .unwrap();
+    assert!(composed.find("validate_result_binding_structure(").unwrap() < delegated);
+    assert!(
+        delegated
+            < composed
+                .find("validate_canonical_binding_type(binding, pending)")
+                .unwrap()
+    );
+    for retained in [
+        "max_nodes: leselang_hir::computation::MAX_COMPUTATION_NODES",
+        "max_depth: MAX_EFFECT_NESTING_DEPTH",
+        ".map_err(projection_fault)",
+        "LSV1405",
+    ] {
+        assert!(production.contains(retained));
+    }
+    for absent in [
+        "fn field_bit(",
+        "fn operation_fields(",
+        "AvailableProjection",
+        "ProjectionAccessPolicy",
+        "with_captured_scope(",
+        "fn validate_projected_accesses(",
+    ] {
+        assert!(!production.contains(absent), "VM duplicated {absent}");
+    }
+    let proofs =
+        fs::read_to_string(root().join("crates/leselang-command/tests/projection_access.rs"))
+            .unwrap();
+    for proof in [
+        "closed_fields_are_checked_in_cold_recovery_loops_folds_and_call_arguments",
+        "capture_names_share_one_namespace_and_lexical_siblings_do_not_leak",
+        "saved_members_require_exact_names_and_operations_but_fallback_is_not_type_admission",
+        "explicit_physical_walk_limits_are_inclusive_and_cover_unselected_branches",
+    ] {
+        assert!(proofs.contains(proof));
+    }
+    let vm_proofs =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/projection_scope.rs")).unwrap();
+    assert!(
+        vm_proofs
+            .contains("adapter_access_success_never_bypasses_vm_schema_or_canonical_group_checks")
+    );
+}
+
+#[test]
+fn product_group_capture_contract_is_adapter_owned_with_explicit_vm_policy() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/projected_group.rs")).unwrap();
+    assert!(adapter.contains("impl ProjectedGroupExt for ProjectedGroup"));
+    assert!(adapter.contains("limits: GroupCaptureLimits"));
+    assert!(adapter.contains("validate_name: impl FnMut(&str) -> bool"));
+    assert!(adapter.contains(
+        "validate_projected_group(self, limits, validate_name, ProjectedResult::validate)"
+    ));
+    let matching = adapter.rsplit_once("fn matches_members(").unwrap().1;
+    assert!(
+        matching
+            .find("self.validate(limits, validate_name)?")
+            .unwrap()
+            < matching.find("self.matches_signature(branches)").unwrap()
+    );
+    for absent in [
+        "leselang_vm",
+        "MAX_MERGE",
+        "Fuel",
+        "LSV",
+        "Journal",
+        "serde",
+        "pub struct ProjectedGroup",
+    ] {
+        assert!(!adapter.contains(absent), "adapter acquired {absent}");
+    }
+    let reference =
+        fs::read_to_string(root().join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+    let production = reference.split_once("#[cfg(test)]").unwrap().0;
+    assert!(production.contains("leselang_command::ProjectedGroupExt as ReferenceProjectedGroup"));
+    assert!(production.contains("max_members: crate::MAX_MERGE_BRANCHES - 1"));
+    assert!(production.contains("min_members: 1"));
+    assert!(production.contains("crate::valid_merge_branch_name"));
+    assert!(!production.contains("impl ReferenceProjectedGroup"));
+    assert!(!production.contains("fn matches_members("));
+    assert!(!production.contains("fn matches_signature("));
+    assert!(reference.contains("group_capture_preserves_original_limits_names_and_refusal_order"));
+    assert!(
+        reference.contains(
+            "group_capture_keeps_legacy_versions_order_and_projection_only_correspondence"
+        )
+    );
+    let cases =
+        fs::read_to_string(root().join("crates/leselang-command/tests/host_protocol.rs")).unwrap();
+    assert!(cases.contains(
+        "group_captures_cover_seventy_operations_with_mixed_versions_and_exact_member_order"
+    ));
+    assert!(cases.contains(
+        "group_capture_policy_is_explicit_and_name_hooks_keep_original_validation_order"
+    ));
+}
+
+#[test]
+fn product_scalar_projection_is_adapter_owned_without_moving_execution_policy() {
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/scalar_projection.rs"))
             .unwrap();
@@ -25,24 +478,14 @@ fn product_scalar_projection_is_adapter_owned_without_moving_capture_or_budget_p
     }
     let binding =
         fs::read_to_string(root().join("crates/leselang-vm/src/result_binding.rs")).unwrap();
-    let project = binding
-        .split_once("pub(super) fn project(")
-        .unwrap()
-        .1
-        .split_once("#[cfg(test)]")
-        .unwrap()
-        .0;
-    assert!(project.contains("value.project_scalar(field).ok_or_else(invalid)"));
-    for absent in ["Value::", "ResultField::", "match ", ".clone()", "charge("] {
-        assert!(
-            !project.contains(absent),
-            "VM duplicated product projection: {absent}"
-        );
-    }
+    assert!(!binding.contains("pub(super) fn project("));
+    let view =
+        fs::read_to_string(root().join("crates/leselang-command/src/result_view.rs")).unwrap();
+    assert!(view.contains(".project_scalar(field)"));
+    assert!(view.contains(".ok_or(ResultViewError::InvalidProjection)"));
     for retained in [
-        "validate_scalar_projection(&self.fields, expected)",
-        "projection_fields(self.projection_version)",
-        "valid_kind_token(self.operation, &stored.value)",
+        "leselang_command::validate_result_binding_structure(",
+        ".map_err(projection_fault)",
         "code: \"LSV1405\"",
     ] {
         assert!(
@@ -52,7 +495,7 @@ fn product_scalar_projection_is_adapter_owned_without_moving_capture_or_budget_p
     }
     let computation =
         fs::read_to_string(root().join("crates/leselang-vm/src/computation.rs")).unwrap();
-    assert!(computation.contains("crate::result_binding::project(value, field)"));
+    assert!(computation.contains("self.project_scalar(field).map_err(view_fault)"));
     assert!(
         computation.contains("fn charge_projection(fuel: &mut Fuel, result: &ProjectedResult)")
     );
@@ -70,6 +513,74 @@ fn product_scalar_projection_is_adapter_owned_without_moving_capture_or_budget_p
         )
     );
     assert!(cases.contains("scalar_projection_is_not_bounds_validation_or_execution_admission"));
+}
+
+#[test]
+fn product_capture_frames_and_validation_live_in_adapter_with_exact_reference_reexports() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/projected_result.rs")).unwrap();
+    for required in [
+        "pub struct ProjectedResult",
+        "pub struct InvalidProjectedResult",
+        "pub type ProjectedField = ScalarProjectionField<ResultField>",
+        "validate_scalar_projection(&self.fields, expected)",
+        "projection_fields(self.projection_version)",
+        "valid_kind_token(self.operation, &stored.value)",
+        "default = \"legacy_projection_version\"",
+        "skip_serializing_if = \"is_legacy_projection\"",
+    ] {
+        assert!(adapter.contains(required), "adapter lost {required}");
+    }
+    for absent in [
+        "leselang_vm",
+        "Fault",
+        "LSV",
+        "Journal",
+        "Fuel",
+        "rusqlite",
+        "ContinuationImage",
+    ] {
+        assert!(
+            !adapter.contains(absent),
+            "product capture acquired execution policy: {absent}"
+        );
+    }
+    let reference =
+        fs::read_to_string(root().join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+    assert!(reference.contains("pub use leselang_command::{"));
+    let production = reference.split_once("#[cfg(test)]").unwrap().0;
+    for absent in [
+        "pub struct ProjectedResult",
+        "impl ProjectedResult",
+        "fn projection_fields",
+        "fn valid_kind_token",
+        "serde",
+        "UiSemantic",
+        "UiFormInputKind",
+    ] {
+        assert!(!production.contains(absent), "VM retained {absent}");
+    }
+    assert!(
+        reference
+            .contains("projection_fault(_: leselang_command::InvalidProjectedResult) -> Fault")
+    );
+    assert!(reference.contains("leselang_command::validate_result_binding_structure("));
+    assert!(reference.contains("leselang_command::validate_result_binding("));
+    let cases =
+        fs::read_to_string(root().join("crates/leselang-command/tests/host_protocol.rs")).unwrap();
+    assert!(cases.contains(
+        "product_captures_preserve_seventy_operations_five_versions_and_exact_wire_order"
+    ));
+    assert!(
+        cases.contains(
+            "product_capture_shape_never_certifies_raw_identity_or_trusted_restore_version"
+        )
+    );
+    let proof =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/capture_contract.rs")).unwrap();
+    assert!(proof.contains(
+        "product_capture_reexports_are_exact_adapter_types_without_conversion_or_buffer_copies"
+    ));
 }
 
 #[test]
@@ -985,16 +1496,28 @@ fn successor_capture_extension_shares_retention_without_authority_or_saved_body_
             "extension displaced {guard}"
         );
     }
-    for adapter in [
-        "validate_capture_extension(",
+    for retained in [
+        "leselang_command::validate_result_binding_extension(",
         "leselang_hir::MAX_EFFECT_NESTING_DEPTH",
+        "leselang_command::CaptureReplayError::InvalidProjection",
+        "leselang_command::CaptureReplayError::Mismatch => invalid()",
+        "capture_extension_preserves_frozen_native_alias_retention_and_late_fault_order",
+    ] {
+        assert!(source.contains(retained), "VM extension lost {retained}");
+    }
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/capture_replay.rs")).unwrap();
+    for retained in [
+        "validate_capture_extension(",
         "old.group == saved.group",
         "old.result == saved.result",
         "saved.name == self.prior.name",
         "CaptureExtensionError::Native { error, .. } => error",
-        "capture_extension_preserves_frozen_native_alias_retention_and_late_fault_order",
     ] {
-        assert!(source.contains(adapter), "extension adapter lost {adapter}");
+        assert!(
+            adapter.contains(retained),
+            "extension adapter lost {retained}"
+        );
     }
     assert!(!pair.contains("Fuel::new"));
     let journal =
@@ -1042,17 +1565,31 @@ fn live_and_recovered_capture_correspondence_delegates_traversal_without_project
         "fields.len() != operations.len()",
         "max_saved_bindings: leselang_hir::MAX_EFFECT_NESTING_DEPTH",
         "max_original_rows: crate::MAX_MERGE_BRANCHES",
-        "validate_capture_correspondence(",
-        "matches_members(branches, &fields[..branches.len()])",
-        "matches_capture(operations[original], &field.value)",
-        "CaptureCorrespondenceError::Native { error, .. } => error",
+        "leselang_command::validate_group_capture_correspondence(",
+        "group_capture_limits()",
+        "crate::valid_merge_branch_name",
+        "leselang_command::CaptureReplayError::InvalidProjection",
+        "leselang_command::CaptureReplayError::Mismatch => invalid()",
     ] {
         assert!(gate.contains(required), "native capture lost {required}");
     }
     assert!(
         gate.find(".ok_or_else(invalid)?").unwrap()
-            < gate.find("validate_capture_correspondence(").unwrap()
+            < gate
+                .find("leselang_command::validate_group_capture_correspondence(")
+                .unwrap()
     );
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/capture_replay.rs")).unwrap();
+    for retained in [
+        "validate_capture_correspondence(",
+        ".matches_members(",
+        "&fields[..branches.len()]",
+        "matches_capture(operations[original], &field.value)",
+        "CaptureCorrespondenceError::Native { error, .. } => error",
+    ] {
+        assert!(adapter.contains(retained));
+    }
     assert!(
         source
             .split("pub(super) fn advance_capture(")

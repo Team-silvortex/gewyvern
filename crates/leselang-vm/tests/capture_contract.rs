@@ -13,6 +13,103 @@ use leselang_vm::{
 };
 
 type SharedFrame = CapturedBindings<Computation, ProjectedResult, ProjectedGroup>;
+
+#[test]
+fn product_result_binding_alias_keeps_exact_core_vm_types_and_original_buffers() {
+    let mut captured: leselang_command::ResultBinding = serde_json::from_str(
+        r#"{"name":"reply","locals":[],"body":{"kind":"literal","value":{"kind":"none"}}}"#,
+    )
+    .unwrap();
+    captured.results.push(ProjectedBinding {
+        name: "saved".into(),
+        result: projection("node"),
+    });
+    let wire = serde_json::to_vec(&captured).unwrap();
+    let name = captured.name.as_ptr();
+    let results = captured.results.as_ptr();
+    let fields = captured.results[0].result.fields.as_ptr();
+    let vm: ResultBinding = captured;
+    let core: SharedFrame = vm;
+    let adapter: leselang_command::ResultBinding = core;
+    assert_eq!(adapter.name.as_ptr(), name);
+    assert_eq!(adapter.results.as_ptr(), results);
+    assert_eq!(adapter.results[0].result.fields.as_ptr(), fields);
+    assert_eq!(serde_json::to_vec(&adapter).unwrap(), wire);
+}
+
+#[test]
+fn product_group_aliases_keep_exact_core_and_vm_types_with_original_buffers() {
+    let result = leselang_command::ProjectedResult::capture(
+        HostOperation::UiFocus,
+        &Value::UiFocus {
+            node_id: "node-a".into(),
+        },
+    )
+    .unwrap();
+    let binding = leselang_command::ProjectedBinding {
+        name: "member-a".into(),
+        result,
+    };
+    let name = binding.name.as_ptr();
+    let fields = binding.result.fields.as_ptr();
+    let binding: ProjectedBinding = binding;
+    let binding: leselang_runtime_core::ProjectedBinding<ProjectedResult> = binding;
+    let group = leselang_command::ProjectedGroup {
+        members: vec![binding],
+    };
+    let members = group.members.as_ptr();
+    let wire = serde_json::to_vec(&group).unwrap();
+    let group: ProjectedGroup = group;
+    let group: leselang_runtime_core::ProjectedGroup<ProjectedResult> = group;
+    assert_eq!(group.members.as_ptr(), members);
+    assert_eq!(group.members[0].name.as_ptr(), name);
+    assert_eq!(group.members[0].result.fields.as_ptr(), fields);
+    assert_eq!(serde_json::to_vec(&group).unwrap(), wire);
+    let saved = leselang_command::ProjectedGroupBinding {
+        name: "saved-group".into(),
+        group,
+    };
+    let saved: ProjectedGroupBinding = saved;
+    let saved: leselang_runtime_core::ProjectedGroupBinding<ProjectedGroup> = saved;
+    assert_eq!(saved.group.members.as_ptr(), members);
+    let restored: ProjectedGroup = serde_json::from_slice(&wire).unwrap();
+    assert_eq!(restored, saved.group);
+}
+
+#[test]
+fn product_capture_reexports_are_exact_adapter_types_without_conversion_or_buffer_copies() {
+    let source = Value::UiSetFormValue {
+        node_id: "node-a".into(),
+        field: "name".into(),
+        value: "ready".into(),
+    };
+    for version in 1..=5 {
+        let captured = leselang_command::ProjectedResult::capture_version(
+            HostOperation::UiSetFormValue,
+            &source,
+            version,
+        )
+        .unwrap();
+        let bytes = serde_json::to_vec(&captured).unwrap();
+        let fields = captured.fields.as_ptr();
+        let node = captured.fields[0].value.text().unwrap().as_ptr();
+        let reference: ProjectedResult = captured;
+        assert_eq!(reference.fields.as_ptr(), fields);
+        assert_eq!(reference.fields[0].value.text().unwrap().as_ptr(), node);
+        assert_eq!(serde_json::to_vec(&reference).unwrap(), bytes);
+        let returned: leselang_command::ProjectedResult = reference;
+        let field: leselang_command::ProjectedField = returned.fields.into_iter().next().unwrap();
+        let field: ProjectedField = field;
+        let shared: leselang_runtime_core::ScalarProjectionField<ResultField> = field;
+        assert_eq!(shared.value.text().unwrap().as_ptr(), node);
+        let restored: ProjectedResult = serde_json::from_slice(&bytes).unwrap();
+        assert!(
+            restored
+                .matches_capture(HostOperation::UiSetFormValue, &source)
+                .unwrap()
+        );
+    }
+}
 type SavedFrame = leselang_runtime_core::ContinuationFrame<
     ContinuationToken,
     Revision,

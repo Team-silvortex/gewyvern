@@ -80,11 +80,91 @@ query-policy, dispatch and journal tests preserve the released representation.
 `Value::project_scalar` now owns the product field-to-scalar mapping in the
 adapter. It copies only the requested exported scalar, without serializing or
 cloning whole replies; unsupported fields return None. It does not validate or
-meter inputs. The VM still maps refusal to `LSV1405`, owns capture versions 1-5,
-field order and semantic validation, and charges the original execution budget.
+meter inputs. The VM still maps refusal to `LSV1405` and charges the original
+execution budget; product capture rules are delegated to the adapter below.
 The 77-type/12-field matrix and before/after frozen capture tests preserve
 optional-text states, enum tokens and legacy frame behavior. This is a reference
 adapter boundary, not a generic durable-frame implementation.
+
+`ProjectedResult` and `ProjectedField` now belong to `leselang-command` with exact
+VM re-exports. Capture construction, versions 1-5, ordered scalar validation,
+kind/optional-text rules and stored-field correspondence move together, with no
+wire conversion or payload copies at the boundary. The shared core still owns
+the opaque-key scalar field and validator. Adapter failures are payload-free;
+the VM retains `LSV1405`, canonical lexical/group checks, authority, budgets and
+journal recovery. All 70 operations across five vocabularies keep their bytes,
+including unversioned v1. Valid projections are not raw-result type admission,
+trusted version provenance or a complete host-neutral recovery implementation.
+
+The three result/group binding specializations are also exact adapter re-exports.
+`ProjectedGroupExt` now owns group capture, saved member validation, ordered
+signature matching and projected-result correspondence over the unchanged core
+containers. The VM explicitly supplies its 1-63 member interval and original
+branch-name predicate, then maps adapter refusals to `LSV1405`. Saved validation
+still precedes signature/receipt comparison. The adapter has no implicit VM cap,
+authority check or journal ownership; it does not admit raw result types or
+original branch arguments. Before/after VM boundaries, mixed-version groups for
+all 70 operations and exact alias/buffer proofs preserve this contract.
+
+`validate_captured_projection_accesses` now owns the product's restored-scope
+assembly and closed-field access policy in the command adapter. It delegates to
+the shared bounded HIR walker: saved fields never widen to the current catalog,
+conditional results intersect field sets, and group aliases keep exact member
+names and operations. The VM supplies node/depth ceilings; the composed adapter
+entry validates structure first and canonical type/group checks afterward.
+The observer alone
+does not validate schemas or authenticate frames; member fallback still requires
+the canonical checker. Cold branches, namespace collisions and all 70 operations
+across five versions retain their original behavior, bytes and `LSV1405` mapping.
+
+`ResultBinding` is now another exact command-adapter alias of the shared core
+container. `validate_result_binding` composes structure, closed-field access and
+canonical type reconstruction in the original order. Callers supply capture,
+group and access limits plus the group-name predicate; scalar-only captures keep
+their literal-wrapping path. `validate_result_binding_structure` remains available
+for earlier structural gates. The VM retains policy defaults, schema selection,
+fault mapping, authentic frame admission, budgets and journal recovery. Successful
+type validation alone does not authorize restore or prove the original program.
+
+`validate_result_binding_extension` and `validate_group_capture_correspondence`
+now own product capture-retention and original-row comparison policy in the
+command adapter, over the unchanged generic core walkers. Callers supply limits
+and group-name policy. The VM retains raw/frame admission, schema/identity/fuel
+ordering and journal transactions. `CaptureReplayError` distinguishes a mismatch
+from failed projection validation, preserving contextual `LSV1407`/`LSV1409`
+versus `LSV1405`. Full row scans still report late malformed values after a match;
+aliases never replace required original names. Frames remain borrowed, while
+selected scalar projection copies and group-validation scratch remain unchanged.
+These comparisons alone do not validate whole frames, raw identity or authority.
+
+The adapter's borrowed `ResultView` now unifies raw/saved scalar projection,
+exact name/operation member selection and owned capture construction. The VM
+uses that same type without wrapping data, retaining only policy defaults,
+metering and `ResultViewError` mapping (`LSV1402` access versus `LSV1405`
+projection). Member selection borrows the original row; field reads copy the
+selected scalar, while capture explicitly copies the saved projection. Saved
+captures are neither upgraded nor implicitly revalidated during reads/copies;
+raw group capture alone uses the supplied member limits/name predicate. Complete
+admission remains mandatory before execution, especially for duplicate names,
+raw reply identity and malformed saved schemas. Debug output contains no payload.
+The 70-operation/five-version adapter lifecycle joins read, capture, wire restore,
+complete binding validation and replay comparison without linking the VM.
+Frozen before/after reference tests preserve fault order and pointer identity;
+the existing re-entry/snapshot matrix retains every original fuel boundary.
+This is product adapter isolation, not generic durable recovery or full extraction.
+
+`leselang-command/tests/captured_execution.rs` now joins those data APIs to the
+production HIR evaluator without linking the VM or SQLite, including test-only
+dependencies. Parsed flat `seq`/`all` results pass through group/member aliases,
+two computed atomic successors and a scalar tail. Every saved binding can make a
+wire round-trip before re-entry with identical results, captures and total fuel.
+The proof restores all five closed vocabularies, tests every smaller fuel grant,
+and rejects malformed/cold-field frames, wrong replies and revoked fixture policy
+before restoration. Scalar recovery/conditional successors do not swallow native
+projection or fuel failures. The fixture supplies bounded headless replies and
+native accounting; HIR owns expression execution and scope restoration. This is
+not a second evaluator, real GUI dispatch, authentic receipts, graph-journal
+recovery or a complete reference/native-VM parity claim. CI runs it separately.
 
 Continuation result-type validation now reuses the HIR host signature catalog,
 instead of maintaining a second 70-operation type table in the VM. Frame/schema,

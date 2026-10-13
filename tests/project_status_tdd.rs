@@ -11238,7 +11238,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/command-lowering/command-plan-lowering")
         .expect("Leserpent command lowering cell must exist");
-    assert_eq!(command.contract.version, "0.67.0");
+    assert_eq!(command.contract.version, "0.73.0");
     for surface in [
         "product-owned-host-operation-and-reply-dtos",
         "exact-vm-type-reexports-with-unchanged-wire",
@@ -11267,7 +11267,24 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "vm-query-context-checks-before-owned-reply-conversion",
         "product-scalar-field-projection-without-vm-policy",
         "seventy-seven-type-twelve-field-projection-parity",
-        "vm-owned-five-version-capture-validation-and-metering",
+        "adapter-owned-five-version-capture-contract",
+        "exact-vm-capture-reexports-with-byte-and-buffer-parity",
+        "payload-free-capture-errors-with-vm-fault-and-budget-parity",
+        "adapter-owned-group-capture-and-ordered-correspondence",
+        "explicit-vm-group-member-limits-and-name-policy",
+        "exact-core-group-aliases-with-mixed-version-replay-parity",
+        "adapter-owned-closed-capture-field-access-policy",
+        "explicit-vm-access-limits-and-canonical-admission-order",
+        "seventy-operation-five-version-field-scope-parity",
+        "adapter-owned-complete-result-binding-validation",
+        "explicit-capture-group-access-policy-with-vm-schema-ownership",
+        "exact-result-binding-alias-and-canonical-type-parity",
+        "adapter-owned-capture-extension-and-group-correspondence",
+        "payload-free-replay-comparison-errors-with-contextual-vm-faults",
+        "explicit-replay-bounds-and-late-projection-error-parity",
+        "adapter-owned-borrowed-raw-and-saved-result-views",
+        "exact-member-borrows-and-legacy-preserving-capture-copies",
+        "seventy-operation-five-version-adapter-capture-lifecycle",
     ] {
         assert!(command.contract.surfaces.iter().any(|item| item == surface));
     }
@@ -11296,6 +11313,19 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "crates/leselang-vm/src/control_plane_reply_tests.rs",
         "crates/leselang-command/src/control_plane_value.rs",
         "crates/leselang-command/src/scalar_projection.rs",
+        "crates/leselang-command/src/projected_result.rs",
+        "crates/leselang-command/src/projected_group.rs",
+        "crates/leselang-command/src/projection_access.rs",
+        "crates/leselang-command/tests/projection_access.rs",
+        "crates/leselang-command/src/result_binding.rs",
+        "crates/leselang-command/tests/result_binding.rs",
+        "crates/leselang-command/src/capture_replay.rs",
+        "crates/leselang-command/tests/capture_replay.rs",
+        "crates/leselang-command/src/result_view.rs",
+        "crates/leselang-command/tests/result_view.rs",
+        "crates/leselang-command/tests/captured_execution.rs",
+        "crates/leselang-vm/src/result_view_tests.rs",
+        "crates/leselang-vm/tests/capture_contract.rs",
     ] {
         assert!(
             command

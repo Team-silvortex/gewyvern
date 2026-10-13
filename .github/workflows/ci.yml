@@ -46,6 +46,9 @@ jobs:
           cargo +1.98.0 run --locked -p gewyvern-dev --
           package leselang --output "$RUNNER_TEMP/leselang-native-source" --verify
 
+      - name: Test reference capture execution without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test captured_execution
+
       - name: Test reference VM with the SQLite backend disabled
         run: cargo +1.98.0 test -p leselang-vm --locked --no-default-features --features leserpent-profile
 

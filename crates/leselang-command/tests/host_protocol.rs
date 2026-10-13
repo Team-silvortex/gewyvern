@@ -1272,6 +1272,925 @@ fn control_plane_value_types() -> [(leselang_hir::Type, &'static str); 8] {
     ]
 }
 
+fn capture_cases() -> Vec<(
+    leselang_hir::host_call::HostOperation,
+    leselang_command::Value,
+)> {
+    use leselang_hir::host_call::HostOperation;
+    let mut values = reply_cases()
+        .into_iter()
+        .map(|case| {
+            let operation = serde_json::from_value(json!(format!(
+                "ui.{}",
+                case.reply_wire["kind"].as_str().unwrap()
+            )))
+            .unwrap();
+            (operation, leselang_command::Value::from(case.reply))
+        })
+        .collect::<Vec<_>>();
+    for ((effect, _, reply), (ty, _)) in control_plane_reply_cases()
+        .into_iter()
+        .zip(control_plane_value_types())
+    {
+        values.push((
+            HostOperation::for_effect(&effect).unwrap(),
+            reply.into_control_plane_value(ty).unwrap(),
+        ));
+    }
+    assert_eq!(values.len(), 70);
+    values
+}
+
+#[test]
+fn adapter_result_view_lifecycle_covers_seventy_operations_and_five_saved_vocabularies() {
+    use leselang_command::{
+        ProjectedBinding, ProjectedGroup, ProjectedGroupBinding, ProjectedResult, ResultBinding,
+        ResultBindingLimits, ResultView, ResultViewError, StructuredField, Value as ProductValue,
+        validate_group_capture_correspondence, validate_result_binding,
+        validate_result_binding_extension,
+    };
+    use leselang_hir::{
+        HirBranch, computation::Computation, host_call::HostOperation,
+        projection_access::ProjectionAccessLimits, result_field::ResultField,
+    };
+    use leselang_runtime_core::{
+        CaptureCorrespondenceLimits, CaptureValidationLimits, GroupCaptureLimits, ScalarValue,
+    };
+    let mut cases = reply_cases()
+        .into_iter()
+        .map(|case| {
+            (
+                effect_from_wire(&case.operation_wire),
+                ProductValue::from(case.reply),
+            )
+        })
+        .collect::<Vec<_>>();
+    for ((effect, _, reply), (ty, _)) in control_plane_reply_cases()
+        .into_iter()
+        .zip(control_plane_value_types())
+    {
+        cases.push((effect, reply.into_control_plane_value(ty).unwrap()));
+    }
+    assert_eq!(cases.len(), 70);
+    let limits = ResultBindingLimits {
+        captures: CaptureValidationLimits {
+            max_saved_bindings: 3,
+            max_name_bytes: 16,
+        },
+        groups: GroupCaptureLimits {
+            min_members: 1,
+            max_members: 1,
+        },
+        accesses: ProjectionAccessLimits {
+            max_nodes: 100,
+            max_depth: 16,
+        },
+    };
+    for (effect, value) in cases {
+        let operation = HostOperation::for_effect(&effect).unwrap();
+        let branches = [HirBranch {
+            name: "member".into(),
+            effect: effect.clone(),
+            result_type: operation.result_type(),
+        }];
+        let raw_group = ProductValue::Structured {
+            fields: vec![StructuredField {
+                name: "member".into(),
+                value: Box::new(value.clone()),
+            }],
+        };
+        let raw = ResultView::Raw {
+            value: &value,
+            operation,
+        };
+        let group_view = ResultView::Group {
+            value: &raw_group,
+            branches: &branches,
+        };
+        let current = raw.capture_result().unwrap();
+        assert_eq!(
+            group_view
+                .select_member("member", operation)
+                .unwrap()
+                .capture_result()
+                .unwrap(),
+            current
+        );
+        assert_eq!(
+            group_view
+                .capture_group(limits.groups, |_| true)
+                .unwrap()
+                .members[0]
+                .result,
+            current
+        );
+        for version in 1..=5 {
+            let legacy = ProjectedResult::capture_version(operation, &value, version).unwrap();
+            let prior = ResultBinding {
+                name: "current".into(),
+                locals: vec![],
+                results: vec![ProjectedBinding {
+                    name: "archived".into(),
+                    result: legacy.clone(),
+                }],
+                groups: vec![ProjectedGroupBinding {
+                    name: "batch".into(),
+                    group: ProjectedGroup {
+                        members: vec![ProjectedBinding {
+                            name: "member".into(),
+                            result: legacy.clone(),
+                        }],
+                    },
+                }],
+                body: Computation::Literal {
+                    value: ScalarValue::None,
+                },
+            };
+            let mut saved = prior.clone();
+            saved.name = "next".into();
+            saved.results.push(ProjectedBinding {
+                name: "current".into(),
+                result: raw.capture_result().unwrap(),
+            });
+            let wire = serde_json::to_vec(&saved).unwrap();
+            let restored: ResultBinding = serde_json::from_slice(&wire).unwrap();
+            let saved_view = ResultView::Projected(&restored.results[0].result);
+            let saved_group = ResultView::ProjectedGroup(&restored.groups[0].group);
+            let member = saved_group.select_member("member", operation).unwrap();
+            let ResultView::Projected(borrowed) = member else {
+                panic!()
+            };
+            assert!(std::ptr::eq(
+                borrowed,
+                &restored.groups[0].group.members[0].result
+            ));
+            assert_eq!(saved_view.capture_result().unwrap(), legacy);
+            assert_eq!(
+                saved_group
+                    .capture_group(limits.groups, |_| panic!("saved copy revalidated"))
+                    .unwrap(),
+                prior.groups[0].group
+            );
+            for field in ResultField::ALL {
+                let expected = legacy
+                    .fields
+                    .iter()
+                    .find(|stored| stored.field == field)
+                    .map(|stored| stored.value.clone())
+                    .ok_or(ResultViewError::InvalidProjection);
+                assert_eq!(saved_view.project_scalar(field), expected);
+                assert_eq!(member.project_scalar(field), expected);
+                assert_eq!(
+                    raw.project_scalar(field),
+                    value
+                        .project_scalar(field)
+                        .ok_or(ResultViewError::InvalidProjection)
+                );
+            }
+            assert!(validate_result_binding(&prior, &effect, limits, |_| true).is_ok());
+            assert!(validate_result_binding(&restored, &effect, limits, |_| true).is_ok());
+            assert_eq!(
+                validate_result_binding_extension(&prior, &restored, &effect, &value, 3),
+                Ok(())
+            );
+            let ProductValue::Structured { fields } = &raw_group else {
+                panic!()
+            };
+            assert_eq!(
+                validate_group_capture_correspondence(
+                    &restored,
+                    &branches,
+                    fields,
+                    &[operation],
+                    CaptureCorrespondenceLimits {
+                        max_saved_bindings: 3,
+                        max_original_rows: 1
+                    },
+                    limits.groups,
+                    |_| true,
+                ),
+                Ok(())
+            );
+            assert_eq!(serde_json::to_vec(&restored).unwrap(), wire);
+        }
+    }
+}
+
+#[test]
+fn capture_replay_comparisons_preserve_seventy_operations_and_five_legacy_versions() {
+    use leselang_command::{
+        CaptureReplayError, ProjectedBinding, ProjectedGroup, ProjectedGroupBinding,
+        ProjectedResult, ResultBinding, StructuredField, Value as ProductValue,
+        validate_group_capture_correspondence, validate_result_binding_extension,
+    };
+    use leselang_hir::{HirBranch, computation::Computation, host_call::HostOperation};
+    use leselang_runtime_core::{CaptureCorrespondenceLimits, GroupCaptureLimits, ScalarValue};
+    let mut cases = reply_cases()
+        .into_iter()
+        .map(|case| {
+            (
+                effect_from_wire(&case.operation_wire),
+                ProductValue::from(case.reply),
+            )
+        })
+        .collect::<Vec<_>>();
+    for ((effect, _, reply), (ty, _)) in control_plane_reply_cases()
+        .into_iter()
+        .zip(control_plane_value_types())
+    {
+        cases.push((effect, reply.into_control_plane_value(ty).unwrap()));
+    }
+    assert_eq!(cases.len(), 70);
+    for (effect, raw) in cases {
+        let operation = HostOperation::for_effect(&effect).unwrap();
+        let branches = [HirBranch {
+            name: "member".into(),
+            result_type: operation.result_type(),
+            effect: effect.clone(),
+        }];
+        let fields = [StructuredField {
+            name: "member".into(),
+            value: Box::new(raw.clone()),
+        }];
+        for version in 1..=5 {
+            let captured = ProjectedResult::capture_version(operation, &raw, version).unwrap();
+            let prior = ResultBinding {
+                name: "current".into(),
+                locals: vec![],
+                results: vec![],
+                groups: vec![ProjectedGroupBinding {
+                    name: "group".into(),
+                    group: ProjectedGroup {
+                        members: vec![ProjectedBinding {
+                            name: "member".into(),
+                            result: captured.clone(),
+                        }],
+                    },
+                }],
+                body: Computation::Literal {
+                    value: ScalarValue::None,
+                },
+            };
+            let mut saved = prior.clone();
+            saved.name = "next".into();
+            saved.results = vec![
+                ProjectedBinding {
+                    name: "current".into(),
+                    result: captured.clone(),
+                },
+                ProjectedBinding {
+                    name: "alias".into(),
+                    result: captured.clone(),
+                },
+            ];
+            let before = serde_json::to_vec(&(&prior, &saved)).unwrap();
+            assert_eq!(
+                validate_result_binding_extension(&prior, &saved, &effect, &raw, 3),
+                Ok(())
+            );
+            assert_eq!(
+                validate_group_capture_correspondence(
+                    &saved,
+                    &branches,
+                    &fields,
+                    &[operation],
+                    CaptureCorrespondenceLimits {
+                        max_saved_bindings: 3,
+                        max_original_rows: 1
+                    },
+                    GroupCaptureLimits {
+                        min_members: 1,
+                        max_members: 1
+                    },
+                    |_| true
+                ),
+                Ok(())
+            );
+            // A projection with no exported fields cannot certify raw result identity.
+            let expected = if captured.fields.is_empty() {
+                Ok(())
+            } else {
+                Err(CaptureReplayError::InvalidProjection)
+            };
+            assert_eq!(
+                validate_result_binding_extension(
+                    &prior,
+                    &saved,
+                    &effect,
+                    &ProductValue::Scalar {
+                        value: ScalarValue::None
+                    },
+                    3
+                ),
+                expected
+            );
+            assert_eq!(serde_json::to_vec(&(&prior, &saved)).unwrap(), before);
+        }
+    }
+}
+
+#[test]
+fn complete_binding_validation_covers_seventy_operations_and_five_closed_vocabularies() {
+    use leselang_command::{
+        ProjectedBinding, ProjectedGroup, ProjectedGroupBinding, ProjectedResult, ResultBinding,
+        ResultBindingLimits, validate_result_binding,
+    };
+    use leselang_hir::{
+        Effect, Type, computation::Computation, projection_access::ProjectionAccessLimits,
+        result_field::ResultField,
+    };
+    use leselang_runtime_core::{CaptureValidationLimits, GroupCaptureLimits};
+    let limits = ResultBindingLimits {
+        captures: CaptureValidationLimits {
+            max_saved_bindings: 2,
+            max_name_bytes: 16,
+        },
+        groups: GroupCaptureLimits {
+            min_members: 1,
+            max_members: 1,
+        },
+        accesses: ProjectionAccessLimits {
+            max_nodes: 100,
+            max_depth: 16,
+        },
+    };
+    let pending = Effect::UiFocus {
+        node_id: "pending".into(),
+    };
+    for (operation, value) in capture_cases() {
+        for version in 1..=5 {
+            let saved = ProjectedResult::capture_version(operation, &value, version).unwrap();
+            for field in ResultField::ALL {
+                let expected = saved
+                    .fields
+                    .iter()
+                    .find(|entry| entry.field == field)
+                    .map(|entry| Type::Scalar(entry.value.scalar_type()));
+                for receiver in [
+                    Computation::Local {
+                        name: "saved".into(),
+                    },
+                    Computation::Member {
+                        group: "group".into(),
+                        name: "member".into(),
+                        operation,
+                    },
+                ] {
+                    let captured = ResultBinding {
+                        name: "reply".into(),
+                        locals: vec![],
+                        results: vec![ProjectedBinding {
+                            name: "saved".into(),
+                            result: saved.clone(),
+                        }],
+                        groups: vec![ProjectedGroupBinding {
+                            name: "group".into(),
+                            group: ProjectedGroup {
+                                members: vec![ProjectedBinding {
+                                    name: "member".into(),
+                                    result: saved.clone(),
+                                }],
+                            },
+                        }],
+                        body: Computation::Field {
+                            value: Box::new(receiver),
+                            field,
+                        },
+                    };
+                    let before = serde_json::to_vec(&captured).unwrap();
+                    assert_eq!(
+                        validate_result_binding(&captured, &pending, limits, |_| true).ok(),
+                        expected,
+                        "{operation:?} v{version} {field:?}"
+                    );
+                    assert_eq!(serde_json::to_vec(&captured).unwrap(), before);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn captured_access_masks_cover_seventy_operations_five_versions_and_twelve_fields() {
+    use leselang_command::{
+        ProjectedBinding, ProjectedGroup, ProjectedGroupBinding, ProjectedResult,
+        validate_captured_projection_accesses,
+    };
+    use leselang_hir::{
+        computation::Computation, projection_access::ProjectionAccessLimits,
+        result_field::ResultField,
+    };
+    use leselang_runtime_core::{CapturedBindings, ScalarValue};
+
+    let limits = ProjectionAccessLimits {
+        max_nodes: 100,
+        max_depth: 16,
+    };
+    let pending = leselang_hir::Effect::UiFocus {
+        node_id: "pending".into(),
+    };
+    for (operation, value) in capture_cases() {
+        for version in 1..=5 {
+            let saved = ProjectedResult::capture_version(operation, &value, version).unwrap();
+            let bytes = serde_json::to_vec(&saved).unwrap();
+            let local = || Computation::Local {
+                name: "saved".into(),
+            };
+            let call = || Computation::Call {
+                operation,
+                arguments: vec![],
+            };
+            let mut frame = CapturedBindings {
+                name: "pending".into(),
+                locals: vec![],
+                results: vec![ProjectedBinding {
+                    name: "saved".into(),
+                    result: saved.clone(),
+                }],
+                groups: vec![ProjectedGroupBinding {
+                    name: "group".into(),
+                    group: ProjectedGroup {
+                        members: vec![ProjectedBinding {
+                            name: "member".into(),
+                            result: saved.clone(),
+                        }],
+                    },
+                }],
+                body: local(),
+            };
+            for field in ResultField::ALL {
+                let allowed = saved.fields.iter().any(|stored| stored.field == field);
+                for receiver in [
+                    local(),
+                    Computation::Bind {
+                        name: "alias".into(),
+                        value: Box::new(local()),
+                        body: Box::new(Computation::Local {
+                            name: "alias".into(),
+                        }),
+                    },
+                    Computation::Member {
+                        group: "group".into(),
+                        name: "member".into(),
+                        operation,
+                    },
+                    Computation::Bind {
+                        name: "alias".into(),
+                        value: Box::new(Computation::Local {
+                            name: "group".into(),
+                        }),
+                        body: Box::new(Computation::Member {
+                            group: "alias".into(),
+                            name: "member".into(),
+                            operation,
+                        }),
+                    },
+                    Computation::Choose {
+                        when: Box::new(Computation::Literal {
+                            value: ScalarValue::Boolean(true),
+                        }),
+                        then: Box::new(call()),
+                        otherwise: Box::new(local()),
+                    },
+                    Computation::Choose {
+                        when: Box::new(Computation::Literal {
+                            value: ScalarValue::Boolean(false),
+                        }),
+                        then: Box::new(local()),
+                        otherwise: Box::new(call()),
+                    },
+                ] {
+                    frame.body = Computation::Field {
+                        value: Box::new(receiver),
+                        field,
+                    };
+                    assert_eq!(
+                        validate_captured_projection_accesses(&frame, &pending, limits).is_ok(),
+                        allowed,
+                        "{operation:?} v{version} {field:?}"
+                    );
+                }
+                // Live calls still use the current catalog, not the saved vocabulary.
+                frame.body = Computation::Field {
+                    value: Box::new(call()),
+                    field,
+                };
+                assert_eq!(
+                    validate_captured_projection_accesses(&frame, &pending, limits).is_ok(),
+                    field.result_type(operation.result_type()).is_some()
+                );
+            }
+            assert_eq!(serde_json::to_vec(&frame.results[0].result).unwrap(), bytes);
+            assert_eq!(
+                serde_json::to_vec(&frame.groups[0].group.members[0].result).unwrap(),
+                bytes
+            );
+        }
+    }
+}
+
+#[test]
+fn group_captures_cover_seventy_operations_with_mixed_versions_and_exact_member_order() {
+    use leselang_command::{
+        ProjectedGroup, ProjectedGroupExt, StructuredField, Value as ProductValue,
+    };
+    use leselang_hir::{HirBranch, host_call::HostOperation, result_field::ResultField};
+    use leselang_runtime_core::GroupCaptureLimits;
+    let mut cases = reply_cases()
+        .into_iter()
+        .map(|case| {
+            (
+                effect_from_wire(&case.operation_wire),
+                ProductValue::from(case.reply),
+            )
+        })
+        .collect::<Vec<_>>();
+    for ((effect, _, reply), (ty, _)) in control_plane_reply_cases()
+        .into_iter()
+        .zip(control_plane_value_types())
+    {
+        cases.push((effect, reply.into_control_plane_value(ty).unwrap()));
+    }
+    assert_eq!(cases.len(), 70);
+    let branches = cases
+        .iter()
+        .enumerate()
+        .map(|(i, (effect, _))| HirBranch {
+            name: format!("member-{i}"),
+            result_type: HostOperation::for_effect(effect).unwrap().result_type(),
+            effect: effect.clone(),
+        })
+        .collect::<Vec<_>>();
+    let fields = cases
+        .into_iter()
+        .enumerate()
+        .map(|(i, (_, value))| StructuredField {
+            name: format!("member-{i}"),
+            value: Box::new(value),
+        })
+        .collect::<Vec<_>>();
+    let raw = ProductValue::Structured { fields };
+    // The adapter accepts caller policy, not the reference VM's 63-member ceiling.
+    let limits = GroupCaptureLimits {
+        min_members: 1,
+        max_members: 70,
+    };
+    let original = ProjectedGroup::capture(&branches, &raw, limits, |_| true).unwrap();
+    let ProductValue::Structured { fields } = &raw else {
+        panic!()
+    };
+    let vocabularies: [&[ResultField]; 5] = [
+        &ResultField::V1,
+        &ResultField::V2,
+        &ResultField::V3,
+        &ResultField::V4,
+        &ResultField::V5,
+    ];
+    for round in 0..5 {
+        let mut group = original.clone();
+        for (index, member) in group.members.iter_mut().enumerate() {
+            let version = (index + round) % 5;
+            member.result.projection_version = version as u32 + 1;
+            member
+                .result
+                .fields
+                .retain(|field| vocabularies[version].contains(&field.field));
+        }
+        assert!(
+            group
+                .matches_members(&branches, fields, limits, |_| true)
+                .unwrap()
+        );
+        let wire = serde_json::to_vec(&group).unwrap();
+        let expected = format!(
+            "{{\"members\":[{}]}}",
+            group
+                .members
+                .iter()
+                .map(|member| {
+                    format!(
+                        "{{\"name\":{},\"result\":{}}}",
+                        serde_json::to_string(&member.name).unwrap(),
+                        serde_json::to_string(&member.result).unwrap()
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        assert_eq!(wire, expected.as_bytes());
+        let restored: ProjectedGroup = serde_json::from_slice(&wire).unwrap();
+        assert_eq!(restored, group);
+        assert!(restored.matches_signature(&branches));
+        assert!(
+            restored
+                .matches_members(&branches, fields, limits, |_| true)
+                .unwrap()
+        );
+        group.members.reverse();
+        assert!(group.validate(limits, |_| true).is_ok());
+        assert!(
+            !group
+                .matches_members(&branches, fields, limits, |_| true)
+                .unwrap()
+        );
+    }
+    let mut wire = serde_json::to_value(&original).unwrap();
+    wire["unknown"] = json!(true);
+    assert!(serde_json::from_value::<ProjectedGroup>(wire).is_err());
+    let mut wire = serde_json::to_value(&original).unwrap();
+    wire["members"][0]["unknown"] = json!(true);
+    assert!(serde_json::from_value::<ProjectedGroup>(wire).is_err());
+}
+
+#[test]
+fn group_capture_policy_is_explicit_and_name_hooks_keep_original_validation_order() {
+    use leselang_command::{
+        InvalidProjectedResult, ProjectedBinding, ProjectedGroup, ProjectedGroupExt,
+        ProjectedResult, StructuredField, Value as ProductValue,
+    };
+    use leselang_hir::{HirBranch, Type, host_call::HostOperation};
+    use leselang_runtime_core::GroupCaptureLimits;
+    let value = ProductValue::UiFocus {
+        node_id: "a".into(),
+    };
+    let member = ProjectedBinding {
+        name: "a".into(),
+        result: ProjectedResult::capture(HostOperation::UiFocus, &value).unwrap(),
+    };
+    let mut group = ProjectedGroup {
+        members: vec![
+            member.clone(),
+            ProjectedBinding {
+                name: "b".into(),
+                ..member
+            },
+        ],
+    };
+    let limits = GroupCaptureLimits {
+        min_members: 1,
+        max_members: 2,
+    };
+    for policy in [
+        GroupCaptureLimits {
+            min_members: 0,
+            max_members: 0,
+        },
+        GroupCaptureLimits {
+            min_members: 3,
+            max_members: 2,
+        },
+    ] {
+        assert_eq!(
+            group.validate(policy, |_| panic!("count must precede callbacks")),
+            Err(InvalidProjectedResult)
+        );
+    }
+    let empty = ProjectedGroup { members: vec![] };
+    assert!(
+        empty
+            .validate(
+                GroupCaptureLimits {
+                    min_members: 0,
+                    max_members: 0
+                },
+                |_| panic!()
+            )
+            .is_ok()
+    );
+    group.members[0].result.projection_version = 0;
+    let before = group.clone();
+    let mut visited = Vec::new();
+    assert_eq!(
+        group.validate(limits, |name| {
+            visited.push(name.to_owned());
+            true
+        }),
+        Err(InvalidProjectedResult)
+    );
+    assert_eq!(visited, ["a", "b"]); // Every name is checked before saved result data.
+    assert_eq!(group, before);
+    group.members[0].result.projection_version = 1;
+    group.members[1].name = "a".into();
+    let mut visited = Vec::new();
+    assert_eq!(
+        group.validate(limits, |name| {
+            visited.push(name.to_owned());
+            true
+        }),
+        Err(InvalidProjectedResult)
+    );
+    assert_eq!(visited, ["a", "a"]);
+    let mut visited = Vec::new();
+    assert_eq!(
+        group.validate(limits, |name| {
+            visited.push(name.to_owned());
+            false
+        }),
+        Err(InvalidProjectedResult)
+    );
+    assert_eq!(visited, ["a"]);
+
+    let branches = [HirBranch {
+        name: "custom.name".into(),
+        effect: Effect::UiFocus {
+            node_id: "a".into(),
+        },
+        result_type: Type::UiFocus,
+    }];
+    let raw = ProductValue::Structured {
+        fields: vec![StructuredField {
+            name: "custom.name".into(),
+            value: Box::new(value),
+        }],
+    };
+    assert!(ProjectedGroup::capture(&branches, &raw, limits, |name| name == "custom.name").is_ok());
+    assert_eq!(
+        ProjectedGroup::capture(&branches, &raw, limits, |_| false),
+        Err(InvalidProjectedResult)
+    );
+    let wrong_shape = ProductValue::Scalar {
+        value: leselang_hir::computation::ScalarValue::None,
+    };
+    assert_eq!(
+        ProjectedGroup::capture(&branches, &wrong_shape, limits, |_| panic!("shape first")),
+        Err(InvalidProjectedResult)
+    );
+}
+
+#[test]
+fn product_captures_preserve_seventy_operations_five_versions_and_exact_wire_order() {
+    use leselang_command::{ProjectedField, ProjectedResult};
+    use leselang_hir::{computation::ScalarValue, result_field::ResultField};
+
+    #[derive(serde::Serialize)]
+    struct FrozenFrame<'a> {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        projection_version: Option<u32>,
+        operation: &'a str,
+        fields: Vec<FrozenField<'a>>,
+    }
+    #[derive(serde::Serialize)]
+    struct FrozenField<'a> {
+        field: &'a str,
+        value: ScalarValue,
+    }
+    let fields = [
+        "revision",
+        "count",
+        "node_id",
+        "focused_node_id",
+        "max_length",
+        "selected",
+        "required",
+        "expected",
+        "field",
+        "value",
+        "kind",
+        "optional_expected",
+    ];
+    let widths = [5, 7, 10, 11, 12];
+    for (operation, value) in capture_cases() {
+        let current = ProjectedResult::capture(operation, &value).unwrap();
+        let expected_version = fields
+            .iter()
+            .enumerate()
+            .filter_map(|(i, name)| {
+                let key: ResultField = serde_json::from_value(json!(name)).unwrap();
+                key.result_type(operation.result_type())
+                    .map(|_| widths.iter().position(|width| i < *width).unwrap() as u32 + 1)
+            })
+            .max()
+            .unwrap_or(1);
+        assert_eq!(current.projection_version, expected_version);
+        for (index, width) in widths.into_iter().enumerate() {
+            let version = index as u32 + 1;
+            let captured = ProjectedResult::capture_version(operation, &value, version).unwrap();
+            let expected = FrozenFrame {
+                projection_version: (version != 1).then_some(version),
+                operation: operation.name(),
+                fields: fields[..width]
+                    .iter()
+                    .filter_map(|name| {
+                        let key: ResultField = serde_json::from_value(json!(name)).unwrap();
+                        key.result_type(operation.result_type())
+                            .map(|_| FrozenField {
+                                field: name,
+                                value: value.project_scalar(key).unwrap(),
+                            })
+                    })
+                    .collect(),
+            };
+            let wire = serde_json::to_vec(&captured).unwrap();
+            assert_eq!(
+                wire,
+                serde_json::to_vec(&expected).unwrap(),
+                "{operation:?}/{version}"
+            );
+            let restored: ProjectedResult = serde_json::from_slice(&wire).unwrap();
+            assert_eq!(restored, captured);
+            assert!(restored.matches_capture(operation, &value).unwrap());
+            for name in fields {
+                let key: ResultField = serde_json::from_value(json!(name)).unwrap();
+                assert_eq!(
+                    restored.field(key).is_ok(),
+                    expected.fields.iter().any(|f| f.field == name)
+                );
+            }
+            // The nested field remains the core's exact generic type.
+            for field in captured.fields {
+                let shared: leselang_runtime_core::ScalarProjectionField<ResultField> = field;
+                let _: ProjectedField = shared;
+            }
+        }
+    }
+}
+
+#[test]
+fn product_capture_validation_rejects_mutations_without_repair_or_payload_diagnostics() {
+    use leselang_command::{InvalidProjectedResult, ProjectedResult};
+    use leselang_hir::computation::ScalarValue;
+    for (operation, value) in capture_cases() {
+        for version in 1..=5 {
+            let original = ProjectedResult::capture_version(operation, &value, version).unwrap();
+            for mutation in 0..7 {
+                let mut changed = original.clone();
+                match mutation {
+                    0 => changed.projection_version = 0,
+                    1 => changed.projection_version = u32::MAX,
+                    2 if !changed.fields.is_empty() => {
+                        changed.fields.remove(0);
+                    }
+                    3 if !changed.fields.is_empty() => {
+                        changed.fields.push(changed.fields[0].clone())
+                    }
+                    4 if !changed.fields.is_empty() => changed.fields[0].value = ScalarValue::None,
+                    5 if changed.fields.len() > 1 => changed.fields.reverse(),
+                    6 if !changed.fields.is_empty() => {
+                        changed.fields[0].value = ScalarValue::String("private-payload".repeat(400))
+                    }
+                    _ => continue,
+                }
+                let before = changed.clone();
+                assert_eq!(changed.validate(), Err(InvalidProjectedResult));
+                assert_eq!(
+                    changed.matches_capture(operation, &value),
+                    Err(InvalidProjectedResult)
+                );
+                assert_eq!(changed, before);
+            }
+        }
+    }
+    assert_eq!(
+        InvalidProjectedResult.to_string(),
+        "invalid product result projection"
+    );
+    assert_eq!(
+        format!("{InvalidProjectedResult:?}"),
+        "InvalidProjectedResult"
+    );
+}
+
+#[test]
+fn product_capture_shape_never_certifies_raw_identity_or_trusted_restore_version() {
+    use leselang_command::{ProjectedResult, Value as ProductValue};
+    use leselang_hir::{
+        computation::ScalarValue, host_call::HostOperation, result_field::ResultField,
+    };
+    let raw = ProductValue::UiActivate {
+        node_id: "node-a".into(),
+    };
+    let mut frame = ProjectedResult::capture(HostOperation::UiFocus, &raw).unwrap();
+    assert!(frame.matches_capture(HostOperation::UiFocus, &raw).unwrap());
+    assert!(
+        !frame
+            .matches_capture(HostOperation::UiActivate, &raw)
+            .unwrap()
+    );
+    // Pure projection intentionally preserves the original field-only policy.
+    // VM/host gates, not this data helper, must admit the actual raw result type.
+    let empty = ProjectedResult::capture(HostOperation::RuntimeRefresh, &raw).unwrap();
+    assert!(empty.fields.is_empty());
+    assert!(
+        empty
+            .matches_capture(HostOperation::RuntimeRefresh, &raw)
+            .unwrap()
+    );
+    frame.projection_version = 0;
+    assert!(frame.validate().is_err());
+    assert_eq!(
+        frame.field(ResultField::NodeId),
+        Ok(ScalarValue::String("node-a".into()))
+    );
+    assert!(
+        frame
+            .matches_capture(HostOperation::RuntimeRefresh, &raw)
+            .is_err()
+    );
+    let decoded: ProjectedResult =
+        serde_json::from_value(serde_json::to_value(&frame).unwrap()).unwrap();
+    assert!(decoded.validate().is_err());
+}
+
 #[test]
 fn scalar_projection_covers_all_seventy_seven_types_and_twelve_explicit_fields() {
     use leselang_command::Value as ProductValue;

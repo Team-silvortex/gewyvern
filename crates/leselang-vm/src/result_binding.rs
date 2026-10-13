@@ -1,266 +1,26 @@
-use leselang_hir::computation::{Computation, GroupLocalType, ScalarValue};
-use leselang_hir::host_call::HostOperation;
-use leselang_hir::projection_access::{
-    ProjectionAccessError, ProjectionAccessLimits, ProjectionAccessPolicy,
-    observe_projection_accesses,
-};
-use leselang_hir::result_field::ResultField;
+use leselang_hir::projection_access::ProjectionAccessLimits;
 use leselang_hir::{Effect, MAX_BRANCH_NAME_BYTES, MAX_EFFECT_NESTING_DEPTH, Type};
-use leselang_runtime_core::{
-    CaptureScopeError, CaptureStructureError, CaptureValidationLimits, GroupCaptureLimits,
-    ScalarProjectionField, ScopeFrame, validate_captured_bindings, validate_projected_group,
-    validate_scalar_projection, with_captured_scope,
+use leselang_runtime_core::{CaptureValidationLimits, GroupCaptureLimits};
+
+use crate::Fault;
+
+pub use leselang_command::{
+    ProjectedBinding, ProjectedField, ProjectedGroup, ProjectedGroupBinding, ProjectedResult,
+    ResultBinding,
 };
-use serde::{Deserialize, Serialize};
-
-use crate::{Fault, Value};
-
 pub use leselang_runtime_core::ScalarBinding;
 
-/// Exact reference specializations of the shared owned capture DTOs.
-pub type ResultBinding =
-    leselang_runtime_core::CapturedBindings<Computation, ProjectedResult, ProjectedGroup>;
-pub type ProjectedBinding = leselang_runtime_core::ProjectedBinding<ProjectedResult>;
-pub type ProjectedGroupBinding = leselang_runtime_core::ProjectedGroupBinding<ProjectedGroup>;
-pub type ProjectedGroup = leselang_runtime_core::ProjectedGroup<ProjectedResult>;
+pub(super) use leselang_command::ProjectedGroupExt as ReferenceProjectedGroup;
 
-pub(super) trait ReferenceProjectedGroup: Sized {
-    fn capture(branches: &[leselang_hir::HirBranch], value: &Value) -> Result<Self, Fault>;
-    fn validate(&self) -> Result<(), Fault>;
-    fn matches_signature(&self, branches: &[leselang_hir::HirBranch]) -> bool;
-    fn matches_members(
-        &self,
-        branches: &[leselang_hir::HirBranch],
-        fields: &[crate::StructuredField],
-    ) -> Result<bool, Fault>;
-}
-
-impl ReferenceProjectedGroup for ProjectedGroup {
-    fn capture(branches: &[leselang_hir::HirBranch], value: &Value) -> Result<Self, Fault> {
-        let Value::Structured { fields } = value else {
-            return Err(invalid());
-        };
-        if branches.len() != fields.len() {
-            return Err(invalid());
-        }
-        let members = branches
-            .iter()
-            .zip(fields)
-            .map(|(branch, field)| {
-                if branch.name != field.name {
-                    return Err(invalid());
-                }
-                let operation = HostOperation::for_effect(&branch.effect).ok_or_else(invalid)?;
-                Ok(ProjectedBinding {
-                    name: branch.name.clone(),
-                    result: ProjectedResult::capture(operation, &field.value)?,
-                })
-            })
-            .collect::<Result<Vec<_>, Fault>>()?;
-        let group = Self { members };
-        group.validate()?;
-        Ok(group)
-    }
-
-    fn validate(&self) -> Result<(), Fault> {
-        validate_projected_group(
-            self,
-            GroupCaptureLimits {
-                min_members: 1,
-                max_members: crate::MAX_MERGE_BRANCHES - 1,
-            },
-            crate::valid_merge_branch_name,
-            ProjectedResult::validate,
-        )
-        .map_err(structure_fault)
-    }
-
-    fn matches_signature(&self, branches: &[leselang_hir::HirBranch]) -> bool {
-        self.members.len() == branches.len()
-            && self.members.iter().zip(branches).all(|(member, branch)| {
-                member.name == branch.name
-                    && HostOperation::for_effect(&branch.effect) == Some(member.result.operation)
-            })
-    }
-
-    fn matches_members(
-        &self,
-        branches: &[leselang_hir::HirBranch],
-        fields: &[crate::StructuredField],
-    ) -> Result<bool, Fault> {
-        self.validate()?;
-        if !self.matches_signature(branches) || fields.len() != branches.len() {
-            return Ok(false);
-        }
-        for ((member, branch), field) in self.members.iter().zip(branches).zip(fields) {
-            if field.name != branch.name
-                || !member
-                    .result
-                    .matches_capture(member.result.operation, &field.value)?
-            {
-                return Ok(false);
-            }
-        }
-        Ok(true)
+pub(super) fn group_capture_limits() -> GroupCaptureLimits {
+    GroupCaptureLimits {
+        min_members: 1,
+        max_members: crate::MAX_MERGE_BRANCHES - 1,
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ProjectedResult {
-    #[serde(
-        default = "legacy_projection_version",
-        skip_serializing_if = "is_legacy_projection"
-    )]
-    pub projection_version: u32,
-    pub operation: HostOperation,
-    pub fields: Vec<ProjectedField>,
-}
-
-fn legacy_projection_version() -> u32 {
-    1
-}
-
-fn is_legacy_projection(version: &u32) -> bool {
-    *version == 1
-}
-
-/// Legacy adapter specialization of the shared scalar field DTO, without conversion.
-pub type ProjectedField = ScalarProjectionField<ResultField>;
-
-impl ProjectedResult {
-    pub(super) fn capture(operation: HostOperation, value: &Value) -> Result<Self, Fault> {
-        let version = if ResultField::OptionalExpected
-            .result_type(operation.result_type())
-            .is_some()
-        {
-            5
-        } else if ResultField::Kind
-            .result_type(operation.result_type())
-            .is_some()
-        {
-            4
-        } else if [
-            ResultField::Expected,
-            ResultField::Field,
-            ResultField::Value,
-        ]
-        .into_iter()
-        .any(|field| field.result_type(operation.result_type()).is_some())
-        {
-            3
-        } else if [ResultField::Selected, ResultField::Required]
-            .into_iter()
-            .any(|field| field.result_type(operation.result_type()).is_some())
-        {
-            2
-        } else {
-            1
-        };
-        Self::capture_version(operation, value, version)
-    }
-
-    fn capture_version(
-        operation: HostOperation,
-        value: &Value,
-        version: u32,
-    ) -> Result<Self, Fault> {
-        let fields = projection_fields(version)?
-            .iter()
-            .copied()
-            .filter(|field| field.result_type(operation.result_type()).is_some())
-            .map(|field| {
-                Ok(ProjectedField {
-                    field,
-                    value: project(value, field)?,
-                })
-            })
-            .collect::<Result<Vec<_>, Fault>>()?;
-        let result = Self {
-            projection_version: version,
-            operation,
-            fields,
-        };
-        result.validate()?;
-        Ok(result)
-    }
-
-    fn validate(&self) -> Result<(), Fault> {
-        let expected = projection_fields(self.projection_version)?
-            .iter()
-            .filter_map(|field| {
-                field
-                    .result_type(self.operation.result_type())
-                    .map(|ty| (field, ty))
-            });
-        validate_scalar_projection(&self.fields, expected).map_err(|_| invalid())?;
-        // Shape is shared; operation-specific value domains remain adapter policy.
-        if self.fields.iter().any(|stored| {
-            (stored.field == ResultField::Kind && !valid_kind_token(self.operation, &stored.value))
-                || (stored.field == ResultField::OptionalExpected
-                    && stored
-                        .value
-                        .text()
-                        .is_some_and(|text| !leselang_hir::validate_ui_expected_text(text)))
-        }) {
-            return Err(invalid());
-        }
-        Ok(())
-    }
-
-    pub(super) fn matches_capture(
-        &self,
-        operation: HostOperation,
-        value: &Value,
-    ) -> Result<bool, Fault> {
-        self.validate()?;
-        if self.operation != operation {
-            return Ok(false);
-        }
-        for stored in &self.fields {
-            if stored.value != project(value, stored.field)? {
-                return Ok(false);
-            }
-        }
-        Ok(true)
-    }
-
-    pub(super) fn field(&self, field: ResultField) -> Result<ScalarValue, Fault> {
-        self.fields
-            .iter()
-            .find(|stored| stored.field == field)
-            .map(|stored| stored.value.clone())
-            .ok_or_else(invalid)
-    }
-}
-
-fn projection_fields(version: u32) -> Result<&'static [ResultField], Fault> {
-    match version {
-        1 => Ok(&ResultField::V1),
-        2 => Ok(&ResultField::V2),
-        3 => Ok(&ResultField::V3),
-        4 => Ok(&ResultField::V4),
-        5 => Ok(&ResultField::V5),
-        _ => Err(invalid()),
-    }
-}
-
-fn valid_kind_token(operation: HostOperation, value: &ScalarValue) -> bool {
-    let ScalarValue::String(token) = value else {
-        return false;
-    };
-    match operation {
-        HostOperation::UiAssertNodeKind | HostOperation::UiWaitNodeKind => {
-            leselang_hir::UiSemanticNodeKind::from_token(token).is_some()
-        }
-        HostOperation::UiAssertActionKind | HostOperation::UiWaitActionKind => {
-            leselang_hir::UiSemanticActionKind::from_token(token).is_some()
-        }
-        HostOperation::UiAssertFormFieldInputKind | HostOperation::UiWaitFormFieldInputKind => {
-            leselang_hir::UiFormInputKind::from_token(token).is_some()
-        }
-        _ => false,
-    }
+pub(super) fn projection_fault(_: leselang_command::InvalidProjectedResult) -> Fault {
+    invalid()
 }
 
 pub(super) fn invalid() -> Fault {
@@ -270,10 +30,17 @@ pub(super) fn invalid() -> Fault {
     }
 }
 
-fn structure_fault(error: CaptureStructureError<Fault>) -> Fault {
-    match error {
-        CaptureStructureError::Native { error, .. } => error,
-        _ => invalid(),
+fn result_binding_limits() -> leselang_command::ResultBindingLimits {
+    leselang_command::ResultBindingLimits {
+        captures: CaptureValidationLimits {
+            max_saved_bindings: MAX_EFFECT_NESTING_DEPTH,
+            max_name_bytes: MAX_BRANCH_NAME_BYTES,
+        },
+        groups: group_capture_limits(),
+        accesses: ProjectionAccessLimits {
+            max_nodes: leselang_hir::computation::MAX_COMPUTATION_NODES,
+            max_depth: MAX_EFFECT_NESTING_DEPTH,
+        },
     }
 }
 
@@ -306,246 +73,333 @@ impl ReferenceResultBinding for ResultBinding {
     }
 
     fn validate_structure(&self) -> Result<(), Fault> {
-        validate_captured_bindings(
+        let limits = result_binding_limits();
+        leselang_command::validate_result_binding_structure(
             self,
-            CaptureValidationLimits {
-                max_saved_bindings: MAX_EFFECT_NESTING_DEPTH,
-                max_name_bytes: MAX_BRANCH_NAME_BYTES,
-            },
-            ProjectedResult::validate,
-            ReferenceProjectedGroup::validate,
-            |body| {
-                body.validate_structure().map_err(|_| invalid())?;
-                if !body.is_result_flow() {
-                    return Err(invalid());
-                }
-                Ok(())
-            },
+            limits.captures,
+            limits.groups,
+            crate::valid_merge_branch_name,
         )
-        .map_err(structure_fault)
+        .map_err(projection_fault)
     }
 
     fn validate(&self, pending: &Effect) -> Result<Type, Fault> {
-        self.validate_structure()?;
-        if !self.results.is_empty() || !self.groups.is_empty() {
-            let mut bindings =
-                Vec::with_capacity(self.locals.len() + self.results.len() + self.groups.len() + 1);
-            let mut scope = ScopeFrame::new(&mut bindings);
-            with_captured_scope(
-                self,
-                &mut scope,
-                // Scalar names occupy slots without granting result fields.
-                |_| Ok(None),
-                |saved| {
-                    Ok(Some(AvailableProjection::Fields(
-                        saved
-                            .fields
-                            .iter()
-                            .fold(0, |mask, field| mask | field_bit(field.field)),
-                    )))
-                },
-                |group| Ok(Some(AvailableProjection::Group(group))),
-                || Ok(available_fields(pending).map(AvailableProjection::Fields)),
-                |body, scope| validate_projected_accesses(body, scope).map(|_| ()),
-            )
-            .map_err(|error| match error {
-                CaptureScopeError::Duplicate { .. } => invalid(),
-                CaptureScopeError::Native { error, .. } => error,
-            })?;
-        }
-        // Reconstruct the lexical scope for the normal type/canonical validator.
-        // The normal type checker also fences groups and effectful operands.
-        let mut expression = Computation::Bind {
-            name: self.name.clone(),
-            value: Box::new(Computation::Host {
-                effect: Box::new(pending.clone()),
-            }),
-            body: Box::new(self.body.clone()),
-        };
-        if !self.results.is_empty() || !self.groups.is_empty() {
-            let scope = self
-                .locals
-                .iter()
-                .map(|local| (local.name.clone(), Type::Scalar(local.value.scalar_type())))
-                .chain(
-                    self.results
-                        .iter()
-                        .map(|result| (result.name.clone(), result.result.operation.result_type())),
-                )
-                .collect::<Vec<_>>();
-            let groups = self
-                .groups
-                .iter()
-                .map(|saved| GroupLocalType {
-                    name: saved.name.clone(),
-                    members: saved
-                        .group
-                        .members
-                        .iter()
-                        .map(|member| (member.name.clone(), member.result.operation))
-                        .collect(),
-                })
-                .collect::<Vec<_>>();
-            return expression
-                .validate_in_group_scope(&scope, &groups)
-                .map_err(|_| invalid());
-        }
-        for local in self.locals.iter().rev() {
-            expression = Computation::Bind {
-                name: local.name.clone(),
-                value: Box::new(Computation::Literal {
-                    value: local.value.clone(),
-                }),
-                body: Box::new(expression),
-            };
-        }
-        expression.validate_in_scope(&[]).map_err(|_| invalid())
+        leselang_command::validate_result_binding(
+            self,
+            pending,
+            result_binding_limits(),
+            crate::valid_merge_branch_name,
+        )
+        .map_err(projection_fault)
     }
-}
-
-fn field_bit(field: ResultField) -> u16 {
-    match field {
-        ResultField::Revision => 1,
-        ResultField::Count => 2,
-        ResultField::NodeId => 4,
-        ResultField::FocusedNodeId => 8,
-        ResultField::MaxLength => 16,
-        ResultField::Selected => 32,
-        ResultField::Required => 64,
-        ResultField::Expected => 128,
-        ResultField::Field => 256,
-        ResultField::Value => 512,
-        ResultField::Kind => 1024,
-        ResultField::OptionalExpected => 2048,
-    }
-}
-
-fn operation_fields(operation: HostOperation) -> u16 {
-    ResultField::ALL
-        .into_iter()
-        .filter(|field| field.result_type(operation.result_type()).is_some())
-        .fold(0, |mask, field| mask | field_bit(field))
-}
-
-fn available_fields(effect: &Effect) -> Option<u16> {
-    HostOperation::for_effect(effect).map(operation_fields)
-}
-
-#[derive(Clone, Copy)]
-enum AvailableProjection<'a> {
-    Fields(u16),
-    Group(&'a ProjectedGroup),
-}
-
-type ProjectionScope<'scope, 'values> =
-    ScopeFrame<'scope, 'values, Option<AvailableProjection<'values>>>;
-
-// A legacy frame is a closed field set, even when its operation now exports more.
-struct ReferenceProjectionPolicy;
-
-impl<'a> ProjectionAccessPolicy<'a, ResultField, HostOperation, Effect>
-    for ReferenceProjectionPolicy
-{
-    type Observation = AvailableProjection<'a>;
-    type Error = Fault;
-
-    fn local(
-        &mut self,
-        value: Option<&Self::Observation>,
-    ) -> Result<Option<Self::Observation>, Fault> {
-        Ok(value.copied())
-    }
-
-    fn field(
-        &mut self,
-        value: Option<&Self::Observation>,
-        field: &'a ResultField,
-    ) -> Result<(), Fault> {
-        if matches!(value, Some(AvailableProjection::Fields(fields)) if fields & field_bit(*field) != 0)
-        {
-            Ok(())
-        } else {
-            Err(invalid())
-        }
-    }
-
-    fn host(&mut self, effect: &'a Effect) -> Result<Option<Self::Observation>, Fault> {
-        Ok(available_fields(effect).map(AvailableProjection::Fields))
-    }
-
-    fn call(&mut self, operation: &'a HostOperation) -> Result<Option<Self::Observation>, Fault> {
-        Ok(Some(AvailableProjection::Fields(operation_fields(
-            *operation,
-        ))))
-    }
-
-    fn member(
-        &mut self,
-        value: Option<&Self::Observation>,
-        _: &'a str,
-        name: &'a str,
-        operation: &'a HostOperation,
-    ) -> Result<Option<Self::Observation>, Fault> {
-        if let Some(AvailableProjection::Group(saved)) = value {
-            let member = saved
-                .members
-                .iter()
-                .find(|member| member.name == name && member.result.operation == *operation)
-                .ok_or_else(invalid)?;
-            return Ok(Some(AvailableProjection::Fields(
-                member
-                    .result
-                    .fields
-                    .iter()
-                    .fold(0, |mask, field| mask | field_bit(field.field)),
-            )));
-        }
-        // The full canonical type checker, not this observation, fences group names.
-        self.call(operation)
-    }
-
-    fn join(
-        &mut self,
-        left: Option<Self::Observation>,
-        right: Option<Self::Observation>,
-    ) -> Result<Option<Self::Observation>, Fault> {
-        Ok(match (left, right) {
-            (Some(AvailableProjection::Fields(left)), Some(AvailableProjection::Fields(right))) => {
-                Some(AvailableProjection::Fields(left & right))
-            }
-            _ => None,
-        })
-    }
-}
-
-fn validate_projected_accesses<'a>(
-    expression: &'a Computation,
-    scope: &mut ProjectionScope<'_, 'a>,
-) -> Result<Option<AvailableProjection<'a>>, Fault> {
-    observe_projection_accesses(
-        expression,
-        scope,
-        ProjectionAccessLimits {
-            max_nodes: leselang_hir::computation::MAX_COMPUTATION_NODES,
-            max_depth: MAX_EFFECT_NESTING_DEPTH,
-        },
-        &mut ReferenceProjectionPolicy,
-    )
-    .map_err(|error| match error {
-        ProjectionAccessError::Native { error, .. } => error,
-        _ => invalid(),
-    })
-}
-
-pub(super) fn project(value: &Value, field: ResultField) -> Result<ScalarValue, Fault> {
-    value.project_scalar(field).ok_or_else(invalid)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Value;
+    use leselang_hir::computation::{Computation, ScalarValue};
+    use leselang_hir::host_call::HostOperation;
+    use leselang_hir::result_field::ResultField;
     use leselang_hir::{UiFormInputKind, UiSelectionState};
     use serde_json::json;
+
+    #[test]
+    fn restored_binding_keeps_scalar_result_group_types_and_canonical_refusals() {
+        let pending = Effect::UiFocus {
+            node_id: "pending".into(),
+        };
+        let result = ProjectedResult::capture(
+            HostOperation::UiFocus,
+            &Value::UiFocus {
+                node_id: "saved".into(),
+            },
+        )
+        .unwrap();
+        let mut binding = ResultBinding {
+            name: "reply".into(),
+            locals: vec![ScalarBinding {
+                name: "scalar".into(),
+                value: ScalarValue::Integer(7),
+            }],
+            results: vec![ProjectedBinding {
+                name: "saved".into(),
+                result: result.clone(),
+            }],
+            groups: vec![ProjectedGroupBinding {
+                name: "group".into(),
+                group: ProjectedGroup {
+                    members: vec![ProjectedBinding {
+                        name: "member".into(),
+                        result,
+                    }],
+                },
+            }],
+            body: Computation::Literal {
+                value: ScalarValue::None,
+            },
+        };
+        for (body, expected) in [
+            (
+                Computation::Local {
+                    name: "scalar".into(),
+                },
+                Type::Scalar(leselang_hir::computation::ScalarType::Integer),
+            ),
+            (
+                Computation::Field {
+                    value: Box::new(Computation::Local {
+                        name: "reply".into(),
+                    }),
+                    field: ResultField::NodeId,
+                },
+                Type::Scalar(leselang_hir::computation::ScalarType::String),
+            ),
+            (
+                Computation::Field {
+                    value: Box::new(Computation::Local {
+                        name: "saved".into(),
+                    }),
+                    field: ResultField::NodeId,
+                },
+                Type::Scalar(leselang_hir::computation::ScalarType::String),
+            ),
+            (
+                Computation::Field {
+                    value: Box::new(Computation::Member {
+                        group: "group".into(),
+                        name: "member".into(),
+                        operation: HostOperation::UiFocus,
+                    }),
+                    field: ResultField::NodeId,
+                },
+                Type::Scalar(leselang_hir::computation::ScalarType::String),
+            ),
+        ] {
+            binding.body = body;
+            let bytes = serde_json::to_vec(&binding).unwrap();
+            assert_eq!(binding.validate(&pending), Ok(expected));
+            assert_eq!(serde_json::to_vec(&binding).unwrap(), bytes);
+        }
+        for corruption in 0..7 {
+            let mut changed = binding.clone();
+            match corruption {
+                0 => changed.results[0].result.projection_version = 0,
+                1 => changed.locals[0].name = "saved".into(),
+                2 => changed.name = "saved".into(),
+                3 => changed.groups[0].group.members[0].name = "bad name".into(),
+                4 => {
+                    changed.body = Computation::Local {
+                        name: "unknown".into(),
+                    }
+                }
+                5 => {
+                    changed.body = Computation::Field {
+                        value: Box::new(Computation::Member {
+                            group: "group".into(),
+                            name: "member".into(),
+                            operation: HostOperation::UiActivate,
+                        }),
+                        field: ResultField::NodeId,
+                    }
+                }
+                6 => {
+                    changed.body = Computation::Field {
+                        value: Box::new(Computation::Local {
+                            name: "saved".into(),
+                        }),
+                        field: ResultField::Revision,
+                    }
+                }
+                _ => unreachable!(),
+            }
+            let bytes = serde_json::to_vec(&changed).unwrap();
+            assert_eq!(changed.validate(&pending), Err(invalid()));
+            assert_eq!(serde_json::to_vec(&changed).unwrap(), bytes);
+        }
+        // Without saved results/groups, scalar values retain their lexical order.
+        binding.results.clear();
+        binding.groups.clear();
+        binding.body = Computation::Local {
+            name: "scalar".into(),
+        };
+        assert_eq!(
+            binding.validate(&pending),
+            Ok(Type::Scalar(leselang_hir::computation::ScalarType::Integer))
+        );
+        binding.locals.push(binding.locals[0].clone());
+        assert_eq!(binding.validate(&pending), Err(invalid()));
+    }
+
+    fn capture_group(
+        branches: &[leselang_hir::HirBranch],
+        value: &Value,
+    ) -> Result<ProjectedGroup, Fault> {
+        ProjectedGroup::capture(
+            branches,
+            value,
+            group_capture_limits(),
+            crate::valid_merge_branch_name,
+        )
+        .map_err(projection_fault)
+    }
+
+    fn validate_group(group: &ProjectedGroup) -> Result<(), Fault> {
+        group
+            .validate(group_capture_limits(), crate::valid_merge_branch_name)
+            .map_err(projection_fault)
+    }
+
+    fn match_group(
+        group: &ProjectedGroup,
+        branches: &[leselang_hir::HirBranch],
+        value: &Value,
+    ) -> Result<bool, Fault> {
+        let Value::Structured { fields } = value else {
+            panic!()
+        };
+        group
+            .matches_members(
+                branches,
+                fields,
+                group_capture_limits(),
+                crate::valid_merge_branch_name,
+            )
+            .map_err(projection_fault)
+    }
+
+    fn group_input(count: usize) -> (Vec<leselang_hir::HirBranch>, Value) {
+        let branches = (0..count)
+            .map(|index| leselang_hir::HirBranch {
+                name: format!("member_{index}"),
+                effect: Effect::UiFocus {
+                    node_id: format!("node-{index}"),
+                },
+                result_type: Type::UiFocus,
+            })
+            .collect();
+        let fields = (0..count)
+            .map(|index| crate::StructuredField {
+                name: format!("member_{index}"),
+                value: Box::new(Value::UiFocus {
+                    node_id: format!("node-{index}"),
+                }),
+            })
+            .collect();
+        (branches, Value::Structured { fields })
+    }
+
+    #[test]
+    fn group_capture_preserves_original_limits_names_and_refusal_order() {
+        for count in [0, 1, 2, 63, 64, 65] {
+            let (branches, value) = group_input(count);
+            let result = capture_group(&branches, &value);
+            if (1..64).contains(&count) {
+                let group = result.unwrap();
+                assert_eq!(group.members.len(), count);
+                assert_eq!(validate_group(&group), Ok(()));
+                assert_eq!(match_group(&group, &branches, &value), Ok(true));
+            } else {
+                assert_eq!(result, Err(invalid()));
+            }
+        }
+        for name in [
+            "".into(),
+            "x".repeat(65),
+            "bad name".into(),
+            "non-ascii-\u{e9}".into(),
+        ] {
+            let (mut branches, mut value) = group_input(1);
+            branches[0].name = name.clone();
+            let Value::Structured { fields } = &mut value else {
+                panic!()
+            };
+            fields[0].name = name;
+            assert_eq!(capture_group(&branches, &value), Err(invalid()));
+        }
+        for name in ["x".repeat(64), "0-A_b".into()] {
+            let (mut branches, mut value) = group_input(1);
+            branches[0].name = name.clone();
+            let Value::Structured { fields } = &mut value else {
+                panic!()
+            };
+            fields[0].name = name;
+            assert!(capture_group(&branches, &value).is_ok());
+        }
+        let (branches, value) = group_input(2);
+        let group = capture_group(&branches, &value).unwrap();
+        for mutation in 0..5 {
+            let mut changed = group.clone();
+            match mutation {
+                0 => changed.members.clear(),
+                1 => changed.members[1].name = changed.members[0].name.clone(),
+                2 => changed.members[0].name.clear(),
+                3 => changed.members[0].result.projection_version = 0,
+                4 => changed.members[0].result.fields.clear(),
+                _ => unreachable!(),
+            }
+            let before = changed.clone();
+            assert_eq!(validate_group(&changed), Err(invalid()));
+            assert_eq!(match_group(&changed, &[], &value), Err(invalid()));
+            assert_eq!(changed, before);
+        }
+        let raw = Value::UiFocus {
+            node_id: "a".into(),
+        };
+        assert_eq!(capture_group(&branches, &raw), Err(invalid()));
+    }
+
+    #[test]
+    fn group_capture_keeps_legacy_versions_order_and_projection_only_correspondence() {
+        let (mut branches, value) = group_input(2);
+        let group = capture_group(&branches, &value).unwrap();
+        assert_eq!(
+            serde_json::to_string(&group).unwrap(),
+            r#"{"members":[{"name":"member_0","result":{"operation":"ui.focus","fields":[{"field":"node_id","value":{"kind":"string","value":"node-0"}}]}},{"name":"member_1","result":{"operation":"ui.focus","fields":[{"field":"node_id","value":{"kind":"string","value":"node-1"}}]}}]}"#
+        );
+        for version in 1..=5 {
+            let mut legacy = group.clone();
+            for member in &mut legacy.members {
+                member.result.projection_version = version;
+            }
+            let bytes = serde_json::to_vec(&legacy).unwrap();
+            let restored: ProjectedGroup = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(serde_json::to_vec(&restored).unwrap(), bytes);
+            assert_eq!(match_group(&restored, &branches, &value), Ok(true));
+        }
+        let mut reversed = group.clone();
+        reversed.members.reverse();
+        assert_eq!(validate_group(&reversed), Ok(()));
+        assert!(!reversed.matches_signature(&branches));
+        assert_eq!(match_group(&reversed, &branches, &value), Ok(false));
+        branches[0].effect = Effect::UiActivate {
+            node_id: "node-0".into(),
+        };
+        assert!(!group.matches_signature(&branches));
+        assert_eq!(match_group(&group, &branches, &value), Ok(false));
+        branches[0].effect = Effect::UiFocus {
+            node_id: "different-request".into(),
+        };
+        assert!(group.matches_signature(&branches));
+        // Signature/capture comparisons are not original argument or raw-type admission.
+        let mut compatible = value.clone();
+        let Value::Structured { fields } = &mut compatible else {
+            panic!()
+        };
+        *fields[0].value = Value::UiActivate {
+            node_id: "node-0".into(),
+        };
+        assert_eq!(match_group(&group, &branches, &compatible), Ok(true));
+        let Value::Structured { fields } = &mut compatible else {
+            panic!()
+        };
+        *fields[0].value = Value::Scalar {
+            value: ScalarValue::None,
+        };
+        assert_eq!(match_group(&group, &branches, &compatible), Err(invalid()));
+        branches[0].effect = Effect::Sequence { steps: vec![] };
+        assert_eq!(capture_group(&branches, &value), Err(invalid()));
+    }
 
     fn frames() -> Vec<(HostOperation, Value, u32, serde_json::Value)> {
         vec![
@@ -637,7 +491,14 @@ mod tests {
                         .unwrap()
                 );
                 for field in ResultField::ALL {
-                    let expected = projection_fields(saved_version).unwrap().contains(&field)
+                    let vocabularies: [&[ResultField]; 5] = [
+                        &ResultField::V1,
+                        &ResultField::V2,
+                        &ResultField::V3,
+                        &ResultField::V4,
+                        &ResultField::V5,
+                    ];
+                    let expected = vocabularies[saved_version as usize - 1].contains(&field)
                         && field.result_type(operation.result_type()).is_some();
                     assert_eq!(restored.field(field).is_ok(), expected);
                 }
@@ -660,18 +521,75 @@ mod tests {
                     3 => changed.fields[0].value = ScalarValue::Integer(7),
                     _ => unreachable!(),
                 }
-                assert_eq!(changed.validate(), Err(invalid()));
-                assert_eq!(changed.matches_capture(operation, &value), Err(invalid()));
+                assert_eq!(changed.validate().map_err(projection_fault), Err(invalid()));
+                assert_eq!(
+                    changed
+                        .matches_capture(operation, &value)
+                        .map_err(projection_fault),
+                    Err(invalid())
+                );
             }
             let mut changed = frame.clone();
             changed.fields[0].value = ScalarValue::String("another-node".into());
             assert!(changed.validate().is_ok());
             assert!(!changed.matches_capture(operation, &value).unwrap());
-            assert_eq!(project(&value, ResultField::Revision), Err(invalid()));
             assert_eq!(
-                ProjectedResult::capture_version(operation, &value, 0),
+                leselang_command::ResultView::Raw {
+                    value: &value,
+                    operation
+                }
+                .project_scalar(ResultField::Revision),
+                Err(leselang_command::ResultViewError::InvalidProjection)
+            );
+            assert_eq!(
+                ProjectedResult::capture_version(operation, &value, 0).map_err(projection_fault),
                 Err(invalid())
             );
+        }
+    }
+
+    #[test]
+    fn capture_validation_precedes_correspondence_and_rejects_semantic_forgery() {
+        for (operation, value, version, _) in frames() {
+            let original = ProjectedResult::capture(operation, &value).unwrap();
+            for mutation in 0..6 {
+                let mut changed = original.clone();
+                match mutation {
+                    0 => changed.projection_version = 0,
+                    1 => changed.fields[0].field = ResultField::Revision,
+                    2 => changed.fields[0].value = ScalarValue::String("x".repeat(4097)),
+                    3 => changed.fields.insert(0, changed.fields[0].clone()),
+                    4 => changed.fields.clear(),
+                    5 if version == 4 => {
+                        changed.fields.last_mut().unwrap().value =
+                            ScalarValue::String("not_a_kind".into())
+                    }
+                    5 if version == 5 => {
+                        changed.fields.last_mut().unwrap().value = ScalarValue::OptionalString(
+                            leselang_hir::computation::OptionalStringValue(Some(
+                                "bad\0text".into(),
+                            )),
+                        )
+                    }
+                    _ => continue,
+                }
+                let before = changed.clone();
+                assert_eq!(changed.validate().map_err(|_| invalid()), Err(invalid()));
+                // A different operation must not hide an invalid saved frame.
+                assert_eq!(
+                    changed
+                        .matches_capture(HostOperation::RuntimeList, &value)
+                        .map_err(|_| invalid()),
+                    Err(invalid())
+                );
+                assert_eq!(changed, before);
+            }
+            let mut wire = serde_json::to_value(&original).unwrap();
+            wire["unexpected"] = json!(true);
+            assert!(serde_json::from_value::<ProjectedResult>(wire).is_err());
+            let mut wire = serde_json::to_value(&original).unwrap();
+            wire["fields"][0]["unexpected"] = json!(true);
+            assert!(serde_json::from_value::<ProjectedResult>(wire).is_err());
         }
     }
 }

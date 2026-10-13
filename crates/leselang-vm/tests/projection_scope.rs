@@ -154,3 +154,40 @@ fn shared_cold_access_walk_keeps_legacy_fields_closed_in_recovery_calls_and_alia
         rejected(&request);
     }
 }
+
+#[test]
+fn adapter_access_success_never_bypasses_vm_schema_or_canonical_group_checks() {
+    use leselang_hir::{host_call::HostOperation, projection_access::ProjectionAccessLimits};
+    for malformed_schema in [false, true] {
+        let mut request = legacy_request();
+        let binding = request.continuation.result_binding.as_mut().unwrap();
+        if malformed_schema {
+            binding.results[0].result.projection_version = 0;
+            binding.body = body(r#"field(value: seed, name: "node_id")"#);
+        } else {
+            binding.body = Computation::Field {
+                value: Box::new(Computation::Member {
+                    group: "not-a-group".into(),
+                    name: "not-a-member".into(),
+                    operation: HostOperation::UiFocus,
+                }),
+                field: ResultField::NodeId,
+            };
+        }
+        assert!(
+            leselang_command::validate_captured_projection_accesses(
+                binding,
+                &Effect::UiFocus {
+                    node_id: "b".into()
+                },
+                ProjectionAccessLimits {
+                    max_nodes: 100,
+                    max_depth: 16
+                },
+            )
+            .is_ok()
+        );
+        // VM admission still checks structure first and canonical scope afterward.
+        rejected(&request);
+    }
+}

@@ -23,46 +23,36 @@ use leselang_runtime_core::{
     snapshot_captured_scope_state,
 };
 
-use crate::result_binding::{ProjectedGroup, ProjectedResult, ReferenceProjectedGroup};
+use crate::result_binding::{ProjectedGroup, ProjectedResult, group_capture_limits};
 use crate::{Fault, ResultBinding, Value};
 
-#[derive(Clone, Copy)]
-pub(super) enum ResultView<'a> {
-    Raw {
-        value: &'a Value,
-        operation: HostOperation,
-    },
-    Projected(&'a ProjectedResult),
-    Group {
-        value: &'a Value,
-        branches: &'a [HirBranch],
-    },
-    ProjectedGroup(&'a ProjectedGroup),
+pub(super) use leselang_command::ResultView;
+
+fn view_fault(error: leselang_command::ResultViewError) -> Fault {
+    match error {
+        leselang_command::ResultViewError::InvalidAccess => invalid(),
+        leselang_command::ResultViewError::InvalidProjection => crate::result_binding::invalid(),
+    }
 }
 
-impl ResultView<'_> {
+trait ReferenceResultView {
+    fn field(self, field: leselang_hir::result_field::ResultField) -> Result<ScalarValue, Fault>;
+    fn snapshot(self) -> Result<ProjectedResult, Fault>;
+    fn snapshot_group(self) -> Result<ProjectedGroup, Fault>;
+}
+
+impl ReferenceResultView for ResultView<'_> {
     fn field(self, field: leselang_hir::result_field::ResultField) -> Result<ScalarValue, Fault> {
-        match self {
-            Self::Raw { value, .. } => crate::result_binding::project(value, field),
-            Self::Projected(result) => result.field(field),
-            Self::Group { .. } | Self::ProjectedGroup(_) => Err(invalid()),
-        }
+        self.project_scalar(field).map_err(view_fault)
     }
 
     fn snapshot(self) -> Result<ProjectedResult, Fault> {
-        match self {
-            Self::Raw { value, operation } => ProjectedResult::capture(operation, value),
-            Self::Projected(result) => Ok(result.clone()),
-            Self::Group { .. } | Self::ProjectedGroup(_) => Err(invalid()),
-        }
+        self.capture_result().map_err(view_fault)
     }
 
     fn snapshot_group(self) -> Result<ProjectedGroup, Fault> {
-        match self {
-            Self::Group { value, branches } => ProjectedGroup::capture(branches, value),
-            Self::ProjectedGroup(group) => Ok(group.clone()),
-            _ => Err(invalid()),
-        }
+        self.capture_group(group_capture_limits(), crate::valid_merge_branch_name)
+            .map_err(view_fault)
     }
 }
 
@@ -88,36 +78,7 @@ impl<'a> PureEvaluationEnvironment<leselang_hir::result_field::ResultField, Host
         name: &str,
         operation: &HostOperation,
     ) -> Result<Self::Result, Fault> {
-        match group {
-            ResultView::Group {
-                value: Value::Structured { fields },
-                branches,
-            } => {
-                if !branches.iter().any(|branch| {
-                    branch.name == name
-                        && HostOperation::for_effect(&branch.effect) == Some(*operation)
-                }) {
-                    return Err(invalid());
-                }
-                let field = fields
-                    .iter()
-                    .find(|field| field.name == name)
-                    .ok_or_else(invalid)?;
-                Ok(ResultView::Raw {
-                    value: &field.value,
-                    operation: *operation,
-                })
-            }
-            ResultView::ProjectedGroup(saved) => {
-                let member = saved
-                    .members
-                    .iter()
-                    .find(|member| member.name == name && member.result.operation == *operation)
-                    .ok_or_else(invalid)?;
-                Ok(ResultView::Projected(&member.result))
-            }
-            _ => Err(invalid()),
-        }
+        group.select_member(name, *operation).map_err(view_fault)
     }
 }
 
@@ -528,6 +489,10 @@ fn fold_fault(failure: FoldError) -> Fault {
         _ => invalid(),
     }
 }
+
+#[cfg(test)]
+#[path = "result_view_tests.rs"]
+mod result_view_tests;
 
 #[cfg(test)]
 mod recovery_tests {

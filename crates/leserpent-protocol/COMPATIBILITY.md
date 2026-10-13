@@ -44,8 +44,37 @@ conversion is not reply acceptance. The VM retains revision and item-limit
 checks before moving payloads, with unchanged result wire and buffer ownership.
 Product scalar field projection is likewise adapter-owned. It preserves owned
 scalar copies and optional-text states, not acceptance, bounds or budget checks.
-The VM retains all five capture versions, ordered field validation, missing-field
-refusals and `LSV1405`; no wire-v1 or continuation schema changes are introduced.
+Product capture DTOs and all five field vocabularies now also belong to the
+adapter, with exact VM re-exports and unchanged ordered/semantic validation.
+Missing-field refusals and VM `LSV1405` mapping remain unchanged; no wire-v1 or
+continuation schema changes are introduced. Capture validity does not replace
+raw-reply admission, original authority, execution budgets or journal provenance.
+Group capture uses the same core containers through exact adapter/VM aliases.
+Member bounds and name rules remain caller policy; ordered validation and matching
+do not authorize branch arguments or raw replies. Mixed legacy capture versions,
+error mapping and journal representation remain unchanged.
+Restored-field access policy and scope assembly now live in the command adapter,
+without changing capture bytes or schemas. Old saved field sets remain closed
+through aliases, groups and conditionals. The VM still bounds and validates
+frames before this observation, then runs full canonical type/group checks;
+field access success alone never authorizes restoration or execution.
+The full product `ResultBinding` alias and data/type validation sequence are now
+adapter-owned too. Explicit caller limits and name policy preserve structural,
+closed-field and canonical checks in order. VM schema selection and authentic
+restore/budget/journal gates stay in the VM; no wire or fault-code change follows
+from moving the validation implementation.
+Product capture-extension and group-correspondence comparisons are adapter-owned
+as well. `CaptureReplayError` preserves mismatch versus invalid-projection
+categories, mapped by the VM to its existing context-specific faults. All legacy
+field sets, required original names, full row scans and late-error order remain
+unchanged. Correspondence is not frame admission, raw identity or replay authority;
+no continuation, journal or wire-v1 schema changes are introduced.
+Borrowed product `ResultView` access and raw/saved snapshot construction now also
+belong to the command adapter. No new serialized view or wrapper is introduced;
+member borrows, selected-scalar copies and legacy saved bytes stay unchanged.
+Payload-free access/projection errors retain VM `LSV1402`/`LSV1405` mappings.
+Reads and saved copies do not perform full admission, widen a legacy vocabulary
+or grant execution authority; original VM validation and fuel order remain intact.
 
 ## Draft Bootstrap Boundary
 

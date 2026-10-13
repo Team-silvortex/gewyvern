@@ -1,57 +1,4 @@
 use super::*;
-use leselang_hir::host_call::HostOperation;
-use leselang_runtime_core::{
-    CaptureExtensionBindings, CaptureExtensionDomain, CaptureExtensionError, CurrentCapture,
-    validate_capture_extension,
-};
-
-struct NativeCaptureExtension<'a> {
-    prior: &'a ResultBinding,
-    effect: &'a Effect,
-    value: &'a Value,
-    operation: Option<HostOperation>,
-}
-
-impl CaptureExtensionDomain<ProjectedGroupBinding, ProjectedBinding>
-    for NativeCaptureExtension<'_>
-{
-    type Error = Fault;
-
-    fn same_group_data(
-        &mut self,
-        old: &ProjectedGroupBinding,
-        saved: &ProjectedGroupBinding,
-    ) -> bool {
-        old.group == saved.group
-    }
-    fn same_group_binding(
-        &mut self,
-        old: &ProjectedGroupBinding,
-        saved: &ProjectedGroupBinding,
-    ) -> bool {
-        old == saved
-    }
-    fn begin_results(&mut self) -> Result<(), Fault> {
-        self.operation = Some(HostOperation::for_effect(self.effect).ok_or_else(invalid)?);
-        Ok(())
-    }
-    fn current_result(&mut self, saved: &ProjectedBinding) -> Result<CurrentCapture, Fault> {
-        // Keep exact legacy projections: replay must not synthesize absent fields.
-        let matches_result = saved
-            .result
-            .matches_capture(self.operation.ok_or_else(invalid)?, self.value)?;
-        Ok(CurrentCapture {
-            matches_result,
-            matches_binding: saved.name == self.prior.name,
-        })
-    }
-    fn same_result_data(&mut self, old: &ProjectedBinding, saved: &ProjectedBinding) -> bool {
-        old.result == saved.result
-    }
-    fn same_result_binding(&mut self, old: &ProjectedBinding, saved: &ProjectedBinding) -> bool {
-        old == saved
-    }
-}
 
 fn validate_extension(
     prior: &ResultBinding,
@@ -59,26 +6,16 @@ fn validate_extension(
     effect: &Effect,
     value: &Value,
 ) -> Result<(), Fault> {
-    validate_capture_extension(
-        CaptureExtensionBindings {
-            groups: &prior.groups,
-            results: &prior.results,
-        },
-        CaptureExtensionBindings {
-            groups: &binding.groups,
-            results: &binding.results,
-        },
+    leselang_command::validate_result_binding_extension(
+        prior,
+        binding,
+        effect,
+        value,
         leselang_hir::MAX_EFFECT_NESTING_DEPTH,
-        NativeCaptureExtension {
-            prior,
-            effect,
-            value,
-            operation: None,
-        },
     )
     .map_err(|error| match error {
-        CaptureExtensionError::Native { error, .. } => error,
-        _ => invalid(),
+        leselang_command::CaptureReplayError::InvalidProjection => crate::result_binding::invalid(),
+        leselang_command::CaptureReplayError::Mismatch => invalid(),
     })
 }
 
@@ -345,7 +282,9 @@ impl Vm {
 #[cfg(test)]
 mod extension_tests {
     use super::*;
+    use crate::result_binding::projection_fault;
     use leselang_hir::UiFocusNavigationDirection;
+    use leselang_hir::host_call::HostOperation;
 
     #[test]
     fn inherited_context_keeps_frozen_native_agreement_across_operation_domains() {
@@ -437,7 +376,10 @@ mod extension_tests {
         let operation = HostOperation::for_effect(effect).ok_or_else(invalid)?;
         let mut contains_current = false;
         for saved in &binding.results {
-            let current = saved.result.matches_capture(operation, value)?;
+            let current = saved
+                .result
+                .matches_capture(operation, value)
+                .map_err(projection_fault)?;
             contains_current |= saved.name == prior.name && current;
             if !current && !prior.results.iter().any(|old| old.result == saved.result) {
                 return Err(invalid());

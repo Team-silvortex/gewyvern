@@ -1,12 +1,11 @@
 use leselang_hir::host_call::HostOperation;
 use leselang_hir::{Effect, HirBranch, Type};
-use leselang_runtime_core::{
-    CaptureCorrespondenceError, CaptureCorrespondenceLimits, CaptureCorrespondenceSite, Fuel,
-    validate_capture_correspondence,
-};
+use leselang_runtime_core::{CaptureCorrespondenceLimits, Fuel};
 use serde::{Deserialize, Serialize};
 
-use crate::result_binding::{ReferenceProjectedGroup, ReferenceResultBinding};
+use crate::result_binding::{
+    ReferenceProjectedGroup, ReferenceResultBinding, group_capture_limits,
+};
 use crate::{
     ContinuationToken, EffectRequest, ExecutionOrder, Fault, MergePlan, ResultBinding, Step, Value,
 };
@@ -450,31 +449,23 @@ impl GroupResultBinding {
             .result_binding
             .as_ref()
             .ok_or_else(invalid)?;
-        validate_capture_correspondence(
-            &binding.groups,
-            &binding.results,
+        leselang_command::validate_group_capture_correspondence(
+            binding,
+            branches,
             fields,
+            operations,
             CaptureCorrespondenceLimits {
                 max_saved_bindings: leselang_hir::MAX_EFFECT_NESTING_DEPTH,
                 max_original_rows: crate::MAX_MERGE_BRANCHES,
             },
-            |_, group| {
-                group
-                    .group
-                    .matches_members(branches, &fields[..branches.len()])
-            },
-            |site, result, field| {
-                let CaptureCorrespondenceSite::Result { original, .. } = site else {
-                    return Err(invalid());
-                };
-                result
-                    .result
-                    .matches_capture(operations[original], &field.value)
-            },
+            group_capture_limits(),
+            crate::valid_merge_branch_name,
         )
         .map_err(|error| match error {
-            CaptureCorrespondenceError::Native { error, .. } => error,
-            _ => invalid(),
+            leselang_command::CaptureReplayError::InvalidProjection => {
+                crate::result_binding::invalid()
+            }
+            leselang_command::CaptureReplayError::Mismatch => invalid(),
         })
     }
 }
@@ -482,6 +473,7 @@ impl GroupResultBinding {
 #[cfg(all(test, feature = "sqlite-journal"))]
 mod correspondence_tests {
     use super::*;
+    use crate::result_binding::projection_fault;
 
     struct TempRoot(std::path::PathBuf);
     impl Drop for TempRoot {
@@ -510,7 +502,13 @@ mod correspondence_tests {
             for group in &saved.groups {
                 if !group
                     .group
-                    .matches_members(branches, &fields[..branches.len()])?
+                    .matches_members(
+                        branches,
+                        &fields[..branches.len()],
+                        group_capture_limits(),
+                        crate::valid_merge_branch_name,
+                    )
+                    .map_err(projection_fault)?
                 {
                     return Err(invalid());
                 }
@@ -518,7 +516,10 @@ mod correspondence_tests {
             for result in &saved.results {
                 let mut matched = false;
                 for (operation, field) in operations.iter().zip(fields) {
-                    matched |= result.result.matches_capture(*operation, &field.value)?;
+                    matched |= result
+                        .result
+                        .matches_capture(*operation, &field.value)
+                        .map_err(projection_fault)?;
                 }
                 if !matched {
                     return Err(invalid());
