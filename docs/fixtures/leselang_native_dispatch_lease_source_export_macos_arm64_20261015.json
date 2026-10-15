@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-dispatch-lease-source-export",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-15T12:00:31.483Z",
+  "platform": "macos-arm64",
+  "source_outside_product_workspace": true,
+  "source_crates": [
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir",
+    "leselang-vm"
+  ],
+  "verified": true,
+  "native_vm_facade": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "allocation_free_comparison": true,
+  "inclusive_expiry_preserved": true,
+  "current_attempt_precedes_expiration": true,
+  "reference_ready_time_red_green": true,
+  "reference_cancellation_replay": true,
+  "durable_owning_vm": false,
+  "atomic_storage_provided_by_core": false,
+  "generic_replay_registry": false,
+  "process_crash_acceptance": false,
+  "files": 261,
+  "copied_files": 251,
+  "bytes": 5977530,
+  "workspace_all_features_tests": "passed",
+  "workspace_strict_clippy": "passed",
+  "independent_consumer_tests": "passed",
+  "independent_consumer_strict_clippy": "passed",
+  "isolated_test_executions": 2322,
+  "runtime_all_features_test_executions": 2930,
+  "workspace_dispatch_lease_tests": 5,
+  "independent_consumer_dispatch_lease_tests": 5,
+  "field_matrix_cases": 1296,
+  "reference_clock_boundary_tests": 9,
+  "new_reference_regressions": 2,
+  "consumer_proof_unchanged": true,
+  "copied_source_byte_for_byte": true,
+  "export_manifest_sha256": "1d59c310b05753f1aa6aa824ca374362a510c771374d8612a4702f746e0e5410",
+  "verification_log_sha256": "0c2835f49d4ae86b4e914f9f992ed325a9967ca11045b9519fb253146b53ca8f",
+  "runtime_verification_log_sha256": "55d37dc53b07dffd509625e531bf3bf620ff5b77c84b131964ec9286bb25a3a4",
+  "baseline_regression_log_sha256": "96aa68f9083f9db5e67aaeeece4a537251027b6c887e023b4aff5a54b6882132",
+  "provenance": [
+    {
+      "path": "crates/leselang-runtime-core/src/dispatch_lease.rs",
+      "source": "crates/leselang-runtime-core/src/dispatch_lease.rs",
+      "sha256": "f8e178d66befa545bb83fd46e38f3eb13183acb0b0c106fc7539d3f317329686"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/lib.rs",
+      "source": "crates/leselang-runtime-core/src/lib.rs",
+      "sha256": "6262028528e6448fd30685de829382bf1b72e390b825c4a5af5624a66bd30b7a"
+    },
+    {
+      "path": "crates/leselang-runtime-core/tests/dispatch_lease.rs",
+      "source": "crates/leselang-runtime-core/tests/dispatch_lease.rs",
+      "sha256": "182d3bf91996bc362503599528c988957fa9965d5d2496b13b0ded063278d7cf"
+    },
+    {
+      "path": "consumer/tests/dispatch_lease.rs",
+      "source": "crates/leselang-runtime-core/tests/dispatch_lease.rs",
+      "sha256": "182d3bf91996bc362503599528c988957fa9965d5d2496b13b0ded063278d7cf"
+    }
+  ],
+  "reference_provenance": [
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "af3bde67e0eece29fdc0f3c37dfe8755b089a948d68c42a5eed093ecee563251",
+      "exported": false
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/successor.rs",
+      "sha256": "06c7639e06b70f4d84b1747137219297ce6422b442de0015e0466f7141a99710",
+      "exported": false
+    },
+    {
+      "path": "crates/leselang-vm/tests/clock_boundaries.rs",
+      "sha256": "798c3219980218f9fa36e538c49f945ff67aa393044464361cffea81c1ddafc9",
+      "exported": false
+    }
+  ],
+  "remaining_gates": [
+    "complete native reference-language coverage",
+    "arbitrary source-program checkpoints and arbitrary captured-graph collections",
+    "production durable ownership and external collector settlement",
+    "production persistence and cancellation/process-crash settlement",
+    "complete reference adapter wire/auth/GUI/CLI/journal parity",
+    "release publication and physical repository extraction"
+  ]
+}

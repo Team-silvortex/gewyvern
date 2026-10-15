@@ -4,7 +4,7 @@ use leselang_runtime_core::MAX_CLOCK_MS;
 use leselang_syntax::parse;
 use leselang_vm::{
     CancellationReason, EffectError, EffectErrorClass, EffectOperation, EffectRequest,
-    EffectResult, RetryPolicy, ScalarValue, Step, Value, Vm,
+    EffectResult, RetryDisposition, RetryPolicy, ScalarValue, Step, Value, Vm,
 };
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -153,6 +153,82 @@ fn existing_lease_can_complete_at_the_max_clock_and_replay_after_recovery() {
         let pressure = vm.scheduler_pressure(MAX_CLOCK_MS).unwrap();
         assert_eq!(pressure.pending_dispatches, 0);
         assert_eq!(pressure.active_leases, 0);
+    }
+}
+
+#[test]
+fn successor_completion_at_max_clock_does_not_require_another_lease_window() {
+    for durable in [false, true] {
+        for source in [
+            r#"fn main() = bind(r: ui.focus(node_id: "first"), body: ui.focus(node_id: field(value: r, name: "node_id")))"#,
+            r#"fn main() = bind(r: ui.focus(node_id: "first"), body: choose(when: eq(left: field(value: r, name: "node_id"), right: "first"), then: ui.focus(node_id: "chosen"), otherwise: ui.focus(node_id: "other")))"#,
+        ] {
+            let path = JournalPath::new();
+            let mut vm = path.vm(durable);
+            let Step::Effect(first) = vm.start(
+                &lower(&parse(source)).unwrap(),
+                Principal::new("operator").unwrap(),
+                CapabilitySet::new(["ui.presentation"]),
+                Some(Revision(7)),
+            ) else {
+                panic!("expected a pending first effect");
+            };
+            let lease = vm.claim_effect(MAX_CLOCK_MS - 1, 1).unwrap().unwrap();
+            if durable {
+                drop(vm);
+                vm = path.vm(true);
+            }
+            let before = vm.pending_continuations();
+            for invalid_clock in [MAX_CLOCK_MS + 1, u64::MAX] {
+                assert!(
+                    matches!(vm.acknowledge_effect(&lease, invalid_clock, receipt(&first)), Step::Fault(fault) if fault.code == "LSV2011")
+                );
+                assert_eq!(vm.pending_continuations(), before);
+            }
+            let step = vm.acknowledge_effect(&lease, MAX_CLOCK_MS, receipt(&first));
+            let Step::Effect(next) = &step else {
+                panic!("completion should enqueue the successor, got {step:?}");
+            };
+            assert!(next.budget.fuel_remaining < first.budget.fuel_remaining);
+            assert_eq!(next.budget.deadline_at_ms, None);
+            assert_eq!(
+                vm.scheduler_pressure(MAX_CLOCK_MS).unwrap().active_leases,
+                0
+            );
+            assert_eq!(
+                vm.scheduler_pressure(MAX_CLOCK_MS)
+                    .unwrap()
+                    .pending_dispatches,
+                1
+            );
+            assert_eq!(
+                vm.claim_effect(MAX_CLOCK_MS, 1).unwrap_err().code,
+                "LSV4015"
+            );
+            if durable {
+                drop(vm);
+                vm = path.vm(true);
+            }
+            assert_eq!(
+                vm.acknowledge_effect(&lease, MAX_CLOCK_MS, receipt(&first)),
+                step
+            );
+            assert_eq!(
+                vm.pending_continuations(),
+                std::slice::from_ref(&next.continuation)
+            );
+            let cancelled = vm.cancel_effect(&next.continuation, MAX_CLOCK_MS);
+            assert!(matches!(cancelled, Step::Cancelled(_)));
+            if durable {
+                drop(vm);
+                vm = path.vm(true);
+            }
+            assert_eq!(
+                vm.acknowledge_effect(&lease, MAX_CLOCK_MS, receipt(&first)),
+                cancelled
+            );
+            assert_eq!(vm.pending_count(), 0);
+        }
     }
 }
 
@@ -344,5 +420,82 @@ fn invalid_observation_and_completion_clocks_leave_pending_state_unchanged() {
             vm.acknowledge_effect(&lease, MAX_CLOCK_MS, receipt(&request)),
             done()
         );
+    }
+}
+
+#[test]
+fn retry_ready_time_fences_completion_in_both_journals_after_recovery() {
+    for durable in [false, true] {
+        let path = JournalPath::new();
+        let mut vm = path.vm(durable);
+        let request = admit(&mut vm, false);
+        let first = vm.claim_effect(100, 10).unwrap().unwrap();
+        let RetryDisposition::Scheduled(schedule) = vm
+            .report_effect_error(&first, 101, transient_error(), &RetryPolicy::default())
+            .unwrap()
+        else {
+            panic!("expected retry")
+        };
+        let second = vm.claim_effect(schedule.ready_at_ms, 10).unwrap().unwrap();
+        if durable {
+            drop(vm);
+            vm = path.vm(true);
+        }
+        let before = vm.pending_continuations();
+        let refused = vm.acknowledge_effect(&second, schedule.ready_at_ms - 1, receipt(&request));
+        assert!(
+            matches!(&refused, Step::Fault(fault) if fault.code == "LSV4022"),
+            "{refused:?}"
+        );
+        assert_eq!(vm.pending_continuations(), before);
+        assert_eq!(vm.completed_count(), 0);
+        assert_eq!(
+            vm.acknowledge_effect(&second, schedule.ready_at_ms, receipt(&request)),
+            done()
+        );
+    }
+}
+
+#[test]
+fn retry_at_expiry_checks_current_attempt_before_expiration_and_settles_cancel_once() {
+    for durable in [false, true] {
+        for superseded in [false, true] {
+            let path = JournalPath::new();
+            let mut vm = path.vm(durable);
+            let request = admit(&mut vm, false);
+            let first = vm.claim_effect(100, 10).unwrap().unwrap();
+            if superseded {
+                vm.claim_effect(110, 10).unwrap().unwrap();
+            }
+            if durable {
+                drop(vm);
+                vm = path.vm(true);
+            }
+            let result =
+                vm.report_effect_error(&first, 110, transient_error(), &RetryPolicy::default());
+            if superseded {
+                assert_eq!(result.unwrap_err().code, "LSV4022");
+            } else {
+                assert!(matches!(result.unwrap(), RetryDisposition::Scheduled(_)));
+            }
+            let cancelled = vm.cancel_effect(&request.continuation, 111);
+            assert!(matches!(&cancelled, Step::Cancelled(_)));
+            if durable {
+                drop(vm);
+                vm = path.vm(true);
+            }
+            assert_eq!(
+                vm.acknowledge_effect(&first, 112, receipt(&request)),
+                cancelled
+            );
+            assert_eq!(
+                vm.report_effect_error(&first, 112, transient_error(), &RetryPolicy::default())
+                    .unwrap(),
+                RetryDisposition::Terminal(cancelled)
+            );
+            assert!(vm.claim_effect(112, 10).unwrap().is_none());
+            assert_eq!(vm.completed_count(), 1);
+            assert_eq!(vm.pending_count(), 0);
+        }
     }
 }

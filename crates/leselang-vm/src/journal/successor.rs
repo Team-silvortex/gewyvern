@@ -87,7 +87,7 @@ impl Journal {
     ) -> Result<Step, Fault> {
         validate_pair(parent, step, next)?;
         if let Some((lease, now_ms)) = lease {
-            validate_lease_clock(now_ms, 1)?;
+            validate_dispatch_clock(now_ms)?;
             if lease.request != *parent
                 || lease.attempt == 0
                 || lease.attempt > MAX_DISPATCH_ATTEMPTS
@@ -129,7 +129,7 @@ impl Journal {
                     return dispatch.terminal_step.clone().ok_or_else(invalid);
                 }
                 match lease {
-                    Some((lease, now_ms)) => validate_retry_lease(dispatch, lease, now_ms)?,
+                    Some((lease, now_ms)) => validate_ephemeral_lease(dispatch, lease, now_ms)?,
                     None if dispatch.lease_expires_at_ms.is_some() => {
                         return Err(journal_fault(
                             "LSV4024",
@@ -279,20 +279,8 @@ impl SqliteJournal {
         let dispatch = load_dispatch(&transaction, first)?.ok_or_else(invalid)?;
         match lease {
             Some((lease, now_ms)) => {
-                if dispatch.state != "leased"
-                    || dispatch.attempt != lease.attempt
-                    || dispatch.retry_count != lease.retry_count
-                    || dispatch.ready_at_ms > now_ms
-                    || dispatch.lease_expires_at_ms != Some(lease.lease_expires_at_ms)
-                {
-                    return Err(journal_fault(
-                        "LSV4022",
-                        "dispatch lease has been superseded",
-                    ));
-                }
-                if lease.lease_expires_at_ms < now_ms {
-                    return Err(journal_fault("LSV4023", "dispatch lease has expired"));
-                }
+                // Exact parent request correspondence was checked in this transaction above.
+                validate_stored_lease(&dispatch, lease, now_ms, true)?;
             }
             None if dispatch.state == "leased" => {
                 return Err(journal_fault(

@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-reference-debugger-shared-journal",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-15T13:50:09.288Z",
+  "platform": "macos-arm64",
+  "reference_contract": "1.86.0",
+  "native_embedding_contract": "0.161.0",
+  "wire_or_journal_schema_changed": false,
+  "native_core_api_changed": false,
+  "full_extraction_gate": false,
+  "process_crash_acceptance": false,
+  "multi_host_acceptance": false,
+  "baseline": {
+    "shared_tests_passed": 1,
+    "shared_tests_failed": 3,
+    "log_sha256": "57c09811a608fb31165e6c555775848c5f9ad2db4b97edca7bc4e316e16dd79d"
+  },
+  "verification": {
+    "shared_scenarios": [
+      "shared_audit_replay_observes_later_completion_without_adopting_unclaimed_pending_work",
+      "shared_audit_refusal_reconciles_peer_success_deadline_and_ordinary_cancellation",
+      "shared_audit_replay_drops_externally_pruned_cache_before_command_key_reuse",
+      "shared_audit_races_keep_one_committed_timestamp_and_attribution"
+    ],
+    "memory_passed": 9,
+    "durable_passed": 13,
+    "shared_tests_passed": 4,
+    "two_thread_races": 8,
+    "observers_open_with_zero_fresh_fuel": true,
+    "later_committed_audit_replays_original_timestamp": true,
+    "peer_terminal_refusal_updates_local_cache": true,
+    "external_pruning_discards_cached_completion": true,
+    "key_reuse_does_not_revive_old_continuation": true,
+    "unknown_pending_work_not_adopted": true,
+    "pending_image_identity_fence_preserved": true,
+    "identity_and_clock_preflight_preserved": true,
+    "final_transaction_is_authoritative": true,
+    "one_committed_audit_under_race": true,
+    "parity_log_sha256": "3fc4ad20f647f9b06cdc3dbbdad66d20f2c6a76645a70b252061fddff4d28ad9"
+  },
+  "provenance": [
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "37f64d4a10bf48b7eb4ff05bf0934de06ba304178c17feca3bb0bb17c5443a23"
+    },
+    {
+      "path": "crates/leselang-vm/src/debugger_audit_contract_tests.rs",
+      "sha256": "fdbe930dc55b9f01ac2465af60306c04728a90d388e9d0d0ba9b0280c70b51a7"
+    },
+    {
+      "path": "crates/leselang-vm/tests/debugger_audit_durable.rs",
+      "sha256": "bba4a846b56101d25c7341e1a086d727947ca0c1f2052b5e208b0020c998f7ca"
+    },
+    {
+      "path": "crates/leselang-vm/tests/debugger_audit_memory.rs",
+      "sha256": "aa4b16df00362be8f08edc0bfefb42db9206e0dde531bfa91c091c44a9e2d89c"
+    }
+  ],
+  "scope": "Reference shared-file cache reconciliation through existing terminal replay, not pending-work admission, a snapshot/commit atomicity claim, host-neutral durable ownership or repository extraction."
+}

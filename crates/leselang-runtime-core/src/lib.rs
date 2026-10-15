@@ -24,6 +24,9 @@ mod collection;
 mod continuation;
 mod continuation_context;
 mod control;
+mod dispatch_capacity;
+mod dispatch_lease;
+mod dispatch_plan;
 mod fold;
 mod fuel;
 mod group_graph;
@@ -35,6 +38,7 @@ mod projection;
 mod recovery;
 mod recovery_fence;
 mod reply;
+mod retry_schedule;
 mod scalar_contract;
 mod scalar_ops;
 mod scope;
@@ -91,6 +95,15 @@ pub use continuation_context::{
 pub use control::{
     BinarySelection, LoopBudget, LoopError, LoopStep, MAX_LOOP_ITERATIONS, select_binary_left,
 };
+pub use dispatch_capacity::{
+    DispatchAdmissionError, check_dispatch_admission, dispatch_lease_capacity_exhausted,
+};
+pub use dispatch_lease::{
+    DispatchLeaseError, DispatchLeaseObservation, DispatchLeaseStamp, validate_dispatch_lease,
+};
+pub use dispatch_plan::{
+    DispatchAttemptError, DispatchLeasePlanError, next_dispatch_attempt, plan_dispatch_lease,
+};
 pub use fold::{FoldCursor, FoldError};
 pub use fuel::{Fuel, FuelExhausted};
 pub use group_graph::{
@@ -113,6 +126,10 @@ pub use recovery_fence::{
 pub use reply::{
     AcceptedReply, PendingReply, RejectedReply, ReplyAcceptanceError, ReplyAcceptanceResult,
     ReplyAuthority, ReplyEnd, ReplyStatus,
+};
+pub use retry_schedule::{
+    RetryPlanError, RetryScheduleError, RetrySchedulePoint, RetryTiming, plan_retry_schedule,
+    validate_retry_schedule,
 };
 pub use scalar_contract::{ScalarContractError, ScalarTypeSet};
 pub use scalar_ops::{BinaryOperator, ScalarError, UnaryOperator, apply_binary, apply_unary};

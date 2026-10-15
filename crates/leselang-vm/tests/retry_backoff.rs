@@ -260,3 +260,52 @@ fn shared_arithmetic_does_not_bypass_retry_policy_or_classification_checks() {
         assert_eq!(vm.pending_count(), 0);
     }
 }
+
+#[test]
+fn terminal_replay_precedes_late_invalid_error_and_policy_without_rearming() {
+    for durable in [false, true] {
+        for cancel in [false, true] {
+            let path = JournalPath::new();
+            let mut vm = path.vm(durable, 100);
+            let request = admit(&mut vm);
+            let lease = vm.claim_effect(101, 100).unwrap().unwrap();
+            let terminal = if cancel {
+                vm.cancel_effect(&request.continuation, 102)
+            } else {
+                let policy = RetryPolicy {
+                    max_retries: 0,
+                    ..RetryPolicy::default()
+                };
+                let RetryDisposition::Terminal(step) = vm
+                    .report_effect_error(&lease, 102, host_error(), &policy)
+                    .unwrap()
+                else {
+                    panic!("exhausted")
+                };
+                step
+            };
+            if durable {
+                drop(vm);
+                vm = path.vm(true, 0);
+            }
+            let invalid_error = EffectError {
+                code: String::new(),
+                message: String::new(),
+                ..host_error()
+            };
+            let invalid_policy = RetryPolicy {
+                max_retries: u32::MAX,
+                base_delay_ms: 0,
+                max_delay_ms: 0,
+            };
+            assert_eq!(
+                vm.report_effect_error(&lease, 103, invalid_error, &invalid_policy)
+                    .unwrap(),
+                RetryDisposition::Terminal(terminal)
+            );
+            assert!(vm.claim_effect(103, 100).unwrap().is_none());
+            assert_eq!(vm.pending_count(), 0);
+            assert_eq!(vm.completed_count(), 1);
+        }
+    }
+}

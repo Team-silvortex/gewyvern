@@ -91,6 +91,41 @@ fn scalar(value: ScalarValue) -> Step {
 }
 
 #[test]
+fn memory_image_only_restore_is_untracked_not_a_pruned_dispatch() {
+    let mut original = Vm::new(100);
+    let request = effect(start(
+        &mut original,
+        r#"fn main() = ui.focus(node_id: "a")"#,
+    ));
+    let image = decode_continuation(&encode_continuation(&request.continuation).unwrap()).unwrap();
+    let mut restored = Vm::new(0);
+    restored.restore(image.clone()).unwrap();
+    assert_eq!(
+        restored.scheduler_pressure(0).unwrap().pending_dispatches,
+        0
+    );
+    assert!(restored.claim_effect(1, 10).unwrap().is_none());
+    let mut forged = image.clone();
+    forged.fuel_remaining -= 1;
+    assert!(
+        matches!(restored.resume(&forged, focus("a")), Step::Fault(error) if error.code == "LSV2005")
+    );
+    assert_eq!(restored.pending_continuations(), vec![image.clone()]);
+    let done = Step::Done(Value::UiFocus {
+        node_id: "a".into(),
+    });
+    assert_eq!(restored.resume(&image, focus("a")), done);
+    assert_eq!(restored.cancel_effect(&image, 2), done);
+    assert_eq!(restored.pending_count(), 0);
+    assert_eq!(restored.completed_count(), 1);
+    let mut unknown = Vm::new(0);
+    assert!(
+        matches!(unknown.resume(&image, focus("a")), Step::Fault(error) if error.code == "LSV2004")
+    );
+    assert_eq!(unknown.pending_count(), 0);
+}
+
+#[test]
 fn memory_profile_executes_typed_helpers_and_preserves_legacy_scalar_wire() {
     let mut vm = Vm::new(100);
     let output = start(

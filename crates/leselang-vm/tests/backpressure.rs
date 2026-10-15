@@ -86,6 +86,111 @@ fn acknowledge(vm: &mut Vm, lease: &DispatchLease, now: u64) -> Step {
 }
 
 #[test]
+fn lowering_active_capacity_preserves_existing_leases_across_recovery() {
+    for durable in [false, true] {
+        let path = JournalPath::new();
+        let mut vm = path.vm(durable, 4, 3);
+        let requests = (0..4)
+            .map(|index| effect(start(&mut vm, &focus(&format!("node-{index}")), 100, 1000)))
+            .collect::<Vec<_>>();
+        let leases = (0..3)
+            .map(|_| leased(vm.try_claim_effect(101, 100).unwrap()))
+            .collect::<Vec<_>>();
+        vm.set_scheduler_limits(limits(1, 1)).unwrap();
+        if durable {
+            drop(vm);
+            vm = path.vm(true, 1, 1);
+        }
+        // Oversized is still permanent, not transient pressure from existing work.
+        fault(
+            start(
+                &mut vm,
+                r#"fn main() = all(first: ui.focus(node_id: "x"), second: ui.focus(node_id: "y"))"#,
+                102,
+                1000,
+            ),
+            "LSV2503",
+        );
+        fault(start(&mut vm, &focus("not-admitted"), 102, 1000), "LSV2501");
+        for (index, lease) in leases.iter().enumerate() {
+            let now = 103 + index as u64;
+            let DispatchClaim::Backpressured(pressure) = vm.try_claim_effect(now, 50).unwrap()
+            else {
+                panic!("lowered capacity must not grant another lease");
+            };
+            assert_eq!(pressure.pending_dispatches, 4 - index);
+            assert_eq!(pressure.active_leases, 3 - index);
+            assert_eq!(pressure.limits, limits(1, 1));
+            assert!(matches!(acknowledge(&mut vm, lease, now), Step::Done(_)));
+        }
+        let last = leased(vm.try_claim_effect(106, 50).unwrap());
+        assert_eq!(last.request, requests[3]);
+        assert_eq!(last.attempt, 1);
+        assert!(matches!(acknowledge(&mut vm, &last, 107), Step::Done(_)));
+        assert_eq!(vm.try_claim_effect(108, 50).unwrap(), DispatchClaim::Idle);
+        assert_eq!(
+            effect(start(&mut vm, &focus("new"), 108, 1000)).effect_id,
+            "effect-5"
+        );
+    }
+}
+
+#[test]
+fn delayed_work_is_idle_until_ready_then_backpressured_without_spending_attempts() {
+    for durable in [false, true] {
+        let path = JournalPath::new();
+        let mut vm = path.vm(durable, 2, 1);
+        let retrying = effect(start(&mut vm, &focus("retrying"), 100, 1000));
+        let lease = leased(vm.try_claim_effect(101, 100).unwrap());
+        let RetryDisposition::Scheduled(schedule) = vm
+            .report_effect_error(
+                &lease,
+                102,
+                EffectError {
+                    class: EffectErrorClass::Transient,
+                    code: "busy".into(),
+                    message: "host busy".into(),
+                },
+                &RetryPolicy {
+                    max_retries: 1,
+                    base_delay_ms: 10,
+                    max_delay_ms: 10,
+                },
+            )
+            .unwrap()
+        else {
+            panic!("expected a delayed retry");
+        };
+        effect(start(&mut vm, &focus("active"), 102, 1000));
+        let active = leased(vm.try_claim_effect(103, 100).unwrap());
+        if durable {
+            drop(vm);
+            vm = path.vm(true, 2, 1);
+        }
+        assert_eq!(
+            vm.try_claim_effect(schedule.ready_at_ms - 1, 50).unwrap(),
+            DispatchClaim::Idle
+        );
+        assert!(matches!(
+            vm.try_claim_effect(schedule.ready_at_ms, 50).unwrap(),
+            DispatchClaim::Backpressured(_)
+        ));
+        assert!(matches!(
+            acknowledge(&mut vm, &active, schedule.ready_at_ms),
+            Step::Done(_)
+        ));
+        let retry = leased(vm.try_claim_effect(schedule.ready_at_ms, 50).unwrap());
+        assert_eq!(retry.request, retrying);
+        assert_eq!(retry.attempt, 2);
+        assert_eq!(retry.retry_count, 1);
+        assert!(matches!(
+            acknowledge(&mut vm, &retry, schedule.ready_at_ms),
+            Step::Done(_)
+        ));
+    }
+}
+
+#[test]
 fn scheduler_faults_do_not_alias_legacy_merge_validation_faults() {
     assert_eq!(MergePlan::new(["only"]).unwrap_err().code, "LSV2401");
     let plan = MergePlan::new(["left", "right"]).unwrap();

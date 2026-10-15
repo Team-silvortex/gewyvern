@@ -2849,8 +2849,8 @@ fn only_database_dependent_integration_suites_require_sqlite_and_memory_vertical
             memory += 1;
         }
     }
-    assert_eq!(durable, 36);
-    assert_eq!(memory, 15);
+    assert_eq!(durable, 37);
+    assert_eq!(memory, 16);
     assert_eq!(native, 2);
     let proof =
         fs::read_to_string(root().join("crates/leselang-vm/tests/ephemeral_profile.rs")).unwrap();

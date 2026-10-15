@@ -931,6 +931,40 @@ mod tests {
     }
 
     #[test]
+    fn debugger_cancel_does_not_attribute_an_already_cancelled_effect() {
+        let (mut vm, request) = inspect_vm_and_request();
+        let projection =
+            waiting_debugger_projection(&request, "session-a", Revision(7), 1_200).unwrap();
+        let confirmed = plan_debugger_cancel(
+            "session-a",
+            &debugger_context(false, Confirmation::Confirmed),
+        )
+        .unwrap();
+        let terminal = vm.cancel_effect(&request.continuation, 1_250);
+        assert!(matches!(terminal, Step::Cancelled(_)));
+
+        let result = execute_debugger_cancel(
+            &confirmed,
+            &projection,
+            &request.continuation,
+            &mut vm,
+            1_500,
+        );
+        assert!(matches!(
+            result,
+            Err(ObserveError::InvalidDebuggerContinuation(Fault { code, .. }))
+                if code == "LSV4033"
+        ));
+        assert_eq!(
+            vm.debugger_audit(&CommandId::new("debugger-command-a").unwrap())
+                .unwrap(),
+            None
+        );
+        assert_eq!(vm.cancel_effect(&request.continuation, 1_750), terminal);
+        assert_eq!(vm.pending_count(), 0);
+    }
+
+    #[test]
     fn debugger_cancel_rejects_stale_or_rebound_sessions() {
         let (mut vm, request) = inspect_vm_and_request();
         let projection =

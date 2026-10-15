@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-reference-pending-retention",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-15T14:21:11.155Z",
+  "platform": "macos-arm64",
+  "reference_contract": "1.86.0",
+  "native_embedding_contract": "0.161.0",
+  "wire_or_journal_schema_changed": false,
+  "native_core_api_changed": false,
+  "full_extraction_gate": false,
+  "process_crash_acceptance": false,
+  "multi_host_acceptance": false,
+  "baseline": {
+    "new_scenarios_tested": 4,
+    "new_scenarios_passed": 1,
+    "new_scenarios_failed": 3,
+    "log_sha256": "a0cc9f691935a8b1711e81f1aa694520c2877681983016a1ccb378edde2fc347"
+  },
+  "memory_compatibility_regression": {
+    "caught_before_untracked_distinction": true,
+    "failed": 1,
+    "log_sha256": "a8b1138383d2707b1619d3ffe3c1e26228d41e4b51f0d290e2a403c9e5fde25d"
+  },
+  "verification": {
+    "scenarios": [
+      "shared_pruning_reconciles_pending_cache_before_terminal_commands",
+      "shared_pending_observation_preserves_identity_and_requires_explicit_adoption",
+      "invalid_shared_observation_does_not_discard_pending_work",
+      "shared_retention_preserves_live_groups_then_reconciles_each_pruned_branch",
+      "failed_shared_observation_preserves_pending_work_until_storage_recovers",
+      "shared_audit_replay_discards_pending_cache_when_completion_was_already_pruned",
+      "memory_image_only_restore_is_untracked_not_a_pruned_dispatch"
+    ],
+    "new_scenarios_passed": 7,
+    "concurrency_passed": 13,
+    "durable_audit_passed": 14,
+    "memory_audit_passed": 9,
+    "ephemeral_profile_passed": 8,
+    "terminal_command_matrix_cases": 16,
+    "missing_pending_completed_are_distinct": true,
+    "uncached_observation_uses_one_query": true,
+    "cached_terminal_keeps_existence_fast_path": true,
+    "pruned_pending_cache_is_removed": true,
+    "unknown_pending_work_not_adopted": true,
+    "pending_image_identity_fence_preserved": true,
+    "read_failure_and_invalid_state_preserve_cache": true,
+    "live_group_retention_preserved": true,
+    "pruned_group_branches_become_unknown": true,
+    "released_audit_key_cannot_revive_old_continuation": true,
+    "final_transaction_is_authoritative": true,
+    "memory_image_only_restore_preserved": true,
+    "global_pending_cache_refresh_claimed": false,
+    "focused_log_sha256": "55e55e18118f9ca4af71cd55ea17f0c15a876f543b934c12327f1c882ca2dc05"
+  },
+  "provenance": [
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "8904fc8ec2c7694412f7261d4c97de79d20799f8956517559f91bb853e6700d3"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "be87433627ac91e44bde517fe4a6b871e5256bba19fadac7cf8793835756b85a"
+    },
+    {
+      "path": "crates/leselang-vm/tests/concurrency.rs",
+      "sha256": "7883958df0001a8b975ee6288c215e4920723f9564ec5b2881441e8a86680de1"
+    },
+    {
+      "path": "crates/leselang-vm/tests/debugger_audit_durable.rs",
+      "sha256": "ded3fcdadb6959d291b2d0dee706ca519ae3ef1f61e1201c1a679f9866017e99"
+    },
+    {
+      "path": "crates/leselang-vm/tests/ephemeral_profile.rs",
+      "sha256": "385ebe3d14614ff96ecaac3d39998b663f1a1bd8f3eb9f611829da73291172b7"
+    }
+  ],
+  "scope": "Lazy per-token cache reconciliation in the reference shared-file adapter, not a global pending snapshot, atomic observation/commit, host-neutral durable ownership or repository extraction."
+}

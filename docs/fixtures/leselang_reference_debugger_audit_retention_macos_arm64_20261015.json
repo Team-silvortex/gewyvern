@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-reference-debugger-audit-retention",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-15T13:38:15.453Z",
+  "platform": "macos-arm64",
+  "reference_contract": "1.86.0",
+  "native_embedding_contract": "0.161.0",
+  "wire_or_journal_schema_changed": false,
+  "native_core_api_changed": false,
+  "full_extraction_gate": false,
+  "baseline": {
+    "durable_passed": 3,
+    "memory_passed": 0,
+    "memory_failed": 3,
+    "log_sha256": "46dbb0493a5d68a8ef640428b5ab367517fdc523aad27b9e2430e32812b194ec"
+  },
+  "verification": {
+    "retention_scenarios": [
+      "compaction_releases_only_pruned_audits_and_their_command_keys",
+      "compaction_keeps_live_group_audits_then_removes_the_complete_unit",
+      "bounded_compaction_tracks_audits_across_batches_without_touching_pending_work"
+    ],
+    "memory_passed": 9,
+    "durable_passed": 9,
+    "durable_reopen_with_zero_fresh_fuel": true,
+    "retained_audit_replay_preserved": true,
+    "live_group_audits_protected": true,
+    "completed_group_removed_as_one_unit": true,
+    "invalid_and_no_op_compaction_preserves_audits": true,
+    "bounded_mixed_cancellation_batches": true,
+    "pruned_command_and_principal_keys_released": true,
+    "pruned_continuation_identity_not_revived": true,
+    "parity_log_sha256": "5672db99e1c4c596e0ed04bc3e9f5d534f09fb709c45a33f071d0cd631d4d867"
+  },
+  "provenance": [
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "f5f8f222bfe9e0965cb20f3782229e2fd37bc836174bf2edd2641f0f4448393c"
+    },
+    {
+      "path": "crates/leselang-vm/src/debugger_audit_contract_tests.rs",
+      "sha256": "a450e3064e3d2a209027912987403967fcdced269ecfa4a53daff7065ba7fd73"
+    },
+    {
+      "path": "crates/leselang-vm/tests/debugger_audit_memory.rs",
+      "sha256": "aa4b16df00362be8f08edc0bfefb42db9206e0dde531bfa91c091c44a9e2d89c"
+    },
+    {
+      "path": "crates/leselang-vm/tests/debugger_audit_durable.rs",
+      "sha256": "4993add4b483fa4897d064ac3313d8764801280d3db3d4d4eedf560cfb40bb1b"
+    }
+  ],
+  "scope": "Existing reference retention-policy correction. Hosts still own retention/archive policy; audit deletion does not provide permanent deduplication, native-core authority, durable host-neutral recovery or physical repository extraction."
+}

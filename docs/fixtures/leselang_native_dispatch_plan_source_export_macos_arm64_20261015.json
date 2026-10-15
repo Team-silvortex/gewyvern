@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-dispatch-plan-source-export",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-15T13:06:08.505Z",
+  "platform": "macos-arm64",
+  "source_outside_product_workspace": true,
+  "source_crates": [
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir",
+    "leselang-vm"
+  ],
+  "verified": true,
+  "native_vm_facade": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "reference_successor_red_green": true,
+  "reference_attempt_exhaustion_preserves_completion": true,
+  "native_fault_precedence_preserved": true,
+  "atomic_lease_ownership_provided_by_core": false,
+  "execution_authority": false,
+  "process_crash_acceptance": false,
+  "files": 270,
+  "copied_files": 260,
+  "bytes": 6024557,
+  "workspace_all_features_tests": "passed",
+  "workspace_strict_clippy": "passed",
+  "independent_consumer_tests": "passed",
+  "independent_consumer_strict_clippy": "passed",
+  "isolated_test_executions": 2362,
+  "runtime_all_features_test_executions": 2958,
+  "workspace_dispatch_plan_tests": 6,
+  "independent_consumer_dispatch_plan_tests": 6,
+  "timing_matrix_cases": 294,
+  "attempt_matrix_cases": 17161,
+  "new_reference_public_regressions": 2,
+  "new_reference_fault_mapping_tests": 1,
+  "consumer_proof_unchanged": true,
+  "copied_source_byte_for_byte": true,
+  "export_manifest_sha256": "60c8bb95f6ab7af2892b61de4f407b00b692f0a1e9bdc16b1bb954bbc5660ba8",
+  "verification_log_sha256": "6659cd5638907cb5ee3a521d117fcddacdf876f892b0461465c2be9936c1e72e",
+  "runtime_verification_log_sha256": "3af7827d3908589301695ba05c96a2d8af68620356d802cb60e4e5675fa79d0c",
+  "baseline_regression_log_sha256": "5ff8c4d58c8c389a12a2f5eeda06736eae127c57474addb578cb41e588a508e7",
+  "provenance": [
+    {
+      "path": "crates/leselang-runtime-core/src/dispatch_plan.rs",
+      "source": "crates/leselang-runtime-core/src/dispatch_plan.rs",
+      "sha256": "281d2fcd78ad9fef31fc640cb36c30aa92993e925393a5b633bcca08fe39c258"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/lib.rs",
+      "source": "crates/leselang-runtime-core/src/lib.rs",
+      "sha256": "26976f0759eba23530eb9b29828bdea46be5bd70c13dff01129df5beb71b4c12"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/clock.rs",
+      "source": "crates/leselang-runtime-core/src/clock.rs",
+      "sha256": "c2272a1a89eb6b55fc4ff5412446ac3333000f64e027f7f3fc6e539c6330db33"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/dispatch_lease.rs",
+      "source": "crates/leselang-runtime-core/src/dispatch_lease.rs",
+      "sha256": "f8e178d66befa545bb83fd46e38f3eb13183acb0b0c106fc7539d3f317329686"
+    },
+    {
+      "path": "crates/leselang-runtime-core/tests/dispatch_plan.rs",
+      "source": "crates/leselang-runtime-core/tests/dispatch_plan.rs",
+      "sha256": "a5f0289640f77535d612e60f6ddc51577079fc0379966ab52170de322949a37c"
+    },
+    {
+      "path": "consumer/tests/dispatch_plan.rs",
+      "source": "crates/leselang-runtime-core/tests/dispatch_plan.rs",
+      "sha256": "a5f0289640f77535d612e60f6ddc51577079fc0379966ab52170de322949a37c"
+    }
+  ],
+  "reference_provenance": [
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "9bd383ae18564a8123d18039c9eb9d8db1c329a3691a73589d881c9094f7501f",
+      "exported": false
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/successor.rs",
+      "sha256": "394dde34beb9c75f741d638b4a302c21b0d36673e4e06245d8dfdb4d987b996a",
+      "exported": false
+    },
+    {
+      "path": "crates/leselang-vm/tests/clock_boundaries.rs",
+      "sha256": "eb515153bc27c7436bb3d62ca92661d2cade1f2b248bf09934f4d24b30e68e07",
+      "exported": false
+    },
+    {
+      "path": "crates/leselang-vm/tests/dispatch_scheduling.rs",
+      "sha256": "d79a251b056633dd22a699edf584873acb77be77044b6f6655633bf8c771e84f",
+      "exported": false
+    }
+  ],
+  "remaining_gates": [
+    "complete native reference-language coverage",
+    "arbitrary source-program checkpoints and arbitrary captured-graph collections",
+    "production durable ownership and external collector settlement",
+    "production persistence and cancellation/process-crash settlement",
+    "complete reference adapter wire/auth/GUI/CLI/journal parity",
+    "release publication and physical repository extraction"
+  ]
+}

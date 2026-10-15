@@ -7,10 +7,14 @@ use crate::validate_image;
 #[cfg(feature = "sqlite-journal")]
 use leselang_runtime_core::{
     CheckpointCommitError, CheckpointError, CheckpointRecovery, GroupReceiptError, RecoveryPayload,
-    RecoveryRecord, SequenceReservations, StoredGroupState, validate_group_receipt,
+    RecoveryRecord, SequenceReservations, StoredGroupState, dispatch_lease_capacity_exhausted,
+    validate_group_receipt,
 };
 use leselang_runtime_core::{
-    GroupGraphError, GroupGraphMember, checked_clock_add, validate_group_graph,
+    ClockError, DispatchAttemptError, DispatchLeaseError, DispatchLeaseObservation,
+    DispatchLeasePlanError, DispatchLeaseStamp, GroupGraphError, GroupGraphMember,
+    RetrySchedulePoint, checked_clock_add, next_dispatch_attempt, plan_dispatch_lease,
+    validate_dispatch_lease, validate_group_graph, validate_retry_schedule,
 };
 #[cfg(feature = "sqlite-journal")]
 use rusqlite::{
@@ -69,6 +73,15 @@ pub(crate) struct JournalCompaction {
     pub pruned_tokens: Vec<ContinuationToken>,
     pub remaining_completed: usize,
     pub reclaimed_logical_bytes: usize,
+}
+
+pub(crate) enum EffectObservation {
+    // Image-only memory restores have no outbox row; the VM remains authoritative.
+    Untracked,
+    #[cfg(feature = "sqlite-journal")]
+    Missing,
+    Pending,
+    Completed(Box<Step>),
 }
 
 pub(crate) enum MergeProgress {
@@ -257,11 +270,11 @@ impl Journal {
         lease_ms: u64,
         limits: SchedulerLimits,
     ) -> Result<DispatchClaim, Fault> {
-        validate_lease_clock(now_ms, lease_ms)?;
+        let expires_at_ms = lease_expiration(now_ms, lease_ms)?;
         match self {
-            Self::Ephemeral(journal) => journal.claim_dispatch(now_ms, lease_ms, limits),
+            Self::Ephemeral(journal) => journal.claim_dispatch(now_ms, expires_at_ms, limits),
             #[cfg(feature = "sqlite-journal")]
-            Self::Sqlite(journal) => journal.claim_dispatch(now_ms, lease_ms, limits),
+            Self::Sqlite(journal) => journal.claim_dispatch(now_ms, expires_at_ms, limits),
         }
     }
 
@@ -365,25 +378,44 @@ impl Journal {
         }
     }
 
-    pub fn completed_step(&self, token: &ContinuationToken) -> Result<Option<Step>, Fault> {
+    pub fn observe_effect(&self, token: &ContinuationToken) -> Result<EffectObservation, Fault> {
         match self {
-            Self::Ephemeral(journal) => Ok(journal
-                .dispatches
-                .get(token)
-                .and_then(|dispatch| dispatch.terminal_step.clone())),
+            Self::Ephemeral(journal) => Ok(match journal.dispatches.get(token) {
+                None => EffectObservation::Untracked,
+                Some(dispatch) => match &dispatch.terminal_step {
+                    None => EffectObservation::Pending,
+                    Some(step) => EffectObservation::Completed(Box::new(step.clone())),
+                },
+            }),
             #[cfg(feature = "sqlite-journal")]
             Self::Sqlite(journal) => {
-                let bytes: Option<Vec<u8>> = journal.connection.query_row(
-                    "SELECT terminal_step FROM vm_effects WHERE token = ?1 AND state = 'completed'",
-                    [token.as_str()], |row| row.get(0),
-                ).optional().map_err(|error| journal_error("LSV4031", "failed to replay completed effect", error))?;
-                bytes
-                    .map(|bytes| {
+                // A missing terminal alone cannot distinguish pending work from retention.
+                let record = journal
+                    .connection
+                    .query_row(
+                        "SELECT state, terminal_step FROM vm_effects WHERE token = ?1",
+                        [token.as_str()],
+                        |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<Vec<u8>>>(1)?)),
+                    )
+                    .optional()
+                    .map_err(|error| {
+                        journal_error("LSV4031", "failed to observe journal effect", error)
+                    })?;
+                let Some((state, terminal)) = record else {
+                    return Ok(EffectObservation::Missing);
+                };
+                match (state.as_str(), terminal) {
+                    ("pending", None) => Ok(EffectObservation::Pending),
+                    ("completed", Some(bytes)) => {
                         let step: Step = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
                         validate_terminal_step(&step)?;
-                        Ok(step)
-                    })
-                    .transpose()
+                        Ok(EffectObservation::Completed(Box::new(step)))
+                    }
+                    _ => Err(journal_fault(
+                        "LSV4007",
+                        "effect has an invalid durable state",
+                    )),
+                }
             }
         }
     }
@@ -528,7 +560,7 @@ impl EphemeralJournal {
     fn claim_dispatch(
         &mut self,
         now_ms: u64,
-        lease_ms: u64,
+        lease_expires_at_ms: u64,
         limits: SchedulerLimits,
     ) -> Result<DispatchClaim, Fault> {
         let mut eligible: Option<(&ContinuationToken, &EphemeralDispatch)> = None;
@@ -564,7 +596,6 @@ impl EphemeralJournal {
             .get_mut(&token)
             .ok_or_else(|| journal_fault("LSV4007", "dispatch disappeared"))?;
         dispatch.attempt = next_attempt(dispatch.attempt)?;
-        let lease_expires_at_ms = lease_expiration(now_ms, lease_ms)?;
         dispatch.lease_expires_at_ms = Some(lease_expires_at_ms);
         Ok(DispatchClaim::Leased(Box::new(DispatchLease {
             request: dispatch.request.clone(),
@@ -609,19 +640,7 @@ impl EphemeralJournal {
         if dispatch.acknowledged {
             return Ok(step.clone());
         }
-        if dispatch.request != lease.request
-            || dispatch.attempt != lease.attempt
-            || dispatch.retry_count != lease.retry_count
-            || dispatch.lease_expires_at_ms != Some(lease.lease_expires_at_ms)
-        {
-            return Err(journal_fault(
-                "LSV4022",
-                "dispatch lease has been superseded",
-            ));
-        }
-        if lease.lease_expires_at_ms < now_ms {
-            return Err(journal_fault("LSV4023", "dispatch lease has expired"));
-        }
+        validate_ephemeral_lease(dispatch, lease, now_ms)?;
         dispatch.acknowledged = true;
         dispatch.lease_expires_at_ms = None;
         dispatch.terminal_step = Some(step.clone());
@@ -674,6 +693,23 @@ impl EphemeralJournal {
                 "debugger idempotency key was reused",
             ));
         }
+        let dispatch = self
+            .dispatches
+            .get(&image.token)
+            .ok_or_else(|| journal_fault("LSV4013", "pending continuation is missing"))?;
+        if dispatch.request.continuation != *image {
+            return Err(journal_fault(
+                "LSV4014",
+                "continuation image conflicts with journal state",
+            ));
+        }
+        // Only an exact replay above may attribute an already completed cancellation.
+        if dispatch.acknowledged {
+            return Err(journal_fault(
+                "LSV4033",
+                "completed effect has no matching debugger audit",
+            ));
+        }
         let authoritative = self.cancel(image, step)?;
         let record = debugger_audit_record(audit, now_ms);
         self.debugger_audits.insert(
@@ -721,15 +757,10 @@ impl EphemeralJournal {
         let Some(dispatch) = self.dispatches.get_mut(token) else {
             return Err(journal_fault("LSV4021", "dispatch lease is unknown"));
         };
-        validate_retry_lease(dispatch, lease, now_ms)?;
+        validate_ephemeral_lease(dispatch, lease, now_ms)?;
         match disposition {
             RetryDisposition::Scheduled(schedule) => {
-                if schedule.retry_count != dispatch.retry_count + 1
-                    || schedule.ready_at_ms <= now_ms
-                    || validate_effect_error(&schedule.error).is_err()
-                {
-                    return Err(journal_fault("LSV4026", "retry schedule is invalid"));
-                }
+                validate_proposed_retry(dispatch.retry_count, schedule, now_ms)?;
                 dispatch.retry_count = schedule.retry_count;
                 dispatch.ready_at_ms = schedule.ready_at_ms;
                 dispatch.last_error = Some(schedule.error.clone());
@@ -988,6 +1019,11 @@ impl EphemeralJournal {
                 removed_tokens.push(token);
             }
         }
+        if !removed_tokens.is_empty() {
+            // Match SQLite's audit cascade once per batch, retaining live group members.
+            self.debugger_audits
+                .retain(|_, audit| self.dispatches.contains_key(&audit.token));
+        }
         Ok(JournalCompaction {
             removed_records: remove_count,
             pruned_tokens: removed_tokens,
@@ -997,27 +1033,88 @@ impl EphemeralJournal {
     }
 }
 
-fn validate_retry_lease(
+fn validate_ephemeral_lease(
     dispatch: &EphemeralDispatch,
     lease: &DispatchLease,
     now_ms: u64,
 ) -> Result<(), Fault> {
-    if dispatch.acknowledged
-        || dispatch.request != lease.request
-        || dispatch.attempt != lease.attempt
-        || dispatch.retry_count != lease.retry_count
-        || dispatch.ready_at_ms > now_ms
-        || dispatch.lease_expires_at_ms != Some(lease.lease_expires_at_ms)
+    validate_observed_lease(
+        lease,
+        now_ms,
+        DispatchLeaseObservation {
+            same_request: dispatch.request == lease.request,
+            active: !dispatch.acknowledged,
+            attempt: dispatch.attempt,
+            retry_count: dispatch.retry_count,
+            ready_at_ms: dispatch.ready_at_ms,
+            expires_at_ms: dispatch.lease_expires_at_ms,
+        },
+    )
+}
+
+fn validate_proposed_retry(
+    current_retry_count: u32,
+    schedule: &crate::RetrySchedule,
+    now_ms: u64,
+) -> Result<(), Fault> {
+    if validate_retry_schedule(
+        current_retry_count,
+        RetrySchedulePoint {
+            retry_count: schedule.retry_count,
+            ready_at_ms: schedule.ready_at_ms,
+        },
+        now_ms,
+        MAX_SEMANTIC_RETRIES,
+    )
+    .is_err()
+        || validate_effect_error(&schedule.error).is_err()
     {
-        return Err(journal_fault(
-            "LSV4022",
-            "dispatch lease has been superseded",
-        ));
-    }
-    if lease.lease_expires_at_ms < now_ms {
-        return Err(journal_fault("LSV4023", "dispatch lease has expired"));
+        return Err(journal_fault("LSV4026", "retry schedule is invalid"));
     }
     Ok(())
+}
+
+fn validate_observed_lease(
+    lease: &DispatchLease,
+    now_ms: u64,
+    observation: DispatchLeaseObservation,
+) -> Result<(), Fault> {
+    validate_dispatch_lease(
+        DispatchLeaseStamp {
+            attempt: lease.attempt,
+            retry_count: lease.retry_count,
+            expires_at_ms: lease.lease_expires_at_ms,
+        },
+        observation,
+        now_ms,
+    )
+    .map_err(|error| match error {
+        DispatchLeaseError::Superseded => {
+            journal_fault("LSV4022", "dispatch lease has been superseded")
+        }
+        DispatchLeaseError::Expired => journal_fault("LSV4023", "dispatch lease has expired"),
+    })
+}
+
+#[cfg(feature = "sqlite-journal")]
+fn validate_stored_lease(
+    dispatch: &DispatchRecord,
+    lease: &DispatchLease,
+    now_ms: u64,
+    same_request: bool,
+) -> Result<(), Fault> {
+    validate_observed_lease(
+        lease,
+        now_ms,
+        DispatchLeaseObservation {
+            same_request,
+            active: dispatch.state == "leased",
+            attempt: dispatch.attempt,
+            retry_count: dispatch.retry_count,
+            ready_at_ms: dispatch.ready_at_ms,
+            expires_at_ms: dispatch.lease_expires_at_ms,
+        },
+    )
 }
 
 #[cfg(feature = "sqlite-journal")]
@@ -1889,12 +1986,11 @@ impl SqliteJournal {
     fn claim_dispatch(
         &mut self,
         now_ms: u64,
-        lease_ms: u64,
+        expires_at: u64,
         limits: SchedulerLimits,
     ) -> Result<DispatchClaim, Fault> {
         let now = i64::try_from(now_ms)
             .map_err(|_| journal_fault("LSV4015", "dispatch clock is out of range"))?;
-        let expires_at = lease_expiration(now_ms, lease_ms)?;
         let expires_at_sql = i64::try_from(expires_at)
             .map_err(|_| journal_fault("LSV4015", "dispatch lease expiration is out of range"))?;
         let transaction = self
@@ -2101,21 +2197,7 @@ impl SqliteJournal {
         };
         let durable_request: EffectRequest =
             decode_bounded(&dispatch.request, MAX_JOURNAL_ENTRY_BYTES)?;
-        if durable_request != lease.request
-            || dispatch.state != "leased"
-            || dispatch.attempt != lease.attempt
-            || dispatch.retry_count != lease.retry_count
-            || dispatch.ready_at_ms > now_ms
-            || dispatch.lease_expires_at_ms != Some(lease.lease_expires_at_ms)
-        {
-            return Err(journal_fault(
-                "LSV4022",
-                "dispatch lease has been superseded",
-            ));
-        }
-        if lease.lease_expires_at_ms < now_ms {
-            return Err(journal_fault("LSV4023", "dispatch lease has expired"));
-        }
+        validate_stored_lease(&dispatch, lease, now_ms, durable_request == lease.request)?;
         ensure_growth(&transaction, step_bytes.len())?;
         transaction
             .execute(
@@ -2178,32 +2260,11 @@ impl SqliteJournal {
         };
         let durable_request: EffectRequest =
             decode_bounded(&dispatch.request, MAX_JOURNAL_ENTRY_BYTES)?;
-        if durable_request != lease.request
-            || dispatch.state != "leased"
-            || dispatch.attempt != lease.attempt
-            || dispatch.retry_count != lease.retry_count
-            || dispatch.ready_at_ms > now_ms
-            || dispatch.lease_expires_at_ms != Some(lease.lease_expires_at_ms)
-        {
-            return Err(journal_fault(
-                "LSV4022",
-                "dispatch lease has been superseded",
-            ));
-        }
-        if lease.lease_expires_at_ms < now_ms {
-            return Err(journal_fault("LSV4023", "dispatch lease has expired"));
-        }
+        validate_stored_lease(&dispatch, lease, now_ms, durable_request == lease.request)?;
 
         match disposition {
             RetryDisposition::Scheduled(schedule) => {
-                if schedule.retry_count != dispatch.retry_count + 1
-                    || schedule.retry_count > MAX_SEMANTIC_RETRIES
-                    || schedule.ready_at_ms <= now_ms
-                    || schedule.ready_at_ms > i64::MAX as u64
-                    || validate_effect_error(&schedule.error).is_err()
-                {
-                    return Err(journal_fault("LSV4026", "retry schedule is invalid"));
-                }
+                validate_proposed_retry(dispatch.retry_count, schedule, now_ms)?;
                 let error_bytes = encode_json_capped(&schedule.error, 2_048, "effect error")?;
                 let ready_at_ms = i64::try_from(schedule.ready_at_ms)
                     .map_err(|_| journal_fault("LSV4026", "retry clock is invalid"))?;
@@ -3870,13 +3931,6 @@ fn advance_sequence_watermark(connection: &Connection, used_sequence: u64) -> Re
 }
 
 pub(super) fn validate_lease_clock(now_ms: u64, lease_ms: u64) -> Result<(), Fault> {
-    validate_dispatch_clock(now_ms)?;
-    if lease_ms == 0 || lease_ms > MAX_DISPATCH_LEASE_MS {
-        return Err(journal_fault(
-            "LSV4015",
-            format!("dispatch lease must be between 1 and {MAX_DISPATCH_LEASE_MS} ms"),
-        ));
-    }
     lease_expiration(now_ms, lease_ms).map(|_| ())
 }
 
@@ -3888,21 +3942,30 @@ fn validate_dispatch_clock(now_ms: u64) -> Result<(), Fault> {
 }
 
 fn lease_expiration(now_ms: u64, lease_ms: u64) -> Result<u64, Fault> {
-    checked_clock_add(now_ms, lease_ms)
-        .map_err(|_| journal_fault("LSV4015", "dispatch lease expiration is out of range"))
+    plan_dispatch_lease(now_ms, lease_ms, MAX_DISPATCH_LEASE_MS).map_err(|error| match error {
+        DispatchLeasePlanError::Clock(ClockError::OutOfRange) => {
+            journal_fault("LSV4015", "dispatch clock is out of range")
+        }
+        DispatchLeasePlanError::Clock(ClockError::Overflow) => {
+            journal_fault("LSV4015", "dispatch lease expiration is out of range")
+        }
+        DispatchLeasePlanError::Duration => journal_fault(
+            "LSV4015",
+            format!("dispatch lease must be between 1 and {MAX_DISPATCH_LEASE_MS} ms"),
+        ),
+    })
 }
 
 fn next_attempt(current: u32) -> Result<u32, Fault> {
-    let next = current
-        .checked_add(1)
-        .ok_or_else(|| journal_fault("LSV4017", "dispatch attempt counter is exhausted"))?;
-    if next > MAX_DISPATCH_ATTEMPTS {
-        return Err(journal_fault(
+    next_dispatch_attempt(current, MAX_DISPATCH_ATTEMPTS).map_err(|error| match error {
+        DispatchAttemptError::CounterExhausted => {
+            journal_fault("LSV4017", "dispatch attempt counter is exhausted")
+        }
+        DispatchAttemptError::LimitReached => journal_fault(
             "LSV4017",
             format!("dispatch attempt limit {MAX_DISPATCH_ATTEMPTS} reached"),
-        ));
-    }
-    Ok(next)
+        ),
+    })
 }
 
 #[cfg(feature = "sqlite-journal")]
@@ -4012,19 +4075,22 @@ fn sql_lease_capacity_exhausted(
     now: i64,
     limit: usize,
 ) -> Result<bool, Fault> {
-    let limit = i64::try_from(limit)
+    let sql_limit = i64::try_from(limit)
         .map_err(|_| journal_fault("LSV2500", "active lease limit is out of range"))?;
-    connection
+    let active: i64 = connection
         .query_row(
-            "SELECT COUNT(*) >= ?2 FROM (
+            "SELECT COUNT(*) FROM (
            SELECT 1 FROM vm_dispatches d CROSS JOIN vm_effects e ON e.token = d.token
            WHERE d.state = 'leased' AND d.lease_expires_at_ms > ?1 AND e.state = 'pending'
            LIMIT ?2
          )",
-            params![now, limit],
+            params![now, sql_limit],
             |row| row.get(0),
         )
-        .map_err(|error| journal_error("LSV4040", "failed to read active lease capacity", error))
+        .map_err(|error| journal_error("LSV4040", "failed to read active lease capacity", error))?;
+    let active = usize::try_from(active)
+        .map_err(|_| journal_fault("LSV4007", "active lease count is invalid"))?;
+    Ok(dispatch_lease_capacity_exhausted(active, limit))
 }
 
 #[cfg(feature = "sqlite-journal")]
@@ -4066,6 +4132,66 @@ fn journal_fault(code: &str, message: impl Into<String>) -> Fault {
 #[cfg(test)]
 mod outcome_tests {
     use super::*;
+
+    #[test]
+    fn dispatch_planning_preserves_native_fault_codes_and_precedence() {
+        let max = leselang_runtime_core::MAX_CLOCK_MS;
+        for (now, duration, message) in [
+            (max + 1, 0, "dispatch clock is out of range".to_string()),
+            (
+                u64::MAX,
+                u64::MAX,
+                "dispatch clock is out of range".to_string(),
+            ),
+            (
+                max,
+                0,
+                format!("dispatch lease must be between 1 and {MAX_DISPATCH_LEASE_MS} ms"),
+            ),
+            (
+                max,
+                MAX_DISPATCH_LEASE_MS + 1,
+                format!("dispatch lease must be between 1 and {MAX_DISPATCH_LEASE_MS} ms"),
+            ),
+            (
+                max,
+                1,
+                "dispatch lease expiration is out of range".to_string(),
+            ),
+        ] {
+            assert_eq!(
+                lease_expiration(now, duration),
+                Err(journal_fault("LSV4015", &message))
+            );
+            assert_eq!(
+                validate_lease_clock(now, duration),
+                Err(journal_fault("LSV4015", &message))
+            );
+        }
+        assert_eq!(lease_expiration(max - 1, 1), Ok(max));
+        assert_eq!(validate_dispatch_clock(max), Ok(()));
+        assert_eq!(next_attempt(0), Ok(1));
+        assert_eq!(
+            next_attempt(MAX_DISPATCH_ATTEMPTS - 1),
+            Ok(MAX_DISPATCH_ATTEMPTS)
+        );
+        for current in [MAX_DISPATCH_ATTEMPTS, MAX_DISPATCH_ATTEMPTS + 1] {
+            assert_eq!(
+                next_attempt(current),
+                Err(journal_fault(
+                    "LSV4017",
+                    format!("dispatch attempt limit {MAX_DISPATCH_ATTEMPTS} reached")
+                ))
+            );
+        }
+        assert_eq!(
+            next_attempt(u32::MAX),
+            Err(journal_fault(
+                "LSV4017",
+                "dispatch attempt counter is exhausted"
+            ))
+        );
+    }
 
     #[test]
     fn sequence_stop_preserves_frozen_early_exit_and_native_fault_precedence() {
@@ -4139,6 +4265,88 @@ mod outcome_tests {
 #[cfg(feature = "sqlite-journal")]
 mod scheduling_tests {
     use super::*;
+
+    #[test]
+    fn malformed_retry_proposals_preserve_the_original_lease_in_both_journals() {
+        for durable in [false, true] {
+            let root = TempRoot::new();
+            let path = root.0.join("retry.sqlite3");
+            let mut vm = if durable {
+                crate::Vm::open_journal(&path, 100).unwrap()
+            } else {
+                crate::Vm::new(100)
+            };
+            let program = leselang_hir::lower(&leselang_syntax::parse(
+                r#"fn main() = bind(result: ui.focus(node_id: "node"), body: true)"#,
+            ))
+            .unwrap();
+            let Step::Effect(request) = vm.start(
+                &program,
+                crate::Principal::new("operator").unwrap(),
+                crate::CapabilitySet::new(["ui.presentation"]),
+                None,
+            ) else {
+                panic!("pending effect")
+            };
+            let lease = vm.claim_effect(100, 100).unwrap().unwrap();
+            for (count, ready) in [(1, i64::MAX as u64 + 1), (0, 110), (2, 110), (1, 101)] {
+                let disposition = RetryDisposition::Scheduled(crate::RetrySchedule {
+                    retry_count: count,
+                    ready_at_ms: ready,
+                    error: EffectError {
+                        class: crate::EffectErrorClass::Transient,
+                        code: "busy".into(),
+                        message: "native busy".into(),
+                    },
+                });
+                assert_eq!(
+                    vm.journal
+                        .report_error(&lease, 101, &disposition)
+                        .unwrap_err()
+                        .code,
+                    "LSV4026"
+                );
+                assert_eq!(vm.scheduler_pressure(101).unwrap().active_leases, 1);
+            }
+            if durable {
+                drop(vm);
+                vm = crate::Vm::open_journal(&path, 0).unwrap();
+            }
+            assert_eq!(
+                vm.pending_continuations(),
+                vec![request.continuation.clone()]
+            );
+            let done = vm.acknowledge_effect(
+                &lease,
+                102,
+                crate::EffectResult::Presentation(crate::PresentationResult::Focus {
+                    node_id: "node".into(),
+                }),
+            );
+            assert!(matches!(done, Step::Done(_)));
+        }
+    }
+
+    #[test]
+    fn retry_proposal_counter_bounds_refuse_without_overflow_or_native_error_formatting() {
+        for (current, next) in [
+            (MAX_SEMANTIC_RETRIES, MAX_SEMANTIC_RETRIES + 1),
+            (u32::MAX, 0),
+        ] {
+            let schedule = crate::RetrySchedule {
+                retry_count: next,
+                ready_at_ms: 2,
+                error: EffectError {
+                    class: crate::EffectErrorClass::Transient,
+                    code: "busy".into(),
+                    message: "native detail must not appear".into(),
+                },
+            };
+            let fault = validate_proposed_retry(current, &schedule, 1).unwrap_err();
+            assert_eq!(fault.code, "LSV4026");
+            assert_eq!(fault.message, "retry schedule is invalid");
+        }
+    }
 
     #[test]
     fn watermark_planning_preserves_frozen_sqlite_fault_order_and_writes() {

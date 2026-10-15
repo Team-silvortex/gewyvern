@@ -8793,7 +8793,8 @@ fn fenced_host_work_reuses_pending_state_and_exports_the_same_native_proofs() {
         "self.status() != EffectSessionStatus::Awaiting",
         "return Err(input)",
         "State::Terminal(EffectSessionEnd::HostUncertain)",
-        "let output = work(input)",
+        "self.with_metered_host_work(input, |input, _| work(input))",
+        "let output = work(input, &mut self.fuel)",
         "self.state = pending",
     ] {
         assert!(body.contains(required), "host boundary lost {required}");

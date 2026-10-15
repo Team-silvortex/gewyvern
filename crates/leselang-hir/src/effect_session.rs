@@ -387,6 +387,14 @@ impl<'expression, 'schema, Node: ?Sized, Value, Continuation, Identity, Declarat
         input: Input,
         work: impl FnOnce(Input) -> HostWorkOutcome<Output>,
     ) -> Result<Output, Input> {
+        self.with_metered_host_work(input, |input, _| work(input))
+    }
+
+    pub(crate) fn with_metered_host_work<Input, Output>(
+        &mut self,
+        input: Input,
+        work: impl FnOnce(Input, &mut Fuel) -> HostWorkOutcome<Output>,
+    ) -> Result<Output, Input> {
         if self.status() != EffectSessionStatus::Awaiting {
             return Err(input);
         }
@@ -394,7 +402,7 @@ impl<'expression, 'schema, Node: ?Sized, Value, Continuation, Identity, Declarat
             &mut self.state,
             State::Terminal(EffectSessionEnd::HostUncertain),
         );
-        let output = work(input);
+        let output = work(input, &mut self.fuel);
         let output = match output {
             HostWorkOutcome::Pending(output) => {
                 self.state = pending;

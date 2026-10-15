@@ -163,6 +163,55 @@ receipt rejection, exact fuel and cleanup/unwind boundaries. Native callbacks/Dr
 remain trusted. This is not a codec, crash journal, external collector cancellation
 or permission to restore settled work; durable owning-VM integration remains open.
 
+`native::LocalVm::with_metered_host_outcome` now lends the original owned meter to
+Awaiting native work, reusing the existing outcome and terminal state machine.
+Group result assembly and later capture returns therefore share the saved budget;
+charges survive failure/cancellation/unwind without automatic refunds. Native code
+must charge correctly and must not replace/refill the mutable meter. The bounded
+two-capture byte fixture now combines saved-session restoration, original Seq/All
+collectors and explicit reply-gated returns across 440 frontier/order combinations,
+all assembly/return fuel cutoffs, 1,760 cancellation/Drop cases and 660 live-policy
+refusals. External collectors are explicitly cancelled after revocation, not by
+magic on owner Drop. This remains a host-owned bounded codec/model, not a production
+durable VM, replay fence, arbitrary checkpoint format or crash settlement.
+
+`native::core::validate_dispatch_lease` now supplies the allocation-free current
+attempt/retry/readiness/expiry comparison used by reference journal completion,
+retry and successor settlement. Five exported tests cover 1,296 field combinations,
+full-width clocks and opaque GUI identity observations. The reference expiry
+instant stays inclusive for the current attempt; re-leasing at that instant fences
+the old attempt. Both journals now reject completion before retry readiness.
+Identity, live authority, terminal-result replay and atomic storage settlement
+remain host-owned. This is a pure check, not a durable lease or replay registry.
+
+`native::core::{plan_retry_schedule, validate_retry_schedule}` now separates
+semantic retry planning from product error payloads and storage. Positive capped
+delays reuse the original backoff and portable clock kernels; exhaustion never
+resets the retry count. Both reference journals share exact-next-count, retry
+ceiling and future portable-time checks, including the formerly missing in-memory
+clock ceiling. Eight exported tests include 20,720 planning and 1,512 commit-check
+cases. Native error classification, policy ceilings, deadline handling, current
+leases, authoritative terminal replay and atomic settlement remain host-owned.
+These numeric proposals neither reserve work nor create timers or retry authority.
+
+Shared dispatch capacity now separates oversized batches from transient pressure
+using overflow-safe addition and a common active-slot predicate. Six unchanged
+exported consumer tests cover 729 admission and 49 slot combinations, full-width
+and zero boundaries, and the original synchronous admission lifecycle. Both
+reference journals delegate without moving product policy or transaction ownership
+into core; SQLite retains its bounded count. Lowered limits preserve old leases,
+while delayed work stays idle until ready. Observations neither reserve capacity
+nor provide atomic admission or a new scheduler.
+
+Shared dispatch issuance planning now checks positive bounded lease durations and
+portable expiration before host mutation, with exact overflow-safe delivery counts
+kept separate from semantic retries. Both reference journals preserve native fault
+codes and atomic claim ownership. Successor settlement no longer requires a
+fictitious future lease at the maximum clock; regression coverage includes reopen,
+replay/cancellation and completion after delivery-budget exhaustion. Six exported
+tests cover 294 timing and 17,161 counter cases plus original fencing boundaries.
+A numeric plan is not execution authority, a reservation or durable settlement.
+
 ## Build Profiles
 
 | Profile | Cargo Features | Entry Points |
@@ -175,6 +224,40 @@ The default profile is unchanged. Consumers of the previous database-free root
 API must explicitly enable `leserpent-profile`. `sqlite-journal` implies that
 profile; there is no silent fallback when a durable journal cannot open.
 Cargo features are additive, not a capability or security boundary.
+
+Both reference profiles reject fresh debugger audit attribution after completion
+(`LSV4033`), including ordinary and propagated sibling cancellations. Only an
+exact original command replay returns the original audit timestamp; refusal does
+not overwrite terminal results or existing audits. Shared memory/durable tests
+cover identity conflicts, principal-scoped keys, deadline/success refusal and
+SQLite reopen. Product debugger identity/policy stays outside the native core;
+the in-memory profile still loses its state when destroyed.
+
+Audit retention follows the owning effect/group in both reference profiles.
+Compaction removes only audits whose effects were pruned, releasing their command
+and principal-scoped idempotency reservations. Retained effects and unfinished
+groups keep exact replay; no-op/invalid compaction keeps audits unchanged. Memory
+cleanup scans audits once per deleting batch rather than once per removed effect.
+Pruned continuation identities remain unknown, not reusable execution grants.
+Hosts own retention and any longer-lived audit/deduplication archive.
+
+Audited cancellation consults the same authoritative completed-state path as
+ordinary cancellation before local cache decisions. Long-lived shared-journal
+observers can replay later committed audits and forget externally pruned results,
+without adopting unknown pending work or weakening pending-image checks. Audit
+identity/clock preflight and final transactional first-commit arbitration remain
+unchanged; two-thread identical/competing command tests check one attribution and
+one original timestamp, not multi-host or process-crash recovery.
+
+Reconciliation distinguishes missing, pending and completed journal records in
+one lookup when no terminal result is cached. If a peer completes and prunes work
+before this VM observes the result, the next terminal command discards its stale
+local pending entry rather than leaving a fake task. Live pending work is neither
+adopted nor discarded; malformed records and read failures preserve the cache.
+This is lazy per-token reconciliation, not an automatic global cache refresh.
+Already cached terminal replay keeps its lightweight existence check.
+Image-only memory restores have no outbox row and remain locally authoritative:
+an untracked memory continuation is not evidence of durable retention.
 
 ## Product Protocol Ownership
 

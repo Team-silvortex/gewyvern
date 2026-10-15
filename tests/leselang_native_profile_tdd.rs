@@ -872,6 +872,45 @@ fn pending_restore_uses_original_session_core_and_exports_ownership_regressions(
 }
 
 #[test]
+fn metered_owned_recovery_joins_existing_byte_codecs_collectors_and_session_core() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/saved_group.rs")).unwrap();
+    let owned = source
+        .split("mod owned {")
+        .nth(1)
+        .unwrap()
+        .split("fn cases(")
+        .next()
+        .unwrap();
+    for entry in [
+        "Session::restore_pending(",
+        "Collector::restore(saved, &env)",
+        "with_metered_host_outcome(collector",
+        "assemble_group_reply(",
+        "collector.cancel(&env, &lease)",
+        ".try_accept::<Group<'_, T>, _>",
+        "session.poll(&env)",
+        "owned_checkpoint_uses_one_meter_from_collectors_through_both_capture_returns",
+        "owned_checkpoint_all_fuel_cutoffs_match_the_original_manual_reentry",
+        "owned_checkpoint_cancellation_hands_back_collectors_after_revocation",
+        "owned_checkpoint_live_collector_capture_and_cold_return_denials_close_parent",
+    ] {
+        assert!(owned.contains(entry), "missing {entry}");
+    }
+    let core =
+        fs::read_to_string(root().join("crates/leselang-hir/src/effect_session.rs")).unwrap();
+    assert!(core.contains("self.with_metered_host_work(input, |input, _| work(input))"));
+    assert_eq!(
+        core.matches("let output = work(input, &mut self.fuel)")
+            .count(),
+        1
+    );
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Metered Owned Checkpoint Recovery"));
+    assert!(docs.contains("must not be used to replace/refill Fuel"));
+}
+
+#[test]
 fn repeated_source_checkpoints_reuse_the_existing_compiler_and_receipt_boundaries() {
     let source =
         fs::read_to_string(root().join("crates/leselang-hir/tests/saved_group.rs")).unwrap();
@@ -911,6 +950,169 @@ fn repeated_source_checkpoints_reuse_the_existing_compiler_and_receipt_boundarie
     assert!(docs.contains("### Bounded Repeat Program Recovery"));
     assert!(docs.contains("332 additional frontier/order"));
     assert!(docs.contains("not proof of arbitrary untrusted-codec validation"));
+}
+
+#[test]
+fn dispatch_lease_fence_is_shared_without_exporting_reference_storage() {
+    let core =
+        fs::read_to_string(root().join("crates/leselang-runtime-core/src/dispatch_lease.rs"))
+            .unwrap();
+    for forbidden in ["leserpent", "rusqlite", "serde", "unsafe", "Vec<", "Box<"] {
+        assert!(!core.contains(forbidden));
+    }
+    assert!(core.contains("pub fn validate_dispatch_lease("));
+    assert!(core.contains("submitted.expires_at_ms < now_ms"));
+    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    assert!(journal.contains("validate_dispatch_lease("));
+    assert!(journal.contains("DispatchLeaseError::Superseded"));
+    let successor =
+        fs::read_to_string(root().join("crates/leselang-vm/src/journal/successor.rs")).unwrap();
+    assert!(successor.contains("validate_stored_lease(&dispatch, lease, now_ms, true)?"));
+    for source in [&journal, &successor] {
+        assert!(!source.contains("lease.lease_expires_at_ms < now_ms"));
+    }
+    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(exporter.contains("consumer/tests/dispatch_lease.rs"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Shared Dispatch Lease Fencing"));
+    assert!(docs.contains("does not turn `LocalVm` restoration into a journal"));
+}
+
+#[test]
+fn semantic_retry_planning_reuses_numeric_kernels_and_stays_outside_host_storage() {
+    let core =
+        fs::read_to_string(root().join("crates/leselang-runtime-core/src/retry_schedule.rs"))
+            .unwrap();
+    for forbidden in [
+        "leserpent",
+        "rusqlite",
+        "serde",
+        "unsafe",
+        "EffectError",
+        "std::time",
+    ] {
+        assert!(!core.contains(forbidden));
+    }
+    for required in [
+        "pub fn plan_retry_schedule(",
+        "pub fn validate_retry_schedule(",
+        "capped_exponential_delay(",
+        "checked_clock_add(",
+        ".checked_add(1)",
+    ] {
+        assert!(core.contains(required));
+    }
+    let profile =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    assert!(profile.contains("plan_retry_schedule("));
+    assert!(!profile.contains("fn retry_delay("));
+    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    assert_eq!(
+        journal
+            .matches("validate_proposed_retry(dispatch.retry_count, schedule, now_ms)?;")
+            .count(),
+        2
+    );
+    assert!(journal.contains("validate_retry_schedule("));
+    assert!(!journal.contains("dispatch.retry_count + 1"));
+    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(exporter.contains("consumer/tests/retry_schedule.rs"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Shared Semantic Retry Planning"));
+    assert!(docs.contains("not a retry registry, durable owner or crash settlement"));
+}
+
+#[test]
+fn dispatch_capacity_is_shared_without_moving_storage_or_product_policy_into_core() {
+    let core =
+        fs::read_to_string(root().join("crates/leselang-runtime-core/src/dispatch_capacity.rs"))
+            .unwrap();
+    for forbidden in [
+        "leserpent",
+        "rusqlite",
+        "serde",
+        "unsafe",
+        "MAX_JOURNAL",
+        "std::sync",
+    ] {
+        assert!(!core.contains(forbidden));
+    }
+    assert!(core.contains("pub fn check_dispatch_admission("));
+    assert!(core.contains("pub fn dispatch_lease_capacity_exhausted("));
+    assert!(core.contains(".checked_add(additional)"));
+    let scheduling =
+        fs::read_to_string(root().join("crates/leselang-vm/src/scheduling.rs")).unwrap();
+    assert!(
+        scheduling
+            .contains("check_dispatch_admission(pending, additional, self.max_pending_dispatches)")
+    );
+    assert!(scheduling.contains(
+        "dispatch_lease_capacity_exhausted(self.active_leases, self.limits.max_active_leases)"
+    ));
+    assert!(!scheduling.contains("pending.saturating_add"));
+    for code in ["LSV2500", "LSV2501", "LSV2502", "LSV2503"] {
+        assert!(scheduling.contains(code));
+    }
+    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    assert!(journal.contains("Ok(dispatch_lease_capacity_exhausted(active, limit))"));
+    let bounded_query = journal
+        .split("fn sql_lease_capacity_exhausted(")
+        .nth(1)
+        .unwrap()
+        .split("fn sql_scheduler_pressure(")
+        .next()
+        .unwrap();
+    assert!(bounded_query.contains("LIMIT ?2"));
+    assert!(bounded_query.contains("d.lease_expires_at_ms > ?1"));
+    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(exporter.contains("consumer/tests/dispatch_capacity.rs"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Shared Dispatch Capacity"));
+    assert!(docs.contains("not a reservation, queue or"));
+    assert!(docs.contains("atomic admission owner"));
+}
+
+#[test]
+fn lease_issuance_planning_stays_separate_from_existing_lease_settlement() {
+    let core = fs::read_to_string(root().join("crates/leselang-runtime-core/src/dispatch_plan.rs"))
+        .unwrap();
+    for forbidden in [
+        "leserpent",
+        "rusqlite",
+        "serde",
+        "unsafe",
+        "MAX_DISPATCH",
+        "std::time",
+    ] {
+        assert!(!core.contains(forbidden));
+    }
+    for required in [
+        "pub fn plan_dispatch_lease(",
+        "pub fn next_dispatch_attempt(",
+        "checked_clock_add(now_ms, 0)",
+        "checked_clock_add(now_ms, lease_ms)",
+        ".checked_add(1)",
+    ] {
+        assert!(core.contains(required));
+    }
+    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    assert!(journal.contains("plan_dispatch_lease(now_ms, lease_ms, MAX_DISPATCH_LEASE_MS)"));
+    assert!(journal.contains("next_dispatch_attempt(current, MAX_DISPATCH_ATTEMPTS)"));
+    assert_eq!(
+        journal
+            .matches("journal.claim_dispatch(now_ms, expires_at_ms, limits)")
+            .count(),
+        2
+    );
+    let successor =
+        fs::read_to_string(root().join("crates/leselang-vm/src/journal/successor.rs")).unwrap();
+    assert!(successor.contains("validate_dispatch_clock(now_ms)?;"));
+    assert!(!successor.contains("validate_lease_clock("));
+    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(exporter.contains("consumer/tests/dispatch_plan.rs"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Shared Dispatch Issuance Planning"));
+    assert!(docs.contains("not a lease grant, durable owner or crash settlement"));
 }
 
 #[test]

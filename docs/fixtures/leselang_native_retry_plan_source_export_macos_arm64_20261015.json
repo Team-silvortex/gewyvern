@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-retry-plan-source-export",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-15T12:24:06.281Z",
+  "platform": "macos-arm64",
+  "source_outside_product_workspace": true,
+  "source_crates": [
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir",
+    "leselang-vm"
+  ],
+  "verified": true,
+  "native_vm_facade": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "shared_backoff_and_clock": true,
+  "allocation_free_numeric_planning": true,
+  "checked_counter_progression": true,
+  "reference_proposal_red_green": true,
+  "reference_terminal_replay_precedence": true,
+  "durable_owning_vm": false,
+  "atomic_storage_provided_by_core": false,
+  "automatic_retry_dispatch": false,
+  "process_crash_acceptance": false,
+  "files": 264,
+  "copied_files": 254,
+  "bytes": 5995068,
+  "workspace_all_features_tests": "passed",
+  "workspace_strict_clippy": "passed",
+  "independent_consumer_tests": "passed",
+  "independent_consumer_strict_clippy": "passed",
+  "isolated_test_executions": 2338,
+  "runtime_all_features_test_executions": 2941,
+  "workspace_retry_schedule_tests": 8,
+  "independent_consumer_retry_schedule_tests": 8,
+  "planning_matrix_cases": 20720,
+  "commit_matrix_cases": 1512,
+  "new_reference_journal_regressions": 2,
+  "new_reference_public_regressions": 1,
+  "consumer_proof_unchanged": true,
+  "copied_source_byte_for_byte": true,
+  "export_manifest_sha256": "b5a77bc5ae8f27dabf829709db5bcad7ee547b34b85f1d206f3b723157867134",
+  "verification_log_sha256": "299ffd3d726acd843c0f6b7b58b516e7c7833c4ce93b8852c4b7ab6af50c52db",
+  "runtime_verification_log_sha256": "f82bbcf5ed163b6b9c4fff3e49c0c29698d9a237b934af6542626aa397ae65c8",
+  "baseline_regression_log_sha256": "ab2d6aeb2e1fb367a81c2572d578a45c7a1be50262ffc74cf9bb4e1ad844aa2f",
+  "provenance": [
+    {
+      "path": "crates/leselang-runtime-core/src/retry_schedule.rs",
+      "source": "crates/leselang-runtime-core/src/retry_schedule.rs",
+      "sha256": "21321604782dff9bab0c5e63a9ae28e2e50402285ff8745a51cb255045251c6b"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/lib.rs",
+      "source": "crates/leselang-runtime-core/src/lib.rs",
+      "sha256": "fbe36895f632433272fa7a48eb567f44343004d2e09b8407d299c27df519dee3"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/backoff.rs",
+      "source": "crates/leselang-runtime-core/src/backoff.rs",
+      "sha256": "4abde4654dd021d9c274c86c5d8999ca33cb34bd4e5bf6616bd3703b9f30d56e"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/clock.rs",
+      "source": "crates/leselang-runtime-core/src/clock.rs",
+      "sha256": "c2272a1a89eb6b55fc4ff5412446ac3333000f64e027f7f3fc6e539c6330db33"
+    },
+    {
+      "path": "crates/leselang-runtime-core/tests/retry_schedule.rs",
+      "source": "crates/leselang-runtime-core/tests/retry_schedule.rs",
+      "sha256": "144d7dad89ee0f50228c85c6cffadd4f1fc4cec9bff953c809fef91aa036a412"
+    },
+    {
+      "path": "consumer/tests/retry_schedule.rs",
+      "source": "crates/leselang-runtime-core/tests/retry_schedule.rs",
+      "sha256": "144d7dad89ee0f50228c85c6cffadd4f1fc4cec9bff953c809fef91aa036a412"
+    }
+  ],
+  "reference_provenance": [
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "acd47c266dc539e3c5192c8eaaa3cab112af2ed9d047f55c10daf85a53db1a42",
+      "exported": false
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "a858758c6272a62e6bcaf46c6aa9a2a2cc743abbe781510d02411a83ae9a317b",
+      "exported": false
+    },
+    {
+      "path": "crates/leselang-vm/tests/retry_backoff.rs",
+      "sha256": "9cc928bfc1174ac5ee776a0464fcc3ae23fcec60c9b8f8f6f639b05b8e2192d9",
+      "exported": false
+    }
+  ],
+  "remaining_gates": [
+    "complete native reference-language coverage",
+    "arbitrary source-program checkpoints and arbitrary captured-graph collections",
+    "production durable ownership and external collector settlement",
+    "production persistence and cancellation/process-crash settlement",
+    "complete reference adapter wire/auth/GUI/CLI/journal parity",
+    "release publication and physical repository extraction"
+  ]
+}

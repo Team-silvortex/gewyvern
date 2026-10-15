@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-reference-debugger-audit-parity",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-15T13:22:15.740Z",
+  "platform": "macos-arm64",
+  "reference_contract": "1.86.0",
+  "native_embedding_contract": "0.161.0",
+  "wire_or_journal_schema_changed": false,
+  "native_core_api_changed": false,
+  "full_extraction_gate": false,
+  "public_reference_regression": true,
+  "memory_persistence": false,
+  "baseline": {
+    "durable_passed": 6,
+    "memory_passed": 3,
+    "memory_failed": 3,
+    "log_sha256": "896e150d1bdda94597f770c5187966d87b92630118088b624a6042753a6d4852"
+  },
+  "verification": {
+    "shared_scenarios": [
+      "ordinary_cancellation_cannot_be_retroactively_audited",
+      "fresh_command_cannot_replace_committed_cancellation_attribution",
+      "exact_replay_preserves_original_timestamp_and_all_identity_fields",
+      "command_and_principal_key_conflicts_do_not_cancel_another_pending_root",
+      "propagated_sequence_cancellation_cannot_gain_a_sibling_audit",
+      "completion_and_deadline_cannot_be_relabelled_as_debugger_cancellation"
+    ],
+    "memory_passed": 6,
+    "durable_passed": 6,
+    "observer_passed": 11,
+    "durable_reopen_with_zero_fresh_fuel": true,
+    "exact_replay_keeps_original_timestamp": true,
+    "refusal_preserves_terminal_and_audit": true,
+    "principal_scoped_idempotency": true,
+    "parity_log_sha256": "a9b1007f7b51c426c2a01538996732523a388a24ba94407ab00ac473d414cadb",
+    "observer_log_sha256": "91b879fd275bc9657042651acf82cf7cd980791e3b16a204e4b3aae3e3418daf",
+    "exporter_passed": 16,
+    "product_audit_tests_excluded_from_native_export": true,
+    "exporter_log_sha256": "1d44de58985a21be42c61affe2b653bd9da00fcf6281a88936a328d5d5a450d1"
+  },
+  "provenance": [
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "c51dc16488add6a92e8dc6afc73fa471a91a1f7547024f72b99ad8238652d838"
+    },
+    {
+      "path": "crates/leselang-vm/src/debugger_audit_contract_tests.rs",
+      "sha256": "91c8f371c2bc99ed4a2ec3f01b78e9fd5f52d36c1f850e7fe940a81dbe80fa24"
+    },
+    {
+      "path": "crates/leselang-vm/tests/debugger_audit_memory.rs",
+      "sha256": "fea0600598f9872c5a6bb7c49a8d5434e054c04f69e1749759e0fd24b69d731c"
+    },
+    {
+      "path": "crates/leselang-vm/tests/debugger_audit_durable.rs",
+      "sha256": "c60edd6d697e059f67f41e768bbd19c9eb1b67eee44b7455e2ad262067fe59c1"
+    },
+    {
+      "path": "crates/leselang-observe/src/lib.rs",
+      "sha256": "c104b97f88ad94862aed950d0af3e03fa513f63bb016333601355b00a64e220e"
+    },
+    {
+      "path": "crates/gewyvern-dev/src/leselang.rs",
+      "sha256": "40f2523b697564ff296e0e62bc61c5fd49ed608bc00dda97f92edbef7469f8da"
+    }
+  ],
+  "scope": "Existing Leserpent reference audit-policy correction, not independent VM promotion, host-neutral audit authority, GUI rendering acceptance or process-crash settlement."
+}

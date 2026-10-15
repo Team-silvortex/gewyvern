@@ -220,6 +220,43 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
         })
     }
 
+    /// Classify native work using the same owned meter as evaluation/re-entry.
+    /// Only Awaiting admits work; refusal returns the original input untouched.
+    /// Charging, exhaustion policy and native work remain the adapter's duty.
+    /// Debits survive Pending, terminal outcomes and unwind: no automatic charge,
+    /// refund, replacement meter, reply acceptance or continuation execution occurs.
+    /// Exhaustion is not inferred from output; return Failed when it is terminal.
+    ///
+    /// Like evaluator callbacks, this is trusted native code with mutable Fuel
+    /// access, not a sandbox: the adapter must not replace/refill the meter or
+    /// omit required charges. Fuel is not a wall-clock or aggregate memory limit.
+    /// The same scope/cleanup and external collector cancellation boundaries as
+    /// `with_host_outcome` apply. Borrowed outputs cannot retain the meter borrow.
+    ///
+    /// ```compile_fail
+    /// use leselang_hir::local_effect_session::{LocalStackedControlSession, HostWorkOutcome};
+    /// fn leak(vm: &mut LocalStackedControlSession<'_, '_, (), (), (), u8, (), ()>) {
+    ///     let _ = vm.with_metered_host_outcome((), |_, fuel| HostWorkOutcome::Pending(fuel));
+    /// }
+    /// ```
+    pub fn with_metered_host_outcome<Input, Output>(
+        &mut self,
+        input: Input,
+        work: impl FnOnce(Input, &mut Fuel) -> HostWorkOutcome<Output>,
+    ) -> Result<Output, Input> {
+        self.call(|session, scope| {
+            session.with_metered_host_work(input, |input, fuel| {
+                let fence = CallFence::new(Some(scope));
+                let output = work(input, fuel);
+                if !matches!(&output, HostWorkOutcome::Pending(_)) {
+                    scope.close();
+                }
+                fence.finish();
+                output
+            })
+        })
+    }
+
     /// Exact original acceptance: a normal rejection returns the original input
     /// and does not revoke a still-pending execution. No continuation runs here.
     /// Validation unwind revokes before core-owned pending identity/frame/reply

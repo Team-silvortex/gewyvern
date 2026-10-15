@@ -5619,6 +5619,70 @@ Memory state does not survive VM destruction, and serialized continuation data
 alone does not restore a completed outbox. Hosts still own cross-VM routing and
 current dispatch authority; equal local token text is not global execution identity.
 
+Both reference storage modes enforce the same debugger cancellation audit rule:
+a new command may attribute only a pending effect. An ordinary cancellation,
+propagated sibling cancellation or cancellation already attributed to another
+command cannot acquire a new audit after completion (`LSV4033`). Refusal preserves
+the original terminal result, timestamp and audit. Exact replays match the effect,
+command, principal-scoped idempotency key, origin, session and revision, returning
+the original audit time rather than the retry time. Completed successes and
+deadline cancellations remain non-cancellable (`LSV2014`). A stale waiting
+projection in the debugger cannot convert a refusal into an Applied result.
+`src/debugger_audit_contract_tests.rs` runs the same nine scenarios through
+memory and SQLite targets; the durable target also closes/reopens the journal
+with zero fresh fuel. Memory does not gain persistence. These audit identities and
+policies remain product-adapter concerns, not host-neutral execution authority.
+
+Audits share the retention lifetime of their effect or complete task group.
+Compaction removes audits for pruned effects, including their command/idempotency
+reservations, while preserving audits and exact replay for retained effects and
+members of unfinished groups. The memory journal performs one audit sweep per
+deleting batch, matching SQLite's existing cascading deletion; no-op or invalid
+compaction does not discard audits. Tests cover bounded multi-batch cleanup,
+mixed ordinary/audited cancellation, live-group protection, whole-group removal,
+restart and key reuse without reviving pruned continuation identities.
+Retention is host-controlled, not an automatic TTL or a permanent deduplication
+registry. Hosts needing longer-lived audit evidence must retain it separately.
+
+Audited cancellation also reconciles completed state against a shared journal,
+as ordinary cancellation already does. A long-lived VM can replay an exact audit
+committed for work admitted after its startup snapshot, observes peer success or
+deadline cancellation before deciding whether a new audit is legal, and discards
+cached completions removed by another VM. Audit identity and clock validation
+still run first. Unknown pending work is not adopted and known pending images
+still require exact correspondence; observing a terminal result is not a new
+execution grant. The final SQLite transaction remains authoritative if another
+worker completes or compacts between observation and submission. Dedicated durable
+regressions cover zero-fresh-fuel observers, external pruning/key reuse and eight
+two-thread races: identical commands replay one committed timestamp; competing
+commands cannot create a second attribution. These are same-machine shared-file
+tests, not multi-host or process-crash acceptance.
+
+Terminal observation distinguishes an absent record from live pending work and a
+completed result in one journal lookup. If another VM completes and prunes an
+effect before a local pending snapshot sees its terminal result, resume,
+acknowledgement, cancellation and audited cancellation discard that stale entry
+and refuse with `LSV2004`. Error reporting also drops the stale cache entry but
+retains the journal's missing-lease refusal `LSV4021`. A pruned terminal result is
+not recreated or inferred from a supplied receipt. The fast path for an already
+cached terminal still checks existence without decoding the payload again.
+
+Pending observations preserve exact-image checks and do not adopt unknown work.
+Read failures and invalid durable state (`LSV4007`) preserve local pending state
+for investigation/recovery rather than masquerading as retention. Unfinished
+groups remain protected; once the whole group is pruned, cached-completed and
+cached-pending branches are each forgotten on observation. `pending_count()` and
+`pending_continuations()` remain local snapshots: claims, reads and compaction do
+not promise a global refresh of every pending cache. A completion/retention race
+after observation may still be refused by the final transaction; callers can
+retry observation, never blindly replay the external effect.
+
+The memory backend can also report an untracked effect: legacy image-only
+`restore()` does not create an outbox row. This is not authoritative absence and
+does not invalidate the VM's local restored continuation. It preserves exact
+image checks, zero-fresh-fuel completion and terminal replay without introducing
+an envelope, dispatch lease or implicit admission for unknown tokens.
+
 This removes mandatory VM SQLite linkage, not product DTO coupling. The reference
 VM still depends on Leserpent command/result contracts and recovery frames when
 `leserpent-profile` is enabled. Native facade isolation does not migrate those
@@ -6556,10 +6620,206 @@ This is pending **binding** session restoration, not a final-effect checkpoint
 codec, production journal, cancellation/process-crash settlement or exactly-once
 certificate. Hosts still cancel external queues/collectors explicitly, reconcile
 already-published work and prevent cancelled or completed records being restored.
-The earlier byte-checkpoint group fixtures remain separate proofs; this entry does
+The metered integration below joins the earlier byte-checkpoint fixtures, but does
 not yet combine their collector inventory and meter into one durable owning VM.
 Native embedding stays Developing/Draft at completion 10, with complete VM and
 full extraction gates false.
+
+### Metered Owned Checkpoint Recovery
+
+`native::LocalVm::with_metered_host_outcome(input, work)` lends the original
+session-owned `Fuel` to a synchronous native callback while the session is
+Awaiting. It uses the same `SessionCore` transition as unmetered host work, with
+the same Pending/Cancelled/Failed/Uncertain classification and unwind fencing.
+Other states return the original input without entering the callback or charging.
+The callback cannot retain the borrowed meter in its output.
+
+This makes group assembly use the same budget as saved-session restoration and
+later capture returns, without a second root meter or ad hoc debit reconciliation.
+Charges survive normal outputs, cancellation, failure and unwind. There is no
+automatic charge or refund. Fuel exhaustion does not infer a terminal state from
+an arbitrary native output; the adapter explicitly chooses Failed when required.
+Like existing evaluator callbacks, native code is trusted: mutable meter access
+must not be used to replace/refill Fuel, and required charging cannot be enforced
+against an adapter that ignores the contract. This is not a native-code sandbox.
+
+The existing two-capture source checkpoint fixture now decodes its host-owned bytes,
+installs original saved frames through `restore_pending`, restores the original
+prepared Seq/All collectors and assembles their result inside metered host work.
+Wrong root replies are returned intact. Correct acceptance only marks Ready;
+explicit polling then restores both captured graphs and the original return bodies.
+No completed helper is rerun, no preparation is repeated, Seq only dispatches its
+unpublished suffix, and All publishes no replacement requests.
+
+Four added integration tests cover 440 numeric/text frontier/order combinations,
+every assembly/return fuel cutoff against the original manual path, 1,760
+cancellation/owner-Drop cases, and 660 live collector/capture/cold-return refusal
+cases. Reduced-budget tests explicitly lower their test-owned saved grant; they
+do not certify arbitrary modified checkpoints. Three session regressions cover
+pending debit continuity, state refusal and terminal/cleanup unwind, plus a
+compile-fail check prevents escaping the meter borrow.
+
+Cancellation remains explicit host orchestration: return the collector through
+Cancelled, wait for local revocation, then cancel and dispose it. Native dispatch
+checks the execution lease immediately before work. Owner Drop revokes but does
+not itself cancel an external collector. Already-applied effects are not undone;
+callback-internal cleanup remains native responsibility. The bounded fixture's
+post-checkpoint bodies are pure; unexpected successor effects refuse correlation
+instead of fabricating a declaration. This is not arbitrary source checkpointing,
+a production durable owner, a journal, replay prevention or crash settlement.
+
+The [isolated-source proof](fixtures/leselang_native_owned_recovery_source_export_macos_arm64_20261015.json)
+records the copied original tests and source hashes. The native embedding cell
+remains Developing/Draft at completion 10; full VM and extraction flags stay false.
+
+### Shared Dispatch Lease Fencing
+
+`validate_dispatch_lease(DispatchLeaseStamp, DispatchLeaseObservation, now_ms)`
+extracts the reference journal's numeric current-lease check into runtime-core.
+It compares exact request correspondence, active state, attempt, semantic retry
+count, readiness and expiry before checking elapsed time. A mismatch is
+`Superseded`; an unchanged but expired lease is `Expired`. No allocation, callback,
+serialization, arithmetic repair, fuel charge or storage mutation occurs.
+
+The expiry instant is deliberately inclusive for completion. The scheduler can
+re-lease at that same instant, but only the current attempt can settle: the first
+committing transaction wins. This preserves the released reference contract,
+including completion at the maximum supported clock. Scheduling and completion
+therefore have different boundary predicates by design, not an off-by-one fix.
+
+Both reference journals use this check for acknowledgement and retry; successor
+settlement delegates too. The SQLite adapter keeps it within the existing immediate
+transaction after exact request/image admission and authoritative terminal replay.
+The in-memory acknowledgement path now also rejects a timestamp before a semantic
+retry's `ready_at_ms`, matching SQLite. The regression first fails against the old
+in-memory predicate, then passes with the shared check. Cancellation stays terminal:
+late acknowledgements and error reports return the committed cancellation rather
+than scheduling or executing another attempt, including after SQLite reopen.
+
+The five unchanged exported tests include a 1,296-case field matrix, full-width
+numeric comparisons and opaque GUI-local request identity. Native request types
+need no Eq/Clone/serde trait here: the host supplies `same_request` only after its
+own exact provenance checks. Hosts separately validate clock/counter limits and
+current authority. An observation is not authenticated, not a reservation and not
+safe to retain across yields or storage changes. Terminal receipt replay, database
+atomicity, durable owning sessions and external-effect crash settlement remain
+host responsibilities; this does not turn `LocalVm` restoration into a journal.
+
+The [isolated-source proof](fixtures/leselang_native_dispatch_lease_source_export_macos_arm64_20261015.json)
+records byte-identical source and consumer tests. Full VM/extraction flags remain
+false, and native embedding stays Developing/Draft at completion 10.
+
+### Shared Semantic Retry Planning
+
+`plan_retry_schedule(current_retry_count, now_ms, RetryTiming)` returns either
+`Some(RetrySchedulePoint)` or `None` for exhaustion. It checks the portable clock,
+positive/ordered delays and then the granted retry count. The first retry uses
+the base delay; later attempts reuse `capped_exponential_delay`. Time addition
+reuses `checked_clock_add`, with no wrapping, implicit refill or deadline clamp.
+Full-width exhausted counters return no proposal rather than overflowing.
+
+`validate_retry_schedule` separately checks exact next count and an inclusive
+host retry ceiling before requiring a strictly future portable ready time. The
+reference in-memory and SQLite journals use this before changing their state.
+The in-memory path now rejects out-of-range ready times and over-limit retry
+counts just as SQLite does; checked count progression also removes an internal
+unchecked-addition edge. Public callers still pass the original reference policy
+and error checks, so this is journal-boundary hardening, not a claim that ordinary
+public calls previously bypassed those checks.
+
+The reference VM delegates transient planning but retains its original error
+classification and fault codes. Permanent errors do not evaluate retry policy;
+transient errors validate policy even when already exhausted. Committed terminal
+results, including cancellation, replay before late malformed error/policy data
+is inspected. Lease redelivery and admission attempts remain distinct from
+semantic retry counts. Execution deadlines still win independently of a future
+retry time, and the original saved fuel is never replenished.
+
+Eight unchanged exported tests cover 20,720 planning cases against wide-integer
+arithmetic, 1,512 proposed-schedule checks, full-width clocks/counters and explicit
+observation limits. Reference tests additionally check refusal without lease
+mutation, SQLite reopen, and terminal replay with invalid late metadata. Numeric
+proposals carry no native error, identity, resource handle, timer or storage owner.
+Hosts must validate exact policy provenance, live authority and current leases,
+then check/commit atomically. Reusing a stale count can still make the same pure
+proposal: this is not a retry registry, durable owner or crash settlement.
+
+The [isolated-source proof](fixtures/leselang_native_retry_plan_source_export_macos_arm64_20261015.json)
+records original source and consumer test hashes. Native embedding remains
+Developing/Draft at completion 10, with complete VM/extraction flags false.
+
+### Shared Dispatch Capacity
+
+`check_dispatch_admission(pending, additional, limit)` separates a permanently
+oversized batch (`BatchTooLarge`) from transient occupied capacity (`Backpressured`).
+The batch check comes first even when the queue is already full. Exact-limit sums
+are admitted; arithmetic overflow refuses, including at `usize::MAX`. Zero limits
+and empty additions have explicit semantics, without importing journal-specific
+ceilings. The reference adapter still validates nonzero limits against its original
+record ceiling and preserves `LSV2500` through `LSV2503` and wire DTOs unchanged.
+
+`dispatch_lease_capacity_exhausted(active, limit)` separately handles execution
+slots, including occupancy above a newly lowered limit. Both reference journals
+delegate to it. SQLite still counts at most the configured limit before deciding;
+it does not scan or decode the whole pending queue on a busy claim. Eligibility
+remains host-owned: delayed retries and blocked sequential successors are idle
+until runnable, even with all slots occupied. A refused claim spends no attempt.
+
+Pending capacity includes leased, delayed and dependency-blocked dispatches.
+Lowering a policy blocks new work but does not revoke existing leases or re-admit
+already accepted groups/tails. Six unchanged exported tests cover 729 admission
+combinations, 49 execution-slot combinations, overflow/zero bounds and composition
+with the original synchronous `Admission` lifecycle. The host maps typed pressure
+to its own diagnostics; rejected or cancelled input never publishes work. Reference
+tests additionally exercise lower limits and delayed retries across SQLite reopen.
+
+These functions neither read a clock nor allocate identities, retain payloads,
+change counters or grant execution. Their inputs are observations, not authority.
+Hosts must read, check and publish under the same owner or transaction, and cannot
+reuse a successful observation after yielding. This is not a reservation, queue or
+atomic admission owner. No new scheduler, storage layer or global lock is added.
+
+The [isolated-source proof](fixtures/leselang_native_dispatch_capacity_source_export_macos_arm64_20261015.json)
+records byte-identical source and consumer tests. Native embedding remains
+Developing/Draft at completion 10, with complete VM/extraction flags false.
+
+### Shared Dispatch Issuance Planning
+
+`plan_dispatch_lease(now_ms, lease_ms, max_lease_ms)` checks the portable clock,
+positive host-bounded duration and future expiry, in that order. It reuses the
+shared checked clock addition without wrapping or clamping. The host supplies
+its policy ceiling; zero grants no duration. `next_dispatch_attempt(current,
+max_attempts)` computes exactly one delivery attempt under an inclusive ceiling,
+rejecting numeric exhaustion before the limit check. No counter reset occurs.
+Delivery attempts remain distinct from semantic retries and admission polls.
+
+Both reference journals share these primitives, preserving their original
+`LSV4015`/`LSV4017` diagnostics. Issuance preflight still happens before deadline
+cleanup or SQLite locking. The journal passes the checked expiration into its
+backend; eligible selection and capacity checks precede attempt progression,
+which commits with the lease under the original owner/transaction. This avoids a
+fallible expiration calculation after mutating the in-memory attempt counter.
+
+Issuance is not settlement. A current receipt is valid at the last portable clock
+even when no future lease can be represented. The successor path previously
+validated a fictitious 1ms new lease and rejected such a completion. A red/green
+regression now covers direct and conditional successors in both journals,
+including out-of-range rejection, SQLite reopen, exact successor replay and
+cancellation without refilling saved fuel. Enqueuing a successor does not grant
+it a lease: a claim at the maximum clock still refuses. A separate regression
+proves that exhausting redelivery attempts leaves the last current lease valid
+for completion at its inclusive expiry, including across reopen.
+
+Six unchanged exported tests cover 294 timing combinations and 17,161 counter
+combinations against wide-integer oracles, zero/full-width limits, and composition
+with original lease fencing. Native clock-domain identity, monotonicity, work
+eligibility, capacity, deadlines, request authority and atomic commit remain host
+responsibilities. Repeated numeric input can produce the same plan; it must not
+be reused across a yield. This is not a lease grant, durable owner or crash settlement.
+
+The [isolated-source proof](fixtures/leselang_native_dispatch_plan_source_export_macos_arm64_20261015.json)
+records original source and consumer hashes. Native embedding remains
+Developing/Draft at completion 10, with complete VM/extraction flags false.
 
 ### Shared Flat Group Graph Inspection
 

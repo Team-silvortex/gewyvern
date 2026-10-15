@@ -1532,6 +1532,166 @@ fn restored_session_preserves_original_frames_budget_and_reply_gated_successor()
 }
 
 #[test]
+fn metered_host_work_preserves_one_budget_across_pending_and_explicit_reentry() {
+    host!(hooks, domains, host);
+    let expression = nested_identity_program();
+    let saved = saved_session(&expression, &host);
+    drop(saved.dispatch);
+    let mut session = LocalRestoredSession::restore_pending(
+        LocalExecutionScope::new(),
+        saved.identity,
+        saved.declaration,
+        saved.frames,
+        saved.fuel,
+        STACK_LIMITS,
+        |_, _, _, _| Ok::<_, PrivateError>(()),
+    )
+    .unwrap();
+    let before = session.fuel_remaining();
+    for cost in [2, 3] {
+        let old = session.fuel_remaining();
+        assert_eq!(
+            session.with_metered_host_outcome(cost, |cost, fuel| {
+                assert_eq!(fuel.remaining(), old);
+                fuel.charge(cost).unwrap();
+                HostWorkOutcome::Pending(fuel.remaining())
+            }),
+            Ok(old - cost)
+        );
+        assert_eq!(session.status(), EffectSessionStatus::Awaiting);
+    }
+    assert_eq!(session.fuel_remaining(), before - 5);
+    let remaining = session.fuel_remaining();
+    let Ok(Err(FuelExhausted)) = session.with_metered_host_outcome((), |(), fuel| {
+        HostWorkOutcome::Pending(fuel.charge(remaining + 1))
+    }) else {
+        panic!("exhaustion policy is explicit")
+    };
+    assert_eq!(session.fuel_remaining(), remaining);
+    assert!(session.lease().is_open());
+    assert!(!hooks.events.borrow().contains(&Stage::Restore));
+    session
+        .try_accept(
+            &host.identity(1, 1),
+            host.reply(ScalarValue::Integer(42)),
+            &host,
+        )
+        .unwrap();
+    assert!(matches!(
+        session.poll(&host).unwrap(),
+        EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::Integer(42)))
+    ));
+    assert_eq!(session.fuel_remaining(), remaining - 2);
+    assert!(!session.lease().is_open());
+}
+
+#[test]
+fn metered_host_work_refuses_initial_accepted_terminal_and_preclosed_input_without_charge() {
+    for phase in 0..4 {
+        host!(hooks, domains, host);
+        let expression = nested_identity_program();
+        let scope = LocalExecutionScope::new();
+        if phase == 3 {
+            scope.close();
+        }
+        let mut session = LocalStackedEffectSession::new(
+            scope,
+            &expression,
+            Vec::new(),
+            Fuel::new(100),
+            STACK_LIMITS,
+        );
+        if phase == 1 {
+            drop(request(session.poll(&host).unwrap()));
+            session
+                .try_accept(
+                    &host.identity(1, 1),
+                    host.reply(ScalarValue::Integer(42)),
+                    &host,
+                )
+                .unwrap();
+        }
+        if phase == 2 {
+            session.cancel();
+        }
+        let before = session.fuel_remaining();
+        let input = Box::new(19);
+        let address = &*input as *const i32;
+        let Err(original) =
+            session.with_metered_host_outcome::<_, ()>(input, |_, _| panic!("not Awaiting"))
+        else {
+            panic!()
+        };
+        assert_eq!(&*original as *const i32, address);
+        assert_eq!(session.fuel_remaining(), before);
+        assert!(!hooks.events.borrow().contains(&Stage::Restore));
+    }
+}
+
+#[test]
+fn metered_host_work_debits_survive_terminal_classification_and_cleanup_unwind() {
+    for phase in 0..5 {
+        host!(hooks, domains, host);
+        let expression = nested_identity_program();
+        let saved = saved_session(&expression, &host);
+        drop(saved.dispatch);
+        let scope = LocalExecutionScope::new();
+        let lease = scope.lease();
+        hooks.lease.replace(Some(lease.clone()));
+        let mut session = LocalRestoredSession::restore_pending(
+            scope,
+            saved.identity,
+            saved.declaration,
+            saved.frames,
+            saved.fuel,
+            STACK_LIMITS,
+            |_, _, _, _| Ok::<_, PrivateError>(()),
+        )
+        .unwrap();
+        let before = session.fuel_remaining();
+        hooks.capture_drop_panic.set(phase == 4);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            session.with_metered_host_outcome(23, |input, fuel| {
+                fuel.charge(3).unwrap();
+                match phase {
+                    0 | 4 => HostWorkOutcome::Cancelled(input),
+                    1 => HostWorkOutcome::Failed(input),
+                    2 => HostWorkOutcome::Uncertain(input),
+                    _ => panic!("native metered unwind"),
+                }
+            })
+        }));
+        if phase >= 3 {
+            assert!(result.is_err());
+        } else {
+            assert_eq!(result.unwrap(), Ok(23));
+        }
+        let end = match phase {
+            0 | 4 => EffectSessionEnd::Cancelled,
+            1 => EffectSessionEnd::Failed,
+            _ => EffectSessionEnd::HostUncertain,
+        };
+        assert_eq!(session.status(), EffectSessionStatus::Terminal(end));
+        assert_eq!(session.fuel_remaining(), before - 3);
+        assert!(!lease.is_open());
+        assert_eq!(hooks.capture_drops.get(), 2);
+        assert_eq!(hooks.key_drops.get(), 1);
+        assert!(
+            hooks
+                .cleanup_liveness
+                .borrow()
+                .iter()
+                .all(|(_, closed)| *closed)
+        );
+        assert!(!session.cancel());
+        assert_eq!(
+            session.with_metered_host_outcome::<_, ()>(23, |_, _| panic!("terminal")),
+            Err(23)
+        );
+    }
+}
+
+#[test]
 fn restored_session_structure_precedes_admission_and_revokes_before_unused_hook_cleanup() {
     struct UnusedHook(Rc<Hooks>);
     impl Drop for UnusedHook {

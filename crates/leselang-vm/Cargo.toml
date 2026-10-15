@@ -43,6 +43,14 @@ name = "backpressure"
 required-features = ["sqlite-journal"]
 
 [[test]]
+name = "debugger_audit_durable"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "debugger_audit_memory"
+required-features = ["leserpent-profile"]
+
+[[test]]
 name = "boolean_projections"
 required-features = ["sqlite-journal"]
 

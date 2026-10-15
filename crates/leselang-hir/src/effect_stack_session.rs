@@ -151,6 +151,14 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
         self.core.with_host_work(input, work)
     }
 
+    pub(crate) fn with_metered_host_work<Input, Output>(
+        &mut self,
+        input: Input,
+        work: impl FnOnce(Input, &mut Fuel) -> HostWorkOutcome<Output>,
+    ) -> Result<Output, Input> {
+        self.core.with_metered_host_work(input, work)
+    }
+
     /// Shared original acceptance; success retains every frame until explicit poll.
     pub fn try_accept<View: ?Sized, Authority>(
         &mut self,

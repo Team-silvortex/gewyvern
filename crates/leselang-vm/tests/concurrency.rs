@@ -2,8 +2,9 @@ use leselang_hir::{HirProgram, lower};
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_syntax::parse;
 use leselang_vm::{
-    EffectError, EffectErrorClass, EffectOperation, EffectRequest, EffectResult, RetryDisposition,
-    RetryPolicy, ScalarValue, Step, Value, Vm, decode_continuation, encode_continuation,
+    EffectError, EffectErrorClass, EffectOperation, EffectRequest, EffectResult, RetentionPolicy,
+    RetryDisposition, RetryPolicy, ScalarValue, Step, Value, Vm, decode_continuation,
+    encode_continuation,
 };
 use rusqlite::Connection;
 use std::path::PathBuf;
@@ -64,6 +65,252 @@ fn flow() -> HirProgram {
         r#"fn read() = bind(result: ui.assert_text(node_id: "status", expected: "ready"), body: field(value: result, name: "expected"))
         fn main() = bind(answer: choose(when: true, then: read(), otherwise: "fallback"), body: bind(written: ui.set_form_value(node_id: "form", field: "answer", value: answer), body: true))"#,
     )
+}
+
+#[test]
+fn shared_pruning_reconciles_pending_cache_before_terminal_commands() {
+    for terminal in ["success", "cancel", "failure", "deadline"] {
+        for command in ["resume", "acknowledge", "cancel", "retry"] {
+            let path = JournalPath::new();
+            let mut owner = Vm::open_journal(&path.0, 10000).unwrap();
+            let program =
+                program(r#"fn main() = bind(result: ui.focus(node_id: "a"), body: true)"#);
+            let request = effect(start(&mut owner, &program, "operator", 7, 100));
+            let lease = owner.claim_effect(101, 50).unwrap().unwrap();
+            let mut stale = Vm::open_journal(&path.0, 0).unwrap();
+            let host_error = || EffectError {
+                class: EffectErrorClass::Permanent,
+                code: "host_refused".into(),
+                message: "host refused the request".into(),
+            };
+            match terminal {
+                "success" => assert_eq!(
+                    owner.acknowledge_effect(&lease, 102, receipt(&request)),
+                    done(true)
+                ),
+                "cancel" => assert!(matches!(
+                    owner.cancel_effect(&request.continuation, 102),
+                    Step::Cancelled(_)
+                )),
+                "failure" => assert!(matches!(
+                    owner.report_effect_error(&lease, 102, host_error(), &RetryPolicy::default()),
+                    Ok(RetryDisposition::Terminal(Step::Failed(_)))
+                )),
+                "deadline" => assert!(owner.claim_effect(200, 50).unwrap().is_none()),
+                _ => unreachable!(),
+            }
+            let retained = effect(start(&mut owner, &program, "operator", 7, 1000));
+            assert_eq!(
+                owner.resume_at(&retained.continuation, 201, receipt(&retained)),
+                done(true)
+            );
+            assert_eq!(
+                owner
+                    .compact_journal(&RetentionPolicy {
+                        max_completed_records: 1,
+                        max_delete_per_run: 1,
+                    })
+                    .unwrap()
+                    .removed_records,
+                1
+            );
+            assert_eq!(stale.pending_count(), 1);
+            assert_eq!(stale.completed_count(), 0);
+
+            let error = match command {
+                "retry" => stale
+                    .report_effect_error(&lease, 202, host_error(), &RetryPolicy::default())
+                    .unwrap_err(),
+                _ => {
+                    let step = match command {
+                        "resume" => stale.resume_at(&request.continuation, 202, receipt(&request)),
+                        "acknowledge" => stale.acknowledge_effect(&lease, 202, receipt(&request)),
+                        "cancel" => stale.cancel_effect(&request.continuation, 202),
+                        _ => unreachable!(),
+                    };
+                    let Step::Fault(error) = step else {
+                        panic!("{terminal}/{command}: {step:?}")
+                    };
+                    error
+                }
+            };
+            assert_eq!(stale.pending_count(), 0, "{terminal}/{command}: {error:?}");
+            assert_eq!(
+                error.code,
+                if command == "retry" {
+                    "LSV4021"
+                } else {
+                    "LSV2004"
+                }
+            );
+            assert_eq!(stale.completed_count(), 0);
+            assert!(stale.claim_effect(203, 50).unwrap().is_none());
+            let reopened = Vm::open_journal(&path.0, 0).unwrap();
+            assert_eq!(reopened.pending_count(), 0);
+            assert_eq!(reopened.completed_count(), 1);
+        }
+    }
+}
+
+#[test]
+fn shared_pending_observation_preserves_identity_and_requires_explicit_adoption() {
+    let path = JournalPath::new();
+    let mut owner = Vm::open_journal(&path.0, 10000).unwrap();
+    let mut unknown = Vm::open_journal(&path.0, 0).unwrap();
+    let program = program(r#"fn main() = bind(result: ui.focus(node_id: "a"), body: true)"#);
+    let request = effect(start(&mut owner, &program, "operator", 7, 1000));
+    assert!(
+        matches!(unknown.resume_at(&request.continuation, 101, receipt(&request)), Step::Fault(error) if error.code == "LSV2004")
+    );
+    assert!(
+        matches!(unknown.cancel_effect(&request.continuation, 101), Step::Fault(error) if error.code == "LSV2004")
+    );
+    assert_eq!(unknown.pending_count(), 0);
+    let mut forged = request.continuation.clone();
+    forged.fuel_remaining -= 1;
+    assert!(
+        matches!(owner.resume_at(&forged, 101, receipt(&request)), Step::Fault(error) if error.code == "LSV2005")
+    );
+    assert_eq!(
+        owner.pending_continuations(),
+        vec![request.continuation.clone()]
+    );
+    let lease = unknown.claim_effect(102, 50).unwrap().unwrap();
+    assert_eq!(
+        unknown.acknowledge_effect(&lease, 103, receipt(&request)),
+        done(true)
+    );
+    assert_eq!(
+        owner.resume_at(&request.continuation, 104, receipt(&request)),
+        done(true)
+    );
+    assert_eq!(owner.pending_count(), 0);
+}
+
+#[test]
+fn invalid_shared_observation_does_not_discard_pending_work() {
+    let path = JournalPath::new();
+    let mut owner = Vm::open_journal(&path.0, 10000).unwrap();
+    let program = program(r#"fn main() = bind(result: ui.focus(node_id: "a"), body: true)"#);
+    let request = effect(start(&mut owner, &program, "operator", 7, 1000));
+    let connection = Connection::open(&path.0).unwrap();
+    connection
+        .pragma_update(None, "ignore_check_constraints", true)
+        .unwrap();
+    connection
+        .execute(
+            "UPDATE vm_effects SET state = 'completed' WHERE token = ?1",
+            [request.continuation.token.as_str()],
+        )
+        .unwrap();
+    let Step::Fault(error) = owner.resume_at(&request.continuation, 101, receipt(&request)) else {
+        panic!("invalid journal must refuse replay")
+    };
+    assert_eq!(error.code, "LSV4007");
+    assert_eq!(
+        owner.pending_continuations(),
+        vec![request.continuation.clone()]
+    );
+    assert_eq!(owner.completed_count(), 0);
+    connection
+        .execute(
+            "UPDATE vm_effects SET state = 'pending' WHERE token = ?1",
+            [request.continuation.token.as_str()],
+        )
+        .unwrap();
+    assert_eq!(
+        owner.resume_at(&request.continuation, 102, receipt(&request)),
+        done(true)
+    );
+}
+
+#[test]
+fn shared_retention_preserves_live_groups_then_reconciles_each_pruned_branch() {
+    let path = JournalPath::new();
+    let mut owner = Vm::open_journal(&path.0, 10000).unwrap();
+    let grouped = program(
+        r#"fn main() = all(first: ui.focus(node_id: "a"), second: ui.focus(node_id: "b"))"#,
+    );
+    let Step::Effects(batch) = start(&mut owner, &grouped, "operator", 7, 1000) else {
+        panic!("expected parallel effects");
+    };
+    let first = &batch.branches[0].request;
+    let second = &batch.branches[1].request;
+    let mut stale = Vm::open_journal(&path.0, 0).unwrap();
+    assert!(matches!(
+        owner.resume_at(&first.continuation, 101, receipt(first)),
+        Step::Waiting(_)
+    ));
+    let standalone = program(r#"fn main() = bind(result: ui.focus(node_id: "c"), body: true)"#);
+    for _ in 0..2 {
+        let request = effect(start(&mut owner, &standalone, "operator", 7, 1000));
+        assert_eq!(
+            owner.resume_at(&request.continuation, 102, receipt(&request)),
+            done(true)
+        );
+    }
+    let policy = RetentionPolicy {
+        max_completed_records: 1,
+        max_delete_per_run: 1,
+    };
+    assert_eq!(owner.compact_journal(&policy).unwrap().removed_records, 1);
+    assert!(matches!(
+        stale.resume_at(&first.continuation, 103, receipt(first)),
+        Step::Waiting(_)
+    ));
+    assert_eq!(
+        stale.pending_continuations(),
+        vec![second.continuation.clone()]
+    );
+    assert_eq!(stale.completed_count(), 1);
+    assert!(matches!(
+        owner.resume_at(&second.continuation, 104, receipt(second)),
+        Step::Done(_)
+    ));
+    assert_eq!(owner.compact_journal(&policy).unwrap().removed_records, 1);
+    // One branch was observed completed; the other was still locally pending.
+    for request in [first, second] {
+        assert!(
+            matches!(stale.resume_at(&request.continuation, 105, receipt(request)), Step::Fault(error) if error.code == "LSV2004")
+        );
+    }
+    assert_eq!(stale.pending_count(), 0);
+    assert_eq!(stale.completed_count(), 0);
+    assert_eq!(stale.merge_result(&batch.merge_token).unwrap(), None);
+    assert!(stale.claim_effect(106, 50).unwrap().is_none());
+}
+
+#[test]
+fn failed_shared_observation_preserves_pending_work_until_storage_recovers() {
+    let path = JournalPath::new();
+    let mut owner = Vm::open_journal(&path.0, 10000).unwrap();
+    let program = program(r#"fn main() = bind(result: ui.focus(node_id: "a"), body: true)"#);
+    let request = effect(owner.start(
+        &program,
+        Principal::new("operator").unwrap(),
+        CapabilitySet::new(["ui.presentation"]),
+        Some(Revision(7)),
+    ));
+    let connection = Connection::open(&path.0).unwrap();
+    connection
+        .execute("ALTER TABLE vm_effects RENAME TO unavailable_effects", [])
+        .unwrap();
+    let Step::Fault(error) = owner.resume(&request.continuation, receipt(&request)) else {
+        panic!("storage lookup must fail");
+    };
+    assert_eq!(error.code, "LSV4031");
+    assert_eq!(
+        owner.pending_continuations(),
+        vec![request.continuation.clone()]
+    );
+    assert_eq!(owner.completed_count(), 0);
+    connection
+        .execute("ALTER TABLE unavailable_effects RENAME TO vm_effects", [])
+        .unwrap();
+    assert_eq!(
+        owner.resume(&request.continuation, receipt(&request)),
+        done(true)
+    );
 }
 
 #[test]

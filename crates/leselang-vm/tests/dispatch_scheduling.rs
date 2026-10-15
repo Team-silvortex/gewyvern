@@ -167,6 +167,54 @@ fn delivery_attempt_exhaustion_does_not_poison_unrelated_ready_work() {
 }
 
 #[test]
+fn exhausted_reissuance_does_not_revoke_the_last_current_lease_after_recovery() {
+    for durable in [false, true] {
+        let path = JournalPath::new();
+        let mut vm = path.vm(durable);
+        let request = admit(&mut vm, "last-attempt");
+        let mut last = None;
+        for attempt in 1..=MAX_DISPATCH_ATTEMPTS {
+            let lease = vm
+                .claim_effect(100 + u64::from(attempt), 1)
+                .unwrap()
+                .unwrap();
+            assert_eq!(lease.request, request);
+            assert_eq!(lease.attempt, attempt);
+            assert_eq!(lease.retry_count, 0);
+            last = Some(lease);
+        }
+        let lease = last.unwrap();
+        if durable {
+            drop(vm);
+            vm = path.vm(true);
+        }
+        let now = lease.lease_expires_at_ms;
+        let error = vm.claim_effect(now, 1).unwrap_err();
+        assert_eq!(error.code, "LSV4017");
+        assert_eq!(
+            error.message,
+            format!("dispatch attempt limit {MAX_DISPATCH_ATTEMPTS} reached")
+        );
+        assert_eq!(
+            vm.pending_continuations(),
+            vec![request.continuation.clone()]
+        );
+        if durable {
+            drop(vm);
+            vm = path.vm(true);
+        }
+        // Inclusive completion remains valid when the failed claim changed nothing.
+        acknowledge(&mut vm, &lease, now);
+        if durable {
+            drop(vm);
+            vm = path.vm(true);
+        }
+        acknowledge(&mut vm, &lease, now);
+        assert!(vm.claim_effect(now, 1).unwrap().is_none());
+    }
+}
+
+#[test]
 fn retry_not_before_clock_and_attempt_priority_survive_recovery() {
     for durable in [false, true] {
         let path = JournalPath::new();

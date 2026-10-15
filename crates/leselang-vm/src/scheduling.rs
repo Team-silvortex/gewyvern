@@ -1,3 +1,6 @@
+use leselang_runtime_core::{
+    DispatchAdmissionError, check_dispatch_admission, dispatch_lease_capacity_exhausted,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{DispatchLease, Fault, MAX_JOURNAL_RECORDS};
@@ -35,25 +38,22 @@ impl SchedulerLimits {
     }
 
     pub(crate) fn check_admission(self, pending: usize, additional: usize) -> Result<(), Fault> {
-        if additional > self.max_pending_dispatches {
-            return Err(Fault {
+        check_dispatch_admission(pending, additional, self.max_pending_dispatches).map_err(|error| match error {
+            DispatchAdmissionError::BatchTooLarge => Fault {
                 code: "LSV2503".into(),
                 message: format!(
                     "root needs {additional} dispatches, exceeding the configured limit {}",
                     self.max_pending_dispatches
                 ),
-            });
-        }
-        if pending.saturating_add(additional) > self.max_pending_dispatches {
-            return Err(Fault {
+            },
+            DispatchAdmissionError::Backpressured => Fault {
                 code: "LSV2501".into(),
                 message: format!(
                     "dispatch admission is backpressured: {pending} pending, {additional} requested, limit {}",
                     self.max_pending_dispatches
                 ),
-            });
-        }
-        Ok(())
+            },
+        })
     }
 }
 
@@ -68,7 +68,7 @@ pub struct SchedulerPressure {
 
 impl SchedulerPressure {
     pub(crate) fn lease_capacity_exhausted(self) -> bool {
-        self.active_leases >= self.limits.max_active_leases
+        dispatch_lease_capacity_exhausted(self.active_leases, self.limits.max_active_leases)
     }
 
     pub(crate) fn lease_fault(self) -> Fault {

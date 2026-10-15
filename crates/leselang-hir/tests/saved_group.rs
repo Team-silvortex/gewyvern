@@ -1,7 +1,7 @@
 //! Host-owned byte-codec models, not process-crash or external-effect transactions.
 use std::{
     borrow::Borrow,
-    cell::Cell,
+    cell::{Cell, RefCell},
     fmt::Debug,
     panic::{AssertUnwindSafe, catch_unwind},
     rc::Rc,
@@ -17,7 +17,9 @@ use leselang_hir::{
     prepared_sequence::PreparedSequenceSession,
     sequence_evaluation::*,
 };
-use leselang_runtime_core::{Fuel, HostResultDomain, PendingReply, ReplyAuthority};
+use leselang_runtime_core::{
+    Fuel, HostResultDomain, LocalExecutionLease, PendingReply, ReplyAuthority,
+};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -96,6 +98,7 @@ struct Host {
     granted: Cell<bool>,
     preparations: Cell<usize>,
     dispatches: Cell<usize>,
+    lease: RefCell<Option<LocalExecutionLease>>,
 }
 impl Host {
     fn new(count: usize) -> Self {
@@ -110,6 +113,7 @@ impl Host {
             granted: Cell::new(true),
             preparations: Cell::new(0),
             dispatches: Cell::new(0),
+            lease: RefCell::new(None),
         }
     }
     fn key(&self, index: usize) -> u64 {
@@ -119,9 +123,15 @@ impl Host {
 impl ReplyAuthority<u64> for Host {
     type Error = &'static str;
     fn authorize(&self, id: &u64) -> Result<(), Self::Error> {
-        (self.granted.get() && *id / 100 == self.generation.get())
-            .then_some(())
-            .ok_or("authority")
+        (self.granted.get()
+            && self
+                .lease
+                .borrow()
+                .as_ref()
+                .is_none_or(LocalExecutionLease::is_open)
+            && *id / 100 == self.generation.get())
+        .then_some(())
+        .ok_or("authority")
     }
 }
 struct Environment<'a, T>(&'a Host, std::marker::PhantomData<T>);
@@ -1885,6 +1895,9 @@ mod captured {
         }
         impl<'a, T: Projection> Adapter<'a, T> {
             fn invoke(&self, index: usize) -> Input<T> {
+                self.active
+                    .authorize(&self.active.key(index))
+                    .expect("live dispatch");
                 let call = self.inventory.borrow_mut()[index].take().unwrap();
                 assert_eq!(call.schema().key, self.schemas[index].key);
                 assert_eq!(
@@ -3831,6 +3844,482 @@ mod captured {
                     }
                     result
                 }
+                mod owned {
+                    use super::*;
+                    use leselang_hir::{
+                        effect_session::{
+                            EffectCorrelation, EffectSessionEnd, EffectSessionEnvironment,
+                            EffectSessionPoll, EffectSessionStatus, HostWorkOutcome,
+                        },
+                        local_effect_session::LocalStackedEffectSession,
+                    };
+                    use leselang_runtime_core::LocalExecutionScope;
+
+                    // This bounded source family has only pure return bodies after its third group.
+                    // A new effect must not silently acquire a fabricated root declaration.
+                    impl<'a: 's, 's, T: Projection>
+                        EffectSessionEnvironment<'a, 's, (), Operation, (), usize>
+                        for Adapter<'a, T>
+                    {
+                        type Identity = u64;
+                        type Declaration = Root<'a>;
+                        type Reply = Rc<Group<'a, T>>;
+                        type Dispatch = Work<'a, T>;
+                        fn correlate_request(
+                            &self,
+                            _: Self::Request,
+                            _: &mut Fuel,
+                        ) -> EffectCorrelation<'s, u64, Root<'a>, Self::Dispatch, &'static str>
+                        {
+                            Err("bounded return fixture has no successor".into())
+                        }
+                    }
+                    type Session<'a, 's, T> = LocalStackedEffectSession<
+                        'a,
+                        's,
+                        (),
+                        Operation,
+                        (),
+                        usize,
+                        View<'a, T>,
+                        Capture<'a, T>,
+                        u64,
+                        Root<'a>,
+                        Rc<Group<'a, T>>,
+                    >;
+                    enum Collector<'a, T> {
+                        Sequence(QueueState<'a, T>),
+                        Parallel(Barrier<'a, T>, Vec<Option<Input<T>>>),
+                    }
+                    impl<'a, T: Projection> Collector<'a, T> {
+                        fn restore(
+                            saved: &'a Saved<T>,
+                            env: &Adapter<'a, T>,
+                        ) -> Result<Self, &'static str> {
+                            match &saved.tree {
+                                Node::Group {
+                                    group_kind: GroupKind::Sequence,
+                                    ..
+                                } => restored_queue(saved, env).map(Self::Sequence),
+                                Node::Group {
+                                    group_kind: GroupKind::Parallel,
+                                    ..
+                                } => parallel::restore_barrier(saved, env)
+                                    .map(|(queue, inbox)| Self::Parallel(queue, inbox)),
+                                _ => Err("pending group"),
+                            }
+                        }
+                        fn complete(
+                            self,
+                            env: &Adapter<'a, T>,
+                            order: [usize; 3],
+                        ) -> Result<Vec<Row<'a, T>>, &'static str> {
+                            match self {
+                                Self::Sequence((queue, rows, inbox)) => {
+                                    collect_sequence(env, queue, rows, inbox)
+                                }
+                                Self::Parallel(mut queue, mut inbox) => {
+                                    parallel::complete(env, &mut queue, &mut inbox, order)
+                                }
+                            }
+                        }
+                        fn cancel(mut self, env: &Adapter<'a, T>, lease: &LocalExecutionLease) {
+                            assert!(!lease.is_open());
+                            assert!(env.active.authorize(&env.active.key(0)).is_err());
+                            let input = input::<T>(0, &env.captured.drops);
+                            let address = &*input.data as *const T;
+                            match &mut self {
+                                Self::Sequence((queue, _, _)) => {
+                                    queue.cancel();
+                                    let rejected = queue
+                                        .try_accept::<_, T, _>(
+                                            &env.active.key(0),
+                                            input,
+                                            env.active,
+                                        )
+                                        .unwrap_err();
+                                    assert_eq!(&*rejected.reply.data as *const T, address);
+                                    assert!(matches!(
+                                        env.poll(queue).unwrap(),
+                                        SequencePoll::Terminal(_)
+                                    ));
+                                }
+                                Self::Parallel(queue, _) => {
+                                    queue.cancel();
+                                    let rejected = queue
+                                        .try_accept::<T, _>(
+                                            0,
+                                            &env.active.key(0),
+                                            input,
+                                            env.active,
+                                        )
+                                        .unwrap_err();
+                                    assert_eq!(&*rejected.reply.data as *const T, address);
+                                    assert!(matches!(
+                                        queue.poll().unwrap(),
+                                        ParallelPoll::Terminal(_)
+                                    ));
+                                }
+                            }
+                            drop(self);
+                            env.inventory.borrow_mut().clear();
+                        }
+                    }
+
+                    #[derive(Clone, Copy, Eq, PartialEq)]
+                    enum Stop {
+                        None,
+                        BeforeCollection,
+                        AfterAssembly,
+                        AfterAcceptance,
+                        DropOwner,
+                        DenyCollector,
+                        DenyCapture,
+                        DenyOuter,
+                    }
+
+                    fn run<T: Projection>(
+                        saved: &Saved<T>,
+                        order: [usize; 3],
+                        stop: Stop,
+                    ) -> Option<Report> {
+                        let first = Host::new(3);
+                        let second = Host::new(3);
+                        second.generation.set(2);
+                        let active = Host::new(3);
+                        active.generation.set(3);
+                        let scope = LocalExecutionScope::new();
+                        let lease = scope.lease();
+                        for host in [&first, &second, &active] {
+                            host.lease.replace(Some(lease.clone()));
+                        }
+                        let parameters = [NamedParameter::required(
+                            "value",
+                            ScalarTypeSet::only(T::sample(0).scalar().scalar_type()),
+                        )];
+                        let schemas = schemas::<T>(&active, &parameters, &saved.tree);
+                        let mut env = adapter(&first, &active, &schemas, Some(&saved.captured));
+                        configure(&mut env, &second, Some(&saved.additional[0]));
+                        let domain = Root {
+                            host: &active,
+                            node: &saved.tree,
+                        };
+                        let mut session = Session::restore_pending(
+                            scope, active.key(90), &domain,
+                            saved.frames.iter().map(|frame| SavedEffectReturnFrame {
+                                name: &frame.name, body: &frame.body, capture: Capture::Saved(frame),
+                            }).collect(), Fuel::new(saved.remaining), STACK,
+                            |id, declaration, frames, fuel| {
+                                active.authorize(id)?;
+                                if *id != active.key(90) || !std::ptr::eq(declaration, &domain)
+                                    || fuel.remaining() != saved.remaining || frames.len() != saved.frames.len()
+                                { return Err("pending correspondence"); }
+                                for (frame, original) in frames.iter().zip(&saved.frames) {
+                                    if frame.name != original.name || !std::ptr::eq(frame.body, &original.body)
+                                        || !matches!(frame.capture, Capture::Saved(value) if std::ptr::eq(value, original))
+                                    { return Err("return correspondence"); }
+                                }
+                                Ok(())
+                            },
+                        ).unwrap();
+                        assert!(matches!(
+                            session.poll(&env).unwrap(),
+                            EffectSessionPoll::Awaiting
+                        ));
+                        let Ok(collector) = session.with_host_outcome((), |()| {
+                            match Collector::restore(saved, &env) {
+                                Ok(collector) => HostWorkOutcome::Pending(Ok(collector)),
+                                Err(error) => HostWorkOutcome::Failed(Err(error)),
+                            }
+                        }) else {
+                            panic!("pending owner")
+                        };
+                        let collector = collector.unwrap();
+                        assert_eq!(session.fuel_remaining(), saved.remaining);
+                        if stop == Stop::DenyCollector {
+                            active.granted.set(false);
+                        }
+                        if stop == Stop::DenyCapture {
+                            first.domains[2].denied.set(true);
+                        }
+                        if stop == Stop::DenyOuter {
+                            env.captured.deny_outer.set(true);
+                        }
+                        if matches!(stop, Stop::BeforeCollection | Stop::DropOwner) {
+                            if stop == Stop::DropOwner {
+                                drop(session);
+                            } else {
+                                let Ok(collector) = session
+                                    .with_host_outcome(collector, HostWorkOutcome::Cancelled)
+                                else {
+                                    panic!()
+                                };
+                                assert_eq!(
+                                    session.status(),
+                                    EffectSessionStatus::Terminal(EffectSessionEnd::Cancelled)
+                                );
+                                assert_eq!(session.fuel_remaining(), saved.remaining);
+                                collector.cancel(&env, &lease);
+                                assert!(!session.cancel());
+                                assert_eq!(
+                                    (
+                                        active.dispatches.get(),
+                                        env.captured.restored.get(),
+                                        env.captured.rebuilt.get()
+                                    ),
+                                    (0, 0, 0)
+                                );
+                                return None;
+                            }
+                            collector.cancel(&env, &lease);
+                            assert_eq!(
+                                (
+                                    active.dispatches.get(),
+                                    env.captured.restored.get(),
+                                    env.captured.rebuilt.get()
+                                ),
+                                (0, 0, 0)
+                            );
+                            return None;
+                        }
+                        let Ok(assembled) =
+                            session.with_metered_host_outcome(collector, |collector, fuel| {
+                                let result = collector
+                                    .complete(&env, order)
+                                    .map_err(Failure::Native)
+                                    .and_then(|rows| {
+                                        assemble_group_reply(
+                                            &saved.tree,
+                                            rows,
+                                            QUEUE_LIMITS,
+                                            fuel,
+                                            |group, _| admit(group, &active),
+                                        )
+                                        .map(Rc::new)
+                                        .map_err(|error| {
+                                            match error {
+                                                GroupReplyError::Fuel => Failure::Fuel,
+                                                GroupReplyError::Native(error) => {
+                                                    Failure::Native(error)
+                                                }
+                                                _ => panic!("assembly structure"),
+                                            }
+                                        })
+                                    });
+                                if result.is_ok() {
+                                    HostWorkOutcome::Pending(result)
+                                } else {
+                                    HostWorkOutcome::Failed(result)
+                                }
+                            })
+                        else {
+                            panic!("meter owner")
+                        };
+                        let value = match assembled {
+                            Err(error) => {
+                                assert_eq!(
+                                    session.status(),
+                                    EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+                                );
+                                assert!(!lease.is_open());
+                                env.inventory.borrow_mut().clear();
+                                Err(error)
+                            }
+                            Ok(reply) => {
+                                let remaining = session.fuel_remaining();
+                                assert_eq!(remaining, saved.remaining - 4);
+                                let pointer = Rc::as_ptr(&reply);
+                                let wrong = session
+                                    .try_accept::<Group<'_, T>, _>(&999, reply, &active)
+                                    .unwrap_err();
+                                assert_eq!(Rc::as_ptr(&wrong.reply), pointer);
+                                assert!(lease.is_open());
+                                if stop == Stop::AfterAssembly {
+                                    assert!(session.cancel());
+                                    drop(wrong);
+                                } else {
+                                    session
+                                        .try_accept::<Group<'_, T>, _>(
+                                            &active.key(90),
+                                            wrong.reply,
+                                            &active,
+                                        )
+                                        .unwrap();
+                                    assert_eq!(session.fuel_remaining(), remaining);
+                                    if stop == Stop::AfterAcceptance {
+                                        assert!(session.cancel());
+                                    }
+                                }
+                                if matches!(stop, Stop::AfterAssembly | Stop::AfterAcceptance) {
+                                    assert!(!lease.is_open());
+                                    assert!(matches!(
+                                        session.poll(&env).unwrap(),
+                                        EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+                                    ));
+                                    assert_eq!(session.fuel_remaining(), remaining);
+                                    assert_eq!(
+                                        (
+                                            env.captured.restored.get(),
+                                            env.captured.projected.get(),
+                                            env.captured.rebuilt.get()
+                                        ),
+                                        (0, 0, 0)
+                                    );
+                                    assert_eq!(
+                                        active.dispatches.get(),
+                                        saved
+                                            .rows
+                                            .iter()
+                                            .filter(|r| matches!(r, SavedRow::Prepared(_)))
+                                            .count()
+                                    );
+                                    return None;
+                                }
+                                match session.poll(&env) {
+                                    Ok(EffectSessionPoll::Value(PureValue::Scalar(value))) => {
+                                        Ok(value)
+                                    }
+                                    Err(CalculationFailure::External(
+                                        EffectStackFault::Control(EffectEvaluationFault::Pure(
+                                            PureEvaluationFault::FuelExhausted,
+                                        )),
+                                    )) => Err(Failure::Fuel),
+                                    Err(CalculationFailure::External(
+                                        EffectStackFault::Control(EffectEvaluationFault::Native(
+                                            error,
+                                        )),
+                                    )) => Err(Failure::Native(error)),
+                                    _ => panic!("bounded return"),
+                                }
+                            }
+                        };
+                        assert!(!lease.is_open());
+                        assert!(!session.cancel());
+                        assert!(env.inventory.borrow().iter().all(Option::is_none));
+                        assert_eq!(
+                            (
+                                first.preparations.get(),
+                                second.preparations.get(),
+                                active.preparations.get(),
+                                first.dispatches.get(),
+                                second.dispatches.get()
+                            ),
+                            (0, 0, 0, 0, 0)
+                        );
+                        let unpublished = saved
+                            .rows
+                            .iter()
+                            .filter(|r| matches!(r, SavedRow::Prepared(_)))
+                            .count();
+                        if stop == Stop::DenyCollector {
+                            assert_eq!(active.dispatches.get(), 0);
+                        } else {
+                            assert_eq!(active.dispatches.get(), unpublished);
+                        }
+                        Some(Report {
+                            value,
+                            remaining: session.fuel_remaining(),
+                            restored: env.captured.restored.get(),
+                            projected: env.captured.projected.get(),
+                        })
+                    }
+
+                    #[test]
+                    fn owned_checkpoint_uses_one_meter_from_collectors_through_both_capture_returns()
+                     {
+                        fn check<T: Projection>() {
+                            let mut count = 0;
+                            cases(|first, second, active, frontier, order| {
+                                let Initial::Saved(bytes) = initial::<T>(
+                                    first, second, active, frontier, order, None, true,
+                                ) else {
+                                    panic!()
+                                };
+                                let saved = decode::<T>(&bytes, &bytes).unwrap();
+                                assert_eq!(
+                                    run(&saved, order, Stop::None).unwrap(),
+                                    restored(&saved, order, 0).unwrap()
+                                );
+                                count += 1;
+                            });
+                            assert_eq!(count, 220);
+                        }
+                        check::<u64>();
+                        check::<String>();
+                    }
+                    #[test]
+                    fn owned_checkpoint_all_fuel_cutoffs_match_the_original_manual_reentry() {
+                        fn check<T: Projection>() {
+                            cases(|first, second, active, frontier, order| {
+                                let Initial::Saved(bytes) = initial::<T>(
+                                    first, second, active, frontier, order, None, true,
+                                ) else {
+                                    panic!()
+                                };
+                                let mut saved = decode::<T>(&bytes, &bytes).unwrap();
+                                let needed =
+                                    saved.remaining - restored(&saved, order, 0).unwrap().remaining;
+                                for allowance in 0..=needed + 1 {
+                                    // Explicit test-only reduced grants; never increase the committed budget.
+                                    assert!(allowance <= saved.captured.remaining);
+                                    saved.remaining = allowance;
+                                    assert_eq!(
+                                        run(&saved, order, Stop::None).unwrap(),
+                                        restored(&saved, order, 0).unwrap(),
+                                        "fuel={allowance}"
+                                    );
+                                }
+                            });
+                        }
+                        check::<u64>();
+                        check::<String>();
+                    }
+                    #[test]
+                    fn owned_checkpoint_cancellation_hands_back_collectors_after_revocation() {
+                        fn check<T: Projection>() {
+                            cases(|first, second, active, frontier, order| {
+                                let Initial::Saved(bytes) = initial::<T>(
+                                    first, second, active, frontier, order, None, true,
+                                ) else {
+                                    panic!()
+                                };
+                                let saved = decode::<T>(&bytes, &bytes).unwrap();
+                                for stop in [
+                                    Stop::BeforeCollection,
+                                    Stop::AfterAssembly,
+                                    Stop::AfterAcceptance,
+                                    Stop::DropOwner,
+                                ] {
+                                    assert!(run(&saved, order, stop).is_none());
+                                }
+                            });
+                        }
+                        check::<u64>();
+                        check::<String>();
+                    }
+                    #[test]
+                    fn owned_checkpoint_live_collector_capture_and_cold_return_denials_close_parent()
+                     {
+                        cases(|first, second, active, frontier, order| {
+                            let Initial::Saved(bytes) = initial::<String>(
+                                first, second, active, frontier, order, None, true,
+                            ) else {
+                                panic!()
+                            };
+                            let saved = decode::<String>(&bytes, &bytes).unwrap();
+                            for stop in [Stop::DenyCollector, Stop::DenyCapture, Stop::DenyOuter] {
+                                let report = run(&saved, order, stop).unwrap();
+                                assert!(matches!(report.value, Err(Failure::Native(_))));
+                                assert_eq!(report.projected, 0);
+                                assert!(report.remaining <= saved.remaining);
+                                if stop != Stop::DenyCapture {
+                                    assert_eq!(report.restored, 0);
+                                }
+                            }
+                        });
+                    }
+                }
+
                 fn cases(mut run: impl FnMut(GroupKind, GroupKind, GroupKind, usize, [usize; 3])) {
                     for first in KINDS {
                         source::cases(|second, active, frontier, order| {

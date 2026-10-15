@@ -16,8 +16,8 @@ use leselang_host_contract::{
     CAPABILITY_RUNTIME_REFRESH, CapabilitySet, CommandOrigin, Confirmation, Principal, Revision,
 };
 use leselang_runtime_core::{
-    Fuel, ResourceBudgetError, ResourceBudgetLimits, SequenceWatermarkRequirement,
-    capped_exponential_delay, checked_clock_add,
+    Fuel, ResourceBudgetError, ResourceBudgetLimits, RetryPlanError, RetryTiming,
+    SequenceWatermarkRequirement, plan_retry_schedule,
 };
 use leserpent_domain::{CommandId, DOMAIN_SCHEMA_VERSION, IdempotencyKey, QueryEnvelope};
 use serde::de::Error as _;
@@ -57,10 +57,10 @@ pub use result_binding::{
 pub use scheduling::{DispatchClaim, SchedulerLimits, SchedulerPressure};
 
 use host_result::{accept_bound_value, validate_bound_value};
+use journal::{EffectObservation, Journal, MergeProgress};
 pub use journal::{
     JOURNAL_SCHEMA_VERSION, MAX_JOURNAL_ENTRY_BYTES, MAX_JOURNAL_RECORDS, MAX_JOURNAL_TOTAL_BYTES,
 };
-use journal::{Journal, MergeProgress};
 use result_binding::ReferenceResultBinding;
 
 pub const CONTINUATION_SCHEMA_VERSION: u32 = 1;
@@ -1206,34 +1206,40 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
             ));
         }
         validate_effect_error(&error)?;
-        if error.class == EffectErrorClass::Transient {
+        let schedule = if error.class == EffectErrorClass::Transient {
             validate_retry_policy(policy)?;
-        }
-
-        let disposition = match error.class {
-            EffectErrorClass::Permanent => RetryDisposition::Terminal(Step::Failed(FailedEffect {
+            plan_retry_schedule(
+                lease.retry_count,
+                now_ms,
+                RetryTiming {
+                    max_retries: policy.max_retries,
+                    base_delay_ms: policy.base_delay_ms,
+                    max_delay_ms: policy.max_delay_ms,
+                },
+            )
+            .map_err(|error| match error {
+                RetryPlanError::Timing => Fault {
+                    code: "LSV2201".into(),
+                    message: "semantic retry policy exceeds runtime bounds".into(),
+                },
+                RetryPlanError::Clock(_) => Fault {
+                    code: "LSV2203".into(),
+                    message: "semantic retry clock overflow".into(),
+                },
+            })?
+        } else {
+            None
+        };
+        let disposition = match schedule {
+            None => RetryDisposition::Terminal(Step::Failed(FailedEffect {
                 error,
                 retry_count: lease.retry_count,
             })),
-            EffectErrorClass::Transient if lease.retry_count >= policy.max_retries => {
-                RetryDisposition::Terminal(Step::Failed(FailedEffect {
-                    error,
-                    retry_count: lease.retry_count,
-                }))
-            }
-            EffectErrorClass::Transient => {
-                let retry_count = lease.retry_count + 1;
-                let delay_ms = retry_delay(policy, retry_count);
-                let ready_at_ms = checked_clock_add(now_ms, delay_ms).map_err(|_| Fault {
-                    code: "LSV2203".to_string(),
-                    message: "semantic retry clock overflow".to_string(),
-                })?;
-                RetryDisposition::Scheduled(RetrySchedule {
-                    retry_count,
-                    ready_at_ms,
-                    error,
-                })
-            }
+            Some(point) => RetryDisposition::Scheduled(RetrySchedule {
+                retry_count: point.retry_count,
+                ready_at_ms: point.ready_at_ms,
+                error,
+            }),
         };
         let authoritative = self.journal.report_error(lease, now_ms, &disposition)?;
         if let RetryDisposition::Terminal(step) = &authoritative {
@@ -1277,7 +1283,8 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
         validate_debugger_audit(audit)?;
         validate_scheduler_time(now_ms)?;
         self.expire_due(now_ms)?;
-        if let Some(completed) = self.completed.get(&image.token) {
+        // Reconcile peer completion/retention just like ordinary cancellation.
+        if let Some(completed) = self.reconcile_completed(&image.token)? {
             if !matches!(
                 completed,
                 Step::Cancelled(Cancellation {
@@ -1366,19 +1373,28 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
     }
 
     fn replay_completed(&mut self, token: &ContinuationToken) -> Result<Option<Step>, Fault> {
-        let Some(step) = self.completed.get(token).cloned() else {
-            let step = self.journal.completed_step(token)?;
-            if let Some(step) = &step {
-                self.pending.remove(token);
-                self.completed.insert(token.clone(), step.clone());
+        Ok(self.reconcile_completed(token)?.cloned())
+    }
+
+    fn reconcile_completed(&mut self, token: &ContinuationToken) -> Result<Option<&Step>, Fault> {
+        if self.completed.contains_key(token) {
+            if !self.journal.completed_exists(token)? {
+                self.completed.remove(token);
             }
-            return Ok(step);
-        };
-        if self.journal.completed_exists(token)? {
-            return Ok(Some(step));
+        } else {
+            match self.journal.observe_effect(token)? {
+                #[cfg(feature = "sqlite-journal")]
+                EffectObservation::Missing => {
+                    self.pending.remove(token);
+                }
+                EffectObservation::Untracked | EffectObservation::Pending => {}
+                EffectObservation::Completed(step) => {
+                    self.pending.remove(token);
+                    self.completed.insert(token.clone(), *step);
+                }
+            }
         }
-        self.completed.remove(token);
-        Ok(None)
+        Ok(self.completed.get(token))
     }
 
     fn visible_step(&mut self, branch_token: &ContinuationToken, branch_step: Step) -> Step {
@@ -1880,14 +1896,6 @@ fn validate_effect_error(error: &EffectError) -> Result<(), Fault> {
         });
     }
     Ok(())
-}
-
-fn retry_delay(policy: &RetryPolicy, retry_count: u32) -> u64 {
-    capped_exponential_delay(
-        policy.base_delay_ms,
-        policy.max_delay_ms,
-        retry_count.saturating_sub(1),
-    )
 }
 
 pub fn merge_declared(

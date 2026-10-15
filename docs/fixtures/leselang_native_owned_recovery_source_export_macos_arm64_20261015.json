@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-owned-recovery-source-export",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-15T11:33:12.022Z",
+  "platform": "macos-arm64",
+  "source_outside_product_workspace": true,
+  "source_crates": [
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir",
+    "leselang-vm"
+  ],
+  "verified": true,
+  "native_vm_facade": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "original_session_core": true,
+  "byte_checkpoint_fixture": true,
+  "original_prepared_collectors": true,
+  "one_owned_meter": true,
+  "explicit_reply_gated_reentry": true,
+  "meter_borrow_cannot_escape": true,
+  "native_meter_access_is_trusted": true,
+  "explicit_collector_cancel_after_revocation": true,
+  "every_assembly_and_return_fuel_cutoff": true,
+  "durable_owning_vm": false,
+  "process_crash_acceptance": false,
+  "automatic_collector_cancellation": false,
+  "portable_session_codec": false,
+  "native_callback_sandbox": false,
+  "arbitrary_program_checkpoint": false,
+  "external_effect_rollback": false,
+  "files": 258,
+  "copied_files": 248,
+  "bytes": 5963371,
+  "workspace_all_features_tests": "passed",
+  "workspace_strict_clippy": "passed",
+  "independent_consumer_tests": "passed",
+  "independent_consumer_strict_clippy": "passed",
+  "isolated_test_executions": 2312,
+  "workspace_session_tests": 47,
+  "independent_consumer_session_tests": 47,
+  "workspace_saved_group_tests": 48,
+  "independent_consumer_saved_group_tests": 48,
+  "new_session_tests_per_workspace": 3,
+  "new_integration_tests_per_workspace": 4,
+  "meter_borrow_compile_fail_tests": 1,
+  "frontier_combinations": 440,
+  "cancellation_cases": 1760,
+  "live_policy_refusals": 660,
+  "native_payload_schemas": 2,
+  "captured_graphs": 2,
+  "return_frames": 2,
+  "consumer_proof_unchanged": true,
+  "copied_source_byte_for_byte": true,
+  "export_manifest_sha256": "ffb4eca6a13b2276fbfd79d0bd7a12b03d38307e76f24bfd4d4aba8ddeb2db49",
+  "verification_log_sha256": "9569ec071420c86629e3821359af96e1680879b35c159d774a21fdc3e13bb514",
+  "provenance": [
+    {
+      "path": "crates/leselang-hir/src/effect_session.rs",
+      "source": "crates/leselang-hir/src/effect_session.rs",
+      "sha256": "0e8da71ba84ab6668918c93326758242a31a49e7c281d0b58689e4b9db7bef2b"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_stack_session.rs",
+      "source": "crates/leselang-hir/src/effect_stack_session.rs",
+      "sha256": "64e214bba430549a5823a20acde534f515f9856921e146b61f22463f8ec2f581"
+    },
+    {
+      "path": "crates/leselang-hir/src/local_effect_session.rs",
+      "source": "crates/leselang-hir/src/local_effect_session.rs",
+      "sha256": "4bd0bcdb0c267ab499ece614d4c1175fc64017b841c58c4fc53eedebe9bee53a"
+    },
+    {
+      "path": "crates/leselang-hir/tests/effect_session.rs",
+      "source": "crates/leselang-hir/tests/effect_session.rs",
+      "sha256": "9bf098983822fe2f8774857d3e19c7a02a5a7d5d778a5815028787ec76ad96ed"
+    },
+    {
+      "path": "consumer/tests/control_session.rs",
+      "source": "crates/leselang-hir/tests/effect_session.rs",
+      "sha256": "9bf098983822fe2f8774857d3e19c7a02a5a7d5d778a5815028787ec76ad96ed"
+    },
+    {
+      "path": "crates/leselang-hir/tests/saved_group.rs",
+      "source": "crates/leselang-hir/tests/saved_group.rs",
+      "sha256": "85532ae1e80cdf20fdfce4e09f32fae8736e7cb0a61aba74351739477e98ee4f"
+    },
+    {
+      "path": "consumer/tests/saved_group.rs",
+      "source": "crates/leselang-hir/tests/saved_group.rs",
+      "sha256": "85532ae1e80cdf20fdfce4e09f32fae8736e7cb0a61aba74351739477e98ee4f"
+    }
+  ],
+  "remaining_gates": [
+    "complete native reference-language coverage",
+    "arbitrary source-program checkpoints and arbitrary captured-graph collections",
+    "production durable ownership and external collector settlement",
+    "production persistence and cancellation/process-crash settlement",
+    "complete reference adapter wire/auth/GUI/CLI/journal parity",
+    "release publication and physical repository extraction"
+  ]
+}
