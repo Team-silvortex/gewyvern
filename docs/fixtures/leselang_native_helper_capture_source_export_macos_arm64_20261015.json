@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-helper-capture-source-export",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-15T09:39:06.944Z",
+  "platform": "macos-arm64",
+  "source_outside_product_workspace": true,
+  "source_crates": [
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir",
+    "leselang-vm"
+  ],
+  "verified": true,
+  "native_vm_facade": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "portable_mixed_checkpoint": false,
+  "process_crash_acceptance": false,
+  "source_compiled_capture_checkpoint": true,
+  "helper_origin_whole_program_checkpoint": true,
+  "compiler_ir_without_conversion": true,
+  "shared_checkpoint_writers": true,
+  "external_type_prefix": false,
+  "preseeded_captures": false,
+  "arbitrary_program_checkpoint": false,
+  "every_assembly_and_return_fuel_cutoff": true,
+  "bootstrap_owner_policy_domain_refusal_preserves_input": true,
+  "automatic_parent_cancellation": false,
+  "concurrent_race_acceptance": false,
+  "files": 258,
+  "copied_files": 248,
+  "bytes": 5724894,
+  "workspace_all_features_tests": "passed",
+  "workspace_strict_clippy": "passed",
+  "independent_consumer_tests": "passed",
+  "independent_consumer_strict_clippy": "passed",
+  "isolated_test_executions": 2257,
+  "workspace_saved_group_tests": 32,
+  "independent_consumer_saved_group_tests": 32,
+  "helper_composition_tests_per_workspace": 5,
+  "native_payload_schemas": 2,
+  "captured_group_kinds": 2,
+  "program_variants": 8,
+  "sequential_frontiers": 7,
+  "parallel_completion_masks": 8,
+  "receipt_orders": 6,
+  "sequential_combinations": 28,
+  "parallel_combinations": 192,
+  "frontier_combinations": 220,
+  "return_frames": 2,
+  "completed_bootstrap_returns": 1,
+  "initial_runtime_bindings": 0,
+  "compiler_refusal_cases": 40,
+  "forged_checkpoint_cases": 14,
+  "original_preparations_per_program": 6,
+  "total_dispatches_per_program": 6,
+  "restored_preparations_per_program": 0,
+  "restored_first_helper_dispatches": 0,
+  "max_restored_sequential_dispatches": 3,
+  "restored_parallel_dispatches_per_program": 0,
+  "shared_captured_group_rebuilds_per_execution": 1,
+  "pending_projections_per_execution": 1,
+  "consumer_proof_unchanged": true,
+  "copied_source_byte_for_byte": true,
+  "export_manifest_sha256": "29e20d16944ed34e3ae157a73179694000b471593805dfcf80e06d9614e47464",
+  "verification_log_sha256": "e44e1f8e4d8ec8db22524467fcbc5a7013a56fe75d3e86ad0d846b1152ce2d43",
+  "provenance": [
+    {
+      "path": "crates/leselang-runtime-core/src/capture_snapshot.rs",
+      "source": "crates/leselang-runtime-core/src/capture_snapshot.rs",
+      "sha256": "685823b2043a625f77f4916762bf0d10efc5c020c0cbe6dd579c395138434841"
+    },
+    {
+      "path": "crates/leselang-hir/src/catalog_group_source.rs",
+      "source": "crates/leselang-hir/src/catalog_group_source.rs",
+      "sha256": "a53a761d9f760e7f630c862a91c80a12d5ff42fc18e4d5052d4fa6414c0fbeb6"
+    },
+    {
+      "path": "crates/leselang-hir/src/catalog_program.rs",
+      "source": "crates/leselang-hir/src/catalog_program.rs",
+      "sha256": "a35e9b63f2260c67fa3e7757daaf030d0fe31f4006619b180d221d7953503e1a"
+    },
+    {
+      "path": "crates/leselang-hir/src/source_call.rs",
+      "source": "crates/leselang-hir/src/source_call.rs",
+      "sha256": "61e0fcfdbfb3354fb1c76bd82804c20769b5bcd0a4adb96cc030549454665962"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_stack.rs",
+      "source": "crates/leselang-hir/src/effect_stack.rs",
+      "sha256": "5a4980b9ebcb697ea4c48e3462bf54552f9633e371fb8d1fd5c626954ae7c51d"
+    },
+    {
+      "path": "crates/leselang-hir/src/prepared_sequence.rs",
+      "source": "crates/leselang-hir/src/prepared_sequence.rs",
+      "sha256": "bb66d88e74a02dc8a260faa7d8f3e8d6c805dc9aa3a1d0775aca3f2d711b76a5"
+    },
+    {
+      "path": "crates/leselang-hir/src/prepared_parallel.rs",
+      "source": "crates/leselang-hir/src/prepared_parallel.rs",
+      "sha256": "f97dbbd98f7fded8f2a8f4abcb63f81cc4c2fe267e5fc2606b886a016d1b2e8d"
+    },
+    {
+      "path": "crates/leselang-hir/src/group_reply.rs",
+      "source": "crates/leselang-hir/src/group_reply.rs",
+      "sha256": "403d726d9b058d57aaa676834d37c9f4b88227283edc6b50a77faf493e28d646"
+    },
+    {
+      "path": "crates/leselang-hir/tests/saved_group.rs",
+      "source": "crates/leselang-hir/tests/saved_group.rs",
+      "sha256": "96c86476df90084128e7fdf366aec0fb48567731ce3ebf4d14c3927032e47436"
+    },
+    {
+      "path": "consumer/tests/saved_group.rs",
+      "source": "crates/leselang-hir/tests/saved_group.rs",
+      "sha256": "96c86476df90084128e7fdf366aec0fb48567731ce3ebf4d14c3927032e47436"
+    }
+  ],
+  "remaining_gates": [
+    "complete native reference-language coverage",
+    "arbitrary source-program checkpoints, repeat and multiple captured graphs",
+    "production persistence and cancellation/process-crash settlement",
+    "complete reference adapter wire/auth/GUI/CLI/journal parity",
+    "release publication and physical repository extraction"
+  ]
+}

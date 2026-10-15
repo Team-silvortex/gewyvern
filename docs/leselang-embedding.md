@@ -6268,8 +6268,9 @@ before its already-authorized member dispatches.
 This remains a fixed typed-IR host-codec model with a 64 KiB byte limit, two return
 frames and two three-member graphs. Exact committed-byte correspondence stands
 in for host persistence authenticity, not a production signature or journal.
-Native decoding/copying is separately bounded host work. Partial All/repeat
-composition, multiple captured graphs, source-compiled mixed checkpoints,
+Native decoding/copying is separately bounded host work. The parallel extension
+below adds partial All composition; repeat, multiple captured graphs and
+source-compiled mixed checkpoints remain separate. Production
 process-crash settlement and full extraction remain open. No library wire schema,
 interpreter, runtime API or dependency was added for this proof.
 
@@ -6280,6 +6281,285 @@ including four in-flight composition tests; all 248 copied files match the
 repository byte for byte. The sequential-capture model flag is true while full
 mixed-checkpoint, partial-parallel composition, process-crash, complete VM and
 extraction flags remain false.
+
+### Captured Partial Parallel Recovery
+
+The `saved_group::captured::inflight::parallel` model now joins partial All
+completion with the same captured variables, group aliases and two return frames.
+The common adapter prepares real native call operands by reading the captured
+group; `PreparedParallelSession::start()` publishes the complete batch once.
+Eight accepted/awaiting masks and six receipt orders run with two payload schemas
+and captured Seq/All groups: 192 combinations. The captured and pending groups
+retain distinct identity generations and result domains.
+
+Only bounded committed bytes escape the first execution scope. Original graphs,
+schemas, native views, calls, collectors and meter are dropped. A fresh host uses
+`PreparedParallelSession::restore()` for already-published rows: it restores no
+prepared calls, evaluates no operands and dispatches nothing. Awaiting rows consume
+their original modeled incoming values; accepted rows stay accepted. Every
+successful barrier hands off exactly once in original member order regardless of
+arrival order, then uses the same charged assembly and stacked return code as Seq.
+Across the original program there are six preparations and six dispatches. The
+captured group is rebuilt once, aliases/frames share it, and the pending group
+projects once. Every assembly/return budget cutoff matches uninterrupted execution.
+
+Five tests cover the matrix, all fuel cutoffs, wrong identity/index and duplicate
+receipts preserving input ownership and barrier state, fresh authority/domain
+refusals before capture work, cold body refusal, second-return capture revocation,
+and forged completion/graph/capture/budget data. An unpublished `Prepared` row is
+explicitly refused because this saved All represents an already-published batch.
+Cancellation and closed-scope polls cover all eight masks, including all results
+ready but not handed off: retained results drop, late replies remain rejected,
+fuel stays unchanged, and no capture or parent re-entry runs. The test host
+explicitly drops the pending return stack; barrier cancellation does not supply
+automatic parent or external-operation cancellation.
+
+This is still a fixed typed-IR byte-codec model, not a new library codec or a
+production journal. It inherits the 64 KiB ingress bound, two frames and two
+three-member graphs; committed-byte correspondence stands in for host authenticity.
+The modeled inbox is not a network redelivery guarantee. This earlier fixed-IR
+proof did not include source compilation; the bounded extension follows below.
+Concurrent races, repeat/multiple captured graphs, durable process-crash settlement
+and full extraction remain open.
+
+The [macOS arm64 isolated-source proof](fixtures/leselang_native_parallel_capture_source_export_macos_arm64_20261015.json)
+records 2,239 test executions and strict lint success in both the exported
+workspace and independent consumer. The unchanged saved-group suite runs 23 tests
+in each, including five partial-parallel composition tests. All 248 copied source
+files match the repository byte for byte. Partial-parallel capture coverage is
+true; complete VM, portable mixed checkpoint, concurrent-race acceptance,
+production process-crash and full extraction flags remain false.
+
+### Source-Compiled Captured Recovery
+
+`saved_group::captured::inflight::source` now parses real source and calls
+`compile_catalog_prepared_group_source` with the host's explicit type prefix.
+The prefix describes a boolean, an atomic native result and two aliases of one
+captured group; it contains no runtime values or execution grants. Named native
+operation keys let the compiler's owned IR enter the same saved-group adapters
+directly, without a second tree conversion or interpreter. Syntax, catalog and
+type metadata are dropped before execution; runtime values come from the host.
+
+The source binds a prepared three-member Seq/All, reads operands from the captured
+group, projects its reply and returns through two frames. Numeric and text hosts
+and captured Seq/All groups cover 220 combinations: 28 sequential frontiers and
+192 parallel mask/arrival-order combinations. The original objects are dropped
+before bounded committed bytes are decoded by a fresh host. Exact result, fuel,
+capture restoration and projection counts match uninterrupted execution at every
+assembly/return budget cutoff. Seq reconstructs only previously unpublished
+operands and dispatches that suffix once; All restores no calls or dispatches.
+One rebuilt captured group is shared by its aliases and both return frames.
+
+Four source tests cover the matrix, every fuel cutoff, fresh authority refusal,
+cold return-body refusal and second-return capture revocation. Compiler negatives
+cover syntax, unknown operations/locals/members/fields, incorrect operand types,
+invalid cold call shape, catalog version mismatch, missing active capability and
+missing capability for an unreachable call. These cases stop before runtime work.
+Saved state still needs exact host-committed byte correspondence; source compilation
+does not make decoded IR, receipts or fuel authoritative.
+
+This is an explicit-prefix source-expression checkpoint model: the completed
+captured graph is supplied by the fixture host, not created by a captured helper
+earlier in a complete source program. It retains two three-member graphs, two
+frames and a 64 KiB ingress ceiling. Helper-origin whole-program recovery is
+covered by the bounded extension below; repeat/multiple captured graphs, production persistence/process-crash settlement,
+concurrent races and full extraction remain open. No public runtime API, product
+wire schema or VM maturity changes; the complete-VM and extraction flags stay false.
+
+The [macOS arm64 isolated-source proof](fixtures/leselang_native_compiled_capture_source_export_macos_arm64_20261015.json)
+records 2,247 test executions and strict lint success in both the exported
+workspace and independent consumer. Each runs the unchanged 27-test saved-group
+suite, including four source-compiled composition tests. All 248 copied source
+files match repository bytes. The explicit-prefix source-checkpoint flag is true;
+helper-origin whole-program, portable mixed checkpoint, process-crash, complete VM
+and full extraction flags remain false.
+
+### Helper-Origin Program Recovery
+
+`saved_group::captured::inflight::whole_program` now starts from an empty runtime
+scope and compiles both `main` and a zero-argument group helper through the existing
+`compile_catalog_prepared_group_helper_program`. There is no external type prefix,
+preseeded result or completed-group shortcut. The helper prepares, dispatches and
+accepts all three first-group calls through the original prepared Seq/All collectors.
+Charged assembly yields an authenticated group reply; the original stacked walker
+returns it into `main`, whose pure bindings create a boolean, an atomic member and
+two group aliases. Only then does the second source group prepare its operands.
+
+The bootstrap host authenticates the first group with its original identity and
+domain, while subsequent work has a distinct generation. Wrong first-group ownership,
+revoked authority and a denied original result domain return the same input without
+restoring captures, projecting results or preparing the next group; repairing only
+that policy permits explicit retry. The one bootstrap return completes before checkpointing; the
+pending group retains two return frames. Seq/All checkpoint writers and restore
+paths are shared with the earlier models, not copied into another interpreter.
+
+Numeric/text payloads and all four first/second group-kind pairs cover eight
+program variants and 220 frontier/order combinations. Only committed bytes leave
+the original execution scope. They retain the compiled pending group, original
+return bodies, first-group receipts, derived captures and original remaining fuel.
+Source, helper tables, graphs, schemas, requests, collectors and native views are
+dropped; restoration neither recompiles nor reruns the first helper. Seq continues
+only its unpublished suffix, and All dispatches nothing. The captured group rebuilds
+once, with aliases shared across both frames. Every pending-group assembly/return fuel cutoff
+matches uninterrupted execution, including exact refusal and callback counts.
+
+Five tests also cover 40 compiler refusals across helper resolution/arguments/types,
+unbound locals, invalid or cyclic unused helpers, cold calls, catalog versions and
+capabilities; fresh restoration and cold return authority; and forged graph,
+capture identity, frame references, frontier and budget bytes. The 64 KiB ingress
+bound and exact committed-byte admission remain host-owned, not a new codec or
+authenticity certificate. This is one bounded two-group helper-origin program family,
+not arbitrary source-program recovery. Multiple captured graphs, additional
+control-flow shapes, cancellation/crash settlement and production persistence remain
+separate gates. Complete VM/full extraction flags and native embedding maturity
+remain unchanged; no runtime API or product wire schema changes.
+
+The [macOS arm64 isolated-source proof](fixtures/leselang_native_helper_capture_source_export_macos_arm64_20261015.json)
+records 2,257 test executions and strict lint success in the exported workspace
+and independent consumer. Both run the unchanged 32-test saved-group suite,
+including five helper-origin composition tests. All 248 copied source files match
+repository bytes. The bounded helper-origin checkpoint flag is true, while external
+prefix/preseeded-capture flags are false. Arbitrary-program, portable checkpoint,
+process-crash, complete VM and full extraction flags remain false.
+
+### Bounded Repeat Program Recovery
+
+`saved_group::captured::inflight::whole_program::repeat` extends the same empty-scope
+source model with `repeat(times: 3, body: operation0(...))` and
+`seq(head: operation0(...), tail: repeat(times: 2, body: operation1(...)))`.
+The existing helper-program compiler expands these into ordinary Sequence IR,
+preserving `iteration_1..iteration_3` and `head, tail__iteration_1, tail__iteration_2`
+in declared order. The fixture admits four syntactic group sites for two composed
+groups, but retains three expanded members per group and all other physical limits.
+No runtime loop, scheduler, alternate evaluator or public API is introduced.
+
+Catalog operation identity is deliberately separate from receipt position: repeated
+members share the operation schema but retain distinct native identities and result
+domains. The test host returns a deterministic per-call result, not an echo of its
+operand. Its admission and member projection check the original operation tag, while
+queue authority and result validation remain tied to the individual call position.
+Source-generated captures and prepared operands cross the same byte checkpoint;
+restoration neither recompiles nor replays preparation or the completed helper.
+
+All pairs of Seq/All/repeat/composed-repeat with at least one repeat, across numeric
+and text payloads, cover 24 program variants and 332 additional frontier/order
+combinations: 140 sequential and 192 parallel. Six tests compare uninterrupted and
+restored results, original names/tags, exact fuel and callback counts, including
+every assembly/return fuel cutoff. Same-operation wrong-member, foreign-domain and
+duplicate receipts preserve the input and queue state; the original valid receipt
+can still complete the run. Current/cold/second-return authority is rechecked.
+There are 120 compiler refusals for invalid bounds/arguments, expansion width,
+unknown cold helpers, malformed calls, versions and grants, plus 16 changed-byte
+checkpoint refusals. The latter use host-owned exact committed-byte admission;
+they are not proof of arbitrary untrusted-codec validation or receipt authenticity.
+
+The [isolated-source proof](fixtures/leselang_native_repeat_capture_source_export_macos_arm64_20261015.json)
+records 2,269 test executions with strict lint checks in the exported workspace and
+independent consumer. Each runs the unchanged 38-test saved-group suite, including
+these six repeat-composition tests; all 248 copied source files match repository
+bytes. This remains a bounded two-group family with one captured graph. Arbitrary
+source-program recovery, multiple captured graphs, production persistence and
+cancellation/crash settlement remain separate gates. Complete VM/full extraction
+flags and native embedding maturity remain unchanged.
+
+### Two-Capture Program Recovery
+
+`saved_group::captured::inflight::whole_program::multiple` starts from empty scope,
+compiles `main` and two helpers, and executes two complete source groups before
+a third Seq/All suspends. Original authenticated bootstrap returns create two
+captured groups with two aliases each, an atomic result and a scalar. The pending
+group's operands read both groups; the saved return body projects the second group
+and an atomic result from the first.
+Compiler limits explicitly reserve ten calls and three groups; native members stay
+bounded to three, visible captures to six, and pending return frames to two.
+
+The existing test-host snapshot writer now maps original group pointers into a
+bounded table rather than assuming every group reference is zero. Each graph keeps
+its original IR, receipt identities and completed-assembly budget. Identical graph
+shapes and payloads do not collapse distinct native owners. Only bytes leave the
+initial execution scope; both original helpers, schemas, requests, replies and
+views are dropped. The shared Seq/All writers, prepared collectors and original
+return walker are reused without a second interpreter or public runtime API.
+
+On restoration, each captured graph rebuilds once under its own native owner;
+aliases share that graph across both return frames. Every cache hit rechecks the
+current authority and result domains. Revoking one owner does not authorize or
+revoke the other, and an explicit policy repair reuses the original cached graph.
+Denial of either captured domain between return frames still fails, even after the
+first frame populated both caches. Completed helper calls and preparation are not
+replayed; only unpublished pending Seq requests dispatch, while All dispatches none.
+
+Six tests cover 16 numeric/text program variants and 440 frontier/order combinations
+(56 sequential, 384 parallel), including every pending assembly/return fuel cutoff
+and exact callback counts. They also cover 56 source/compiler-budget refusals and
+16 cross-graph reference, owner, capture-shape and budget changes. Those changes
+fail both exact committed-byte admission and the bounded table checks even when
+presented as their own committed bytes. This is not arbitrary codec validation or
+an authenticity certificate; the host still owns ingress size, payload validation,
+native grants and persistence.
+
+The [isolated-source proof](fixtures/leselang_native_multi_capture_source_export_macos_arm64_20261015.json)
+records 2,281 test executions and strict lints in the exported workspace and
+independent consumer. Each runs the unchanged 44-test saved-group suite; all 248
+copied source files match repository bytes. This proves a bounded two-capture,
+three-group source family, not arbitrary captured-graph collections, portable
+checkpoints, production persistence or cancellation/crash settlement. Native
+embedding remains Developing/Draft at completion 10; complete VM and full extraction
+remain false. Historical single-capture proof files retain their original claims.
+
+### Restoring Pending Session Ownership
+
+`native::Vm::restore_pending` and `native::LocalVm::restore_pending` install
+host-decoded binding return frames into the **original** reply-gated session.
+This closes the ownership gap between rebuilding a return stack and managing its
+acceptance, cancellation and cleanup. It does not introduce another evaluator,
+state machine, scheduler or persisted session format.
+
+The host supplies the original pending identity, borrowed result declaration,
+innermost-to-outermost `SavedEffectReturnFrame` list, remaining `Fuel`, immutable
+stack limits and a mandatory admission callback. Frame names, counts and the whole
+body forest are structurally checked before that callback. The callback borrows
+the exact inputs and must validate their committed graph/site/capture correspondence,
+current authority, saved budget and nonterminal settlement. Structural success is
+not authentication. Zero fuel is retained as zero; admission never grants fuel.
+
+Success starts `Awaiting`. Restoration and idle polling do not prepare or dispatch
+effects, restore captures, project results or accept a reply. `try_accept` retains
+the original identity/authority/domain gates; rejected replies return intact and
+successful acceptance only makes the session `Ready`. A later explicit `poll`
+uses the same owned meter, rechecks cold effects and resumes original return sites.
+Successor requests still use the original correlation and preparation machinery.
+
+`LocalVm` additionally consumes a unique execution scope. A closed scope refuses
+before admission. Admission refusal or escaping unwind closes the scope before
+retained identity/frame cleanup; structural refusal also fences unused admission
+closure cleanup. Cancel and owner Drop close before pending/accepted state disposal.
+An unwind while disposing cancelled captures leaves `Cancelled` sticky rather than
+rearming work. Native callbacks and callback-internal/consumed-value destructors
+remain trusted Rust code; they cannot be preempted or rolled back, and a second
+panic during unwinding may abort the process.
+
+`StackedSessionRestoreError` distinguishes structural refusal, native admission
+refusal and closed scope without formatting native payloads or requiring `Debug`,
+`Clone`, serialization, `Send` or `'static` on host-owned data. The native facade
+re-exports the same error, not a translated error representation.
+
+Eight added regression tests move real original evaluator suspensions through this
+entry and cover exact budgets, successor handoff, recoverable receipt rejection,
+closed scopes, cold/current authority, cancellation before/after acceptance, owner
+Drop, admission/acceptance/reentry unwind and refusal-cleanup unwind. These tests
+run unchanged in the exported standalone consumer. The
+[isolated-source proof](fixtures/leselang_native_restored_session_source_export_macos_arm64_20261015.json)
+records the resulting verification and byte hashes.
+
+This is pending **binding** session restoration, not a final-effect checkpoint
+codec, production journal, cancellation/process-crash settlement or exactly-once
+certificate. Hosts still cancel external queues/collectors explicitly, reconcile
+already-published work and prevent cancelled or completed records being restored.
+The earlier byte-checkpoint group fixtures remain separate proofs; this entry does
+not yet combine their collector inventory and meter into one durable owning VM.
+Native embedding stays Developing/Draft at completion 10, with complete VM and
+full extraction gates false.
 
 ### Shared Flat Group Graph Inspection
 

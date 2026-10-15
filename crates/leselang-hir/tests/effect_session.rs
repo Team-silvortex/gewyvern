@@ -6,7 +6,10 @@ use std::rc::Rc;
 use leselang_hir::effect_evaluation::*;
 use leselang_hir::effect_reentry::*;
 use leselang_hir::effect_session::*;
-use leselang_hir::effect_stack::{EffectStackFault, EffectStackLimits, MAX_EFFECT_RETURN_FRAMES};
+use leselang_hir::effect_stack::{
+    EffectStackFault, EffectStackLimits, MAX_EFFECT_RETURN_FRAMES, SavedEffectReturnFrame,
+    StackedEffectOutcome, evaluate_stacked_effects_in_scope,
+};
 use leselang_hir::effect_stack_session::*;
 use leselang_hir::ir::{Computation, ComputedArgument};
 use leselang_hir::local_effect_session::LocalStackedEffectSession;
@@ -1368,6 +1371,613 @@ const STACK_LIMITS: EffectStackLimits = EffectStackLimits {
     effects: LIMITS,
     max_frames: 4,
 };
+
+type SavedFrames<'a> = Vec<SavedEffectReturnFrame<'a, Node, Capture<'a>>>;
+type RestoredSession<'a, 's> = StackedEffectSession<
+    'a,
+    's,
+    Field,
+    Operation,
+    Opaque,
+    Tag,
+    Rc<View>,
+    Capture<'a>,
+    Identity,
+    NativeDomain<'s>,
+    Reply,
+>;
+type LocalRestoredSession<'a, 's> = LocalStackedEffectSession<
+    'a,
+    's,
+    Field,
+    Operation,
+    Opaque,
+    Tag,
+    Rc<View>,
+    Capture<'a>,
+    Identity,
+    NativeDomain<'s>,
+    Reply,
+>;
+
+struct SavedSession<'a, 's> {
+    frames: SavedFrames<'a>,
+    identity: Identity,
+    declaration: &'s NativeDomain<'s>,
+    fuel: Fuel,
+    dispatch: Request<'a>,
+}
+
+// This fixture moves the real suspension; it is not a durable codec or journal.
+fn saved_session<'a, 's>(expression: &'a Node, host: &Host<'s>) -> SavedSession<'a, 's> {
+    let mut fuel = Fuel::new(100);
+    let mut values = Vec::new();
+    let StackedEffectOutcome::Suspended {
+        request,
+        continuation,
+    } = evaluate_stacked_effects_in_scope(
+        expression,
+        &mut ScopeFrame::new(&mut values),
+        host,
+        &mut fuel,
+        STACK_LIMITS,
+    )
+    .unwrap()
+    else {
+        panic!("fixture must suspend")
+    };
+    let request = host
+        .correlate_request(request, &mut fuel)
+        .unwrap_or_else(|_| panic!("fixture correlation failed"));
+    SavedSession {
+        frames: continuation
+            .into_frames()
+            .into_iter()
+            .map(|frame| {
+                let (name, body, capture) = frame.into_parts();
+                SavedEffectReturnFrame {
+                    name,
+                    body,
+                    capture,
+                }
+            })
+            .collect(),
+        identity: request.identity,
+        declaration: request.declaration,
+        fuel,
+        dispatch: request.dispatch,
+    }
+}
+
+#[test]
+fn restored_session_preserves_original_frames_budget_and_reply_gated_successor() {
+    host!(hooks, domains, host);
+    let expression = nested_program();
+    let saved = saved_session(&expression, &host);
+    let key = (&*saved.identity.serial as *const usize) as usize;
+    let bodies: Vec<_> = saved
+        .frames
+        .iter()
+        .map(|frame| frame.body as *const Node)
+        .collect();
+    let events = hooks.events.borrow().len();
+    let admitted = Cell::new(0);
+    let mut session = RestoredSession::restore_pending(
+        saved.identity,
+        saved.declaration,
+        saved.frames,
+        saved.fuel,
+        STACK_LIMITS,
+        |identity, domain, frames, fuel| {
+            admitted.set(admitted.get() + 1);
+            assert_eq!((&*identity.serial as *const usize) as usize, key);
+            assert!(std::ptr::eq(domain, saved.declaration));
+            assert_eq!(
+                frames
+                    .iter()
+                    .map(|frame| frame.body as *const Node)
+                    .collect::<Vec<_>>(),
+                bodies
+            );
+            assert_eq!(fuel.remaining(), 89);
+            host.policy(identity.op).map(|_| ())
+        },
+    )
+    .unwrap();
+    assert_eq!(admitted.get(), 1);
+    assert_eq!(session.status(), EffectSessionStatus::Awaiting);
+    for _ in 0..3 {
+        assert!(matches!(
+            session.poll(&host).unwrap(),
+            EffectSessionPoll::Awaiting
+        ));
+    }
+    assert_eq!(hooks.events.borrow().len(), events);
+    assert_eq!(session.fuel_remaining(), 89);
+    let input = host.invoke(saved.dispatch);
+    let pointer = (&*input.buffer as *const u8) as usize;
+    let rejected = session
+        .try_accept(&host.identity(99, 1), input, &host)
+        .unwrap_err();
+    assert_eq!((&*rejected.reply.buffer as *const u8) as usize, pointer);
+    assert_eq!(session.status(), EffectSessionStatus::Awaiting);
+    session
+        .try_accept(&host.identity(1, 1), rejected.reply, &host)
+        .unwrap();
+    assert_eq!(session.status(), EffectSessionStatus::Ready);
+    assert_eq!(session.fuel_remaining(), 89);
+    assert!(!hooks.events.borrow().contains(&Stage::Restore));
+    let successor = request(session.poll(&host).unwrap());
+    assert_eq!(successor.amount, 42);
+    assert_eq!(session.fuel_remaining(), 79);
+    session
+        .try_accept(&host.identity(2, 2), host.invoke(successor), &host)
+        .unwrap();
+    assert!(matches!(
+        session.poll(&host).unwrap(),
+        EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::Integer(53)))
+    ));
+    assert_eq!(session.fuel_remaining(), 69);
+    assert_eq!(host.invocations.get(), 2);
+    assert_eq!(hooks.capture_drops.get(), 3);
+    assert_eq!(hooks.key_drops.get(), 2);
+    assert_eq!(hooks.reply_drops.get(), 2);
+    let events = hooks.events.borrow().len();
+    assert!(matches!(
+        session.poll(&host).unwrap(),
+        EffectSessionPoll::Terminal(EffectSessionEnd::Completed)
+    ));
+    assert!(!session.cancel());
+    assert_eq!(hooks.events.borrow().len(), events);
+}
+
+#[test]
+fn restored_session_structure_precedes_admission_and_revokes_before_unused_hook_cleanup() {
+    struct UnusedHook(Rc<Hooks>);
+    impl Drop for UnusedHook {
+        fn drop(&mut self) {
+            self.0.observe_cleanup("unused admission");
+        }
+    }
+    for phase in 0..7 {
+        host!(hooks, domains, host);
+        let expression = nested_identity_program();
+        let cold = Node::Choose {
+            when: Box::new(Node::Literal {
+                value: ScalarValue::Boolean(false),
+            }),
+            then: Box::new(local("invalid name")),
+            otherwise: Box::new(integer(1)),
+        };
+        let mut saved = saved_session(&expression, &host);
+        drop(saved.dispatch);
+        let owner = LocalExecutionScope::new();
+        let lease = owner.lease();
+        hooks.lease.replace(Some(lease.clone()));
+        let mut limits = STACK_LIMITS;
+        match phase {
+            0 => saved.frames.clear(),
+            1 => limits.max_frames = 1,
+            2 => saved.frames[0].name = "invalid name",
+            3 => limits.effects.pure.max_nodes = 1,
+            4 => limits.effects.pure.max_bindings = 0,
+            5 => limits.max_frames = MAX_EFFECT_RETURN_FRAMES + 1,
+            _ => saved.frames[1].body = &cold,
+        }
+        hooks.cleanup_liveness.borrow_mut().clear();
+        hooks.events.borrow_mut().clear();
+        let guard = UnusedHook(hooks.clone());
+        let result = LocalRestoredSession::restore_pending(
+            owner,
+            saved.identity,
+            saved.declaration,
+            saved.frames,
+            saved.fuel,
+            limits,
+            move |_, _, _, _| -> Result<(), PrivateError> {
+                drop(guard);
+                panic!("structural rejection must precede admission")
+            },
+        );
+        assert!(matches!(
+            result,
+            Err(StackedSessionRestoreError::Structure(_))
+        ));
+        assert!(!lease.is_open());
+        assert!(hooks.events.borrow().is_empty());
+        assert!(
+            hooks
+                .cleanup_liveness
+                .borrow()
+                .contains(&("unused admission", true))
+        );
+        assert!(
+            hooks
+                .cleanup_liveness
+                .borrow()
+                .iter()
+                .all(|(_, closed)| *closed)
+        );
+        assert_eq!(hooks.capture_drops.get(), 2);
+        assert_eq!(hooks.key_drops.get(), 1);
+    }
+}
+
+#[test]
+fn restored_session_closed_scope_native_refusal_and_unwind_never_publish_owner() {
+    for phase in 0..3 {
+        host!(hooks, domains, host);
+        let expression = nested_identity_program();
+        let saved = saved_session(&expression, &host);
+        drop(saved.dispatch);
+        let owner = LocalExecutionScope::new();
+        let lease = owner.lease();
+        hooks.lease.replace(Some(lease.clone()));
+        if phase == 0 {
+            owner.close();
+        }
+        hooks.events.borrow_mut().clear();
+        let calls = Cell::new(0);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            LocalRestoredSession::restore_pending(
+                owner,
+                saved.identity,
+                saved.declaration,
+                saved.frames,
+                saved.fuel,
+                STACK_LIMITS,
+                |_, _, _, _| -> Result<(), PrivateError> {
+                    calls.set(calls.get() + 1);
+                    match phase {
+                        0 => panic!("closed scope must not admit"),
+                        1 => Err(PrivateError("private saved credentials")),
+                        _ => panic!("native admission unwind"),
+                    }
+                },
+            )
+        }));
+        if phase == 2 {
+            assert!(result.is_err());
+        } else {
+            let error = result.unwrap().unwrap_err();
+            assert!(!format!("{error:?} {error}").contains("private"));
+            if phase == 1 {
+                assert!(matches!(
+                    error,
+                    StackedSessionRestoreError::Native(PrivateError("private saved credentials"))
+                ));
+            } else {
+                assert!(matches!(error, StackedSessionRestoreError::ScopeClosed));
+            }
+        }
+        assert_eq!(calls.get(), usize::from(phase != 0));
+        assert!(!lease.is_open());
+        assert_eq!(hooks.capture_drops.get(), 2);
+        assert_eq!(hooks.key_drops.get(), 1);
+        assert!(
+            hooks
+                .cleanup_liveness
+                .borrow()
+                .iter()
+                .all(|(_, closed)| *closed)
+        );
+        assert!(hooks.events.borrow().is_empty());
+    }
+}
+
+#[test]
+fn restored_session_cancel_or_drop_before_or_after_receipt_revokes_without_reentry() {
+    for accepted in [false, true] {
+        for disposal in 0..3 {
+            host!(hooks, domains, host);
+            let expression = nested_identity_program();
+            let saved = saved_session(&expression, &host);
+            drop(saved.dispatch);
+            let owner = LocalExecutionScope::new();
+            let lease = owner.lease();
+            hooks.lease.replace(Some(lease.clone()));
+            let mut session = LocalRestoredSession::restore_pending(
+                owner,
+                saved.identity,
+                saved.declaration,
+                saved.frames,
+                saved.fuel,
+                STACK_LIMITS,
+                |_, _, _, _| Ok::<_, PrivateError>(()),
+            )
+            .unwrap();
+            assert!(lease.is_open());
+            if accepted {
+                session
+                    .try_accept(
+                        &host.identity(1, 1),
+                        host.reply(ScalarValue::Integer(42)),
+                        &host,
+                    )
+                    .unwrap();
+            }
+            hooks.events.borrow_mut().clear();
+            let fuel = session.fuel_remaining();
+            if disposal == 0 {
+                drop(session);
+            } else {
+                hooks.capture_drop_panic.set(disposal == 2);
+                let outcome = catch_unwind(AssertUnwindSafe(|| session.cancel()));
+                if disposal == 2 {
+                    assert!(outcome.is_err());
+                } else {
+                    assert!(outcome.unwrap());
+                }
+                assert_eq!(
+                    session.status(),
+                    EffectSessionStatus::Terminal(EffectSessionEnd::Cancelled)
+                );
+                assert!(!session.cancel());
+                assert!(matches!(
+                    session.poll(&host).unwrap(),
+                    EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+                ));
+                let reply = host.reply(ScalarValue::Integer(42));
+                let pointer = (&*reply.buffer as *const u8) as usize;
+                let rejected = session
+                    .try_accept(&host.identity(1, 1), reply, &host)
+                    .unwrap_err();
+                assert_eq!((&*rejected.reply.buffer as *const u8) as usize, pointer);
+                assert_eq!(session.fuel_remaining(), fuel);
+            }
+            assert!(!lease.is_open());
+            assert_eq!(hooks.capture_drops.get(), 2);
+            assert_eq!(hooks.key_drops.get(), 1);
+            assert_eq!(
+                hooks.reply_drops.get(),
+                usize::from(accepted) + usize::from(disposal != 0)
+            );
+            assert!(
+                hooks
+                    .cleanup_liveness
+                    .borrow()
+                    .iter()
+                    .all(|(_, closed)| *closed)
+            );
+            assert!(hooks.events.borrow().is_empty());
+            assert_eq!(host.invocations.get(), 0);
+        }
+    }
+}
+
+#[test]
+fn restored_session_acceptance_unwind_keeps_original_terminal_fence() {
+    for point in [
+        Stage::Equality,
+        Stage::Authority,
+        Stage::Borrow,
+        Stage::Type,
+        Stage::Domain,
+    ] {
+        host!(hooks, domains, host);
+        let expression = nested_identity_program();
+        let saved = saved_session(&expression, &host);
+        drop(saved.dispatch);
+        let owner = LocalExecutionScope::new();
+        let lease = owner.lease();
+        hooks.lease.replace(Some(lease.clone()));
+        let mut session = LocalRestoredSession::restore_pending(
+            owner,
+            saved.identity,
+            saved.declaration,
+            saved.frames,
+            saved.fuel,
+            STACK_LIMITS,
+            |_, _, _, _| Ok::<_, PrivateError>(()),
+        )
+        .unwrap();
+        hooks.fault.set((point, Mode::Unwind));
+        assert!(
+            catch_unwind(AssertUnwindSafe(|| session.try_accept(
+                &host.identity(1, 1),
+                host.reply(ScalarValue::Integer(42)),
+                &host,
+            )))
+            .is_err()
+        );
+        assert!(!lease.is_open());
+        assert_eq!(
+            session.status(),
+            EffectSessionStatus::Terminal(EffectSessionEnd::HostUncertain)
+        );
+        assert_eq!(hooks.capture_drops.get(), 2);
+        assert_eq!(hooks.key_drops.get(), 1);
+        assert_eq!(hooks.reply_drops.get(), 1);
+        assert!(
+            hooks
+                .cleanup_liveness
+                .borrow()
+                .iter()
+                .all(|(_, closed)| *closed)
+        );
+        assert!(!session.cancel());
+    }
+}
+
+#[test]
+fn restored_session_local_success_keeps_reply_rejection_recoverable_and_closes_on_completion() {
+    host!(hooks, domains, host);
+    let expression = nested_identity_program();
+    let saved = saved_session(&expression, &host);
+    drop(saved.dispatch);
+    let owner = LocalExecutionScope::new();
+    let lease = owner.lease();
+    hooks.lease.replace(Some(lease.clone()));
+    let mut session = LocalRestoredSession::restore_pending(
+        owner,
+        saved.identity,
+        saved.declaration,
+        saved.frames,
+        saved.fuel,
+        STACK_LIMITS,
+        |_, _, _, _| Ok::<_, PrivateError>(()),
+    )
+    .unwrap();
+    let remaining = session.fuel_remaining();
+    let mut input = host.reply(ScalarValue::Integer(42));
+    let pointer = (&*input.buffer as *const u8) as usize;
+    for phase in 0..3 {
+        if phase == 0 {
+            host.version.set(8);
+        }
+        input.value = match phase {
+            1 => ScalarValue::String("private wrong type".into()),
+            2 => ScalarValue::Integer(101),
+            _ => ScalarValue::Integer(42),
+        };
+        let rejected = session
+            .try_accept(&host.identity(1, 1), input, &host)
+            .unwrap_err();
+        assert_eq!((&*rejected.reply.buffer as *const u8) as usize, pointer);
+        assert!(lease.is_open());
+        assert_eq!(session.status(), EffectSessionStatus::Awaiting);
+        assert_eq!(session.fuel_remaining(), remaining);
+        input = rejected.reply;
+        host.version.set(7);
+    }
+    input.value = ScalarValue::Integer(42);
+    session
+        .try_accept(&host.identity(1, 1), input, &host)
+        .unwrap();
+    assert!(lease.is_open());
+    assert!(!hooks.events.borrow().contains(&Stage::Restore));
+    assert!(matches!(
+        session.poll(&host).unwrap(),
+        EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::Integer(42)))
+    ));
+    assert!(!lease.is_open());
+    assert_eq!(
+        session.status(),
+        EffectSessionStatus::Terminal(EffectSessionEnd::Completed)
+    );
+    assert!(!session.cancel());
+    assert_eq!(hooks.capture_drops.get(), 2);
+    assert_eq!(hooks.key_drops.get(), 1);
+    assert_eq!(hooks.reply_drops.get(), 1);
+    assert_eq!(host.invocations.get(), 0);
+}
+
+#[test]
+fn restored_session_refusal_cleanup_unwind_keeps_scope_closed_and_drops_native_error_once() {
+    for native in [false, true] {
+        host!(hooks, domains, host);
+        let expression = nested_identity_program();
+        let mut saved = saved_session(&expression, &host);
+        drop(saved.dispatch);
+        let owner = LocalExecutionScope::new();
+        let lease = owner.lease();
+        hooks.lease.replace(Some(lease.clone()));
+        if !native {
+            saved.frames[0].name = "invalid name";
+        }
+        hooks.capture_drop_panic.set(true);
+        let before = PRIVATE_ERROR_DROPS.with(Cell::get);
+        let calls = Cell::new(0);
+        assert!(
+            catch_unwind(AssertUnwindSafe(|| LocalRestoredSession::restore_pending(
+                owner,
+                saved.identity,
+                saved.declaration,
+                saved.frames,
+                saved.fuel,
+                STACK_LIMITS,
+                |_, _, _, _| {
+                    calls.set(calls.get() + 1);
+                    Err(PrivateError("private rejected payload"))
+                },
+            )))
+            .is_err()
+        );
+        assert_eq!(calls.get(), usize::from(native));
+        assert_eq!(
+            PRIVATE_ERROR_DROPS.with(Cell::get) - before,
+            usize::from(native)
+        );
+        assert!(!lease.is_open());
+        assert_eq!(hooks.capture_drops.get(), 2);
+        assert_eq!(hooks.key_drops.get(), 1);
+        assert!(
+            hooks
+                .cleanup_liveness
+                .borrow()
+                .iter()
+                .all(|(_, closed)| *closed)
+        );
+    }
+}
+
+#[test]
+fn restored_session_rechecks_cold_authority_and_exact_remaining_fuel_without_refill() {
+    for phase in 0..3 {
+        host!(hooks, domains, host);
+        let expression = nested_program();
+        let saved = saved_session(&expression, &host);
+        drop(saved.dispatch);
+        let owner = LocalExecutionScope::new();
+        let lease = owner.lease();
+        hooks.lease.replace(Some(lease.clone()));
+        // Host admission is deliberately permissive here to exercise zero-fuel execution.
+        let fuel = if phase == 0 { Fuel::new(0) } else { saved.fuel };
+        let remaining = fuel.remaining();
+        let mut session = LocalRestoredSession::restore_pending(
+            owner,
+            saved.identity,
+            saved.declaration,
+            saved.frames,
+            fuel,
+            STACK_LIMITS,
+            |_, _, _, fuel| {
+                assert_eq!(fuel.remaining(), remaining);
+                Ok::<_, PrivateError>(())
+            },
+        )
+        .unwrap();
+        session
+            .try_accept(
+                &host.identity(1, 1),
+                host.reply(ScalarValue::Integer(42)),
+                &host,
+            )
+            .unwrap();
+        if phase == 1 {
+            host.version.set(8);
+        }
+        if phase == 2 {
+            hooks.fault.set((Stage::Restore, Mode::Unwind));
+        }
+        hooks.events.borrow_mut().clear();
+        let result = catch_unwind(AssertUnwindSafe(|| session.poll(&host)));
+        let end = if phase == 2 {
+            assert!(result.is_err());
+            EffectSessionEnd::HostUncertain
+        } else {
+            assert!(result.unwrap().is_err());
+            EffectSessionEnd::Failed
+        };
+        assert!(!lease.is_open());
+        assert_eq!(session.status(), EffectSessionStatus::Terminal(end));
+        assert_eq!(session.fuel_remaining(), remaining);
+        assert!(!hooks.events.borrow().contains(&Stage::Prepare));
+        assert!(!hooks.events.borrow().contains(&Stage::Correlate));
+        if phase == 1 {
+            assert!(!hooks.events.borrow().contains(&Stage::Restore));
+        }
+        let events = hooks.events.borrow().len();
+        assert!(matches!(
+            session.poll(&host).unwrap(),
+            EffectSessionPoll::Terminal(_)
+        ));
+        assert!(!session.cancel());
+        assert_eq!(hooks.events.borrow().len(), events);
+        assert_eq!(session.fuel_remaining(), remaining);
+    }
+}
+
 fn nested_program() -> Node {
     bind(
         "caller",

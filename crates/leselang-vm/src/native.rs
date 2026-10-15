@@ -15,6 +15,7 @@
 pub use leselang_hir as hir;
 pub use leselang_hir::effect_session::HostWorkOutcome;
 pub use leselang_hir::effect_stack_session::StackedControlSession as Vm;
+pub use leselang_hir::effect_stack_session::StackedSessionRestoreError;
 pub use leselang_hir::local_effect_session::LocalStackedControlSession as LocalVm;
 pub use leselang_runtime_core as core;
 pub use leselang_syntax as syntax;

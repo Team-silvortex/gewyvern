@@ -86,8 +86,82 @@ that captured group before suspension; only the unpublished suffix is rebuilt
 from saved scalar operands, never reevaluated. Accepted rows and awaiting work
 are not dispatched again. Both return frames share the rebuilt captured group,
 while fresh group assembly and re-entry retain exact uninterrupted fuel costs.
-This adds a fixed typed-IR sequential composition, not source-compiled mixed
-recovery, partial All composition, durable settlement or extraction completion.
+This fixture adds fixed typed-IR sequential composition, not durable settlement
+or extraction completion. The source-compiled extension is bounded separately below.
+
+The parallel extension uses the same operand preparation, captured scope,
+assembly and return path with the existing prepared All barrier. All eight
+completion masks and six receipt orders run for numeric/text hosts and captured
+Seq/All groups: 192 combinations, including every assembly/return fuel cutoff.
+After old objects are dropped, recovery restores no calls and dispatches nothing;
+wrong identity/index and duplicate receipts preserve input and barrier state.
+Explicit cancellation and closed scopes discard partial or ready results without
+materializing captured groups or resuming the parent. The host still disposes of
+the parent return stack and owns external cancellation. This fixture is fixed
+typed-IR composition, not concurrent race acceptance, production persistence
+or process-crash settlement.
+
+The source extension parses actual numeric/text programs and uses the existing
+`compile_catalog_prepared_group_source` with an explicit type-only host prefix.
+Its owned IR enters these same adapters directly, without a second tree or
+interpreter. Captured scalar/result/group aliases, prepared Seq/All operands and
+two return frames now cover 220 source-compiled frontier/order combinations and
+every assembly/return fuel cutoff. Compilation rejects malformed names/types,
+stale catalog versions and unauthorized cold calls; fresh restoration still
+checks current authority and both return bodies. Seq dispatches only its previously
+unpublished suffix; restored All dispatches nothing. This is a bounded source
+expression with a host-supplied captured graph, not general recovery, durable
+settlement or full extraction. The helper-origin extension below starts empty.
+
+The whole-program fixture uses `compile_catalog_prepared_group_helper_program`
+without an external type/value prefix. A source helper executes the first Seq/All;
+its authenticated group reply re-enters the original walker and source bindings
+create the scalar, atomic member and group aliases before a second Seq/All pauses.
+The same checkpoint writers and restoration adapters cover 220 combinations and
+every assembly/return fuel cutoff, with no source/helper replay after decoding.
+An incorrect first-group owner cannot start the second group. Cold/unused helpers,
+live authority, saved graph/identity/budget correspondence and input ownership
+remain checked. This is one bounded two-group program family, not arbitrary
+program checkpointing, multiple captured graphs, production crash recovery
+or complete extraction. No library evaluator, public API or wire format is added.
+
+The bounded-repeat extension uses the same whole-program compiler and checkpoint
+adapters for `repeat(times: 3, body: call)` and `seq(head: call, tail: repeat(...))`.
+Compile-time expansion retains original ordered names and operation tags; repeated
+operations have distinct native receipt identities and result domains. Twenty-four
+numeric/text program variants cover 332 additional frontier/order combinations and
+every pending assembly/return fuel cutoff. Restoration does not repeat preparation
+or completed dispatches. Same-operation wrong-member, foreign-domain and duplicate
+receipts preserve input ownership and queue state; a correct receipt still resumes.
+Compiler bounds, cold/current authority and committed-byte correspondence remain
+checked. This is bounded Sequence IR, not a runtime loop or a general durable VM.
+Multiple captured graphs, production persistence, cancellation/crash settlement and
+full extraction remain open.
+
+The two-capture extension executes two source helpers before a third Seq/All
+pauses. Its host-owned checkpoint table retains both completed graphs, two aliases
+per graph, an atomic result and a scalar across two original return frames.
+Sixteen numeric/text program variants cover 440 frontier/order combinations and
+every pending assembly/return fuel cutoff through the same checkpoint writers and
+prepared collectors. Equal graph shapes do not merge native identities; each graph
+rebuilds once and cached aliases recheck its own live policy on every access.
+Changing either captured domain between return frames still refuses continuation.
+The bounded table checks references, owners and descending budgets independently of
+exact committed-byte admission. This is a two-capture, three-group fixture, not an
+arbitrary graph store, portable codec, production persistence or crash settlement.
+
+`native::Vm::restore_pending` and `native::LocalVm::restore_pending` now attach
+host-decoded binding return frames to the original owned session lifecycle.
+Whole-forest structural checks precede mandatory native admission; the host must
+validate original graph/site/capture identity, current policy, saved fuel and
+nonterminal settlement. Success is Awaiting without preparation, dispatch or fuel
+charge. Acceptance only makes Ready; explicit polling resumes on the same meter.
+The local entry rejects closed scopes and revokes before retained cleanup on
+refusal/unwind. Cancellation, owner Drop and sticky terminal states reuse existing
+logic. Eight exported regressions cover actual suspensions, successor handoff,
+receipt rejection, exact fuel and cleanup/unwind boundaries. Native callbacks/Drop
+remain trusted. This is not a codec, crash journal, external collector cancellation
+or permission to restore settled work; durable owning-VM integration remains open.
 
 ## Build Profiles
 

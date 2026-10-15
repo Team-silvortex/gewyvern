@@ -116,6 +116,21 @@ pub fn restore_effect_return_stack<'expression, Field, Operation, HostEffect, Ir
     Computation<Field, Operation, HostEffect, IrResult>,
     Capture,
 > {
+    preflight_saved_return_frames(&frames, policy)?;
+    Ok(return_stack_from_admitted_frames(frames))
+}
+
+type SavedComputationFrames<'expression, Field, Operation, HostEffect, IrResult, Capture> =
+    [SavedEffectReturnFrame<
+        'expression,
+        Computation<Field, Operation, HostEffect, IrResult>,
+        Capture,
+    >];
+
+pub(crate) fn preflight_saved_return_frames<Field, Operation, HostEffect, IrResult, Capture>(
+    frames: &SavedComputationFrames<'_, Field, Operation, HostEffect, IrResult, Capture>,
+    policy: EffectStackLimits,
+) -> Result<(), EffectStackFailure<Infallible>> {
     limits(policy)?;
     if frames.is_empty() || frames.len() > policy.max_frames {
         return Err(EffectStackFault::ReturnLimit.into());
@@ -125,7 +140,7 @@ pub fn restore_effect_return_stack<'expression, Field, Operation, HostEffect, Ir
     let mut budget =
         StructureBudget::new(policy.effects.pure.max_nodes, policy.effects.pure.max_depth);
     let mut effects = Vec::new();
-    for frame in &frames {
+    for frame in frames {
         if !valid_local_name(frame.name) {
             return Err(EffectStackFault::Control(EffectEvaluationFault::Pure(
                 PureEvaluationFault::InvalidScope,
@@ -141,12 +156,18 @@ pub fn restore_effect_return_stack<'expression, Field, Operation, HostEffect, Ir
         ))
         .into());
     }
-    Ok(EffectReturnStack {
+    Ok(())
+}
+
+pub(crate) fn return_stack_from_admitted_frames<Node: ?Sized, Capture>(
+    frames: Vec<SavedEffectReturnFrame<'_, Node, Capture>>,
+) -> EffectReturnStack<'_, Node, Capture> {
+    EffectReturnStack {
         frames: frames
             .into_iter()
             .map(|frame| EffectContinuation::new(frame.name, frame.body, frame.capture))
             .collect(),
-    })
+    }
 }
 
 #[must_use = "route the value, prepared request or complete return-frame stack"]

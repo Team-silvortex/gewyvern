@@ -345,6 +345,18 @@ impl<'expression, 'schema, Node: ?Sized, Value, Continuation, Identity, Declarat
             State::Terminal(end) => EffectSessionStatus::Terminal(*end),
         }
     }
+
+    pub(crate) fn from_pending(
+        identity: Identity,
+        continuation: Continuation,
+        declaration: &'schema Declaration,
+        fuel: Fuel,
+    ) -> Self {
+        Self {
+            state: State::AwaitingBinding(PendingReply::new(identity, continuation, declaration)),
+            fuel,
+        }
+    }
     pub(crate) const fn fuel_remaining(&self) -> u64 {
         self.fuel.remaining()
     }

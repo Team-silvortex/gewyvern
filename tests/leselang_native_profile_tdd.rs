@@ -676,6 +676,244 @@ fn captured_inflight_sequence_reuses_prepared_calls_and_the_original_reentry_ker
 }
 
 #[test]
+fn captured_partial_parallel_reuses_the_barrier_and_shared_assembly_return_path() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/saved_group.rs")).unwrap();
+    let model = source.split("mod parallel {").nth(1).unwrap();
+    for required in [
+        "Barrier::restore",
+        "assemble_and_resume",
+        "restore_effect_return_stack",
+        "LocalExecutionScope::new",
+        "poll_in_scope",
+        "mask.count_ones()",
+        "captured_all_eight_masks_and_six_orders_restore_without_requests_or_replay",
+        "captured_all_every_assembly_return_fuel_cutoff_matches_live_at_every_mask_and_order",
+        "captured_all_authority_domain_and_cold_return_refusals_do_not_restore_captures_early",
+        "captured_all_cancelled_partial_or_ready_barriers_drop_results_without_parent_reentry",
+        "captured_all_forged_completion_graph_captures_and_budget_never_rearm_a_batch",
+    ] {
+        assert!(model.contains(required), "missing {required}");
+    }
+    assert!(source.contains("Barrier::start"));
+    assert!(source.contains("fn assemble_and_resume"));
+    for forbidden in ["leselang_vm::Vm", "leserpent_domain", "rusqlite"] {
+        assert!(!model.contains(forbidden));
+    }
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Captured Partial Parallel Recovery"));
+    assert!(docs.contains("192 combinations"));
+    assert!(docs.contains("process-crash settlement and full extraction remain open"));
+}
+
+#[test]
+fn source_compiled_capture_reuses_the_compiler_and_existing_recovery_adapters() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/saved_group.rs")).unwrap();
+    let model = source
+        .split("mod source {")
+        .nth(1)
+        .unwrap()
+        .split("mod whole_program {")
+        .next()
+        .unwrap();
+    for required in [
+        "leselang_syntax::parse",
+        "compile_catalog_prepared_group_source",
+        "OperationCatalog::new",
+        "initial_with_tree",
+        "parallel::restored",
+        "super::restored",
+        "source_compiled_seq_and_all_restore_bytes_through_the_original_walker",
+        "source_compiled_recovery_matches_every_assembly_and_return_fuel_cutoff",
+        "source_compiled_cold_and_current_authority_checks_still_guard_return_frames",
+        "source_compiler_refuses_bad_names_types_and_cold_capabilities_before_execution",
+    ] {
+        assert!(model.contains(required), "missing {required}");
+    }
+    for forbidden in [
+        "leselang_vm::Vm",
+        "leserpent_domain",
+        "rusqlite",
+        "Node::Bind",
+        "Node::Group",
+    ] {
+        assert!(!model.contains(forbidden));
+    }
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Source-Compiled Captured Recovery"));
+    assert!(docs.contains("220 combinations"));
+    assert!(docs.contains("explicit-prefix source-expression checkpoint model"));
+    assert!(docs.contains("Helper-origin whole-program recovery"));
+}
+
+#[test]
+fn helper_origin_checkpoint_runs_source_before_reusing_the_existing_recovery_path() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/saved_group.rs")).unwrap();
+    let model = source
+        .split("mod whole_program {")
+        .nth(1)
+        .unwrap()
+        .split("mod parallel {")
+        .next()
+        .unwrap();
+    for required in [
+        "source::compile_model",
+        "let mut bindings = Vec::new()",
+        "evaluate_stacked_effects_in_scope",
+        "resume_accepted_stacked_effects",
+        "PendingReply::new",
+        "collect_sequence",
+        "parallel::checkpoint",
+        "source::resume",
+        "helper_origin_groups_create_all_captures_before_byte_checkpoint_recovery",
+        "helper_origin_recovery_preserves_every_assembly_and_return_fuel_cutoff",
+        "helper_origin_source_and_cold_helpers_are_checked_without_external_prefix",
+        "helper_origin_checkpoint_rechecks_current_and_cold_return_authority",
+        "helper_origin_forged_graph_capture_identity_and_budget_do_not_enter_recovery",
+    ] {
+        assert!(model.contains(required), "missing {required}");
+    }
+    assert!(source.contains("compile_catalog_prepared_group_helper_program"));
+    for forbidden in [
+        "leselang_vm::Vm",
+        "leserpent_domain",
+        "rusqlite",
+        "complete::<",
+        "Node::Bind {",
+    ] {
+        assert!(!model.contains(forbidden), "unexpected {forbidden}");
+    }
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Helper-Origin Program Recovery"));
+    assert!(docs.contains("eight\nprogram variants and 220 frontier/order combinations"));
+    assert!(docs.contains("not arbitrary source-program recovery"));
+}
+
+#[test]
+fn multiple_source_captures_use_shared_snapshots_and_native_collectors() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/saved_group.rs")).unwrap();
+    let model = source
+        .split("mod multiple {")
+        .nth(1)
+        .unwrap()
+        .split("mod repeat {")
+        .next()
+        .unwrap();
+    for required in [
+        "source::compile_model_with_budget",
+        "let mut bindings = Vec::new()",
+        "evaluate_stacked_effects_in_scope",
+        "resume_accepted_stacked_effects",
+        "collect_group",
+        "parallel::checkpoint",
+        "restored_queue",
+        "parallel::restore_barrier",
+        "two_source_captures_restore_distinct_graphs_and_shared_aliases",
+        "two_source_captures_match_every_pending_assembly_and_return_fuel_cutoff",
+        "two_source_captures_recheck_each_group_and_both_return_authorities",
+        "two_cached_groups_remain_separate_and_revalidate_policy_on_every_alias",
+        "multi_capture_source_rejects_missing_aliases_and_insufficient_graph_budgets",
+        "multi_capture_checkpoint_rejects_cross_graph_refs_owners_and_budget_changes",
+    ] {
+        assert!(model.contains(required), "missing {required}");
+    }
+    for forbidden in [
+        "leselang_vm::Vm",
+        "leserpent_domain",
+        "rusqlite",
+        "Node::Bind {",
+    ] {
+        assert!(!model.contains(forbidden), "unexpected {forbidden}");
+    }
+    assert!(source.contains("snapshots_for_groups"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Two-Capture Program Recovery"));
+    assert!(docs.contains("440 frontier/order combinations"));
+    assert!(docs.contains("not arbitrary captured-graph collections"));
+}
+
+#[test]
+fn pending_restore_uses_original_session_core_and_exports_ownership_regressions() {
+    let session =
+        fs::read_to_string(root().join("crates/leselang-hir/src/effect_stack_session.rs")).unwrap();
+    for required in [
+        "pub fn restore_pending<Error>",
+        "preflight_saved_return_frames(&frames, limits)",
+        "SessionCore::from_pending(",
+        "StackedSessionRestoreError",
+    ] {
+        assert!(session.contains(required), "missing {required}");
+    }
+    let local =
+        fs::read_to_string(root().join("crates/leselang-hir/src/local_effect_session.rs")).unwrap();
+    assert!(local.contains("StackedControlSession::restore_pending_with_scope("));
+    let facade = fs::read_to_string(root().join("crates/leselang-vm/src/native.rs")).unwrap();
+    assert!(facade.contains("StackedSessionRestoreError"));
+    let tests =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/effect_session.rs")).unwrap();
+    for required in [
+        "restored_session_preserves_original_frames_budget_and_reply_gated_successor",
+        "restored_session_structure_precedes_admission_and_revokes_before_unused_hook_cleanup",
+        "restored_session_closed_scope_native_refusal_and_unwind_never_publish_owner",
+        "restored_session_cancel_or_drop_before_or_after_receipt_revokes_without_reentry",
+        "restored_session_acceptance_unwind_keeps_original_terminal_fence",
+        "restored_session_local_success_keeps_reply_rejection_recoverable_and_closes_on_completion",
+        "restored_session_refusal_cleanup_unwind_keeps_scope_closed_and_drops_native_error_once",
+        "restored_session_rechecks_cold_authority_and_exact_remaining_fuel_without_refill",
+    ] {
+        assert!(tests.contains(required), "missing {required}");
+    }
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Restoring Pending Session Ownership"));
+    assert!(docs.contains("does\nnot yet combine their collector inventory and meter"));
+}
+
+#[test]
+fn repeated_source_checkpoints_reuse_the_existing_compiler_and_receipt_boundaries() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/saved_group.rs")).unwrap();
+    let model = source
+        .split("mod repeat {")
+        .nth(1)
+        .unwrap()
+        .split("mod parallel {")
+        .next()
+        .unwrap();
+    for required in [
+        "initial_source::<T>",
+        "source::program_with_group",
+        "source::resume",
+        "restored_queue",
+        "tail__iteration_1",
+        "branch_operation(branch)",
+        "repeated_source_groups_restore_expanded_names_operations_and_original_returns",
+        "repeated_source_recovery_preserves_every_assembly_and_return_fuel_cutoff",
+        "repeated_source_bounds_and_cold_authority_fail_before_native_preparation",
+        "repeated_source_recovery_rechecks_current_cold_and_second_return_authority",
+        "identical_operations_cannot_exchange_member_receipts_after_restore",
+        "repeated_source_forged_expansion_operands_and_graphs_do_not_enter_recovery",
+    ] {
+        assert!(model.contains(required), "missing {required}");
+    }
+    for forbidden in [
+        "leselang_vm::Vm",
+        "leserpent_domain",
+        "rusqlite",
+        "Node::Bind {",
+        "compile_catalog_prepared_group_helper_program",
+    ] {
+        assert!(!model.contains(forbidden), "unexpected {forbidden}");
+    }
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Bounded Repeat Program Recovery"));
+    assert!(docs.contains("332 additional frontier/order"));
+    assert!(docs.contains("not proof of arbitrary untrusted-codec validation"));
+}
+
+#[test]
 fn ci_and_docs_keep_native_verticals_separate_from_reference_compatibility() {
     let workflow = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
     assert!(workflow.contains("cargo +1.98.0 test -p leselang-hir --locked --no-default-features"));

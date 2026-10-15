@@ -1,6 +1,6 @@
 //! Opt-in nested binding sessions over the original reply-gated lifecycle.
 
-use std::{borrow::Borrow, fmt};
+use std::{borrow::Borrow, convert::Infallible, fmt};
 
 use leselang_runtime_core::{Fuel, HostResultDomain, LocalExecutionScope, ReplyAuthority};
 
@@ -11,10 +11,34 @@ use crate::effect_session::{
     HostWorkOutcome, SessionCore,
 };
 use crate::effect_stack::{
-    EffectReturnStack, EffectStackFailure, EffectStackLimits, evaluate_stacked_effects_in_scope,
-    resume_accepted_stacked_effects_with_scope, stack_failure,
+    EffectReturnStack, EffectStackFailure, EffectStackLimits, SavedEffectReturnFrame,
+    evaluate_stacked_effects_in_scope, preflight_saved_return_frames,
+    resume_accepted_stacked_effects_with_scope, return_stack_from_admitted_frames, stack_failure,
 };
 use crate::ir::Computation;
+use crate::local_scope::CallFence;
+
+/// Structural or native admission failure, never an execution/receipt certificate.
+pub enum StackedSessionRestoreError<Native> {
+    Structure(EffectStackFailure<Infallible>),
+    Native(Native),
+    ScopeClosed,
+}
+impl<Native> fmt::Display for StackedSessionRestoreError<Native> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Structure(_) => "saved return stack structure rejected",
+            Self::Native(_) => "native pending-session admission rejected",
+            Self::ScopeClosed => "pending-session restoration scope is closed",
+        })
+    }
+}
+impl<Native> fmt::Debug for StackedSessionRestoreError<Native> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+impl<Native> std::error::Error for StackedSessionRestoreError<Native> {}
 
 /// One immutable-policy, owned-fuel execution with bounded nested return frames.
 /// Uses the same acceptance, terminal fencing and once-only handoff state machine
@@ -197,6 +221,110 @@ impl<
         Reply,
     >
 {
+    /// Install host-decoded pending binding returns into the original lifecycle.
+    /// Whole frame/body structure is checked before the mandatory native hook.
+    /// The hook borrows original identity, domain, ordered frames and remaining
+    /// fuel; it must validate committed correspondence, captures, live policy,
+    /// budget and nonterminal settlement. Success starts Awaiting, with no
+    /// preparation, dispatch, reply acceptance, fuel charge or body execution.
+    /// Later acceptance/poll/cancel use the unchanged session and cold preflight.
+    ///
+    /// Inputs are consumed on refusal; native captures/keys/errors need no Clone,
+    /// Debug, serde or Send bounds. Native callbacks and Drop remain trusted.
+    /// This is not a codec, authenticator, replay fence, crash settlement or a way
+    /// to rearm cancelled work. The host bounds ingress and aggregate storage and
+    /// must not treat structural admission or its own hook as proof of provenance.
+    pub fn restore_pending<Error>(
+        identity: Identity,
+        declaration: &'schema Declaration,
+        frames: Vec<
+            SavedEffectReturnFrame<
+                'expression,
+                Computation<Field, Operation, HostEffect, IrResult>,
+                Capture,
+            >,
+        >,
+        fuel: Fuel,
+        limits: EffectStackLimits,
+        admit: impl FnOnce(
+            &Identity,
+            &'schema Declaration,
+            &[SavedEffectReturnFrame<
+                'expression,
+                Computation<Field, Operation, HostEffect, IrResult>,
+                Capture,
+            >],
+            &Fuel,
+        ) -> Result<(), Error>,
+    ) -> Result<Self, StackedSessionRestoreError<Error>> {
+        Self::restore_pending_with_scope(identity, declaration, frames, fuel, limits, admit, None)
+    }
+
+    pub(crate) fn restore_pending_with_scope<Error>(
+        identity: Identity,
+        declaration: &'schema Declaration,
+        frames: Vec<
+            SavedEffectReturnFrame<
+                'expression,
+                Computation<Field, Operation, HostEffect, IrResult>,
+                Capture,
+            >,
+        >,
+        fuel: Fuel,
+        limits: EffectStackLimits,
+        admit: impl FnOnce(
+            &Identity,
+            &'schema Declaration,
+            &[SavedEffectReturnFrame<
+                'expression,
+                Computation<Field, Operation, HostEffect, IrResult>,
+                Capture,
+            >],
+            &Fuel,
+        ) -> Result<(), Error>,
+        execution_scope: Option<&LocalExecutionScope>,
+    ) -> Result<Self, StackedSessionRestoreError<Error>> {
+        let fence = CallFence::new(execution_scope);
+        let preflight = if execution_scope.is_some_and(|scope| !scope.is_open()) {
+            Err(StackedSessionRestoreError::ScopeClosed)
+        } else {
+            preflight_saved_return_frames(&frames, limits)
+                .map_err(StackedSessionRestoreError::Structure)
+        };
+        if let Err(error) = preflight {
+            fence.close();
+            let output = Err(error);
+            drop((admit, frames, identity, fuel));
+            fence.finish();
+            return output;
+        }
+        let admitted = admit(&identity, declaration, &frames, &fuel);
+        let admitted = if execution_scope.is_some_and(|scope| !scope.is_open()) {
+            drop(admitted);
+            Err(StackedSessionRestoreError::ScopeClosed)
+        } else {
+            admitted.map_err(StackedSessionRestoreError::Native)
+        };
+        if let Err(error) = admitted {
+            fence.close();
+            let output = Err(error);
+            drop((frames, identity, fuel));
+            fence.finish();
+            return output;
+        }
+        let output = Ok(Self {
+            core: SessionCore::from_pending(
+                identity,
+                return_stack_from_admitted_frames(frames),
+                declaration,
+                fuel,
+            ),
+            limits,
+        });
+        fence.finish();
+        output
+    }
+
     /// Execute one ready slice using the original session-owned root meter.
     /// Correlation still rechecks policy and publishes prepared work, not dispatch.
     pub fn poll<Environment>(

@@ -46,7 +46,7 @@ fn continuation_signature_status_records_reference_parity_without_durable_extrac
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.150.0");
+    assert_eq!(embedding.contract.version, "0.156.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -846,7 +846,7 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
     assert_eq!(cell.priority, Priority::Active);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.independence, Independence::ReusableLibrary);
     assert!(cell.evidence.iter().any(|evidence| {
@@ -1464,7 +1464,7 @@ fn native_source_checkpoint_status_records_portability_without_full_runtime_prom
         .iter()
         .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.lifecycle, Lifecycle::Target);
@@ -1517,7 +1517,7 @@ fn native_vm_source_portability_keeps_complete_runtime_acceptance_open() {
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
     for surface in [
@@ -1676,7 +1676,7 @@ fn committed_checkpoint_status_tracks_actual_recovery_without_full_vm_promotion(
         .iter()
         .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.lifecycle, Lifecycle::Target);
@@ -10538,7 +10538,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leselang/language-hir/typed-effects")
         .expect("Leselang HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.176.0");
+    assert_eq!(hir.contract.version, "0.182.0");
     for surface in [
         "shared-scalar-choose-recover-and-list-source-construction",
         "cold-control-signatures-and-list-labels-before-source-extensions",
@@ -12320,7 +12320,7 @@ fn native_call_completion_is_tracked_without_promoting_full_embedding_readiness(
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.150.0");
+    assert_eq!(embedding.contract.version, "0.156.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -12373,7 +12373,7 @@ fn reference_member_delegation_is_tracked_without_claiming_the_entire_compiler_f
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.150.0");
+    assert_eq!(embedding.contract.version, "0.156.0");
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
@@ -12424,7 +12424,7 @@ fn staged_field_delegation_tracks_exact_native_policy_and_remaining_compiler_gat
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.150.0");
+    assert_eq!(embedding.contract.version, "0.156.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -12477,7 +12477,7 @@ fn native_host_source_tracks_owned_leaf_construction_without_claiming_opaque_flo
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.150.0");
+    assert_eq!(embedding.contract.version, "0.156.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -12535,7 +12535,7 @@ fn opaque_host_leaf_flow_typing_is_tracked_without_claiming_complete_native_grap
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.150.0");
+    assert_eq!(embedding.contract.version, "0.156.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -12594,7 +12594,7 @@ fn flat_mixed_host_group_typing_is_tracked_without_claiming_nested_graph_or_exec
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.150.0");
+    assert_eq!(embedding.contract.version, "0.156.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -12651,7 +12651,7 @@ fn flat_native_graph_observations_are_tracked_without_promoting_independent_vm_m
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.150.0");
+    assert_eq!(embedding.contract.version, "0.156.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -12707,7 +12707,7 @@ fn borrowed_native_graph_inspection_tracks_structure_without_certifying_types_or
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.150.0");
+    assert_eq!(embedding.contract.version, "0.156.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -12764,7 +12764,7 @@ fn closed_native_member_admission_tracks_actual_delegation_without_graph_or_vm_p
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.150.0");
+    assert_eq!(embedding.contract.version, "0.156.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -12825,7 +12825,7 @@ fn fresh_native_export_assembly_tracks_product_and_gui_delegation_without_author
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.150.0");
+    assert_eq!(embedding.contract.version, "0.156.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -12885,7 +12885,7 @@ fn fresh_closed_signature_comparison_tracks_actual_delegation_without_schema_or_
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.150.0");
+    assert_eq!(embedding.contract.version, "0.156.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -12952,13 +12952,13 @@ fn fresh_closed_member_lookup_tracks_actual_selection_without_schema_or_authorit
         .iter()
         .find(|cell| cell.id == "leselang/language-hir/typed-effects")
         .unwrap();
-    assert_eq!(hir.contract.version, "0.176.0");
+    assert_eq!(hir.contract.version, "0.182.0");
     let embedding = catalog
         .cells
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.150.0");
+    assert_eq!(embedding.contract.version, "0.156.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -13018,13 +13018,13 @@ fn shared_language_group_shape_tracks_existing_walkers_without_new_admission_or_
         .iter()
         .find(|cell| cell.id == "leselang/language-hir/typed-effects")
         .unwrap();
-    assert_eq!(hir.contract.version, "0.176.0");
+    assert_eq!(hir.contract.version, "0.182.0");
     let embedding = catalog
         .cells
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.150.0");
+    assert_eq!(embedding.contract.version, "0.156.0");
     assert_eq!(embedding.contract.stability, ContractStability::Draft);
     assert_eq!(embedding.maturity, Maturity::Developing);
     assert_eq!(embedding.completion, 10);
@@ -13034,8 +13034,8 @@ fn shared_language_group_shape_tracks_existing_walkers_without_new_admission_or_
 fn fixed_source_signatures_track_private_metadata_without_native_schema_or_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -13096,8 +13096,8 @@ fn exact_child_and_physical_cursors_track_scratch_reduction_without_native_admis
  {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -13158,8 +13158,8 @@ fn exact_child_and_physical_cursors_track_scratch_reduction_without_native_admis
 fn cursor_purity_tracks_fresh_structural_inspection_without_native_admission_or_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -13219,8 +13219,8 @@ fn catalog_compiler_vertical_tracks_closed_profile_without_promoting_full_native
  {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -13280,8 +13280,8 @@ fn catalog_compiler_vertical_tracks_closed_profile_without_promoting_full_native
 fn catalog_helper_vertical_tracks_acyclic_profile_without_promoting_group_or_durable_maturity() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -13339,8 +13339,8 @@ fn catalog_helper_vertical_tracks_acyclic_profile_without_promoting_group_or_dur
 fn optional_hir_profile_tracks_native_dependency_and_compatibility_proofs_without_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -13381,8 +13381,8 @@ fn optional_hir_profile_tracks_native_dependency_and_compatibility_proofs_withou
 fn complete_flat_group_source_entry_is_tracked_without_promoting_helpers_or_independent_vm() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -13428,8 +13428,8 @@ fn complete_flat_group_source_entry_is_tracked_without_promoting_helpers_or_inde
 fn group_entry_program_tracks_closed_helper_composition_without_group_return_or_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -13483,8 +13483,8 @@ fn group_entry_program_tracks_closed_helper_composition_without_group_return_or_
 fn group_helper_program_tracks_opt_in_compilation_and_preserves_runtime_extraction_gaps() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -13543,8 +13543,8 @@ fn group_helper_program_tracks_opt_in_compilation_and_preserves_runtime_extracti
 fn bounded_native_return_frames_track_actual_composition_without_durable_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -13604,8 +13604,8 @@ fn bounded_native_return_frames_track_actual_composition_without_durable_vm_prom
 fn complete_group_reply_reentry_is_tracked_without_independent_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -13650,8 +13650,8 @@ fn complete_group_reply_reentry_is_tracked_without_independent_vm_promotion() {
 fn stacked_owned_sessions_are_tracked_without_promoting_durable_or_product_vm_authority() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -13757,8 +13757,8 @@ fn scoped_native_group_preparation_is_tracked_without_claiming_dispatch_or_indep
  {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -13817,8 +13817,8 @@ fn scoped_native_group_preparation_is_tracked_without_claiming_dispatch_or_indep
 fn prepared_member_barriers_are_tracked_without_durable_or_automatic_dispatch_authority() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -13878,8 +13878,8 @@ fn prepared_member_barriers_are_tracked_without_durable_or_automatic_dispatch_au
 fn atomic_call_ir_preparation_is_tracked_without_promoting_source_profile_or_embedding_maturity() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -13936,8 +13936,8 @@ fn atomic_call_ir_preparation_is_tracked_without_promoting_source_profile_or_emb
 fn prepared_sequence_publication_tracks_distinct_correlation_and_fresh_ready_member_policy() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -13999,8 +13999,8 @@ fn prepared_sequence_publication_tracks_distinct_correlation_and_fresh_ready_mem
 fn prepared_source_members_are_tracked_without_promoting_embedding_or_legacy_profiles() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -14058,8 +14058,8 @@ fn prepared_source_members_are_tracked_without_promoting_embedding_or_legacy_pro
 fn complete_atomic_group_preparation_tracks_cold_order_and_one_meter_without_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -14117,8 +14117,8 @@ fn complete_atomic_group_preparation_tracks_cold_order_and_one_meter_without_vm_
 fn headless_gui_second_schema_tracks_complete_in_memory_proof_without_platform_or_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -14167,7 +14167,7 @@ fn native_vm_profile_tracks_product_free_entry_without_promoting_complete_extrac
         .iter()
         .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
     for surface in [
@@ -14203,8 +14203,8 @@ fn native_vm_profile_tracks_product_free_entry_without_promoting_complete_extrac
 fn prepared_repeat_tracks_two_host_parity_without_promoting_full_extraction() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -14248,8 +14248,8 @@ fn prepared_repeat_tracks_two_host_parity_without_promoting_full_extraction() {
 fn composed_sequence_tracks_existing_runtime_parity_and_remaining_nested_parallel_gate() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -14295,8 +14295,8 @@ fn composed_sequence_tracks_existing_runtime_parity_and_remaining_nested_paralle
 fn cold_sequential_export_preflight_tracks_early_refusal_without_extraction_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -14342,8 +14342,8 @@ fn cold_sequential_export_preflight_tracks_early_refusal_without_extraction_prom
 fn local_session_entry_tracks_terminal_liveness_without_full_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -14393,8 +14393,8 @@ fn local_session_entry_tracks_terminal_liveness_without_full_vm_promotion() {
 fn classified_host_outcomes_track_cleanup_fences_without_full_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -14447,8 +14447,8 @@ fn classified_host_outcomes_track_cleanup_fences_without_full_vm_promotion() {
 fn explicit_native_host_work_tracks_original_pending_state_without_extraction_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -14493,8 +14493,8 @@ fn explicit_native_host_work_tracks_original_pending_state_without_extraction_pr
 fn scoped_reentry_tracks_retained_cleanup_and_recovery_parity_without_extraction_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -14540,8 +14540,8 @@ fn scoped_reentry_tracks_retained_cleanup_and_recovery_parity_without_extraction
 fn scoped_acceptance_tracks_core_cleanup_order_without_full_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -14603,8 +14603,8 @@ fn scoped_acceptance_tracks_core_cleanup_order_without_full_vm_promotion() {
 fn guarded_native_execution_tracks_real_gui_adoption_without_runtime_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -14649,8 +14649,8 @@ fn guarded_native_execution_tracks_real_gui_adoption_without_runtime_promotion()
 fn shared_gui_ir_isolation_tracks_native_proof_without_claiming_concurrent_product_gui() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -14688,8 +14688,8 @@ fn shared_gui_ir_isolation_tracks_native_proof_without_claiming_concurrent_produ
 fn prepared_host_expression_tracks_typed_prefix_and_scoped_gui_proof_without_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -14847,7 +14847,7 @@ fn optional_reference_vm_storage_tracks_removed_sqlite_linkage_without_product_f
         .iter()
         .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(embedding.contract.version, "0.150.0");
+    assert_eq!(embedding.contract.version, "0.156.0");
     for surface in [
         "default-compatible-optional-vm-sqlite-journal-feature",
         "database-free-reference-vm-uses-existing-ephemeral-evaluator",
@@ -14913,7 +14913,7 @@ fn optional_reference_vm_storage_tracks_removed_sqlite_linkage_without_product_f
 fn shared_owned_capture_data_tracks_actual_reference_migration_without_execution_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
         ("leserpent-2/language-vm/effect-reentry", "1.86.0"),
     ] {
@@ -14972,7 +14972,7 @@ fn shared_capture_structure_validation_tracks_reference_use_without_authority_or
  {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
         ("leserpent-2/language-vm/effect-reentry", "1.86.0"),
     ] {
@@ -15031,7 +15031,7 @@ fn shared_capture_structure_validation_tracks_reference_use_without_authority_or
 fn stateful_capture_reentry_status_tracks_original_meter_and_native_execution_boundaries() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
         ("leserpent-2/language-vm/effect-reentry", "1.86.0"),
     ] {
@@ -15092,7 +15092,7 @@ fn stateful_capture_reentry_status_tracks_original_meter_and_native_execution_bo
 fn capture_snapshot_status_tracks_real_construction_without_independent_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
         ("leserpent-2/language-vm/effect-reentry", "1.86.0"),
     ] {
@@ -15147,7 +15147,7 @@ fn capture_snapshot_status_tracks_real_construction_without_independent_vm_promo
 fn shared_projection_access_status_tracks_real_native_delegation_without_extraction_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
         ("leserpent-2/language-vm/effect-reentry", "1.86.0"),
     ] {
@@ -15204,7 +15204,7 @@ fn shared_projection_access_status_tracks_real_native_delegation_without_extract
 fn owned_prefix_cleanup_status_tracks_real_shared_control_without_extraction_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
         ("leserpent-2/language-vm/effect-reentry", "1.86.0"),
     ] {
@@ -15264,7 +15264,7 @@ fn shared_capture_scope_tracks_actual_nested_reference_entry_and_cleanup_without
  {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
         ("leserpent-2/language-vm/effect-reentry", "1.86.0"),
     ] {
@@ -15328,7 +15328,7 @@ fn saved_frame_status_tracks_real_reference_alias_and_native_recovery_without_vm
         .iter()
         .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
@@ -15377,8 +15377,8 @@ fn saved_return_stack_status_tracks_shared_execution_without_durable_backend_pro
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     let path = "docs/fixtures/leselang_native_saved_stack_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -15488,8 +15488,8 @@ fn saved_sequence_status_tracks_flat_frontiers_without_promoting_full_recovery()
     let proof_path =
         "docs/fixtures/leselang_native_saved_sequence_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -15688,13 +15688,711 @@ fn saved_mixed_status_separates_native_composition_from_portable_crash_recovery(
 }
 
 #[test]
+fn two_capture_status_tracks_bounded_graph_tables_without_full_extraction() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let path =
+        "docs/fixtures/leselang_native_multi_capture_source_export_macos_arm64_20261015.json";
+    for (id, version) in [
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
+    ] {
+        let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
+        assert_eq!(cell.contract.version, version);
+        for surface in [
+            "two-source-captured-graphs-through-shared-checkpoints",
+            "per-graph-native-owner-and-alias-cache-isolation",
+            "cached-capture-policy-rechecked-between-return-frames",
+        ] {
+            assert!(cell.contract.surfaces.iter().any(|s| s == surface));
+        }
+        assert!(
+            cell.evidence
+                .iter()
+                .any(|e| e.path == path && e.state == EvidenceState::Present)
+        );
+        for gate in [
+            "Two-capture whole-program checkpoints",
+            "440 frontier/order combinations",
+            "identical shapes do not merge native owners",
+            "cached aliases revalidate their own live policy",
+            "either captured domain can still be denied between return frames",
+            "not arbitrary captured-graph collections",
+        ] {
+            assert!(cell.next_gate.contains(gate), "missing {gate}");
+        }
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["kind"], "leselang-native-multi-capture-source-export");
+    for flag in [
+        "verified",
+        "source_outside_product_workspace",
+        "consumer_proof_unchanged",
+        "copied_source_byte_for_byte",
+        "source_compiled_capture_checkpoint",
+        "helper_origin_whole_program_checkpoint",
+        "bounded_multi_capture_checkpoint",
+        "multiple_captured_graphs",
+        "compiler_ir_without_conversion",
+        "shared_checkpoint_writers",
+        "every_assembly_and_return_fuel_cutoff",
+        "per_graph_alias_cache_isolation",
+        "each_cached_graph_rechecks_current_policy",
+        "independent_table_validation",
+    ] {
+        assert_eq!(proof[flag], true, "{flag}");
+    }
+    for flag in [
+        "complete_vm",
+        "full_extraction_gate",
+        "portable_mixed_checkpoint",
+        "process_crash_acceptance",
+        "arbitrary_program_checkpoint",
+        "arbitrary_captured_graph_collections",
+        "external_type_prefix",
+        "preseeded_captures",
+        "concurrent_race_acceptance",
+        "automatic_parent_cancellation",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+    for (field, value) in [
+        ("isolated_test_executions", 2281),
+        ("workspace_saved_group_tests", 44),
+        ("independent_consumer_saved_group_tests", 44),
+        ("multi_capture_tests_per_workspace", 6),
+        ("native_payload_schemas", 2),
+        ("program_variants", 16),
+        ("captured_graphs", 2),
+        ("program_groups", 3),
+        ("group_aliases_per_frame", 4),
+        ("sequential_combinations", 56),
+        ("parallel_combinations", 384),
+        ("frontier_combinations", 440),
+        ("return_frames", 2),
+        ("completed_bootstrap_returns", 2),
+        ("initial_runtime_bindings", 0),
+        ("compiler_refusal_cases", 56),
+        ("forged_checkpoint_cases", 16),
+        ("independent_table_refusal_cases", 16),
+        ("original_preparations_per_program", 9),
+        ("total_dispatches_per_program", 9),
+        ("restored_preparations_per_program", 0),
+        ("restored_completed_helper_dispatches", 0),
+        ("max_restored_sequential_dispatches", 3),
+        ("restored_parallel_dispatches_per_program", 0),
+        ("captured_graph_rebuilds_per_execution", 2),
+        ("pending_projections_per_execution", 1),
+    ] {
+        assert_eq!(proof[field], value, "{field}");
+    }
+    for hash in proof["provenance"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| &row["sha256"])
+        .chain([
+            &proof["export_manifest_sha256"],
+            &proof["verification_log_sha256"],
+        ])
+    {
+        let hash = hash.as_str().unwrap();
+        assert_eq!(hash.len(), 64);
+        assert!(hash.bytes().all(|b| b.is_ascii_hexdigit()));
+    }
+    let cell = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(cell.contract.stability, ContractStability::Draft);
+    assert_eq!(cell.maturity, Maturity::Developing);
+    assert_eq!(cell.completion, 10);
+}
+
+#[test]
+fn pending_session_restore_status_tracks_shared_ownership_without_durable_vm_claim() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let path =
+        "docs/fixtures/leselang_native_restored_session_source_export_macos_arm64_20261015.json";
+    for (id, version) in [
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
+    ] {
+        let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
+        assert_eq!(cell.contract.version, version);
+        for surface in [
+            "host-admitted-pending-session-restoration",
+            "restored-session-original-reply-gated-lifecycle",
+            "local-restoration-revokes-before-retained-cleanup",
+        ] {
+            assert!(cell.contract.surfaces.iter().any(|value| value == surface));
+        }
+        assert!(
+            cell.evidence
+                .iter()
+                .any(|entry| entry.path == path && entry.state == EvidenceState::Present)
+        );
+        assert!(
+            cell.next_gate
+                .contains("Pending binding session restoration")
+        );
+        assert!(cell.next_gate.contains("mandatory native admission"));
+        assert!(
+            cell.next_gate
+                .contains("not a codec, final-effect checkpoint, durable owning VM")
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(
+        proof["kind"],
+        "leselang-native-restored-session-source-export"
+    );
+    for flag in [
+        "verified",
+        "source_outside_product_workspace",
+        "consumer_proof_unchanged",
+        "copied_source_byte_for_byte",
+        "original_session_core",
+        "pending_binding_restore",
+        "mandatory_native_admission",
+        "structure_before_native_admission",
+        "saved_fuel_preserved",
+        "reply_gated_explicit_poll",
+        "local_refusal_revokes_before_cleanup",
+        "cancel_before_and_after_acceptance",
+        "cleanup_unwind_terminal_sticky",
+    ] {
+        assert_eq!(proof[flag], true, "{flag}");
+    }
+    for flag in [
+        "complete_vm",
+        "full_extraction_gate",
+        "durable_owning_vm",
+        "process_crash_acceptance",
+        "automatic_collector_cancellation",
+        "portable_session_codec",
+        "final_effect_checkpoint",
+        "native_callback_sandbox",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+    assert_eq!(proof["new_restore_tests_per_workspace"], 8);
+    assert_eq!(proof["workspace_session_tests"], 44);
+    assert_eq!(proof["independent_consumer_session_tests"], 44);
+    assert_eq!(proof["isolated_test_executions"], 2297);
+    for result in [
+        "workspace_all_features_tests",
+        "workspace_strict_clippy",
+        "independent_consumer_tests",
+        "independent_consumer_strict_clippy",
+    ] {
+        assert_eq!(proof[result], "passed");
+    }
+    let rows = proof["provenance"].as_array().unwrap();
+    assert_eq!(rows.len(), 7);
+    assert_eq!(rows[5]["source"], rows[6]["source"]);
+    assert_eq!(rows[5]["sha256"], rows[6]["sha256"]);
+    for hash in rows.iter().map(|row| &row["sha256"]).chain([
+        &proof["export_manifest_sha256"],
+        &proof["verification_log_sha256"],
+    ]) {
+        let hash = hash.as_str().unwrap();
+        assert_eq!(hash.len(), 64);
+        assert!(hash.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    }
+    let embedding = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(embedding.maturity, Maturity::Developing);
+    assert_eq!(embedding.completion, 10);
+    assert_eq!(embedding.contract.stability, ContractStability::Draft);
+}
+
+#[test]
+fn bounded_repeat_capture_status_separates_operation_and_receipt_identity() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let path =
+        "docs/fixtures/leselang_native_repeat_capture_source_export_macos_arm64_20261015.json";
+    for (id, version) in [
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
+    ] {
+        let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
+        assert_eq!(cell.contract.version, version);
+        for surface in [
+            "bounded-repeat-source-checkpoint-composition",
+            "operation-schema-distinct-from-member-receipt-identity",
+            "same-operation-restored-receipt-noninterchangeability",
+        ] {
+            assert!(cell.contract.surfaces.iter().any(|s| s == surface));
+        }
+        assert!(
+            cell.evidence
+                .iter()
+                .any(|e| e.path == path && e.state == EvidenceState::Present)
+        );
+        for gate in [
+            "Bounded repeat whole-program checkpoints",
+            "332 additional frontier/order combinations",
+            "Operation identity is separate from per-member receipt identity",
+            "same-operation wrong-member, foreign-domain and duplicate receipts",
+            "compile-time Sequence expansion, not a runtime loop",
+            "Multiple captured graphs, production persistence and cancellation/crash settlement remain open",
+        ] {
+            assert!(cell.next_gate.contains(gate), "missing {gate}");
+        }
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(
+        proof["kind"],
+        "leselang-native-repeat-capture-source-export"
+    );
+    for flag in [
+        "verified",
+        "source_outside_product_workspace",
+        "consumer_proof_unchanged",
+        "copied_source_byte_for_byte",
+        "source_compiled_capture_checkpoint",
+        "helper_origin_whole_program_checkpoint",
+        "bounded_repeat_checkpoint",
+        "compiler_ir_without_conversion",
+        "shared_checkpoint_writers",
+        "every_assembly_and_return_fuel_cutoff",
+        "same_operation_receipts_noninterchangeable",
+        "expanded_names_and_operation_tags_preserved",
+    ] {
+        assert_eq!(proof[flag], true, "{flag}");
+    }
+    for flag in [
+        "complete_vm",
+        "full_extraction_gate",
+        "portable_mixed_checkpoint",
+        "process_crash_acceptance",
+        "arbitrary_program_checkpoint",
+        "multiple_captured_graphs",
+        "external_type_prefix",
+        "preseeded_captures",
+        "runtime_loop_added",
+        "concurrent_race_acceptance",
+        "automatic_parent_cancellation",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+    for (field, value) in [
+        ("isolated_test_executions", 2269),
+        ("workspace_saved_group_tests", 38),
+        ("independent_consumer_saved_group_tests", 38),
+        ("repeat_composition_tests_per_workspace", 6),
+        ("native_payload_schemas", 2),
+        ("program_variants", 24),
+        ("sequential_combinations", 140),
+        ("parallel_combinations", 192),
+        ("frontier_combinations", 332),
+        ("return_frames", 2),
+        ("completed_bootstrap_returns", 1),
+        ("initial_runtime_bindings", 0),
+        ("compiler_refusal_cases", 120),
+        ("forged_checkpoint_cases", 16),
+        ("original_preparations_per_program", 6),
+        ("total_dispatches_per_program", 6),
+        ("restored_preparations_per_program", 0),
+        ("restored_first_helper_dispatches", 0),
+        ("max_restored_sequential_dispatches", 3),
+        ("restored_parallel_dispatches_per_program", 0),
+        ("shared_captured_group_rebuilds_per_execution", 1),
+        ("pending_projections_per_execution", 1),
+    ] {
+        assert_eq!(proof[field], value, "{field}");
+    }
+    for hash in proof["provenance"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| &row["sha256"])
+        .chain([
+            &proof["export_manifest_sha256"],
+            &proof["verification_log_sha256"],
+        ])
+    {
+        let hash = hash.as_str().unwrap();
+        assert_eq!(hash.len(), 64);
+        assert!(hash.bytes().all(|b| b.is_ascii_hexdigit()));
+    }
+    let cell = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(cell.contract.stability, ContractStability::Draft);
+    assert_eq!(cell.maturity, Maturity::Developing);
+    assert_eq!(cell.completion, 10);
+}
+
+#[test]
+fn helper_origin_capture_status_keeps_bounded_program_proofs_below_full_extraction() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let path =
+        "docs/fixtures/leselang_native_helper_capture_source_export_macos_arm64_20261015.json";
+    for (id, version) in [
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
+    ] {
+        let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
+        assert_eq!(cell.contract.version, version);
+        for surface in [
+            "helper-origin-empty-scope-source-checkpoints",
+            "source-produced-captures-through-original-reentry",
+            "shared-seq-all-checkpoint-writers-without-helper-replay",
+        ] {
+            assert!(cell.contract.surfaces.iter().any(|s| s == surface));
+        }
+        assert!(
+            cell.evidence
+                .iter()
+                .any(|e| e.path == path && e.state == EvidenceState::Present)
+        );
+        for gate in [
+            "Helper-origin whole-program checkpoint models",
+            "without an external type/value prefix",
+            "220 frontier/order combinations",
+            "restore never recompiles or replays the first helper",
+            "bounded two-group program family",
+            "not arbitrary program recovery",
+            "Complete VM/extraction flags",
+        ] {
+            assert!(cell.next_gate.contains(gate), "missing {gate}");
+        }
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(
+        proof["kind"],
+        "leselang-native-helper-capture-source-export"
+    );
+    for flag in [
+        "verified",
+        "source_outside_product_workspace",
+        "consumer_proof_unchanged",
+        "copied_source_byte_for_byte",
+        "source_compiled_capture_checkpoint",
+        "helper_origin_whole_program_checkpoint",
+        "compiler_ir_without_conversion",
+        "shared_checkpoint_writers",
+        "every_assembly_and_return_fuel_cutoff",
+        "bootstrap_owner_policy_domain_refusal_preserves_input",
+    ] {
+        assert_eq!(proof[flag], true, "{flag}");
+    }
+    for flag in [
+        "complete_vm",
+        "full_extraction_gate",
+        "portable_mixed_checkpoint",
+        "process_crash_acceptance",
+        "arbitrary_program_checkpoint",
+        "external_type_prefix",
+        "preseeded_captures",
+        "concurrent_race_acceptance",
+        "automatic_parent_cancellation",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+    for (field, value) in [
+        ("isolated_test_executions", 2257),
+        ("workspace_saved_group_tests", 32),
+        ("independent_consumer_saved_group_tests", 32),
+        ("helper_composition_tests_per_workspace", 5),
+        ("native_payload_schemas", 2),
+        ("captured_group_kinds", 2),
+        ("program_variants", 8),
+        ("sequential_frontiers", 7),
+        ("parallel_completion_masks", 8),
+        ("receipt_orders", 6),
+        ("sequential_combinations", 28),
+        ("parallel_combinations", 192),
+        ("frontier_combinations", 220),
+        ("return_frames", 2),
+        ("completed_bootstrap_returns", 1),
+        ("initial_runtime_bindings", 0),
+        ("compiler_refusal_cases", 40),
+        ("forged_checkpoint_cases", 14),
+        ("original_preparations_per_program", 6),
+        ("total_dispatches_per_program", 6),
+        ("restored_preparations_per_program", 0),
+        ("restored_first_helper_dispatches", 0),
+        ("max_restored_sequential_dispatches", 3),
+        ("restored_parallel_dispatches_per_program", 0),
+        ("shared_captured_group_rebuilds_per_execution", 1),
+        ("pending_projections_per_execution", 1),
+    ] {
+        assert_eq!(proof[field], value, "{field}");
+    }
+    assert_eq!(proof["provenance"].as_array().unwrap().len(), 10);
+    for hash in proof["provenance"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| &row["sha256"])
+        .chain([
+            &proof["export_manifest_sha256"],
+            &proof["verification_log_sha256"],
+        ])
+    {
+        let hash = hash.as_str().unwrap();
+        assert_eq!(hash.len(), 64);
+        assert!(hash.bytes().all(|b| b.is_ascii_hexdigit()));
+    }
+    let embedding = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(embedding.maturity, Maturity::Developing);
+    assert_eq!(embedding.completion, 10);
+    assert_eq!(embedding.contract.stability, ContractStability::Draft);
+}
+
+#[test]
+fn source_compiled_capture_status_does_not_promote_whole_program_recovery() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let path =
+        "docs/fixtures/leselang_native_compiled_capture_source_export_macos_arm64_20261015.json";
+    for (id, version) in [
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
+    ] {
+        let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
+        assert_eq!(cell.contract.version, version);
+        for surface in [
+            "source-compiled-explicit-prefix-capture-checkpoints",
+            "compiled-seq-all-220-frontier-order-combinations",
+            "source-cold-catalog-and-fresh-reentry-authority",
+        ] {
+            assert!(cell.contract.surfaces.iter().any(|s| s == surface));
+        }
+        assert!(
+            cell.evidence
+                .iter()
+                .any(|e| e.path == path && e.state == EvidenceState::Present)
+        );
+        for gate in [
+            "Source-compiled explicit-prefix capture checkpoints",
+            "220 combinations",
+            "type-only host prefix",
+            "Seq dispatches only the unpublished suffix",
+            "restored All dispatches nothing",
+            "helper-origin whole-program recovery",
+            "Complete VM/extraction flags",
+        ] {
+            assert!(cell.next_gate.contains(gate), "missing {gate}");
+        }
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(
+        proof["kind"],
+        "leselang-native-compiled-capture-source-export"
+    );
+    for flag in [
+        "verified",
+        "source_outside_product_workspace",
+        "consumer_proof_unchanged",
+        "copied_source_byte_for_byte",
+        "source_compiled_capture_checkpoint",
+        "explicit_type_prefix_checkpoint",
+        "compiler_ir_without_conversion",
+        "every_assembly_and_return_fuel_cutoff",
+    ] {
+        assert_eq!(proof[flag], true, "{flag}");
+    }
+    for flag in [
+        "complete_vm",
+        "full_extraction_gate",
+        "portable_mixed_checkpoint",
+        "process_crash_acceptance",
+        "helper_origin_whole_program_checkpoint",
+        "concurrent_race_acceptance",
+        "automatic_parent_cancellation",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+    for (field, value) in [
+        ("isolated_test_executions", 2247),
+        ("workspace_saved_group_tests", 27),
+        ("independent_consumer_saved_group_tests", 27),
+        ("compiled_composition_tests_per_workspace", 4),
+        ("native_payload_schemas", 2),
+        ("captured_group_kinds", 2),
+        ("sequential_frontiers", 7),
+        ("parallel_completion_masks", 8),
+        ("receipt_orders", 6),
+        ("sequential_combinations", 28),
+        ("parallel_combinations", 192),
+        ("frontier_combinations", 220),
+        ("return_frames", 2),
+        ("compiler_refusal_cases", 22),
+        ("original_preparations_per_program", 6),
+        ("total_dispatches_per_program", 6),
+        ("restored_preparations_per_program", 0),
+        ("max_restored_sequential_dispatches", 3),
+        ("restored_parallel_dispatches_per_program", 0),
+        ("shared_captured_group_rebuilds_per_execution", 1),
+        ("pending_projections_per_execution", 1),
+    ] {
+        assert_eq!(proof[field], value, "{field}");
+    }
+    assert_eq!(proof["provenance"].as_array().unwrap().len(), 9);
+    for hash in proof["provenance"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| &row["sha256"])
+        .chain([
+            &proof["export_manifest_sha256"],
+            &proof["verification_log_sha256"],
+        ])
+    {
+        let hash = hash.as_str().unwrap();
+        assert_eq!(hash.len(), 64);
+        assert!(hash.bytes().all(|b| b.is_ascii_hexdigit()));
+    }
+    let embedding = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(embedding.maturity, Maturity::Developing);
+    assert_eq!(embedding.completion, 10);
+    assert_eq!(embedding.contract.stability, ContractStability::Draft);
+}
+
+#[test]
+fn captured_partial_parallel_status_records_barrier_proofs_without_durable_promotion() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let path =
+        "docs/fixtures/leselang_native_parallel_capture_source_export_macos_arm64_20261015.json";
+    for (id, version) in [
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
+    ] {
+        let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
+        assert_eq!(cell.contract.version, version);
+        for surface in [
+            "byte-backed-captured-partial-all-composition",
+            "saved-all-capture-eight-masks-six-arrival-orders",
+            "captured-barrier-cancellation-before-parent-reentry",
+        ] {
+            assert!(cell.contract.surfaces.iter().any(|s| s == surface));
+        }
+        assert!(
+            cell.evidence
+                .iter()
+                .any(|e| e.path == path && e.state == EvidenceState::Present)
+        );
+        for gate in [
+            "eight completion masks and six arrival orders",
+            "192 combinations",
+            "restore creates no requests",
+            "every-cutoff original fuel",
+            "parent/external cancellation remains host-owned",
+            "process-crash settlement and full extraction remain open",
+        ] {
+            assert!(cell.next_gate.contains(gate), "missing {gate}");
+        }
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(
+        proof["kind"],
+        "leselang-native-parallel-capture-source-export"
+    );
+    for flag in [
+        "verified",
+        "source_outside_product_workspace",
+        "consumer_proof_unchanged",
+        "copied_source_byte_for_byte",
+        "partial_parallel_capture_composition",
+        "every_assembly_and_return_fuel_cutoff",
+        "ordered_once_only_handoff",
+        "partial_and_ready_barrier_cancellation",
+    ] {
+        assert_eq!(proof[flag], true);
+    }
+    for flag in [
+        "complete_vm",
+        "full_extraction_gate",
+        "portable_mixed_checkpoint",
+        "process_crash_acceptance",
+        "source_compiled_capture_checkpoint",
+        "concurrent_race_acceptance",
+        "automatic_parent_cancellation",
+    ] {
+        assert_eq!(proof[flag], false);
+    }
+    for (field, value) in [
+        ("isolated_test_executions", 2239),
+        ("workspace_saved_group_tests", 23),
+        ("independent_consumer_saved_group_tests", 23),
+        ("parallel_composition_tests_per_workspace", 5),
+        ("native_payload_schemas", 2),
+        ("captured_group_kinds", 2),
+        ("parallel_completion_masks", 8),
+        ("receipt_orders", 6),
+        ("frontier_combinations", 192),
+        ("return_frames", 2),
+        ("original_preparations_per_program", 6),
+        ("original_dispatches_per_program", 6),
+        ("restored_preparations_per_program", 0),
+        ("restored_calls_per_program", 0),
+        ("restored_dispatches_per_program", 0),
+        ("shared_captured_group_rebuilds_per_execution", 1),
+        ("pending_projections_per_execution", 1),
+    ] {
+        assert_eq!(proof[field], value, "{field}");
+    }
+    assert_eq!(proof["provenance"].as_array().unwrap().len(), 7);
+    for hash in proof["provenance"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| &row["sha256"])
+        .chain([
+            &proof["export_manifest_sha256"],
+            &proof["verification_log_sha256"],
+        ])
+    {
+        let hash = hash.as_str().unwrap();
+        assert_eq!(hash.len(), 64);
+        assert!(hash.bytes().all(|b| b.is_ascii_hexdigit()));
+    }
+    let embedding = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(embedding.maturity, Maturity::Developing);
+    assert_eq!(embedding.completion, 10);
+    assert_eq!(embedding.contract.stability, ContractStability::Draft);
+}
+
+#[test]
 fn captured_inflight_status_keeps_sequential_composition_below_full_extraction() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     let path =
         "docs/fixtures/leselang_native_inflight_capture_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -15799,8 +16497,8 @@ fn byte_capture_status_tracks_composition_without_promoting_full_checkpoint_reco
     let path =
         "docs/fixtures/leselang_native_saved_capture_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -15910,8 +16608,8 @@ fn saved_assembled_group_status_preserves_budget_and_keeps_full_recovery_open() 
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     let path = "docs/fixtures/leselang_native_saved_group_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -16121,8 +16819,8 @@ fn saved_parallel_status_keeps_mixed_graph_and_crash_recovery_gates_open() {
     let proof_path =
         "docs/fixtures/leselang_native_saved_parallel_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.176.0"),
-        ("leselang/language-vm/host-neutral-embedding", "0.150.0"),
+        ("leselang/language-hir/typed-effects", "0.182.0"),
+        ("leselang/language-vm/host-neutral-embedding", "0.156.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -16227,7 +16925,7 @@ fn saved_body_execution_status_tracks_actual_shared_walker_without_storage_autho
         .iter()
         .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
@@ -16278,7 +16976,7 @@ fn shared_group_graph_status_retains_full_recovery_as_a_separate_gate() {
         .iter()
         .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
@@ -16328,7 +17026,7 @@ fn shared_recovery_fence_status_does_not_promote_allocator_receipt_or_complete_v
         .iter()
         .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
@@ -16381,7 +17079,7 @@ fn physical_extraction_deferral_keeps_independence_active_and_missing_evidence_u
         .iter()
         .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
@@ -16439,7 +17137,7 @@ fn watermark_planning_status_keeps_numeric_observations_separate_from_durable_al
         .iter()
         .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
@@ -16497,7 +17195,7 @@ fn inherited_context_status_does_not_promote_agreement_to_budget_or_execution_au
         .iter()
         .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
@@ -16555,7 +17253,7 @@ fn capture_extension_status_keeps_native_succession_and_complete_graph_gate_open
         .iter()
         .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
@@ -16610,7 +17308,7 @@ fn capture_correspondence_status_keeps_native_projection_identity_and_snapshot_a
         .iter()
         .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
@@ -16667,7 +17365,7 @@ fn ordered_outcome_status_does_not_promote_observation_to_settlement_or_complete
         .iter()
         .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
@@ -16724,7 +17422,7 @@ fn sequential_frontier_status_retains_native_dispatch_and_durable_recovery_gates
         .iter()
         .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
@@ -16779,7 +17477,7 @@ fn shared_successor_chain_status_keeps_native_recovery_and_extraction_gates_open
         .iter()
         .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);
@@ -16832,7 +17530,7 @@ fn native_unbound_receipt_status_tracks_correspondence_without_promoting_executi
         .iter()
         .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
         .unwrap();
-    assert_eq!(cell.contract.version, "0.150.0");
+    assert_eq!(cell.contract.version, "0.156.0");
     assert_eq!(cell.contract.stability, ContractStability::Draft);
     assert_eq!(cell.maturity, Maturity::Developing);
     assert_eq!(cell.completion, 10);

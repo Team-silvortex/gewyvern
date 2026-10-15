@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-restored-session-source-export",
+  "product_version": "2.3.0",
+  "validated_at": "2026-10-15T11:12:32.066Z",
+  "platform": "macos-arm64",
+  "source_outside_product_workspace": true,
+  "source_crates": [
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir",
+    "leselang-vm"
+  ],
+  "verified": true,
+  "native_vm_facade": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "original_session_core": true,
+  "pending_binding_restore": true,
+  "mandatory_native_admission": true,
+  "structure_before_native_admission": true,
+  "saved_fuel_preserved": true,
+  "reply_gated_explicit_poll": true,
+  "local_refusal_revokes_before_cleanup": true,
+  "cancel_before_and_after_acceptance": true,
+  "cleanup_unwind_terminal_sticky": true,
+  "durable_owning_vm": false,
+  "process_crash_acceptance": false,
+  "automatic_collector_cancellation": false,
+  "portable_session_codec": false,
+  "final_effect_checkpoint": false,
+  "native_callback_sandbox": false,
+  "files": 258,
+  "copied_files": 248,
+  "bytes": 5896913,
+  "workspace_all_features_tests": "passed",
+  "workspace_strict_clippy": "passed",
+  "independent_consumer_tests": "passed",
+  "independent_consumer_strict_clippy": "passed",
+  "isolated_test_executions": 2297,
+  "workspace_session_tests": 44,
+  "independent_consumer_session_tests": 44,
+  "new_restore_tests_per_workspace": 8,
+  "consumer_proof_unchanged": true,
+  "copied_source_byte_for_byte": true,
+  "export_manifest_sha256": "2e078c4f4a9acacd084a07d0fd04218a5b50c26591e15aa2aac34fe36a7accf5",
+  "verification_log_sha256": "3679a8bbab0da6399ca234c9d844dbc5ff801a39e12d844ad49dd595281747a2",
+  "provenance": [
+    {
+      "path": "crates/leselang-hir/src/effect_session.rs",
+      "source": "crates/leselang-hir/src/effect_session.rs",
+      "sha256": "d8c1487972de3efe9b6b14b4c13df115735f647dadcc8edeb8b17e49b95f4222"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_stack.rs",
+      "source": "crates/leselang-hir/src/effect_stack.rs",
+      "sha256": "d9e5f029bc3ae5e251dee97bb912a56a4d54fce377b50c79a94105a74e53224d"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_stack_session.rs",
+      "source": "crates/leselang-hir/src/effect_stack_session.rs",
+      "sha256": "3b4213f6bdc3056e5e8c9c135eb9870abf65739444bb0f77f8ae59ad2d139a14"
+    },
+    {
+      "path": "crates/leselang-hir/src/local_effect_session.rs",
+      "source": "crates/leselang-hir/src/local_effect_session.rs",
+      "sha256": "a6d9375d32a09f4c0c39c94d2de469761c394424f3d7415719cf09d70b998dbf"
+    },
+    {
+      "path": "crates/leselang-vm/src/native.rs",
+      "source": "crates/leselang-vm/src/native.rs",
+      "sha256": "e1db66dbd244550bf34377789e15286b24ecba1cdceb31ab70533a59b804b219"
+    },
+    {
+      "path": "crates/leselang-hir/tests/effect_session.rs",
+      "source": "crates/leselang-hir/tests/effect_session.rs",
+      "sha256": "94871f97ec101698559e3260bf7e8c3bcddf1011f58c66a5d53aed5969dc231a"
+    },
+    {
+      "path": "consumer/tests/control_session.rs",
+      "source": "crates/leselang-hir/tests/effect_session.rs",
+      "sha256": "94871f97ec101698559e3260bf7e8c3bcddf1011f58c66a5d53aed5969dc231a"
+    }
+  ],
+  "remaining_gates": [
+    "complete native reference-language coverage",
+    "arbitrary source-program checkpoints and arbitrary captured-graph collections",
+    "durable owning-session and collector meter integration",
+    "production persistence and cancellation/process-crash settlement",
+    "complete reference adapter wire/auth/GUI/CLI/journal parity",
+    "release publication and physical repository extraction"
+  ]
+}

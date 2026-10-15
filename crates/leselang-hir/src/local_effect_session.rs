@@ -11,8 +11,10 @@ use leselang_runtime_core::{
 use crate::{
     effect_reentry::RestoredEffectBindings,
     effect_session::{EffectSessionAcceptance, EffectSessionEnvironment, EffectSessionStatus},
-    effect_stack::EffectStackLimits,
-    effect_stack_session::{StackedControlSession, StackedEffectSessionPollResult},
+    effect_stack::{EffectStackLimits, SavedEffectReturnFrame},
+    effect_stack_session::{
+        StackedControlSession, StackedEffectSessionPollResult, StackedSessionRestoreError,
+    },
     ir::Computation,
     local_scope::CallFence,
 };
@@ -278,6 +280,50 @@ impl<
         Reply,
     >
 {
+    /// Restore pending binding returns under this local lifetime owner.
+    /// Closed scopes refuse before structure/native admission. Refusal or unwind
+    /// revokes before retained frame/identity and unused-hook cleanup; callback-
+    /// internal cleanup is still trusted native work. Callback revocation wins
+    /// over its ordinary result. Success retains the scope and starts Awaiting.
+    /// No external collector is cancelled automatically and no durable cancelled
+    /// snapshot may be rearmed; the same native admission duties as
+    /// `StackedControlSession::restore_pending` apply.
+    pub fn restore_pending<Error>(
+        scope: LocalExecutionScope,
+        identity: Identity,
+        declaration: &'schema Declaration,
+        frames: Vec<
+            SavedEffectReturnFrame<
+                'expression,
+                Computation<Field, Operation, HostEffect, IrResult>,
+                Capture,
+            >,
+        >,
+        fuel: Fuel,
+        limits: EffectStackLimits,
+        admit: impl FnOnce(
+            &Identity,
+            &'schema Declaration,
+            &[SavedEffectReturnFrame<
+                'expression,
+                Computation<Field, Operation, HostEffect, IrResult>,
+                Capture,
+            >],
+            &Fuel,
+        ) -> Result<(), Error>,
+    ) -> Result<Self, StackedSessionRestoreError<Error>> {
+        let session = StackedControlSession::restore_pending_with_scope(
+            identity,
+            declaration,
+            frames,
+            fuel,
+            limits,
+            admit,
+            Some(&scope),
+        )?;
+        Ok(Self { scope, session })
+    }
+
     /// Delegate one slice with the same meter, then mirror only terminal liveness.
     /// Terminal failures revoke before retained re-entry/prefix cleanup at shared
     /// boundaries. Values already consumed by callbacks remain native-owned.
