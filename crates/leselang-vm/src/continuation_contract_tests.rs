@@ -1,4 +1,5 @@
 use super::*;
+
 use leselang_hir::{computation::ScalarType, lower};
 use leselang_syntax::parse;
 
@@ -89,7 +90,7 @@ continuation_signatures! {
     UiWaitAccessibleDescription => r#"ui.wait_accessible_description(node_id: "node-a", expected: "text-a")"#,
 }
 
-fn requests() -> Vec<EffectRequest> {
+pub(super) fn requests() -> Vec<EffectRequest> {
     assert_eq!(SIGNATURES.len(), 70);
     SIGNATURES
         .iter()

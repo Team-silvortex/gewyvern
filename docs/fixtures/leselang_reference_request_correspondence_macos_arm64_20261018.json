@@ -1,0 +1,148 @@
+{
+  "kind": "leselang-reference-request-correspondence",
+  "validated_on": "2026-10-18",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "reference_execution_contract": "1.94.0",
+  "native_embedding_contract": "0.162.0",
+  "frozen_operation_comparisons": 24570,
+  "cold_body_comparisons": 1680,
+  "frozen_construction_comparisons": 1120,
+  "baseline_passed": true,
+  "post_migration_parity_passed": true,
+  "shared_source_request_reentry_passed": true,
+  "checked_request_deserialization_preserved": true,
+  "opaque_local_token_and_hook_ownership_preserved": true,
+  "memory_profile_passed": true,
+  "native_profile_passed": true,
+  "wire_or_journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "scope": "Product post-image request correspondence shares cold successor capability, lazy canonical sequence, derived product identity, operation and exact budget checks. The real VM retains full frame admission, canonical token policy, checked current/legacy deserialization, identity allocation and original budget/recovery authority. VM-free parsed two-call capture/reentry uses the same correspondence gate on original and wire-restored frames without changing results, preparations or fuel. Opaque local tokens require no Clone/Debug/serde/Send traits; trusted hooks run at most once, release skipped captures and propagate unwind without retry. Consistency is not source/frame admission, live authority, receipt authenticity or durable recovery. No product version, wire schema, independent durable VM or physical extraction promotion.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/request_correspondence.rs",
+      "sha256": "615551c161a5a74f5945671fc15e9457a6142e6eb99b040f290950e44f1184a2"
+    },
+    {
+      "path": "crates/leselang-command/src/operation_request.rs",
+      "sha256": "1016c2152582fa54b0a47a78543e5dc3501de09d62fa7c9126b333a94da8cb22"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "abd9376be6587519562402b981ae80eeb2427d2fb273d1f3aee0600f7e045b2b"
+    },
+    {
+      "path": "crates/leselang-command/tests/host_protocol.rs",
+      "sha256": "aa3c9a14a6f456dddfc263492513cebb334e85ed5d4b3295724f83b2201c6502"
+    },
+    {
+      "path": "crates/leselang-command/tests/captured_execution.rs",
+      "sha256": "208eeae5c32f6366cb36a1a37ee2494f72795904f069adfbadee40e7668d8aad"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "d26373067c8f14847ad1909f595eb26475b0a05460816f0a38edc6f4cededf85"
+    },
+    {
+      "path": "crates/leselang-vm/src/operation_request_tests.rs",
+      "sha256": "2b0c87ff5cd4131f8e6070bf43057005b9b93401b49e5c6d408e9a14a55518bd"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "d7235a13fa76255e2d9cbcbc2e169607b2ecd1233f1e7a698ed8a306e5d66620"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "57f4bf6176ebc00ddecaccdfc715147ca925632c503a5ef7c9fbc6fec17896e4"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "dc2ffbf85faa653dac2aafa27cafae1f888c998c6177044f797bd9d89fb61941"
+    }
+  ],
+  "verification": [
+    {
+      "name": "baseline",
+      "path": "/private/tmp/leselang-request-correspondence-PzKDJ1/baseline.log",
+      "sha256": "d959642d9e0d21c0735b5cad51f6ea12996b0430fc444c9e2f4a5248c318f790",
+      "passed": 3
+    },
+    {
+      "name": "parity",
+      "path": "/private/tmp/leselang-request-correspondence-PzKDJ1/parity.log",
+      "sha256": "f5bdcca8e16997b6dda11105d87272c8a066d1b44d7de3162e498e9e6aeb516d",
+      "passed": 3
+    },
+    {
+      "name": "adapter",
+      "path": "/private/tmp/leselang-request-correspondence-PzKDJ1/adapter.log",
+      "sha256": "0afbea22e0074a3c1454dcd66bf9bf8716a5ace23ddf4311bc400187a0dd7aba",
+      "passed": 75
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-request-correspondence-PzKDJ1/runtime.log",
+      "sha256": "1e3aeeaf0055ad8eae9ec3c8801e3317b05bd81116fb2ae3de97eb66a31c5b04",
+      "passed": 3169
+    },
+    {
+      "name": "memory",
+      "path": "/private/tmp/leselang-request-correspondence-PzKDJ1/memory.log",
+      "sha256": "4bdac93740e6a25da394e2dcf27af956c1d6b945004814da0ce97f2ab10c01b6",
+      "passed": 197
+    },
+    {
+      "name": "native",
+      "path": "/private/tmp/leselang-request-correspondence-PzKDJ1/native.log",
+      "sha256": "c5a0f6048534ffd3b9fb6c6a9ed998941f3475e98131fbd25c0610c88b10b994",
+      "passed": 50
+    },
+    {
+      "name": "adapter-tree",
+      "path": "/private/tmp/leselang-request-correspondence-PzKDJ1/adapter-tree.log",
+      "sha256": "d75f8df9257048210b0b1b1869b59959894d689e09e5f413b05c414042a268bf",
+      "forbidden_dependencies_absent": [
+        "leselang-vm",
+        "rusqlite",
+        "libsqlite3-sys"
+      ]
+    },
+    {
+      "name": "native-tree",
+      "path": "/private/tmp/leselang-request-correspondence-PzKDJ1/native-tree.log",
+      "sha256": "648ce0bd6a92678072f5e583c34468351fa107a920b6e28eb7d87d17eee4fef6",
+      "forbidden_dependencies_absent": [
+        "leselang-command",
+        "leselang-host-contract",
+        "leserpent-domain",
+        "rusqlite",
+        "libsqlite3-sys"
+      ]
+    },
+    {
+      "name": "root",
+      "path": "/private/tmp/leselang-request-correspondence-PzKDJ1/root.log",
+      "sha256": "76f9415c8b877182e89a882a4701d2255e4e2f955ef5d4e3545bb054b31f8aee",
+      "passed": 428
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-request-correspondence-PzKDJ1/clippy.log",
+      "sha256": "e37b6889735f096c6a4c3326c9ce05cdf1c9d6143e44365fdb81999729256229",
+      "strict_warnings_passed": true
+    },
+    {
+      "name": "memory-clippy",
+      "path": "/private/tmp/leselang-request-correspondence-PzKDJ1/memory-clippy.log",
+      "sha256": "8c255bb1b75112ad57a4d52f7c851013dfa275972009bdd5c88766410fc41dc5",
+      "strict_warnings_passed": true
+    },
+    {
+      "name": "native-clippy",
+      "path": "/private/tmp/leselang-request-correspondence-PzKDJ1/native-clippy.log",
+      "sha256": "b64fd83cf0bcc5e3757fe4f036e321e8705d11976a196cf54c84ff82d69941dc",
+      "strict_warnings_passed": true
+    }
+  ]
+}

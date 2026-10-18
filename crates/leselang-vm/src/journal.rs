@@ -1,3 +1,4 @@
+use crate::group_binding::ReferenceGroupResultBinding;
 use std::collections::{BTreeMap, BTreeSet};
 #[cfg(feature = "sqlite-journal")]
 use std::{fs, path::Path, time::Duration};
@@ -107,6 +108,10 @@ pub(crate) enum Journal {
     #[cfg(feature = "sqlite-journal")]
     Sqlite(SqliteJournal),
 }
+
+#[cfg(test)]
+#[path = "group_request_contract_tests.rs"]
+mod group_request_contract_tests;
 
 #[derive(Default)]
 pub(crate) struct EphemeralJournal {

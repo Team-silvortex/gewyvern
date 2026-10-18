@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-dispatch-data-source-export",
+  "validated_at": "2026-10-16T01:43:15.882Z",
+  "platform": "macos-arm64",
+  "workspace_package_version": "2.3.0",
+  "native_embedding_contract": "0.162.0",
+  "reference_contract": "1.86.0",
+  "verified": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "production_durable_owner": false,
+  "process_crash_acceptance": false,
+  "wire_or_journal_schema_changed": false,
+  "exported_files": 273,
+  "copied_files": 263,
+  "exported_bytes": 6045733,
+  "isolated_test_executions": 2379,
+  "runtime_test_executions": 3010,
+  "workspace_dispatch_data_tests": 7,
+  "independent_consumer_dispatch_data_tests": 7,
+  "new_reference_regressions": 2,
+  "pre_refactor_wire_baseline_passed": 1,
+  "independent_workspace_strict_clippy": "passed",
+  "independent_consumer_strict_clippy": "passed",
+  "copied_source_byte_for_byte": true,
+  "exact_reference_type_identity": true,
+  "pre_refactor_wire_preserved": true,
+  "legacy_enum_variant_imports_preserved": true,
+  "conditional_native_traits": true,
+  "host_policy_and_storage_remain_native": true,
+  "export_manifest_sha256": "87f49b567817a2b86182f0478d9a94237016f46e99f745d292695b7fd8b43163",
+  "verification_log_sha256": "71a84dfb6c966569bb672589783c4020a900f157c693d938c97bff2e6b92a715",
+  "runtime_log_sha256": "6778350c7e0d8f88e31ff78ccd700d3d7b16d359eec58d02291430f00c573087",
+  "baseline_wire_log_sha256": "0dd670d34f37818230688360f0d26afa3c76a4cac93d964b918a978ce89cbb73",
+  "provenance": [
+    {
+      "path": "crates/leselang-runtime-core/src/dispatch_data.rs",
+      "source": "crates/leselang-runtime-core/src/dispatch_data.rs",
+      "sha256": "1652795cb5c3da49daa2891a4cb9f1475433a2be25ceb8882895747da0cc3e92"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/lib.rs",
+      "source": "crates/leselang-runtime-core/src/lib.rs",
+      "sha256": "a6404a67bff4a2d6154a511653f39823ed8455aa8d05973543eb068edf1b5467"
+    },
+    {
+      "path": "crates/leselang-runtime-core/tests/dispatch_data.rs",
+      "source": "crates/leselang-runtime-core/tests/dispatch_data.rs",
+      "sha256": "d17c78c562e2af38e51f303c3b2cc396b08ffeb3a7cc1d6b9edf8f8b48e05a34"
+    },
+    {
+      "path": "consumer/tests/dispatch_data.rs",
+      "source": "crates/leselang-runtime-core/tests/dispatch_data.rs",
+      "sha256": "d17c78c562e2af38e51f303c3b2cc396b08ffeb3a7cc1d6b9edf8f8b48e05a34"
+    }
+  ],
+  "reference_provenance": [
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "87e155e07050391492e69542ec13da4299afbfc0d1d385dfd37439715bc81b75",
+      "exported": false
+    },
+    {
+      "path": "crates/leselang-vm/tests/ephemeral_profile.rs",
+      "sha256": "52e91f0ccfda552776109ecc59070db061b5a4cb4bf7d08feaaec9225920d6c6",
+      "exported": false
+    }
+  ],
+  "scope": "Shared owned dispatch and retry payload data, not a new scheduler or a migration of product error policy, terminal results, authority or persistence.",
+  "remaining_gates": [
+    "complete native reference-language coverage",
+    "host-neutral durable graph recovery and external effect settlement",
+    "reference adapter wire/auth/GUI/CLI and journal compatibility",
+    "release publication and physical repository extraction"
+  ]
+}

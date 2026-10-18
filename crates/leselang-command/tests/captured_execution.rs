@@ -12,6 +12,10 @@ use leselang_command::{
     resume_preflighted_result_binding_in_scope, validate_group_capture_correspondence,
     validate_result_binding, validate_result_binding_extension,
 };
+use leselang_command::{
+    ExecutionOrder, GroupBindingLimits, GroupPlanLimits, GroupResultBinding, MergePlan,
+    MergePlanShapeLimits, validate_group_binding,
+};
 use leselang_hir::{
     Effect, Type,
     call_evaluation::CallEvaluationError,
@@ -432,6 +436,15 @@ struct Trace {
 }
 
 fn run(expression: &Computation, grant: u64, wire: bool) -> Result<Trace, Failure> {
+    run_with_request_admission(expression, grant, wire, false)
+}
+
+fn run_with_request_admission(
+    expression: &Computation,
+    grant: u64,
+    wire: bool,
+    admit_requests: bool,
+) -> Result<Trace, Failure> {
     let allowed = Cell::new(true);
     let prepared = Cell::new(0);
     let adapter = Adapter {
@@ -444,6 +457,7 @@ fn run(expression: &Computation, grant: u64, wire: bool) -> Result<Trace, Failur
     let mut step = begin(expression, &adapter, &mut fuel)?;
     let mut frames = Vec::new();
     let mut effects = Vec::new();
+    let mut previous: Option<(AtomicRequest, Value)> = None;
     loop {
         let Step::Pending { effect, binding } = step else {
             let Step::Done(value) = step else {
@@ -462,6 +476,31 @@ fn run(expression: &Computation, grant: u64, wire: bool) -> Result<Trace, Failur
             serde_json::from_slice(&bytes).unwrap()
         } else {
             binding
+        };
+        let request = if admit_requests {
+            let request = admit_atomic_request(
+                &effect,
+                &restored,
+                fuel.remaining(),
+                effects.len() as u64 + 1,
+            )?;
+            if let Some((parent, value)) = &previous {
+                let before = (fuel.remaining(), prepared.get());
+                leselang_command::validate_preflighted_successor_pair(
+                    parent.view(),
+                    request.view(),
+                    value,
+                    CAPTURES,
+                    |_| "unused-group-owner",
+                    |token| Some(*token),
+                    valid_name,
+                )
+                .map_err(|_| Refusal::Admission)?;
+                assert_eq!((fuel.remaining(), prepared.get()), before);
+            }
+            Some(request)
+        } else {
+            None
         };
         let value = reply(&effect);
         step = resume(&effect, &restored, &value, &adapter, &mut fuel)?;
@@ -500,12 +539,683 @@ fn run(expression: &Computation, grant: u64, wire: bool) -> Result<Trace, Failur
                 }
             }
         }
+        previous = request.map(|request| (request, value));
         frames.push(bytes);
         effects.push(effect);
         assert!(
             effects.len() <= 8,
             "fixture must not hide an unbounded driver loop"
         );
+    }
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AtomicRequest {
+    effect_id: String,
+    required: String,
+    operation: leselang_command::EffectOperation,
+    frame: leselang_runtime_core::ContinuationFrame<
+        u64,
+        leselang_host_contract::Revision,
+        Type,
+        Effect,
+        ResultBinding,
+    >,
+    budget: leselang_runtime_core::ResourceBudget,
+}
+
+impl AtomicRequest {
+    fn view(&self) -> leselang_command::EffectRequestView<'_, u64> {
+        leselang_command::EffectRequestView {
+            effect_id: &self.effect_id,
+            required_capability: &self.required,
+            operation: &self.operation,
+            continuation: &self.frame,
+            budget: &self.budget,
+        }
+    }
+}
+
+fn admit_atomic_request(
+    effect: &Effect,
+    binding: &ResultBinding,
+    remaining: u64,
+    sequence: u64,
+) -> Result<AtomicRequest, Failure> {
+    use leselang_command::{EffectRequestView, validate_preflighted_effect_request};
+    use leselang_host_contract::{CapabilitySet, Principal};
+    use leselang_runtime_core::ContinuationFrame;
+    use leserpent_domain::{CommandId, IdempotencyKey};
+
+    // This bounded source fixture owns frame construction, not durable admission.
+    validate_result_binding(binding, effect, CAPTURES, valid_name)
+        .map_err(|_| Refusal::Admission)?;
+    let result_type = HostOperation::for_effect(effect)
+        .ok_or(Refusal::Admission)?
+        .result_type();
+    let frame = ContinuationFrame {
+        schema_version:
+            leselang_command::continuation_schema::preflighted_result_binding_schema_version(
+                binding,
+            ),
+        token: sequence,
+        program_counter: 1,
+        expected_revision: None,
+        result_type,
+        pending_effect: effect.clone(),
+        fuel_remaining: remaining,
+        deadline_ms: 2_000,
+        deadline_at_ms: None,
+        max_output_items: 4,
+        result_binding: Some(Box::new(binding.clone())),
+        group_result: None,
+    };
+    let (required, operation) = leselang_command::lower_effect_operation(
+        effect,
+        Principal::new("fixture").unwrap(),
+        CapabilitySet::new(["ui.presentation"]),
+        None,
+        || {
+            Some((
+                CommandId::new(format!("leselang-command-{sequence}")).unwrap(),
+                IdempotencyKey::new(format!("leselang-effect-{sequence}")).unwrap(),
+            ))
+        },
+    )
+    .map_err(|_| Refusal::Admission)?;
+    let bytes = serde_json::to_vec(&frame).unwrap();
+    assert!(bytes.len() < 16 * 1024);
+    let restored = serde_json::from_slice(&bytes).unwrap();
+    let budget = frame.resource_budget();
+    for candidate in [&frame, &restored] {
+        validate_preflighted_effect_request(
+            EffectRequestView {
+                effect_id: &format!("effect-{sequence}"),
+                required_capability: &required,
+                operation: &operation,
+                continuation: candidate,
+                budget: &budget,
+            },
+            |token| (0 < *token && *token <= 64).then_some(*token),
+        )
+        .map_err(|_| Refusal::Admission)?;
+    }
+    assert_eq!(serde_json::to_vec(&restored).unwrap(), bytes);
+    let request = AtomicRequest {
+        effect_id: format!("effect-{sequence}"),
+        required,
+        operation,
+        frame: restored,
+        budget,
+    };
+    let bytes = serde_json::to_vec(&request).unwrap();
+    assert!(bytes.len() < 16 * 1024);
+    let restored: AtomicRequest = serde_json::from_slice(&bytes).unwrap();
+    validate_preflighted_effect_request(restored.view(), |token| {
+        (0 < *token && *token <= 64).then_some(*token)
+    })
+    .map_err(|_| Refusal::Admission)?;
+    Ok(restored)
+}
+
+#[test]
+fn source_successor_pairs_share_wire_reentry_without_extra_fuel_or_preparation() {
+    for conditional in [false, true] {
+        let tail = r#"bind(next: ui.set_selection(node_id: field(value: first, name: "node_id"), state: "selected"), body: bind(last: ui.focus(node_id: field(value: next, name: "node_id")), body: concat(left: field(value: first, name: "node_id"), right: field(value: last, name: "node_id"))))"#;
+        let body = if conditional {
+            format!(
+                r#"choose(when: eq(left: field(value: first, name: "node_id"), right: "a"), then: {tail}, otherwise: "skip")"#
+            )
+        } else {
+            tail.into()
+        };
+        let expression = compile(&format!(
+            r#"fn main() = bind(first: ui.focus(node_id: "a"), body: {body})"#
+        ));
+        let original = run(&expression, 1000, false).unwrap();
+        assert_eq!(original.effects.len(), 3);
+        for grant in 0..original.spent {
+            assert!(
+                matches!(
+                    run_with_request_admission(&expression, grant, true, true),
+                    Err(CalculationFailure::External(Refusal::Fuel))
+                ),
+                "conditional {conditional}, grant {grant}"
+            );
+        }
+        for grant in [original.spent, original.spent + 1, 1000] {
+            let admitted = run_with_request_admission(&expression, grant, true, true).unwrap();
+            assert_eq!(admitted.value, original.value);
+            assert_eq!(admitted.spent, original.spent);
+            assert_eq!(admitted.preparations, original.preparations);
+            assert_eq!(admitted.effects, original.effects);
+            assert_eq!(admitted.frames, original.frames);
+        }
+    }
+}
+
+fn source_pair_fixture() -> (AtomicRequest, AtomicRequest, Value) {
+    let expression = compile(
+        r#"fn main() = bind(first: ui.focus(node_id: "a"), body: bind(next: ui.focus(node_id: field(value: first, name: "node_id")), body: field(value: next, name: "node_id")))"#,
+    );
+    let trace = run(&expression, 1000, true).unwrap();
+    let parent = admit_atomic_request(
+        &trace.effects[0],
+        &serde_json::from_slice::<ResultBinding>(&trace.frames[0]).unwrap(),
+        100,
+        1,
+    )
+    .unwrap();
+    let next = admit_atomic_request(
+        &trace.effects[1],
+        &serde_json::from_slice::<ResultBinding>(&trace.frames[1]).unwrap(),
+        80,
+        2,
+    )
+    .unwrap();
+    let value = reply(&trace.effects[0]);
+    (parent, next, value)
+}
+
+#[test]
+fn successor_pair_refuses_torn_rows_without_mutating_original_frames() {
+    let (parent, next, value) = source_pair_fixture();
+    let check = |parent: &AtomicRequest, next: &AtomicRequest, value: &Value| {
+        leselang_command::validate_preflighted_successor_pair(
+            parent.view(),
+            next.view(),
+            value,
+            CAPTURES,
+            |_| "group",
+            |token| Some(*token),
+            valid_name,
+        )
+    };
+    assert_eq!(check(&parent, &next, &value), Ok(()));
+    for defect in 0..12 {
+        let mut torn = next.clone();
+        let mut raw = value.clone();
+        match defect {
+            0 => torn.frame.schema_version = 0,
+            1 => torn.frame.token = 1,
+            2 => torn.frame.fuel_remaining = 100,
+            3 => torn.frame.deadline_ms += 1,
+            4 => torn.frame.expected_revision = Some(leselang_host_contract::Revision(99)),
+            5 => torn.frame.max_output_items += 1,
+            6 => {
+                let leselang_command::EffectOperation::Presentation(e) = &mut torn.operation else {
+                    panic!()
+                };
+                e.principal = leselang_host_contract::Principal::new("other").unwrap();
+            }
+            7 => torn.frame.result_binding.as_mut().unwrap().name = "bad name".into(),
+            8 => torn.frame.result_binding.as_mut().unwrap().results.clear(),
+            9 => torn.frame.result_binding.as_mut().unwrap().results[0].name = "renamed".into(),
+            10 => {
+                torn.frame.result_binding.as_mut().unwrap().results[0]
+                    .result
+                    .fields[0]
+                    .value = ScalarValue::String("forged".into())
+            }
+            11 => {
+                raw = Value::UiFocus {
+                    node_id: "different".into(),
+                }
+            }
+            _ => unreachable!(),
+        }
+        let before = serde_json::to_vec(&(&parent, &torn, &raw)).unwrap();
+        assert!(check(&parent, &torn, &raw).is_err(), "defect {defect}");
+        assert_eq!(serde_json::to_vec(&(&parent, &torn, &raw)).unwrap(), before);
+    }
+}
+
+#[test]
+fn successor_pair_borrows_opaque_local_tokens_and_preserves_hook_order_and_unwind() {
+    use leselang_command::{
+        EffectRequestView, SuccessorCorrespondenceError, validate_preflighted_successor_pair,
+    };
+    use leselang_host_contract::Revision;
+    use leselang_runtime_core::ContinuationFrame;
+    use std::{
+        cell::RefCell,
+        error::Error,
+        panic::{AssertUnwindSafe, catch_unwind},
+        rc::Rc,
+    };
+
+    struct Token {
+        sequence: u64,
+        drops: Rc<Cell<usize>>,
+    }
+    impl Drop for Token {
+        fn drop(&mut self) {
+            self.drops.set(self.drops.get() + 1);
+        }
+    }
+    type Frame<T> = ContinuationFrame<T, Revision, Type, Effect, ResultBinding>;
+    fn local(frame: Frame<u64>, drops: Rc<Cell<usize>>) -> Frame<Token> {
+        assert!(frame.group_result.is_none());
+        Frame {
+            schema_version: frame.schema_version,
+            token: Token {
+                sequence: frame.token,
+                drops,
+            },
+            program_counter: frame.program_counter,
+            expected_revision: frame.expected_revision,
+            result_type: frame.result_type,
+            pending_effect: frame.pending_effect,
+            fuel_remaining: frame.fuel_remaining,
+            deadline_ms: frame.deadline_ms,
+            deadline_at_ms: frame.deadline_at_ms,
+            max_output_items: frame.max_output_items,
+            result_binding: frame.result_binding,
+            group_result: None,
+        }
+    }
+    fn view<'a, T>(request: &'a AtomicRequest, frame: &'a Frame<T>) -> EffectRequestView<'a, T> {
+        EffectRequestView {
+            effect_id: &request.effect_id,
+            required_capability: &request.required,
+            operation: &request.operation,
+            continuation: frame,
+            budget: &request.budget,
+        }
+    }
+    let (parent, next, value) = source_pair_fixture();
+    let drops = Rc::new(Cell::new(0));
+    let first = local(parent.frame.clone(), drops.clone());
+    let mut second = local(next.frame.clone(), drops.clone());
+    let calls = RefCell::new(Vec::new());
+    let sequence = |token: &Token| {
+        assert!(std::ptr::eq(token, &first.token) || std::ptr::eq(token, &second.token));
+        calls.borrow_mut().push(token.sequence);
+        Some(token.sequence)
+    };
+    assert_eq!(
+        validate_preflighted_successor_pair(
+            view(&parent, &first),
+            view(&next, &second),
+            &value,
+            CAPTURES,
+            |_| panic!("no group owner"),
+            sequence,
+            valid_name
+        ),
+        Ok(())
+    );
+    assert_eq!(*calls.borrow(), [1, 2]);
+    assert_eq!(drops.get(), 0);
+    let count = Cell::new(0);
+    let panic = catch_unwind(AssertUnwindSafe(|| {
+        let _ = validate_preflighted_successor_pair(
+            view(&parent, &first),
+            view(&next, &second),
+            &value,
+            CAPTURES,
+            |_| panic!("no group owner"),
+            |token| {
+                count.set(count.get() + 1);
+                if token.sequence == 2 {
+                    panic!("native projection failed");
+                }
+                Some(token.sequence)
+            },
+            valid_name,
+        );
+    }));
+    assert!(panic.is_err());
+    assert_eq!(count.get(), 2);
+    assert_eq!(drops.get(), 0);
+    assert_eq!((first.fuel_remaining, second.fuel_remaining), (100, 80));
+    second.deadline_ms += 1;
+    let error = validate_preflighted_successor_pair(
+        view(&parent, &first),
+        view(&next, &second),
+        &value,
+        CAPTURES,
+        |_| panic!("no group owner"),
+        |_| panic!("context refuses before identity"),
+        |_| panic!("context refuses before typing"),
+    )
+    .unwrap_err();
+    assert_eq!(error, SuccessorCorrespondenceError::Mismatch);
+    assert_eq!(error.to_string(), "invalid successor correspondence");
+    assert!(error.source().is_none());
+    drop((first, second));
+    assert_eq!(drops.get(), 2);
+}
+
+#[test]
+fn source_atomic_requests_share_frame_correspondence_before_wire_restored_reentry() {
+    let expression = compile(
+        r#"fn main() = bind(first: ui.focus(node_id: "first"), body:
+        bind(next: ui.focus(node_id: field(value: first, name: "node_id")), body:
+        concat(left: field(value: first, name: "node_id"), right: field(value: next, name: "node_id"))))"#,
+    );
+    let original = run(&expression, 10_000, false).unwrap();
+    let admitted = run_with_request_admission(&expression, 10_000, true, true).unwrap();
+    assert_eq!(admitted.value, ScalarValue::String("firstfirst".into()));
+    assert_eq!(admitted.value, original.value);
+    assert_eq!(admitted.effects.len(), 2);
+    assert_eq!(admitted.effects, original.effects);
+    assert_eq!(admitted.frames, original.frames);
+    assert_eq!(admitted.preparations, original.preparations);
+    assert_eq!(admitted.spent, original.spent);
+}
+
+#[test]
+fn adapter_saved_group_plan_gates_source_reentry_without_vm_or_resource_changes() {
+    use leselang_command::{
+        EffectOperation, EffectRequestView, GroupRequestContext,
+        validate_preflighted_group_requests,
+    };
+    use leselang_host_contract::{CapabilitySet, Principal, Revision};
+    use leselang_runtime_core::{ContinuationFrame, ResourceBudget};
+
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct SavedRequest {
+        operation: EffectOperation,
+        required: String,
+        effect_id: String,
+        frame: ContinuationFrame<String, Revision, Type, Effect, ResultBinding>,
+        budget: ResourceBudget,
+    }
+    impl SavedRequest {
+        fn view(&self) -> EffectRequestView<'_, String> {
+            EffectRequestView {
+                effect_id: &self.effect_id,
+                required_capability: &self.required,
+                operation: &self.operation,
+                continuation: &self.frame,
+                budget: &self.budget,
+            }
+        }
+    }
+    fn saved_request(
+        group: &GroupResultBinding,
+        effect: &Effect,
+        binding: Option<Box<ResultBinding>>,
+        sequence: u64,
+        fuel: u64,
+    ) -> SavedRequest {
+        let (required, operation) = leselang_command::lower_effect_operation(
+            effect,
+            Principal::new("fixture").unwrap(),
+            CapabilitySet::new(["ui.presentation"]),
+            None,
+            || panic!("source fixture only prepares presentation operations"),
+        )
+        .unwrap();
+        let frame = ContinuationFrame {
+            schema_version: group.continuation_schema(),
+            token: format!("continuation-{sequence}"),
+            program_counter: 1,
+            expected_revision: None,
+            result_type: HostOperation::for_effect(effect).unwrap().result_type(),
+            pending_effect: effect.clone(),
+            fuel_remaining: fuel,
+            deadline_ms: 2_000,
+            deadline_at_ms: None,
+            max_output_items: 4,
+            result_binding: binding,
+            group_result: Some("merge-1".into()),
+        };
+        let budget = frame.resource_budget();
+        SavedRequest {
+            operation,
+            required,
+            effect_id: format!("effect-{sequence}"),
+            frame,
+            budget,
+        }
+    }
+    fn canonical(token: &str) -> Option<u64> {
+        let sequence = token.strip_prefix("continuation-")?.parse::<u64>().ok()?;
+        (0 < sequence && sequence <= 101 && token == format!("continuation-{sequence}"))
+            .then_some(sequence)
+    }
+    fn check_requests(
+        plan: &MergePlan,
+        requests: &[(String, SavedRequest)],
+    ) -> Result<(), Refusal> {
+        let group = admit(plan)?;
+        let result_type =
+            validate_result_binding(&group.binding, &group.pending, CAPTURES, valid_name)
+                .map_err(|_| Refusal::Admission)?;
+        let names = requests
+            .iter()
+            .map(|(name, request)| (name.as_str(), request))
+            .collect::<Vec<_>>();
+        validate_preflighted_group_requests(
+            group,
+            GroupRequestContext {
+                owner: &"merge-1".into(),
+                plan,
+                result_type,
+                max_successor_names: 4,
+                binding_limits: CAPTURES,
+            },
+            &names,
+            |request| request.view(),
+            String::as_str,
+            |token| canonical(token),
+            valid_name,
+        )
+        .map_err(|_| Refusal::Admission)
+    }
+    fn verify_requests(
+        plan: &MergePlan,
+        requests: &[(String, SavedRequest)],
+        fuel: &Fuel,
+        prepared: &Cell<usize>,
+    ) {
+        let remaining = fuel.remaining();
+        let preparations = prepared.get();
+        for (_, request) in requests {
+            if let Some(binding) = &request.frame.result_binding {
+                validate_result_binding(
+                    binding,
+                    &request.frame.pending_effect,
+                    CAPTURES,
+                    valid_name,
+                )
+                .unwrap();
+            }
+            leselang_command::validate_preflighted_effect_request(request.view(), |token| {
+                canonical(token)
+            })
+            .unwrap();
+        }
+        let bytes = serde_json::to_vec(requests).unwrap();
+        assert!(bytes.len() < 32 * 1024);
+        let restored: Vec<(String, SavedRequest)> = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(check_requests(plan, &restored), Ok(()));
+        assert_eq!(serde_json::to_vec(&restored).unwrap(), bytes);
+        for defect in 0..8 {
+            let mut broken = restored.clone();
+            let (name, request) = broken.last_mut().unwrap();
+            match defect {
+                0 => *name = "wrong-name".into(),
+                1 | 2 => {
+                    let EffectOperation::Presentation(envelope) = &mut request.operation else {
+                        panic!()
+                    };
+                    if defect == 1 {
+                        envelope.principal.id = "other".into();
+                    } else {
+                        envelope.capabilities =
+                            CapabilitySet::new(["ui.presentation", "runtime.read"]);
+                    }
+                }
+                3 => request.frame.expected_revision = Some(Revision(1)),
+                4 => request.frame.deadline_ms += 1,
+                5 => request.frame.group_result = Some("merge-999".into()),
+                6 => request.frame.token = "continuation-0100".into(),
+                7 => request.frame.fuel_remaining = u64::MAX,
+                _ => unreachable!(),
+            }
+            let before = serde_json::to_vec(&broken).unwrap();
+            assert_eq!(
+                check_requests(plan, &broken),
+                Err(Refusal::Admission),
+                "defect {defect}"
+            );
+            assert_eq!(serde_json::to_vec(&broken).unwrap(), before);
+        }
+        assert_eq!(fuel.remaining(), remaining);
+        assert_eq!(prepared.get(), preparations);
+    }
+
+    // Fixture-owned ingress/identity policy, not a production recovery authority.
+    fn admit(plan: &MergePlan) -> Result<&GroupResultBinding, Refusal> {
+        plan.validate_shape(MergePlanShapeLimits {
+            max_branches: 4,
+            max_name_bytes: 64,
+        })
+        .map_err(|_| Refusal::Admission)?;
+        let group = plan.result_binding.as_deref().ok_or(Refusal::Admission)?;
+        validate_group_binding(
+            group,
+            plan,
+            GroupBindingLimits {
+                plan: GroupPlanLimits {
+                    max_branches: 4,
+                    max_effect_sequence: 101,
+                    max_fuel: 1000,
+                },
+                binding: CAPTURES,
+            },
+            valid_name,
+            |plan| {
+                let bytes = serde_json::to_vec(plan).map_err(|_| Refusal::Admission)?;
+                if bytes.len() > 16 * 1024 {
+                    Err(Refusal::Admission)
+                } else {
+                    Ok(())
+                }
+            },
+        )
+        .map_err(|_| Refusal::Admission)?;
+        Ok(group)
+    }
+
+    for mode in ["seq", "all"] {
+        let expression = compile(&source(mode));
+        let expected = run(&expression, 1000, true).unwrap();
+        let allowed = Cell::new(true);
+        let prepared = Cell::new(0);
+        let adapter = Adapter {
+            allowed: &allowed,
+            prepared: &prepared,
+            fail_projection: false,
+            marker: PhantomData,
+        };
+        let mut fuel = Fuel::new(1000);
+        let Step::Pending { effect, binding } = begin(&expression, &adapter, &mut fuel).unwrap()
+        else {
+            panic!("expected source group");
+        };
+        let plan = MergePlan {
+            branches: vec!["a".into(), "b".into()],
+            order: if mode == "all" {
+                ExecutionOrder::ParallelGroupDataflow
+            } else {
+                ExecutionOrder::GroupDataflow
+            },
+            result_binding: Some(Box::new(GroupResultBinding {
+                pending: effect,
+                binding,
+                fuel_remaining: fuel.remaining(),
+                successor_sequence: Some(100),
+                additional_successor_sequences: vec![101],
+            })),
+        };
+        let bytes = serde_json::to_vec(&plan).unwrap();
+        drop(plan);
+        let restored: MergePlan = serde_json::from_slice(&bytes).unwrap();
+        let remaining = fuel.remaining();
+        let preparations = prepared.get();
+        for defect in 0..5 {
+            let mut broken = restored.clone();
+            match defect {
+                0 => broken.branches.reverse(),
+                1 => broken.order = ExecutionOrder::GroupTail,
+                2 => {
+                    broken
+                        .result_binding
+                        .as_mut()
+                        .unwrap()
+                        .additional_successor_sequences[0] = 100
+                }
+                3 => broken.result_binding.as_mut().unwrap().fuel_remaining = 1001,
+                4 => {
+                    let group = broken.result_binding.as_mut().unwrap();
+                    let (Effect::Sequence { steps } | Effect::All { branches: steps }) =
+                        &mut group.pending
+                    else {
+                        unreachable!()
+                    };
+                    steps[0].result_type = Type::UiFocus;
+                }
+                _ => unreachable!(),
+            }
+            let original = serde_json::to_vec(&broken).unwrap();
+            assert_eq!(admit(&broken), Err(Refusal::Admission));
+            assert_eq!(serde_json::to_vec(&broken).unwrap(), original);
+            assert_eq!(fuel.remaining(), remaining);
+            assert_eq!(prepared.get(), preparations);
+        }
+        let group = admit(&restored).unwrap();
+        assert_eq!(group.fuel_remaining, fuel.remaining());
+        let mut active_plan = restored.clone();
+        let mut requests = group
+            .plan_branches()
+            .unwrap()
+            .iter()
+            .enumerate()
+            .map(|(index, branch)| {
+                let fuel = group.fuel_remaining + 1 - if mode == "seq" { index as u64 } else { 0 };
+                (
+                    branch.name.clone(),
+                    saved_request(group, &branch.effect, None, index as u64 + 2, fuel),
+                )
+            })
+            .collect::<Vec<_>>();
+        verify_requests(&active_plan, &requests, &fuel, &prepared);
+        let mut step = resume(
+            &group.pending,
+            &group.binding,
+            &reply(&group.pending),
+            &adapter,
+            &mut fuel,
+        )
+        .unwrap();
+        for position in 0..2 {
+            let Step::Pending { effect, binding } = step else {
+                panic!("expected captured successor")
+            };
+            let name = group.plan_successor_name_at(position, 4).unwrap();
+            active_plan.branches.push(name.clone());
+            requests.push((
+                name,
+                saved_request(
+                    group,
+                    &effect,
+                    Some(binding.clone()),
+                    100 + position as u64,
+                    fuel.remaining(),
+                ),
+            ));
+            verify_requests(&active_plan, &requests, &fuel, &prepared);
+            step = resume(&effect, &binding, &reply(&effect), &adapter, &mut fuel).unwrap();
+        }
+        assert_eq!(step, Step::Done(expected.value));
+        assert_eq!(1000 - fuel.remaining(), expected.spent);
+        assert_eq!(prepared.get(), expected.preparations);
+        assert_eq!(serde_json::to_vec(&restored).unwrap(), bytes);
     }
 }
 

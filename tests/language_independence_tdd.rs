@@ -493,8 +493,15 @@ fn real_execution_reentry_uses_shared_original_state_without_a_second_meter_or_p
     assert!(!saved.contains(".clone()"));
     let group =
         std::fs::read_to_string(root.join("crates/leselang-vm/src/group_binding.rs")).unwrap();
-    assert!(group.contains("!self.binding.results.is_empty()"));
-    assert!(group.contains("!self.binding.groups.is_empty()"));
+    assert!(group.contains("leselang_command::validate_group_binding("));
+    let group_admission =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/group_admission.rs"))
+            .unwrap();
+    assert!(group_admission.contains(".validate_preflighted_plan(plan, limits.plan)"));
+    let group_policy =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/group_plan.rs")).unwrap();
+    assert!(group_policy.contains("!self.binding.results.is_empty()"));
+    assert!(group_policy.contains("!self.binding.groups.is_empty()"));
     let shared_proofs = std::fs::read_to_string(
         root.join("crates/leselang-runtime-core/tests/capture_scope_state.rs"),
     )
@@ -1272,8 +1279,19 @@ fn leselang_runtime_core_has_no_workspace_or_build_dependency_even_in_its_tests(
         .split_once("  rust:\n")
         .unwrap()
         .0;
-    assert!(standalone_job.contains("cargo +1.98.0 package -p leselang-runtime-core --locked"));
-    assert!(standalone_job.contains("cargo +1.98.0 test --manifest-path target/package/leselang-runtime-core-*/Cargo.toml --locked --offline"));
+    let package = standalone_job
+        .find("cargo +1.98.0 package -p leselang-runtime-core --locked")
+        .expect("standalone package verification must remain locked");
+    let fetch = standalone_job
+        .find("cargo +1.98.0 fetch --manifest-path target/package/leselang-runtime-core-*/Cargo.toml --locked")
+        .expect("normalized package dev-dependencies must be fetched before offline tests");
+    let test = standalone_job
+        .find("cargo +1.98.0 test --manifest-path target/package/leselang-runtime-core-*/Cargo.toml --locked --offline")
+        .expect("standalone tests must remain locked and offline");
+    assert!(
+        package < fetch && fetch < test,
+        "fetch must use the verified package's lockfile before offline tests"
+    );
     assert!(workflow.contains("needs: [rust, product-surfaces, leselang-core]"));
 }
 

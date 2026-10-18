@@ -3,11 +3,167 @@ use leselang_hir::lower;
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_syntax::parse;
 use leselang_vm::{
-    CancellationReason, DispatchClaim, EffectError, EffectErrorClass, EffectOperation,
-    EffectRequest, EffectResult, PresentationOperation, PresentationResult, RetentionPolicy,
-    RetryDisposition, RetryPolicy, ScalarValue, SchedulerLimits, Step, Value, Vm,
-    decode_continuation, encode_continuation,
+    CancellationReason, DispatchClaim, DispatchLease, EffectError, EffectErrorClass,
+    EffectOperation, EffectRequest, EffectResult, FailedEffect, PresentationOperation,
+    PresentationResult, RetentionPolicy, RetryDisposition, RetryPolicy, RetrySchedule, ScalarValue,
+    SchedulerLimits, Step, Value, Vm, decode_continuation, encode_continuation,
 };
+
+#[test]
+fn merge_plan_and_order_are_exact_adapter_types_with_legacy_constructor_and_variant_imports() {
+    use leselang_vm::ExecutionOrder::{Parallel, Sequential};
+    use leselang_vm::{ExecutionOrder, MAX_MERGE_BRANCH_NAME_BYTES, MAX_MERGE_BRANCHES, MergePlan};
+    use std::any::TypeId;
+    assert_eq!(
+        TypeId::of::<MergePlan>(),
+        TypeId::of::<leselang_command::MergePlan>()
+    );
+    assert_eq!(
+        TypeId::of::<ExecutionOrder>(),
+        TypeId::of::<leselang_command::ExecutionOrder>()
+    );
+    assert_eq!((MAX_MERGE_BRANCHES, MAX_MERGE_BRANCH_NAME_BYTES), (64, 64));
+    let plan = leselang_command::MergePlan::new(["a", "b"]).unwrap();
+    let original = plan.branches.as_ptr();
+    let wire = serde_json::to_vec(&plan).unwrap();
+    let same: MergePlan = plan;
+    assert_eq!(same.branches.as_ptr(), original);
+    assert_eq!(same.order, Parallel);
+    assert_eq!(serde_json::to_vec(&same).unwrap(), wire);
+    let sequential: leselang_command::ExecutionOrder = Sequential;
+    assert!(sequential.is_sequential());
+    let refusal: Result<MergePlan, leselang_vm::Fault> = MergePlan::new(["only"]);
+    assert_eq!(refusal.unwrap_err().code, "LSV2401");
+}
+
+#[test]
+fn group_continuation_is_the_exact_adapter_type_without_conversion_or_new_ownership() {
+    use leselang_hir::{Effect, computation::Computation};
+    use leselang_vm::{GroupResultBinding, ResultBinding};
+    use std::any::TypeId;
+    assert_eq!(
+        TypeId::of::<GroupResultBinding>(),
+        TypeId::of::<leselang_command::GroupResultBinding>()
+    );
+    let group = leselang_command::GroupResultBinding {
+        pending: Effect::Sequence { steps: vec![] },
+        binding: Box::new(ResultBinding {
+            name: "group".into(),
+            locals: vec![],
+            results: vec![],
+            groups: vec![],
+            body: Computation::Literal {
+                value: ScalarValue::None,
+            },
+        }),
+        fuel_remaining: 100,
+        successor_sequence: None,
+        additional_successor_sequences: vec![],
+    };
+    let original = &*group.binding as *const ResultBinding;
+    let wire = serde_json::to_vec(&group).unwrap();
+    let same: GroupResultBinding = group;
+    assert_eq!(&*same.binding as *const ResultBinding, original);
+    assert_eq!(serde_json::to_vec(&same).unwrap(), wire);
+    assert_eq!(
+        serde_json::from_slice::<GroupResultBinding>(&wire).unwrap(),
+        same
+    );
+}
+
+#[test]
+fn released_dispatch_data_keeps_legacy_bytes_defaults_and_unknown_field_policy() {
+    use leselang_vm::RetryDisposition::{Scheduled, Terminal};
+    let mut vm = Vm::new(100);
+    let request = effect(start(&mut vm, r#"fn main() = ui.focus(node_id: "a")"#));
+    let request_wire = serde_json::to_string(&request).unwrap();
+    let lease = DispatchLease {
+        request,
+        attempt: 2,
+        retry_count: 1,
+        lease_expires_at_ms: 900,
+    };
+    let wire = format!(
+        "{{\"request\":{request_wire},\"attempt\":2,\"retry_count\":1,\"lease_expires_at_ms\":900}}"
+    );
+    assert_eq!(serde_json::to_string(&lease).unwrap(), wire);
+    assert_eq!(serde_json::from_str::<DispatchLease>(&wire).unwrap(), lease);
+    let legacy = format!(
+        "{{\"request\":{request_wire},\"attempt\":2,\"lease_expires_at_ms\":900,\"extension\":true}}"
+    );
+    assert_eq!(
+        serde_json::from_str::<DispatchLease>(&legacy)
+            .unwrap()
+            .retry_count,
+        0
+    );
+    let mut forged = serde_json::to_value(&lease).unwrap();
+    forged["request"]["extension"] = serde_json::json!(true);
+    assert!(serde_json::from_value::<DispatchLease>(forged).is_err());
+    let error = EffectError {
+        class: EffectErrorClass::Transient,
+        code: "busy".into(),
+        message: "wait".into(),
+    };
+    let failed = FailedEffect {
+        error: error.clone(),
+        retry_count: 1,
+    };
+    assert_eq!(
+        serde_json::to_string(&failed).unwrap(),
+        r#"{"error":{"class":"transient","code":"busy","message":"wait"},"retry_count":1}"#
+    );
+    let schedule = RetrySchedule {
+        retry_count: 1,
+        ready_at_ms: 120,
+        error,
+    };
+    let scheduled = Scheduled(schedule);
+    assert_eq!(
+        serde_json::to_string(&scheduled).unwrap(),
+        r#"{"kind":"scheduled","payload":{"retry_count":1,"ready_at_ms":120,"error":{"class":"transient","code":"busy","message":"wait"}}}"#
+    );
+    assert_eq!(
+        serde_json::from_str::<RetryDisposition>(&serde_json::to_string(&scheduled).unwrap())
+            .unwrap(),
+        scheduled
+    );
+    let terminal = Terminal(Step::Failed(failed));
+    assert_eq!(
+        serde_json::to_string(&terminal).unwrap(),
+        r#"{"kind":"terminal","payload":{"kind":"failed","payload":{"error":{"class":"transient","code":"busy","message":"wait"},"retry_count":1}}}"#
+    );
+    assert_eq!(
+        serde_json::from_str::<RetryDisposition>(&serde_json::to_string(&terminal).unwrap())
+            .unwrap(),
+        terminal
+    );
+}
+
+#[test]
+fn released_dispatch_types_are_exact_native_specializations() {
+    use std::any::TypeId;
+    assert_eq!(
+        TypeId::of::<DispatchLease>(),
+        TypeId::of::<leselang_runtime_core::DispatchLease<EffectRequest>>()
+    );
+    assert_eq!(
+        TypeId::of::<FailedEffect>(),
+        TypeId::of::<leselang_runtime_core::FailedEffect<EffectError>>()
+    );
+    assert_eq!(
+        TypeId::of::<RetrySchedule>(),
+        TypeId::of::<leselang_runtime_core::RetrySchedule<EffectError>>()
+    );
+    let mut vm = Vm::new(100);
+    effect(start(&mut vm, r#"fn main() = ui.focus(node_id: "a")"#));
+    let lease: leselang_runtime_core::DispatchLease<EffectRequest> =
+        vm.claim_effect(1, 10).unwrap().unwrap();
+    assert!(matches!(
+        vm.acknowledge_effect(&lease, 2, focus("a")),
+        Step::Done(_)
+    ));
+}
 
 #[test]
 fn released_host_protocol_paths_are_exact_product_adapter_types() {

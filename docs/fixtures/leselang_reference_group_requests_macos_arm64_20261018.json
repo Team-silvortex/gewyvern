@@ -1,0 +1,176 @@
+{
+  "kind": "leselang-reference-group-request-correspondence",
+  "validated_on": "2026-10-18",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "reference_execution_contract": "1.95.0",
+  "native_embedding_contract": "0.162.0",
+  "real_journal_snapshots": 40,
+  "valid_flow_forms": 10,
+  "frozen_comparisons": 2880,
+  "source_reentry_torn_row_cases": 48,
+  "baseline_passed": true,
+  "post_migration_parity_passed": true,
+  "source_group_request_reentry_passed": true,
+  "opaque_local_row_ownership_preserved": true,
+  "callback_unwind_without_retry": true,
+  "no_intermediate_request_collection": true,
+  "memory_profile_passed": true,
+  "native_profile_passed": true,
+  "wire_or_journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "scope": "Product correspondence of an admitted group plan and original request rows now shares prefix signatures/owners/fuel, reserved successors, captured types/group signatures, decreasing fuel and inherited authority/revision/deadline/output policy. Borrowed row views add no intermediate request collection or Clone/Debug/serde/Send bounds on native tokens. Identity projections and name policy remain trusted native hooks over one immutable admitted snapshot. The real VM retains full plan admission before the rule and original full request/frame, receipt, live authority and atomic journal recovery gates. Forty real memory-journal snapshots cover ten Seq/All pure/tail/capture/dataflow/conditional forms and 2880 frozen comparisons. The VM-free parsed Seq/All saved-plan proof applies the same rule to original/wire-restored rows before both captured successors and rejects 48 torn rows without changing preparation or fuel. Inherited-context comparison still ignores fuel by design; fuel progression remains a separate ordered rule. Capture type lookup shares one bounded-IR walker. No product version, wire schema, complete native durable VM or repository extraction promotion.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/group_requests.rs",
+      "sha256": "962e8de5f2e8680b2c5aa7b968f18b7f58da226837a3eb28d533efc77a8b414d"
+    },
+    {
+      "path": "crates/leselang-command/src/request_correspondence.rs",
+      "sha256": "e3f32886aaaab600cf2aaf5ad05c794f30db3558a307c5efeab5126ac490db45"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "2a5eedbd08f371268d3c70dd968d3948cbf049f782060d762bd079a9579989f2"
+    },
+    {
+      "path": "crates/leselang-command/tests/merge_plan.rs",
+      "sha256": "5a61f108d170310a02fa8cd23072cc1fd779c91c14fc5219c00de638eff86459"
+    },
+    {
+      "path": "crates/leselang-command/tests/captured_execution.rs",
+      "sha256": "4dad6a4a4df2694514c62159a29f8ec8c4b34bc24cf11fd0600a18f5c87b4a1a"
+    },
+    {
+      "path": "crates/leselang-command/tests/host_protocol.rs",
+      "sha256": "2e32e50fe5ec155d88ae885d726970913ed99885698b08aaedc3a61cdba90ee3"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_binding.rs",
+      "sha256": "c874a714777d74eb30acbd0a276f5990437d74ef237b963a7eff5c7e72423cf3"
+    },
+    {
+      "path": "crates/leselang-vm/src/result_binding.rs",
+      "sha256": "2cf87a5c9ce9e8fa5f88c412def105d602a25c8e2bd4d9c0dbdf2317ee6d94a4"
+    },
+    {
+      "path": "crates/leselang-vm/src/successor.rs",
+      "sha256": "2ec5f9bbded466dbb8c9555f4a6dd5100436e9b57dd16cc12fcaa8a6756eddb6"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "7e12839335357fe9978b945627e153a097deea91e080993e430cc51a980723d2"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "2982e802ea5365a5155afc85b379b95000908eec718cdcfa65f6671904ead7cf"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_request_contract_tests.rs",
+      "sha256": "57f9bba224bc3fd19b69c69adb72c89f791aa207fd780df374a4a7e5b74e3fa4"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "f23f82ab8663e29e6768a19691e4dad8ddee68082cd61cc467c68e8e6f8a3d77"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "538acfdadf5f55ffd125c9348773bd3962e07acac94a9d2402ea7f0aa3f1d933"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "dc2ffbf85faa653dac2aafa27cafae1f888c998c6177044f797bd9d89fb61941"
+    }
+  ],
+  "verification": [
+    {
+      "name": "baseline",
+      "path": "/private/tmp/leselang-group-requests-FcFosB/baseline.log",
+      "sha256": "6afa465313f359e7b25c56b51e16ba1c110d9405d45457d893a1b122cd922c5d",
+      "passed": 1
+    },
+    {
+      "name": "parity",
+      "path": "/private/tmp/leselang-group-requests-FcFosB/parity.log",
+      "sha256": "2f1ba7be0b9b938e6b026be804665dcd75559b8f84c783337f8351045f8198a8",
+      "passed": 1
+    },
+    {
+      "name": "consumer",
+      "path": "/private/tmp/leselang-group-requests-FcFosB/consumer.log",
+      "sha256": "f11020734257aa193667a5537dfce6f4527f7073b408c10954008acff25806de",
+      "passed": 12
+    },
+    {
+      "name": "adapter",
+      "path": "/private/tmp/leselang-group-requests-FcFosB/adapter.log",
+      "sha256": "6b18f82d95ebe9dac8b2758e6a477aaf33d2384dafb9c4ab730f05905f4a2809",
+      "passed": 94
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-group-requests-FcFosB/runtime.log",
+      "sha256": "01111d2fb64bfe98bf456ef6a170a9db70f32c2bb939047f971734ed54d82ede",
+      "passed": 3174
+    },
+    {
+      "name": "memory",
+      "path": "/private/tmp/leselang-group-requests-FcFosB/memory.log",
+      "sha256": "8ae093b1bfaa8a94eb21041f74ec32882766f672a301658f341523fc160ec7b8",
+      "passed": 198
+    },
+    {
+      "name": "native",
+      "path": "/private/tmp/leselang-group-requests-FcFosB/native.log",
+      "sha256": "bc70dcce46ee17dbd6afc668cad5e6b7052fdf95948a7a13dc97a94ef002e188",
+      "passed": 50
+    },
+    {
+      "name": "adapter-tree",
+      "path": "/private/tmp/leselang-group-requests-FcFosB/adapter-tree.log",
+      "sha256": "d75f8df9257048210b0b1b1869b59959894d689e09e5f413b05c414042a268bf",
+      "forbidden_dependencies_absent": [
+        "leselang-vm",
+        "rusqlite",
+        "libsqlite3-sys"
+      ]
+    },
+    {
+      "name": "native-tree",
+      "path": "/private/tmp/leselang-group-requests-FcFosB/native-tree.log",
+      "sha256": "648ce0bd6a92678072f5e583c34468351fa107a920b6e28eb7d87d17eee4fef6",
+      "forbidden_dependencies_absent": [
+        "leselang-command",
+        "leselang-host-contract",
+        "leserpent-domain",
+        "rusqlite",
+        "libsqlite3-sys"
+      ]
+    },
+    {
+      "name": "root",
+      "path": "/private/tmp/leselang-group-requests-FcFosB/root.log",
+      "sha256": "29434eb0624c2f8e975dc44c831e4867d71c8d38a8bd1ef8b998cda1ed8355af",
+      "passed": 430
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-group-requests-FcFosB/clippy.log",
+      "sha256": "3c037398c6d171afa89d7d90fe6ce466df489d4b09d89477eee6fb2fa27d7c0c",
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "memory-clippy",
+      "path": "/private/tmp/leselang-group-requests-FcFosB/memory-clippy.log",
+      "sha256": "4fd747fe90778ac177f395013df7f8f1695207cc77bd69bff8e37579cc72f46f",
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "native-clippy",
+      "path": "/private/tmp/leselang-group-requests-FcFosB/native-clippy.log",
+      "sha256": "b64fd83cf0bcc5e3757fe4f036e321e8705d11976a196cf54c84ff82d69941dc",
+      "warnings_as_errors_passed": true
+    }
+  ]
+}

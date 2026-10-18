@@ -1,0 +1,144 @@
+{
+  "kind": "leselang-reference-continuation-schema",
+  "validated_at_utc": "2026-10-16T03:08:38.160Z",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "reference_execution_contract": "1.89.0",
+  "native_embedding_contract": "0.162.0",
+  "continuation_schema_versions": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "frozen_frame_comparisons": 22848,
+  "baseline_passed": true,
+  "post_migration_parity_passed": true,
+  "structure_before_schema": true,
+  "explicit_sequence_ceiling": true,
+  "memory_profile_passed": true,
+  "native_profile_passed": true,
+  "wire_or_journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "scope": "Released schema vocabulary, result-binding version selection and group compatibility are product-adapter owned. Borrowed classifiers require bounded structure preflight and explicit sequence policy. VM token/PC/type/capture/budget checks, live authority and durable restoration stay unchanged. This proves reference compatibility, not a complete host-neutral VM or repository extraction.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/continuation_schema.rs",
+      "sha256": "1ddc10f4f3eb8faa223d028d0d1e38b9d98d8c03f0de757cb8639e102fdf332a"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "e16a7488150554e295f697e7597aaa473db794c4cb74646b363e2748c2b57007"
+    },
+    {
+      "path": "crates/leselang-command/tests/result_binding.rs",
+      "sha256": "75e2da312606eb871cabac251225fe22e3dc0072b237d6fa4f78965bbd7f3996"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "68633757db7199467b964c0bc20222735d725282ae0c413b49b711780e47bc01"
+    },
+    {
+      "path": "crates/leselang-vm/src/result_binding.rs",
+      "sha256": "a2de77f80d14cf806dd2c096ff10d3241926f3d08b8c2ceddc4e8de097a9169e"
+    },
+    {
+      "path": "crates/leselang-vm/src/continuation_schema_tests.rs",
+      "sha256": "fd380a434cbd505ea38ccebfa270e96b3f9fb531fb3dd4d20608c28ae0fc29e8"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "d7a49a43ae81360284347f9b6b830ec3e27a56763ac083d3d05bdcd513211354"
+    }
+  ],
+  "verification": [
+    {
+      "name": "baseline",
+      "path": "/private/tmp/leselang-continuation-schema-HHV3ae/baseline.log",
+      "sha256": "2e3c4936855bf34b1d0328aaa0d2f4aa181679dd4339d3e83b4709a886690f8d",
+      "passed": 2
+    },
+    {
+      "name": "parity",
+      "path": "/private/tmp/leselang-continuation-schema-HHV3ae/parity.log",
+      "sha256": "927ee98bf803735bf8ffa63c299c31741da6f9b28aacbb84e8d73973bcbb33f2",
+      "passed": 2
+    },
+    {
+      "name": "adapter",
+      "path": "/private/tmp/leselang-continuation-schema-HHV3ae/adapter.log",
+      "sha256": "c7fbcf8ca6379a075de80403d23c0d441e6ffa138f2a0b5337f38ba567814f25",
+      "passed": 7
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-continuation-schema-HHV3ae/runtime.log",
+      "sha256": "4d53acbcc9f56b16886aac717d875cd9154ac7642e4eb90488082e8e3cf6f0f6",
+      "passed": 3135
+    },
+    {
+      "name": "memory",
+      "path": "/private/tmp/leselang-continuation-schema-HHV3ae/memory.log",
+      "sha256": "b5f74f13689b4af38393700ed29322eba7412c614f130394403d58f4ec8a773c",
+      "passed": 188
+    },
+    {
+      "name": "native",
+      "path": "/private/tmp/leselang-continuation-schema-HHV3ae/native.log",
+      "sha256": "bce4024b7041ec71ff370670c93d9afc5406620d746bf112e464f6960498f281",
+      "passed": 50
+    },
+    {
+      "name": "adapter-tree",
+      "path": "/private/tmp/leselang-continuation-schema-HHV3ae/adapter-tree.log",
+      "sha256": "d75f8df9257048210b0b1b1869b59959894d689e09e5f413b05c414042a268bf",
+      "forbidden_dependencies_absent": [
+        "leselang-vm",
+        "rusqlite"
+      ]
+    },
+    {
+      "name": "native-tree",
+      "path": "/private/tmp/leselang-continuation-schema-HHV3ae/native-tree.log",
+      "sha256": "648ce0bd6a92678072f5e583c34468351fa107a920b6e28eb7d87d17eee4fef6",
+      "forbidden_dependencies_absent": [
+        "leselang-command",
+        "leselang-host-contract",
+        "leserpent-domain",
+        "rusqlite"
+      ]
+    },
+    {
+      "name": "root",
+      "path": "/private/tmp/leselang-continuation-schema-HHV3ae/root.log",
+      "sha256": "068e5a7bec8badcb0b7f0b7cb7500ec8cb4a462b6a4e3323fcb829d84ac22e57",
+      "passed": 418
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-continuation-schema-HHV3ae/clippy.log",
+      "sha256": "d1e356fbac82fac9fa76e60ccca209775702667ac2416382efdd37484d252189",
+      "strict_warnings_passed": true
+    },
+    {
+      "name": "memory-clippy",
+      "path": "/private/tmp/leselang-continuation-schema-HHV3ae/memory-clippy.log",
+      "sha256": "f93f3d779d67c8fd1c8f0569fcefa4e15c037c8e73d6709a63d82abb73b966fc",
+      "strict_warnings_passed": true
+    },
+    {
+      "name": "native-clippy",
+      "path": "/private/tmp/leselang-continuation-schema-HHV3ae/native-clippy.log",
+      "sha256": "6faf060d09625611c11b10ede4e883ff0d5120d2b96bcab5d209b58a7c55d418",
+      "strict_warnings_passed": true
+    }
+  ]
+}

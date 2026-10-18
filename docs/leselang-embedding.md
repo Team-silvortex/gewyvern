@@ -6821,6 +6821,34 @@ The [isolated-source proof](fixtures/leselang_native_dispatch_plan_source_export
 records original source and consumer hashes. Native embedding remains
 Developing/Draft at completion 10, with complete VM/extraction flags false.
 
+### Host-Owned Dispatch Data
+
+The reference VM now specializes runtime-core's `DispatchLease<Request>`,
+`RetrySchedule<Error>` and `FailedEffect<Error>` directly. These replace three
+product-VM-owned definitions rather than introducing a mirror protocol. Both
+journals and existing consumers keep the released names and use the same types;
+native hosts need no product request, continuation, error classification or Step.
+
+Opaque move-only requests/errors, borrowed views and GUI-local resources can be
+constructed and moved without Clone/Debug/serde/Send/Sync/Default/'static bounds.
+Derived traits remain conditional. The original lease retry-count zero default,
+field order and outer unknown-field policy are preserved, while each nested host
+codec keeps its own validation. Decode does not enforce counter/time policy or
+authenticate saved data. Adapters still check identity, grants, deadlines and
+current storage in the same transaction/owner as settlement.
+
+The product `RetryDisposition` enum remains product-owned, including supported
+variant imports, fault classification and terminal Step semantics. This is data
+ownership extraction, not a generic scheduler, queue, durable owner or full VM
+extraction. Numeric and GUI-local host tests compose the real lease/retry planners
+without cloning payloads; reference tests pin pre-refactor wire bytes and exact
+type identity. The same native tests run unchanged in the exported consumer.
+
+The [isolated-source proof](fixtures/leselang_native_dispatch_data_source_export_macos_arm64_20261016.json)
+tracks this contract at `0.162.0`. Embedding remains Developing/Draft at completion
+10; full-language coverage, durable ownership and reference migration remain
+separate gates rather than being implied by shared dispatch data.
+
 ### Shared Flat Group Graph Inspection
 
 `validate_group_graph()` in runtime-core inspects complete original rows against
@@ -7731,6 +7759,168 @@ recovery and repository extraction remain open.
 <a id="230-repository-extraction-target"></a>
 
 ## Repository Extraction Readiness
+
+The reference operation-request policy is now adapter-owned. The VM delegates
+category/capability/envelope/payload correspondence to
+`leselang_command::EffectOperation::validate_request(OperationRequestContext)`;
+the adapter also owns borrowed declared-authority access. Original frame and
+successor-pair admission, canonical sequence/identity allocation, budget grants, closed
+current/legacy request decoding and durable state stay with the VM. Payload-free
+adapter errors map to the same `LSV2011`/`LSV2012`/`LSV2013` faults, including the
+earlier category mismatch fence. Tests cover all 70 operations without importing
+the VM and compare the reference entry against its frozen pre-migration behavior.
+The [macOS request-admission proof](fixtures/leselang_reference_operation_admission_macos_arm64_20261016.json)
+records the baseline, parity and runtime/profile verification evidence.
+This is reference-adapter convergence, not a new native-core capability or proof
+of complete extraction; the native embedding contract remains `0.162.0`.
+
+Post-image correspondence is now shared as one ordered entry,
+`validate_preflighted_effect_request(EffectRequestView, canonical_sequence)`.
+It checks cold successor capabilities before invoking the caller's identity hook,
+then derives product IDs, validates the operation and compares every budget field.
+The borrowed view imposes no traits on the opaque token; the trusted hook recognizes
+canonical nonzero bounded identities, runs at most once, and does not allocate an
+identity. Unwind propagates without retry, and skipped hooks release their captures.
+Closed errors contain no token or payload. The VM still fully validates the frame
+before this entry, and both current and legacy request decoders still call the full
+VM admission gate. Equal forged budgets do not become authenticated grants.
+The [request-correspondence proof](fixtures/leselang_reference_request_correspondence_macos_arm64_20261018.json)
+records the 24,570-case frozen operation matrix, 1,680 additional cold-body/conflicting
+error cases, opaque local-token ownership and the VM-free source-to-two-requests,
+wire-restored capture/reentry path with unchanged preparation and fuel. This is
+product-adapter convergence, not a portable request codec or independent durable VM.
+
+`leselang_command::lower_effect_operation` now owns the matching construction
+boundary: GUI/query/command envelopes and product origin/confirmation/dry-run
+policy. The VM supplies original authority/revision and a lazy command-identity
+factory; GUI lowering never invokes it, while other paths invoke it once before
+control-plane lowering. Fuel, sequence grammar/allocation, continuation creation,
+full request admission and journal ownership stay in the VM. Moving the new image
+directly into the request removes a redundant clone without changing bytes.
+VM-free construction tests cover all 70 operations, owned factory cleanup and
+refusal/unwind order; 1,120 before/after VM comparisons preserve wire/fuel/faults.
+The [construction proof](fixtures/leselang_reference_operation_lowering_macos_arm64_20261016.json)
+records this adapter migration, not independent durable-VM acceptance.
+
+The adapter also owns released continuation schemas 1-11 in
+`leselang_command::continuation_schema`; existing VM constant paths are exact
+re-exports. `preflighted_result_binding_schema_version` selects binding versions;
+`validate_preflighted_continuation_schema` checks group/version compatibility with
+an explicit caller sequence ceiling. Both require bounded structure preflight.
+These borrowed protocol checks do not authenticate tokens/groups, allocate IDs,
+grant authority or recover journals. The VM keeps structure before schema, maps
+refusals to unchanged `LSV1409`/`LSV2001` faults, and retains token/PC/type/capture/
+budget checks and durable restoration. The frozen old frame validator passes
+22,848 before/after comparisons, including legacy group-only versions, malformed
+owners, capture variants and conflicting errors. The
+[continuation-schema proof](fixtures/leselang_reference_continuation_schema_macos_arm64_20261016.json)
+records this reference protocol migration without promoting native completeness.
+
+Group recovery metadata now follows the same boundary: `GroupResultBinding` is
+owned by `leselang-command` and exactly re-exported at the released VM path.
+Its five saved fields, omission/default rules and closed decoding remain unchanged.
+The adapter classifies bounded group bodies and selects the group schema; its
+`successor_schema_matches` compares version/owner relationships only. Both frames
+must still pass VM admission before the latter predicate is used. Equal owner
+strings alone are not authentic ownership, and stored reservations are not a live
+allocator grant. The private VM extension composes plan admission and keeps member/
+request/capture checks, fuel ownership, inherited authority, identity monotonicity,
+evaluation and journal recovery.
+The [group protocol proof](fixtures/leselang_reference_group_protocol_macos_arm64_20261016.json)
+records 288 frozen before/after data/classification comparisons, 4,900 version/owner
+edges, exact cross-crate type identity and reference recovery regression checks.
+No wire/journal version or native completeness claim changes.
+
+Structured plan vocabulary also lives in the adapter: `MergePlan`, the 14
+`ExecutionOrder` variants and the released branch-count/name constants retain
+their original VM paths through exact re-exports. `MergePlan::new` keeps its
+parallel-only construction, complete input conversion, original owned strings,
+64-member/name limits and public `Fault`/`LSV2401` compatibility. Outer plan checks
+share `validate_shape(MergePlanShapeLimits)` with the VM, in binding-presence,
+successor-name, count, then name/duplicate order. Explicit shape limits never alter
+the reference constructor or VM policy; raw serde still does not admit a plan.
+The VM maps shape errors before checking the full group binding, and keeps all
+request, authority, fuel and durable recovery gates. The
+[structured-plan proof](fixtures/leselang_reference_merge_plan_macos_arm64_20261016.json)
+records 1,120 frozen plan comparisons, constructor/default/closed-codec parity,
+exact type/enum-variant imports and database-backed plus database-free regressions.
+This moves a product protocol boundary, not the complete native durable VM.
+
+`GroupResultBinding::validate_preflighted_plan` now owns the related group-plan
+correspondence rules in the adapter. `GroupPlanLimits` explicitly supplies branch,
+sequence and fuel ceilings; the reference VM continues to pass its original values.
+The shared rule checks execution mode, cold flow bounds, prefix names and operation
+signatures, successor reservations and ordered collision-free suffix names. It
+neither changes the input nor reserves identities or spends/refills fuel. Member
+slices are borrowed; successor naming retains the released finite search window.
+Callers must bound ingress and preflight structure before recursive classification,
+and select the original binding associated with the plan. The rule deliberately
+does not validate the plan's nested binding field, outer shape or complete types:
+group-plan correspondence is not recovery admission. Shared admission composes
+structure preflight, correspondence, native encoding and full binding/type checks
+in that order; the VM supplies capped encoding and preserves
+`LSV1405`/`LSV1409`/`LSV3002` precedence. Request identity,
+current authority, receipts, execution and durable journal gates remain mandatory.
+The [group-plan proof](fixtures/leselang_reference_group_plan_macos_arm64_20261016.json)
+records 3,360 frozen before/after comparisons across ten valid flow forms, 14 orders
+and 24 corruption/boundary variants, plus collision exhaustion and VM-free adapter
+tests. The existing source-compiled Seq/All vertical now composes this rule with
+fixture-owned ingress/type policy before wire-restored group reentry, two captured
+successors and the scalar tail. Result, preparation count and total fuel match the
+original pipeline; five corruptions per mode refuse without input mutation,
+preparation or fuel changes. Fixture identities and admission are not production
+receipt authenticity or durable recovery. Wire schemas and native completeness
+remain unchanged.
+
+The ordered binding path itself is shared through `validate_group_binding` and
+`GroupBindingLimits`, not reimplemented by the VM-free consumer. Explicit plan and
+capture limits precede a caller-owned once-only encoding hook, then complete binding
+typing and the scalar-result requirement. Early structure/plan refusal never calls
+the encoder; native encoding errors move unchanged inside `GroupBindingError` and
+generic diagnostics do not format private payloads. Native callbacks retain their
+side effects, unwind propagates without retry, and uncalled captures are dropped.
+The VM maps binding/plan errors to existing faults and passes its original bounded
+encoder; source-compiled Seq/All saved reentry uses the same composition with fixture
+policy. The [group-admission proof](fixtures/leselang_reference_group_admission_macos_arm64_20261018.json)
+retains the frozen 3,360-case oracle and adds ten-form type/once-call checks, error
+precedence, borrowed input, move-only thread-local errors and callback cleanup.
+This is group-binding admission, not outer shape admission, a portable codec,
+authentic request/receipt ownership or complete independent durable recovery.
+
+The admitted plan/request pass is shared through `validate_preflighted_group_requests`
+and `GroupRequestContext`. Native borrowed views avoid building a second request
+collection. Prefix signatures/owners and exact sequential or parallel fuel precede
+successor identity, captured type/group signatures, decreasing fuel and inherited
+context; original prefix identities are checked last. Token text and canonical
+sequence policy remain native, with bounded successor naming and explicit binding
+limits. Trusted hooks retain traversal order, propagate unwind without retry and
+do not confer authority. Full plan admission still runs first in the VM, and full
+request/frame validation, receipt matching and atomic journal recovery remain
+mandatory. Shared inherited context reuses the core kernel without deciding fuel;
+both group-member and saved-request checks now share one capture-type walker.
+The [group-request proof](fixtures/leselang_reference_group_requests_macos_arm64_20261018.json)
+covers 40 real memory-journal states across ten Seq/All flows and 2,880 frozen
+comparisons. VM-free parsed group reentry checks original/restored rows at three
+stages per mode, rejects 48 torn-row variants without preparation or fuel changes,
+and retains uninterrupted output. Opaque local-token borrowing, callback refusal
+order and unwind also have direct adapter tests. This does not promote the native
+embedding contract or claim host-neutral durable recovery or physical extraction.
+
+The next shared boundary is complete successor-pair correspondence through
+`validate_preflighted_successor_pair`. Full parent/child request admission and the
+parent's completed non-scalar result-domain checks still precede this entry.
+The adapter then preserves schema/body, inherited context, descending fuel,
+increasing canonical sequence, next-before-prior final typing and capture-extension
+order. Payload-free errors map to the original native faults. Native token-text,
+sequence and name hooks operate on one admitted snapshot; no new token traits,
+identity allocation, meter, evaluator or journal owner is introduced.
+The [successor-pair proof](fixtures/leselang_reference_successor_pair_macos_arm64_20261018.json)
+records nine real pairs from seven atomic/group flow forms and 576 frozen
+comparisons. Parsed ordinary/conditional three-effect source uses the same gate
+after bounded wire restoration at every fuel cutoff; twelve torn-row variants
+and opaque local-token refusal/unwind tests cover the adapter boundary. This
+does not authenticate raw receipts, admit unbounded values or authorize recovery;
+live grants, original budgets, leases and atomic settlement remain native gates.
 
 **The current 2.3.0-and-later phase closes acceptance gates; physical extraction is deferred.**
 It is not an automatic version-triggered move. No replacement extraction version

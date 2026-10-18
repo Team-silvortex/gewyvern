@@ -1,0 +1,106 @@
+{
+  "kind": "leselang-reference-operation-admission",
+  "validated_at_utc": "2026-10-16T02:13:07.395Z",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "reference_execution_contract": "1.87.0",
+  "native_embedding_contract": "0.162.0",
+  "operations": 70,
+  "frozen_reference_comparisons": 24570,
+  "adapter_category_authority_comparisons": 9800,
+  "pre_migration_baseline_passed": true,
+  "post_migration_parity_passed": true,
+  "vm_free_adapter_tests_passed": true,
+  "native_profile_passed": true,
+  "memory_profile_passed": true,
+  "wire_or_journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "scope": "Product request category, declared authority, schema/principal and payload correspondence are adapter-owned. VM retains image/successor admission, canonical identities, budgets, validated wire decoding, fault mapping and journal state. No native-core promotion or complete extraction claim.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/operation_request.rs",
+      "sha256": "1016c2152582fa54b0a47a78543e5dc3501de09d62fa7c9126b333a94da8cb22"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "2ef43f1040ca1390bba8907f0587c9e975525a7b0f28cec2a4abbd396a7428f4"
+    },
+    {
+      "path": "crates/leselang-command/tests/host_protocol.rs",
+      "sha256": "1792ff859738bc3b88855f8c519df6600dc9c70658f6ddc227a63e29c8b8f437"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "4cad58071c60292b500a5384fd4909e46fb854eefd3b260295c945d825aeec80"
+    },
+    {
+      "path": "crates/leselang-vm/src/continuation_contract_tests.rs",
+      "sha256": "155d9a2196b39b014d2246adf0022e19768d30090117bc76bdc0b4bb65830444"
+    },
+    {
+      "path": "crates/leselang-vm/src/successor.rs",
+      "sha256": "0e1c2ee23407a4f3ae7a6abae95fb4c68a04f3a179569b3f6ad3712417410975"
+    },
+    {
+      "path": "crates/leselang-vm/src/operation_request_tests.rs",
+      "sha256": "05df50ffb69e7a84ca5bd461dc3c982a5e84ec8a09a90638f0169be867d07d26"
+    }
+  ],
+  "verification": [
+    {
+      "name": "baseline",
+      "path": "/private/tmp/leselang-operation-admission-mtadB4/baseline.log",
+      "sha256": "13337330ceaaf45820470dad42ea48a842577738af7068ac4df3f2096ba07bc1",
+      "passed": 1
+    },
+    {
+      "name": "parity",
+      "path": "/private/tmp/leselang-operation-admission-mtadB4/parity.log",
+      "sha256": "e46f03c1229920b665a73e6fdc6030378a4b1a5e8d56fdb2ee5239164fcf88a2",
+      "passed": 1
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-operation-admission-mtadB4/runtime.log",
+      "sha256": "6669e12291207b3a254128c049b5c9d44ffb9f170749166c8a787ab2cb99c098",
+      "passed": 3123
+    },
+    {
+      "name": "memory",
+      "path": "/private/tmp/leselang-operation-admission-mtadB4/memory.log",
+      "sha256": "3ef02783a5d97d73e1943684a2d9cd76665db7a3631e6ca7e520d4081531ec28",
+      "passed": 185
+    },
+    {
+      "name": "native",
+      "path": "/private/tmp/leselang-operation-admission-mtadB4/native.log",
+      "sha256": "5a103ed4b4d9184546d4368304d0492b31498dd9e0e5622756a71d674bb276ff",
+      "passed": 50
+    },
+    {
+      "name": "root",
+      "path": "/private/tmp/leselang-operation-admission-mtadB4/root.log",
+      "sha256": "0c80a89273b742041bb8e6065a881a13dfdf0004595e5c3b459dc31ca1286e8a",
+      "passed": 414
+    },
+    {
+      "name": "relocated-vm",
+      "path": "/private/tmp/leselang-operation-admission-mtadB4/relocated-vm.log",
+      "sha256": "468238670b4e22f8142006cf1b7b379531e8f0537e4af8e6acbc04db8f29a4c3",
+      "passed": 207
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-operation-admission-mtadB4/clippy.log",
+      "sha256": "49d5e6026e41d45dff9a9b7e60f35ae55d747447e46da326a478b51c0c1e5542",
+      "strict_warnings_passed": true
+    },
+    {
+      "name": "memory-clippy",
+      "path": "/private/tmp/leselang-operation-admission-mtadB4/memory-clippy.log",
+      "sha256": "6cfe9628ff54ae0c51ca14f245aed25f64091bfdcc88946131507c44e03a94c7",
+      "strict_warnings_passed": true
+    }
+  ]
+}

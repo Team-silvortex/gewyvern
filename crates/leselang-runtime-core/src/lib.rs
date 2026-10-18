@@ -25,6 +25,7 @@ mod continuation;
 mod continuation_context;
 mod control;
 mod dispatch_capacity;
+mod dispatch_data;
 mod dispatch_lease;
 mod dispatch_plan;
 mod fold;
@@ -98,6 +99,7 @@ pub use control::{
 pub use dispatch_capacity::{
     DispatchAdmissionError, check_dispatch_admission, dispatch_lease_capacity_exhausted,
 };
+pub use dispatch_data::{DispatchLease, FailedEffect, RetrySchedule};
 pub use dispatch_lease::{
     DispatchLeaseError, DispatchLeaseObservation, DispatchLeaseStamp, validate_dispatch_lease,
 };

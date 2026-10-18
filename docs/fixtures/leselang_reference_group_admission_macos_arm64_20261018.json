@@ -1,0 +1,158 @@
+{
+  "kind": "leselang-reference-group-binding-admission",
+  "validated_on": "2026-10-18",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "reference_execution_contract": "1.93.0",
+  "native_embedding_contract": "0.162.0",
+  "frozen_group_plan_comparisons": 3360,
+  "valid_group_forms": 10,
+  "baseline_passed": true,
+  "post_migration_parity_passed": true,
+  "ordered_admission_shared_by_vm_and_source_fixture": true,
+  "native_encoding_once_after_early_gates": true,
+  "original_native_error_ownership_preserved": true,
+  "native_error_diagnostics_redacted": true,
+  "unwind_propagates_without_retry": true,
+  "memory_profile_passed": true,
+  "native_profile_passed": true,
+  "wire_or_journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "scope": "Product group-binding admission composes structure, correspondence, a caller-owned once-only encoding hook, full type validation and scalar requirements. The real VM supplies original policies and error mapping; the VM-free parsed Seq/All saved-plan reentry fixture shares the same entry rather than rebuilding the checks. Native encoding errors retain move-only thread-local ownership without formatting payloads, and native unwind propagates without retry or rollback. Outer plan shape, original binding association, bounded ingress, authentic requests/receipts, current authority, resource ownership and durable recovery remain external gates. No product/wire version or independent durable recovery/extraction promotion.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/group_admission.rs",
+      "sha256": "e4a6d7ec5304f08392c99cb8de56942d4036377c1aef1483929dda6d031a1ec8"
+    },
+    {
+      "path": "crates/leselang-command/src/group_plan.rs",
+      "sha256": "b6787df6e667c5733aca1afff134c015717080b406cefe740e0b18cb90df2a87"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "4c02edc32d8bfab649c69e2cab4a4e99f67d1829bbfc86243d0f60d431f49e9e"
+    },
+    {
+      "path": "crates/leselang-command/tests/merge_plan.rs",
+      "sha256": "f87af9d8cb42c4dacbd6dafba5a5e4fdbe30a79bfd50dbac2b628e80ab104b7a"
+    },
+    {
+      "path": "crates/leselang-command/tests/captured_execution.rs",
+      "sha256": "9ebf8aca4f959f77e8333d4196f488e08c0508f5b6aecd84bb0f942281caac16"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_binding.rs",
+      "sha256": "01fb19530a29fa5ef88c9923e81636cb9e0537e5d84112d0af4215c5db00df3d"
+    },
+    {
+      "path": "crates/leselang-vm/src/result_binding.rs",
+      "sha256": "bd6b1603e034060db2b1c24ea961ff1217265aa11f5d4502075257780e1fd036"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_plan_contract_tests.rs",
+      "sha256": "0e13b15a468c2b9515a70e640c738343dc88e40172af3ef1cc235edf61d714ce"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "d33727518edc83345a513c6bab0738389307c03f0adb27787f9f89e3983892fe"
+    },
+    {
+      "path": "tests/language_independence_tdd.rs",
+      "sha256": "10631e489dd1a98c1972a78b950b4e25bd0643d49dc05707db0f22953ee6042b"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "dc2ffbf85faa653dac2aafa27cafae1f888c998c6177044f797bd9d89fb61941"
+    }
+  ],
+  "verification": [
+    {
+      "name": "baseline",
+      "path": "/private/tmp/leselang-group-admission-Ebtn6s/baseline.log",
+      "sha256": "98072b4073613203b29a0f3aefac106ccfed90ed56c9d68a7dd5291d9f341bdb",
+      "passed": 3
+    },
+    {
+      "name": "parity",
+      "path": "/private/tmp/leselang-group-admission-Ebtn6s/parity.log",
+      "sha256": "8f550682347099fbd9d19f7183edff2f801fd61a2a61406f6edf93f0e356891c",
+      "passed": 3
+    },
+    {
+      "name": "adapter",
+      "path": "/private/tmp/leselang-group-admission-Ebtn6s/adapter.log",
+      "sha256": "2046dc3b0cccf94462d80cc52417956628dac97f55cf89b15d829b17fdc5adaa",
+      "passed": 26
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-group-admission-Ebtn6s/runtime.log",
+      "sha256": "bc23800d56a0ee660af0db1dd2524dc59f3e3d778180b359c1570802d8f2597f",
+      "passed": 3162
+    },
+    {
+      "name": "memory",
+      "path": "/private/tmp/leselang-group-admission-Ebtn6s/memory.log",
+      "sha256": "0fffd080ddf18a82938b9472b42f80ed91198fc38ac28356b7cfb55bed7fec05",
+      "passed": 196
+    },
+    {
+      "name": "native",
+      "path": "/private/tmp/leselang-group-admission-Ebtn6s/native.log",
+      "sha256": "48b56c6b0833158c966cfde094a281845a702ca5c613d36869c536d9b2e8d7ea",
+      "passed": 50
+    },
+    {
+      "name": "adapter-tree",
+      "path": "/private/tmp/leselang-group-admission-Ebtn6s/adapter-tree.log",
+      "sha256": "d75f8df9257048210b0b1b1869b59959894d689e09e5f413b05c414042a268bf",
+      "forbidden_dependencies_absent": [
+        "leselang-vm",
+        "rusqlite",
+        "libsqlite3-sys"
+      ]
+    },
+    {
+      "name": "native-tree",
+      "path": "/private/tmp/leselang-group-admission-Ebtn6s/native-tree.log",
+      "sha256": "648ce0bd6a92678072f5e583c34468351fa107a920b6e28eb7d87d17eee4fef6",
+      "forbidden_dependencies_absent": [
+        "leselang-command",
+        "leselang-host-contract",
+        "leserpent-domain",
+        "rusqlite",
+        "libsqlite3-sys"
+      ]
+    },
+    {
+      "name": "root",
+      "path": "/private/tmp/leselang-group-admission-Ebtn6s/root.log",
+      "sha256": "968f40f6a4aaa1b8c02c29c8a98ae8036644e3a0d145ced9516506745c9d8d9b",
+      "passed": 426
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-group-admission-Ebtn6s/clippy.log",
+      "sha256": "b2ed39bfe0d8920f6288fc13e6d41291a7e962817ee52cdc7a667dee297c0a08",
+      "strict_warnings_passed": true
+    },
+    {
+      "name": "memory-clippy",
+      "path": "/private/tmp/leselang-group-admission-Ebtn6s/memory-clippy.log",
+      "sha256": "677b9ea0129e916de6459d2c6974e88333560125d790f5bf70d7160f5354143d",
+      "strict_warnings_passed": true
+    },
+    {
+      "name": "native-clippy",
+      "path": "/private/tmp/leselang-group-admission-Ebtn6s/native-clippy.log",
+      "sha256": "b64fd83cf0bcc5e3757fe4f036e321e8705d11976a196cf54c84ff82d69941dc",
+      "strict_warnings_passed": true
+    }
+  ],
+  "final_checks": {
+    "cargo_fmt_all": true,
+    "reference_module_rustfmt": true,
+    "git_diff_check": true
+  }
+}

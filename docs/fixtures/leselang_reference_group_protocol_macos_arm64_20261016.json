@@ -1,0 +1,144 @@
+{
+  "kind": "leselang-reference-group-protocol",
+  "validated_at_utc": "2026-10-16T03:55:28.232Z",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "reference_execution_contract": "1.90.0",
+  "native_embedding_contract": "0.162.0",
+  "frozen_group_frame_comparisons": 288,
+  "successor_schema_comparisons": 4900,
+  "baseline_passed": true,
+  "post_migration_parity_passed": true,
+  "exact_adapter_type_identity": true,
+  "legacy_wire_defaults_preserved": true,
+  "memory_profile_passed": true,
+  "native_profile_passed": true,
+  "wire_or_journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "scope": "Adapter-owned group continuation data, bounded-body classification and successor version relationships. Exact VM reexport preserves owned buffers and closed wire/default rules. VM extension retains plan/request/capture validation, identity/fuel/authority gates, execution and durable state. Classification and raw sequence observations do not authenticate owners, reserve identities or authorize recovery. No native durable completeness or physical extraction claim.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/group_continuation.rs",
+      "sha256": "b0d1ac18aa488d953833412c3a2ecfd4850bc1980c8e4789b3e5425b2888cdca"
+    },
+    {
+      "path": "crates/leselang-command/src/continuation_schema.rs",
+      "sha256": "92d7b9749b7d4ccaa337543b7166cb88ef19e30b0ae98e12ab35a187faf4541f"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "9bbd81ec1da73b8f07b722b9d21be63435b952bfec45a08c45eed239ee1a3dcb"
+    },
+    {
+      "path": "crates/leselang-command/tests/result_binding.rs",
+      "sha256": "d6ff03c3be3efe0724ab6459eb8af3cde75de81a42cdc55ad7b31fa837a38c2e"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_binding.rs",
+      "sha256": "b5b038024b74a4daada647f5e1d637861487ed58999ff91b4e78c529ce56cd59"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_protocol_tests.rs",
+      "sha256": "eca3eb254904f5b4dc751d29889d7eeb3a1849d9b859620e56f94f6292be7c3b"
+    },
+    {
+      "path": "crates/leselang-vm/src/successor.rs",
+      "sha256": "fab1675e4a1562229e6429b42ef3e565c0cf3a037f8e4e9e52ec5e623c1a8625"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "297ae2cad42835c4a107f092dbe59735d67cc67f8e76f2d963d17d1ddc691652"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "b83b099c645bd1421512784ec518b140be82c4d4b64ebff89c32dfa32f025116"
+    },
+    {
+      "path": "crates/leselang-vm/tests/ephemeral_profile.rs",
+      "sha256": "9c41e83005a83c40ee2f5b9650374d65a44f1ab67dc1725d3e4749704cdb0221"
+    }
+  ],
+  "verification": [
+    {
+      "name": "baseline",
+      "path": "/private/tmp/leselang-group-protocol-rWmWiy/baseline.log",
+      "sha256": "d1cd2f294c0605a8f2fd602d1c167a2f2abc908036d60db93608f3791c3ecc21",
+      "passed": 1
+    },
+    {
+      "name": "parity",
+      "path": "/private/tmp/leselang-group-protocol-rWmWiy/parity.log",
+      "sha256": "930c69c191c298426686d6f2ae4358d660fea6c074960ea53e2d4e5e6b1ed33b",
+      "passed": 1
+    },
+    {
+      "name": "adapter",
+      "path": "/private/tmp/leselang-group-protocol-rWmWiy/adapter.log",
+      "sha256": "a6d482b68ff784ac1373f9270e77feb87fb1857dcc6fef027929f546ffe5de03",
+      "passed": 10
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-group-protocol-rWmWiy/runtime.log",
+      "sha256": "95e9a96f4d3448c99bdd2c08835263b4c3cb4d31091694ad137b25b3ba22d1c3",
+      "passed": 3140
+    },
+    {
+      "name": "memory",
+      "path": "/private/tmp/leselang-group-protocol-rWmWiy/memory.log",
+      "sha256": "64ee22d74537e930aa4ac25bd4fa2848f9155d3cf795d41f3b29783f18bb8bef",
+      "passed": 190
+    },
+    {
+      "name": "native",
+      "path": "/private/tmp/leselang-group-protocol-rWmWiy/native.log",
+      "sha256": "ffa28b0ae1c2533d72c258711a6a0b4ff466535186cf1b79969e589a7cc2c9fb",
+      "passed": 50
+    },
+    {
+      "name": "adapter-tree",
+      "path": "/private/tmp/leselang-group-protocol-rWmWiy/adapter-tree.log",
+      "sha256": "d75f8df9257048210b0b1b1869b59959894d689e09e5f413b05c414042a268bf",
+      "forbidden_dependencies_absent": [
+        "leselang-vm",
+        "rusqlite"
+      ]
+    },
+    {
+      "name": "native-tree",
+      "path": "/private/tmp/leselang-group-protocol-rWmWiy/native-tree.log",
+      "sha256": "648ce0bd6a92678072f5e583c34468351fa107a920b6e28eb7d87d17eee4fef6",
+      "forbidden_dependencies_absent": [
+        "leselang-command",
+        "leselang-host-contract",
+        "leserpent-domain",
+        "rusqlite"
+      ]
+    },
+    {
+      "name": "root",
+      "path": "/private/tmp/leselang-group-protocol-rWmWiy/root.log",
+      "sha256": "c823251348b135413b7abf5c546be7e1125c06d2d95758ca24eb998890883de3",
+      "passed": 420
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-group-protocol-rWmWiy/clippy.log",
+      "sha256": "194d08648a3110c07e63e4f0916e93f66837197038caaeb125feac877a657423",
+      "strict_warnings_passed": true
+    },
+    {
+      "name": "memory-clippy",
+      "path": "/private/tmp/leselang-group-protocol-rWmWiy/memory-clippy.log",
+      "sha256": "fbeec41560b4453a6675c2668d75a986a9d5442e8a5e25e381e0d578d758bfad",
+      "strict_warnings_passed": true
+    },
+    {
+      "name": "native-clippy",
+      "path": "/private/tmp/leselang-group-protocol-rWmWiy/native-clippy.log",
+      "sha256": "ee4f2942d8632ce4a5741e0bd4fb11b2b928783e189201c1ee56228e54da128b",
+      "strict_warnings_passed": true
+    }
+  ]
+}

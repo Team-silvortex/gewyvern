@@ -1,25 +1,26 @@
 // Released Leserpent specialization; included at the crate root for API compatibility.
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Write};
 #[cfg(feature = "sqlite-journal")]
 use std::path::Path;
 
-use leselang_command::{
-    LoweringContext, PlannedOperation, command_matches_effect, lower_effect, query_matches_effect,
-};
-use leselang_hir::{
-    CAPABILITY_UI_PRESENTATION, Effect, HirProgram, Type, authorize, canonical_source,
-};
+#[cfg(test)]
+use leselang_hir::CAPABILITY_UI_PRESENTATION;
+use leselang_hir::{Effect, HirProgram, Type, authorize, canonical_source};
+#[cfg(test)]
 use leselang_host_contract::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
-    CAPABILITY_RUNTIME_REFRESH, CapabilitySet, CommandOrigin, Confirmation, Principal, Revision,
+    CAPABILITY_RUNTIME_REFRESH, Confirmation,
 };
+use leselang_host_contract::{CapabilitySet, CommandOrigin, Principal, Revision};
 use leselang_runtime_core::{
     Fuel, ResourceBudgetError, ResourceBudgetLimits, RetryPlanError, RetryTiming,
     SequenceWatermarkRequirement, plan_retry_schedule,
 };
-use leserpent_domain::{CommandId, DOMAIN_SCHEMA_VERSION, IdempotencyKey, QueryEnvelope};
+#[cfg(test)]
+use leserpent_domain::DOMAIN_SCHEMA_VERSION;
+use leserpent_domain::{CommandId, IdempotencyKey, QueryEnvelope};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -28,12 +29,18 @@ mod computation;
 #[cfg(test)]
 mod continuation_contract_tests;
 #[cfg(test)]
+mod continuation_schema_tests;
+#[cfg(test)]
 mod control_plane_reply_tests;
 #[cfg(test)]
 mod control_plane_request_tests;
 mod group_binding;
 mod host_result;
 mod journal;
+#[cfg(test)]
+mod merge_plan_contract_tests;
+#[cfg(test)]
+mod operation_request_tests;
 #[cfg(test)]
 mod presentation_request_tests;
 mod result_binding;
@@ -56,6 +63,7 @@ pub use result_binding::{
 };
 pub use scheduling::{DispatchClaim, SchedulerLimits, SchedulerPressure};
 
+use group_binding::ReferenceGroupResultBinding;
 use host_result::{accept_bound_value, validate_bound_value};
 use journal::{EffectObservation, Journal, MergeProgress};
 pub use journal::{
@@ -63,17 +71,14 @@ pub use journal::{
 };
 use result_binding::ReferenceResultBinding;
 
-pub const CONTINUATION_SCHEMA_VERSION: u32 = 1;
-pub const RESULT_BINDING_CONTINUATION_SCHEMA_VERSION: u32 = 2;
-pub const SUCCESSOR_CONTINUATION_SCHEMA_VERSION: u32 = 3;
-pub const DATAFLOW_CONTINUATION_SCHEMA_VERSION: u32 = 4;
-pub const CONDITIONAL_CONTINUATION_SCHEMA_VERSION: u32 = 5;
-pub const GROUP_RESULT_CONTINUATION_SCHEMA_VERSION: u32 = 6;
-pub const GROUP_TAIL_CONTINUATION_SCHEMA_VERSION: u32 = 7;
-pub const GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION: u32 = 8;
-pub const PARALLEL_GROUP_CONTINUATION_SCHEMA_VERSION: u32 = 9;
-pub const GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION: u32 = 10;
-pub const GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION: u32 = 11;
+pub use leselang_command::continuation_schema::{
+    CONDITIONAL_CONTINUATION_SCHEMA_VERSION, CONTINUATION_SCHEMA_VERSION,
+    DATAFLOW_CONTINUATION_SCHEMA_VERSION, GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION,
+    GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION, GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION,
+    GROUP_RESULT_CONTINUATION_SCHEMA_VERSION, GROUP_TAIL_CONTINUATION_SCHEMA_VERSION,
+    PARALLEL_GROUP_CONTINUATION_SCHEMA_VERSION, RESULT_BINDING_CONTINUATION_SCHEMA_VERSION,
+    SUCCESSOR_CONTINUATION_SCHEMA_VERSION,
+};
 pub const MAX_CONTINUATION_BYTES: usize = 64 * 1024;
 pub const DEFAULT_FUEL: u64 = 1_000;
 pub const MAX_EXECUTION_FUEL: u64 = 1_000_000;
@@ -91,8 +96,6 @@ pub const MAX_RETRY_DELAY_MS: u64 = 60 * 60 * 1_000;
 pub const DEFAULT_COMPLETED_RETENTION: usize = 5_000;
 pub const DEFAULT_COMPACTION_BATCH: usize = 500;
 pub const MAX_COMPACTION_BATCH: usize = 1_000;
-pub const MAX_MERGE_BRANCHES: usize = 64;
-pub const MAX_MERGE_BRANCH_NAME_BYTES: usize = 64;
 pub const MAX_STRUCTURED_VALUE_DEPTH: usize = 16;
 const MAX_EFFECT_SEQUENCE: u64 = i64::MAX as u64 - 1;
 
@@ -116,6 +119,18 @@ pub struct EffectRequest {
     pub operation: EffectOperation,
     pub continuation: ContinuationImage,
     pub budget: ResourceBudget,
+}
+
+impl EffectRequest {
+    pub(crate) fn as_view(&self) -> leselang_command::EffectRequestView<'_, ContinuationToken> {
+        leselang_command::EffectRequestView {
+            effect_id: &self.effect_id,
+            required_capability: &self.required_capability,
+            operation: &self.operation,
+            continuation: &self.continuation,
+            budget: &self.budget,
+        }
+    }
 }
 
 // Keep released Rust paths as exact aliases, with no wire conversion or duplicate DTOs.
@@ -191,14 +206,8 @@ impl<'de> Deserialize<'de> for EffectRequest {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct DispatchLease {
-    pub request: EffectRequest,
-    pub attempt: u32,
-    #[serde(default)]
-    pub retry_count: u32,
-    pub lease_expires_at_ms: u64,
-}
+/// Released specialization of host-neutral owned dispatch data; no wire conversion.
+pub type DispatchLease = leselang_runtime_core::DispatchLease<EffectRequest>;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct RetryPolicy {
@@ -231,19 +240,10 @@ pub struct EffectError {
     pub message: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct FailedEffect {
-    pub error: EffectError,
-    pub retry_count: u32,
-}
+pub type FailedEffect = leselang_runtime_core::FailedEffect<EffectError>;
+pub type RetrySchedule = leselang_runtime_core::RetrySchedule<EffectError>;
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct RetrySchedule {
-    pub retry_count: u32,
-    pub ready_at_ms: u64,
-    pub error: EffectError,
-}
-
+// Keep the released enum (including variant imports); terminal policy stays product-owned.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
 pub enum RetryDisposition {
@@ -273,95 +273,9 @@ pub struct CompactionReport {
     pub reclaimed_logical_bytes: usize,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct MergePlan {
-    pub branches: Vec<String>,
-    #[serde(default, skip_serializing_if = "ExecutionOrder::is_default_parallel")]
-    pub order: ExecutionOrder,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub result_binding: Option<Box<GroupResultBinding>>,
-}
-
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ExecutionOrder {
-    #[default]
-    Parallel,
-    Sequential,
-    ResultChain,
-    Dataflow,
-    BoundParallel,
-    BoundSequential,
-    GroupTail,
-    GroupCapture,
-    ParallelGroupTail,
-    ParallelGroupCapture,
-    GroupDataflow,
-    ParallelGroupDataflow,
-    GroupConditional,
-    ParallelGroupConditional,
-}
-
-impl ExecutionOrder {
-    fn is_default_parallel(&self) -> bool {
-        *self == Self::Parallel
-    }
-
-    fn is_parallel(&self) -> bool {
-        matches!(
-            self,
-            Self::Parallel
-                | Self::BoundParallel
-                | Self::ParallelGroupTail
-                | Self::ParallelGroupCapture
-                | Self::ParallelGroupDataflow
-                | Self::ParallelGroupConditional
-        )
-    }
-
-    fn is_sequential(&self) -> bool {
-        !self.is_parallel()
-    }
-
-    fn has_group_successor(&self) -> bool {
-        matches!(
-            self,
-            Self::GroupTail
-                | Self::GroupCapture
-                | Self::ParallelGroupTail
-                | Self::ParallelGroupCapture
-                | Self::GroupDataflow
-                | Self::ParallelGroupDataflow
-                | Self::GroupConditional
-                | Self::ParallelGroupConditional
-        )
-    }
-
-    fn captures_group_successor(&self) -> bool {
-        matches!(
-            self,
-            Self::GroupCapture
-                | Self::ParallelGroupCapture
-                | Self::GroupDataflow
-                | Self::ParallelGroupDataflow
-                | Self::GroupConditional
-                | Self::ParallelGroupConditional
-        )
-    }
-}
-
-impl MergePlan {
-    pub fn new(branches: impl IntoIterator<Item = impl Into<String>>) -> Result<Self, Fault> {
-        let plan = Self {
-            branches: branches.into_iter().map(Into::into).collect(),
-            order: ExecutionOrder::Parallel,
-            result_binding: None,
-        };
-        validate_merge_plan(&plan)?;
-        Ok(plan)
-    }
-}
+pub use leselang_command::{
+    ExecutionOrder, MAX_MERGE_BRANCH_NAME_BYTES, MAX_MERGE_BRANCHES, MergePlan,
+};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct BranchCompletion {
@@ -944,63 +858,32 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
             result_binding: None,
             group_result: None,
         };
-        let (required_capability, operation) = match PresentationOperation::from_effect(effect) {
-            Some(operation) => (
-                CAPABILITY_UI_PRESENTATION.to_string(),
-                EffectOperation::Presentation(PresentationEnvelope {
-                    schema_version: DOMAIN_SCHEMA_VERSION,
-                    principal,
-                    capabilities,
-                    operation,
-                }),
-            ),
-            None => {
-                let command_id = CommandId::new(format!("leselang-command-{sequence}"))
-                    .map_err(|_| generated_effect_identity_fault())?;
-                let idempotency_key = IdempotencyKey::new(format!("leselang-effect-{sequence}"))
-                    .map_err(|_| generated_effect_identity_fault())?;
-                let plan = lower_effect(
-                    effect,
-                    &LoweringContext {
-                        principal,
-                        capabilities,
-                        expected_revision,
-                        command_id,
-                        idempotency_key,
-                        origin: CommandOrigin::Leselang,
-                        confirmation: if matches!(
-                            effect,
-                            Effect::RuntimeDeploy { .. } | Effect::DebuggerCancel { .. }
-                        ) {
-                            Confirmation::Confirmed
-                        } else {
-                            Confirmation::NotRequired
-                        },
-                        dry_run: false,
-                    },
-                )
-                .map_err(|error| Fault {
-                    code: "LSV1002".to_string(),
-                    message: format!("structured branch lowering failed: {error:?}"),
-                })?;
-                let operation = match plan.operation {
-                    PlannedOperation::Query(query) => EffectOperation::Query(query),
-                    PlannedOperation::Command(command) => EffectOperation::Command(command),
-                };
-                (plan.required_capability, operation)
-            }
-        };
+        let (required_capability, operation) = leselang_command::lower_effect_operation(
+            effect,
+            principal,
+            capabilities,
+            expected_revision,
+            || {
+                Some((
+                    CommandId::new(format!("leselang-command-{sequence}")).ok()?,
+                    IdempotencyKey::new(format!("leselang-effect-{sequence}")).ok()?,
+                ))
+            },
+        )
+        .map_err(|error| match error {
+            leselang_command::OperationLoweringError::Identity => generated_effect_identity_fault(),
+            leselang_command::OperationLoweringError::Lowering(error) => Fault {
+                code: "LSV1002".to_string(),
+                message: format!("structured branch lowering failed: {error:?}"),
+            },
+        })?;
+        let budget = image.resource_budget();
         let request = EffectRequest {
             effect_id: format!("effect-{sequence}"),
             required_capability,
             operation,
-            continuation: image.clone(),
-            budget: ResourceBudget {
-                fuel_remaining: image.fuel_remaining,
-                deadline_ms: image.deadline_ms,
-                deadline_at_ms: image.deadline_at_ms,
-                max_output_items: image.max_output_items,
-            },
+            continuation: image,
+            budget,
         };
         validate_effect_request(&request)?;
         Ok(request)
@@ -1596,60 +1479,24 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
     if let Some(binding) = &image.result_binding {
         binding.validate_structure()?;
     }
-    let expected_version = if let Some(owner) = &image.group_result {
-        let sequence = owner
-            .as_str()
-            .strip_prefix("merge-")
-            .and_then(|value| value.parse::<u64>().ok());
-        if image.result_binding.as_ref().is_some_and(|binding| {
-            !matches!(
-                image.schema_version,
-                GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION
-                    | PARALLEL_GROUP_CONTINUATION_SCHEMA_VERSION
-                    | GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION
-                    | GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION
-            ) || binding.groups.is_empty()
-                || !(binding.body.is_pure()
-                    || (image.schema_version == GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION
-                        && binding.body.is_result_chain())
-                    || (image.schema_version == GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION
-                        && binding.body.is_result_flow()))
-        }) || sequence.is_none_or(|value| {
-            value == 0 || value > MAX_EFFECT_SEQUENCE || owner.as_str() != format!("merge-{value}")
-        }) {
-            return Err(group_binding::invalid());
+    leselang_command::continuation_schema::validate_preflighted_continuation_schema(
+        image.result_binding.as_deref(),
+        image.group_result.as_ref().map(ContinuationToken::as_str),
+        image.schema_version,
+        MAX_EFFECT_SEQUENCE,
+    )
+    .map_err(|error| match error {
+        leselang_command::continuation_schema::ContinuationSchemaError::Group => {
+            group_binding::invalid()
         }
-        match image.schema_version {
-            GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION => {
-                GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION
-            }
-            GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION => {
-                GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION
-            }
-            PARALLEL_GROUP_CONTINUATION_SCHEMA_VERSION => {
-                PARALLEL_GROUP_CONTINUATION_SCHEMA_VERSION
-            }
-            GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION => GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION,
-            GROUP_TAIL_CONTINUATION_SCHEMA_VERSION => GROUP_TAIL_CONTINUATION_SCHEMA_VERSION,
-            _ => GROUP_RESULT_CONTINUATION_SCHEMA_VERSION,
-        }
-    } else if let Some(binding) = &image.result_binding {
-        if !binding.groups.is_empty() {
-            return Err(group_binding::invalid());
-        }
-        binding.schema_version()
-    } else {
-        CONTINUATION_SCHEMA_VERSION
-    };
-    if image.schema_version != expected_version {
-        return Err(Fault {
+        leselang_command::continuation_schema::ContinuationSchemaError::Version {
+            actual,
+            expected,
+        } => Fault {
             code: "LSV2001".to_string(),
-            message: format!(
-                "unsupported continuation version {}, expected {}",
-                image.schema_version, expected_version
-            ),
-        });
-    }
+            message: format!("unsupported continuation version {actual}, expected {expected}"),
+        },
+    })?;
     if !valid_continuation_token(&image.token) {
         return Err(Fault {
             code: "LSV2006".to_string(),
@@ -1709,123 +1556,27 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
 }
 
 pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
+    use leselang_command::{OperationRequestError, RequestCorrespondenceError};
     validate_image(&request.continuation)?;
-    if let Some(binding) = &request.continuation.result_binding {
-        let (_, capabilities) = successor::authority(&request.operation);
-        if binding
-            .body
-            .required_capabilities()
-            .iter()
-            .any(|capability| !capabilities.contains(capability))
-        {
-            return Err(successor::invalid());
+    leselang_command::validate_preflighted_effect_request(
+        request.as_view(),
+        canonical_continuation_sequence,
+    )
+    .map_err(|error| {
+        let code = match error {
+            RequestCorrespondenceError::SuccessorAuthority => "LSV1407",
+            RequestCorrespondenceError::ContinuationIdentity
+            | RequestCorrespondenceError::EffectIdentity => "LSV2010",
+            RequestCorrespondenceError::Operation(OperationRequestError::Capability) => "LSV2011",
+            RequestCorrespondenceError::Operation(OperationRequestError::Envelope) => "LSV2012",
+            RequestCorrespondenceError::Operation(OperationRequestError::Mismatch)
+            | RequestCorrespondenceError::Budget => "LSV2013",
+        };
+        Fault {
+            code: code.into(),
+            message: error.to_string(),
         }
-    }
-    let sequence =
-        canonical_continuation_sequence(&request.continuation.token).ok_or_else(|| Fault {
-            code: "LSV2010".to_string(),
-            message: "effect request has a non-canonical continuation token".to_string(),
-        })?;
-    let expected_effect_id = format!("effect-{sequence}");
-    let expected_command_id = format!("leselang-command-{sequence}");
-    let expected_idempotency_key = format!("leselang-effect-{sequence}");
-    if request.effect_id != expected_effect_id {
-        return Err(Fault {
-            code: "LSV2010".to_string(),
-            message: "effect identifier does not match continuation token".to_string(),
-        });
-    }
-    let operation_valid = match (&request.continuation.pending_effect, &request.operation) {
-        (
-            effect @ (Effect::RuntimeList { .. }
-            | Effect::RuntimeInspect { .. }
-            | Effect::RuntimeHistory { .. }
-            | Effect::RuntimeLogs { .. }),
-            EffectOperation::Query(query),
-        ) => {
-            validate_effect_identity(
-                query.schema_version,
-                &query.principal,
-                &query.capabilities,
-                &request.required_capability,
-                CAPABILITY_RUNTIME_READ,
-            )?;
-            query_matches_effect(&query.query, effect)
-        }
-        (
-            effect @ (Effect::RuntimeRefresh { .. } | Effect::RuntimeCapabilitiesRefresh { .. }),
-            EffectOperation::Command(command),
-        ) => {
-            validate_effect_identity(
-                command.schema_version,
-                &command.principal,
-                &command.capabilities,
-                &request.required_capability,
-                CAPABILITY_RUNTIME_REFRESH,
-            )?;
-            command_matches_effect(
-                command,
-                effect,
-                &expected_command_id,
-                &expected_idempotency_key,
-                request.continuation.expected_revision,
-            )
-        }
-        (effect @ Effect::RuntimeDeploy { .. }, EffectOperation::Command(command)) => {
-            validate_effect_identity(
-                command.schema_version,
-                &command.principal,
-                &command.capabilities,
-                &request.required_capability,
-                CAPABILITY_RUNTIME_DEPLOY,
-            )?;
-            command_matches_effect(
-                command,
-                effect,
-                &expected_command_id,
-                &expected_idempotency_key,
-                request.continuation.expected_revision,
-            )
-        }
-        (effect @ Effect::DebuggerCancel { .. }, EffectOperation::Command(command)) => {
-            validate_effect_identity(
-                command.schema_version,
-                &command.principal,
-                &command.capabilities,
-                &request.required_capability,
-                CAPABILITY_DEBUGGER_CONTROL,
-            )?;
-            command_matches_effect(
-                command,
-                effect,
-                &expected_command_id,
-                &expected_idempotency_key,
-                request.continuation.expected_revision,
-            )
-        }
-        (effect, EffectOperation::Presentation(presentation))
-            if leselang_hir::host_call::HostOperation::for_effect(effect).is_some_and(
-                |operation| operation.required_capability() == CAPABILITY_UI_PRESENTATION,
-            ) =>
-        {
-            validate_effect_identity(
-                presentation.schema_version,
-                &presentation.principal,
-                &presentation.capabilities,
-                &request.required_capability,
-                CAPABILITY_UI_PRESENTATION,
-            )?;
-            presentation.operation.matches_effect(effect)
-        }
-        _ => false,
-    };
-    if !operation_valid || request.budget != request.continuation.resource_budget() {
-        return Err(Fault {
-            code: "LSV2013".to_string(),
-            message: "effect request does not match its continuation".to_string(),
-        });
-    }
-    Ok(())
+    })
 }
 
 fn generated_effect_identity_fault() -> Fault {
@@ -2038,64 +1789,18 @@ fn merge_output_fault(items: usize, limit: usize) -> Fault {
 }
 
 pub(crate) fn validate_merge_plan(plan: &MergePlan) -> Result<(), Fault> {
-    if matches!(
-        plan.order,
-        ExecutionOrder::BoundParallel
-            | ExecutionOrder::BoundSequential
-            | ExecutionOrder::GroupTail
-            | ExecutionOrder::GroupCapture
-            | ExecutionOrder::ParallelGroupTail
-            | ExecutionOrder::ParallelGroupCapture
-            | ExecutionOrder::GroupDataflow
-            | ExecutionOrder::ParallelGroupDataflow
-            | ExecutionOrder::GroupConditional
-            | ExecutionOrder::ParallelGroupConditional
-    ) != plan.result_binding.is_some()
-    {
-        return Err(group_binding::invalid());
-    }
-    if plan.order == ExecutionOrder::ResultChain && plan.branches != ["result", "successor"] {
-        return Err(successor::invalid());
-    }
-    if plan.order == ExecutionOrder::Dataflow
-        && plan
-            .branches
-            .iter()
-            .enumerate()
-            .any(|(index, name)| *name != format!("step_{}", index + 1))
-    {
-        return Err(successor::invalid());
-    }
-    let minimum = if matches!(
-        plan.order,
-        ExecutionOrder::Sequential
-            | ExecutionOrder::BoundSequential
-            | ExecutionOrder::GroupTail
-            | ExecutionOrder::GroupCapture
-            | ExecutionOrder::GroupDataflow
-            | ExecutionOrder::GroupConditional
-    ) {
-        1
-    } else {
-        2
-    };
-    if !(minimum..=MAX_MERGE_BRANCHES).contains(&plan.branches.len()) {
-        return Err(Fault {
+    plan.validate_shape(leselang_command::MergePlanShapeLimits {
+        max_branches: MAX_MERGE_BRANCHES,
+        max_name_bytes: MAX_MERGE_BRANCH_NAME_BYTES,
+    })
+    .map_err(|error| match error {
+        leselang_command::MergePlanShapeError::GroupBinding => group_binding::invalid(),
+        leselang_command::MergePlanShapeError::Successor => successor::invalid(),
+        leselang_command::MergePlanShapeError::Branches => Fault {
             code: "LSV2401".to_string(),
             message: "structured merge plan is invalid or exceeds runtime bounds".to_string(),
-        });
-    }
-    let mut unique = HashSet::with_capacity(plan.branches.len());
-    if plan
-        .branches
-        .iter()
-        .any(|branch| !valid_merge_branch_name(branch) || !unique.insert(branch.as_str()))
-    {
-        return Err(Fault {
-            code: "LSV2401".to_string(),
-            message: "structured merge plan is invalid or exceeds runtime bounds".to_string(),
-        });
-    }
+        },
+    })?;
     if let Some(binding) = &plan.result_binding {
         binding.validate(plan)?;
     }
@@ -2103,11 +1808,7 @@ pub(crate) fn validate_merge_plan(plan: &MergePlan) -> Result<(), Fault> {
 }
 
 fn valid_merge_branch_name(name: &str) -> bool {
-    !name.is_empty()
-        && name.len() <= MAX_MERGE_BRANCH_NAME_BYTES
-        && name
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    leselang_command::valid_merge_branch_name(name, MAX_MERGE_BRANCH_NAME_BYTES)
 }
 
 fn validate_branch_outcome(outcome: &BranchOutcome) -> Result<usize, Fault> {
@@ -2229,35 +1930,6 @@ fn continuation_age_order(
         (None, Some(_)) => std::cmp::Ordering::Greater,
         (None, None) => left.cmp(right),
     }
-}
-
-fn validate_effect_identity(
-    schema_version: u32,
-    principal: &Principal,
-    capabilities: &CapabilitySet,
-    actual_capability: &str,
-    expected_capability: &str,
-) -> Result<(), Fault> {
-    if actual_capability != expected_capability || !capabilities.contains(actual_capability) {
-        return Err(Fault {
-            code: "LSV2011".to_string(),
-            message: "effect request capability is inconsistent".to_string(),
-        });
-    }
-    if schema_version != DOMAIN_SCHEMA_VERSION
-        || principal.id.is_empty()
-        || principal.id.len() > 128
-        || !principal
-            .id
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b':' | b'.'))
-    {
-        return Err(Fault {
-            code: "LSV2012".to_string(),
-            message: "effect request envelope is invalid".to_string(),
-        });
-    }
-    Ok(())
 }
 
 fn step_from_effect_result(

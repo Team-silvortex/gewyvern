@@ -5,6 +5,206 @@ fn root() -> &'static Path {
 }
 
 #[test]
+fn successor_pair_correspondence_is_shared_after_native_request_and_value_admission() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/successor_correspondence.rs"))
+            .unwrap();
+    for required in [
+        "pub fn validate_preflighted_successor_pair<Token>",
+        "pub enum SuccessorCorrespondenceError",
+        "parent: EffectRequestView<'_, Token>",
+        "limits: ResultBindingLimits",
+        "token_text: impl Fn(&Token) -> &str",
+        "parent.has_same_inherited_context(&next)",
+        "limits.captures.max_saved_bindings",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for absent in [
+        "leselang_vm::",
+        "Fuel::",
+        "serde_json",
+        ".clone()",
+        "Journal",
+        "impl Default",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    let source = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let pair = source
+        .split_once("pub(super) fn validate_pair(")
+        .unwrap()
+        .1
+        .split_once("enum PreparedResult")
+        .unwrap()
+        .0;
+    let delegated = pair
+        .find("leselang_command::validate_preflighted_successor_pair(")
+        .unwrap();
+    let mut offset = 0;
+    for guard in [
+        "validate_effect_request(parent)?",
+        "validate_effect_request(next)?",
+        "let Step::Done(value)",
+        "matches!(value, Value::Scalar",
+        "validate_bound_value(first, value)?",
+    ] {
+        offset += pair[offset..].find(guard).unwrap() + guard.len();
+        assert!(offset < delegated);
+    }
+    for absent in [
+        "let schema_valid",
+        "first.fuel_remaining <=",
+        "validate_extension(",
+        "prior.validate(",
+    ] {
+        assert!(!pair.contains(absent), "duplicated {absent}");
+    }
+    assert!(pair.contains("SuccessorCorrespondenceError::Mismatch => invalid()"));
+    assert!(pair.contains("SuccessorCorrespondenceError::InvalidBinding"));
+    assert!(pair.contains("crate::result_binding::invalid()"));
+    let frozen =
+        fs::read_to_string(root().join("crates/leselang-vm/src/successor_pair_contract_tests.rs"))
+            .unwrap();
+    assert!(frozen.contains("assert_eq!(pairs.len(), 9)"));
+    assert!(frozen.contains("assert_eq!(comparisons, 576)"));
+    assert!(!frozen.contains("validate_preflighted_successor_pair"));
+    assert!(!frozen.contains("has_same_inherited_context"));
+    let consumer =
+        fs::read_to_string(root().join("crates/leselang-command/tests/captured_execution.rs"))
+            .unwrap();
+    for proof in [
+        "source_successor_pairs_share_wire_reentry_without_extra_fuel_or_preparation",
+        "successor_pair_refuses_torn_rows_without_mutating_original_frames",
+        "successor_pair_borrows_opaque_local_tokens_and_preserves_hook_order_and_unwind",
+    ] {
+        assert!(consumer.contains(proof));
+    }
+}
+
+#[test]
+fn group_requests_share_borrowed_correspondence_without_replacing_recovery_admission() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/group_requests.rs")).unwrap();
+    for required in [
+        "pub struct GroupRequestContext",
+        "pub struct InvalidGroupRequests",
+        "pub fn validate_preflighted_group_requests",
+        "Fn(&'a Request) -> EffectRequestView<'a, Token>",
+        "pub fn preflighted_capture_accepts_type_at",
+        "validate_result_binding(",
+        "saved.group.matches_signature(branches)",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for forbidden in [
+        "leselang_vm::",
+        "Fuel::",
+        "serde_json",
+        ".clone()",
+        ".collect::<",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+    let admission = vm
+        .split_once("impl ReferenceGroupResultBinding")
+        .unwrap()
+        .1
+        .split_once("fn validate_requests(")
+        .unwrap()
+        .1
+        .split_once("fn validate_member(")
+        .unwrap()
+        .0;
+    assert!(
+        admission.find("self.validate(plan)?").unwrap()
+            < admission
+                .find("validate_preflighted_group_requests(")
+                .unwrap()
+    );
+    assert!(admission.contains("crate::canonical_continuation_sequence"));
+    assert!(admission.contains(".map_err(|_| invalid())"));
+    assert!(!admission.contains("let mut previous_fuel"));
+    assert!(!vm.contains("fn capture_accepts_type_at("));
+    let frozen =
+        fs::read_to_string(root().join("crates/leselang-vm/src/group_request_contract_tests.rs"))
+            .unwrap();
+    assert!(frozen.contains("assert_eq!(comparisons, 2880)"));
+    assert!(frozen.contains("assert_eq!(snapshots_count, 40)"));
+    assert!(!frozen.contains("validate_preflighted_group_requests"));
+    assert!(!frozen.contains("has_same_inherited_context"));
+    let consumer =
+        fs::read_to_string(root().join("crates/leselang-command/tests/captured_execution.rs"))
+            .unwrap();
+    assert!(consumer.contains("validate_preflighted_group_requests("));
+    assert!(consumer.contains("verify_requests(&active_plan, &requests, &fuel, &prepared)"));
+}
+
+#[test]
+fn request_frame_correspondence_is_shared_without_weakening_checked_deserialization() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/request_correspondence.rs"))
+            .unwrap();
+    for required in [
+        "pub struct EffectRequestView<'a, Token>",
+        "pub enum RequestCorrespondenceError",
+        "pub fn validate_preflighted_effect_request<Token>",
+        "canonical_sequence: impl FnOnce(&Token) -> Option<u64>",
+        "&'a ContinuationFrame<Token, Revision, Type, Effect, ResultBinding>",
+    ] {
+        assert!(adapter.contains(required));
+    }
+    assert_eq!(adapter.matches("canonical_sequence(&").count(), 1);
+    for absent in [
+        "leselang_vm::",
+        "Fuel::",
+        "serde_json",
+        ".clone()",
+        "Journal",
+    ] {
+        assert!(!adapter.contains(absent));
+    }
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    assert!(vm.contains("impl<'de> Deserialize<'de> for EffectRequest"));
+    assert!(vm.contains("validate_effect_request(&request)"));
+    let admission = vm
+        .split_once("pub fn validate_effect_request(")
+        .unwrap()
+        .1
+        .split_once("fn generated_effect_identity_fault(")
+        .unwrap()
+        .0;
+    assert!(
+        admission
+            .find("validate_image(&request.continuation)?")
+            .unwrap()
+            < admission
+                .find("validate_preflighted_effect_request(")
+                .unwrap()
+    );
+    assert!(admission.contains("canonical_continuation_sequence,"));
+    for absent in ["required_capabilities()", "format!", ".validate_request("] {
+        assert!(!admission.contains(absent));
+    }
+    let frozen =
+        fs::read_to_string(root().join("crates/leselang-vm/src/operation_request_tests.rs"))
+            .unwrap();
+    assert!(!frozen.contains("validate_preflighted_effect_request"));
+    assert!(frozen.contains(
+        "request_correspondence_preserves_cold_authority_identity_and_budget_fault_order"
+    ));
+    let consumer =
+        fs::read_to_string(root().join("crates/leselang-command/tests/captured_execution.rs"))
+            .unwrap();
+    assert!(consumer.contains("validate_preflighted_effect_request("));
+    assert!(consumer.contains(
+        "source_atomic_requests_share_frame_correspondence_before_wire_restored_reentry"
+    ));
+}
+
+#[test]
 fn adapter_captured_execution_proof_reuses_shared_hir_without_vm_or_storage() {
     let source =
         fs::read_to_string(root().join("crates/leselang-command/tests/captured_execution.rs"))
@@ -421,10 +621,17 @@ fn product_capture_replay_policy_is_adapter_owned_without_moving_authority_or_fa
         );
     }
     let successor = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
-    let successor = successor.split_once("#[cfg(test)]").unwrap().0;
+    let successor = successor
+        .split_once("#[cfg(test)]\nmod extension_tests {")
+        .unwrap()
+        .0;
     assert!(!successor.contains("impl CaptureExtensionDomain"));
     assert!(!successor.contains("validate_capture_extension("));
-    assert!(successor.contains("leselang_command::validate_result_binding_extension("));
+    assert!(successor.contains("leselang_command::validate_preflighted_successor_pair("));
+    let correspondence =
+        fs::read_to_string(root().join("crates/leselang-command/src/successor_correspondence.rs"))
+            .unwrap();
+    assert!(correspondence.contains("validate_result_binding_extension("));
     assert!(successor.contains("crate::result_binding::invalid()"));
     assert!(successor.contains("code: \"LSV1407\""));
     let group = fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
@@ -446,7 +653,7 @@ fn product_capture_replay_policy_is_adapter_owned_without_moving_authority_or_fa
 }
 
 #[test]
-fn complete_product_binding_validation_is_adapter_owned_with_explicit_limits_and_vm_schema() {
+fn complete_product_binding_validation_is_adapter_owned_with_explicit_vm_limits() {
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/result_binding.rs")).unwrap();
     for required in [
@@ -485,12 +692,12 @@ fn complete_product_binding_validation_is_adapter_owned_with_explicit_limits_and
     }
     let reference =
         fs::read_to_string(root().join("crates/leselang-vm/src/result_binding.rs")).unwrap();
-    let production = reference.split_once("#[cfg(test)]").unwrap().0;
+    let production = reference.split_once("#[cfg(test)]\nmod tests {").unwrap().0;
     for required in [
         "pub use leselang_command::{",
         "ResultBinding,",
         "fn schema_version(&self)",
-        "GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION",
+        "leselang_command::continuation_schema::preflighted_result_binding_schema_version(self)",
         "leselang_command::validate_result_binding(",
         "leselang_command::validate_result_binding_structure(",
         "result_binding_limits()",
@@ -523,6 +730,430 @@ fn complete_product_binding_validation_is_adapter_owned_with_explicit_limits_and
     ] {
         assert!(proofs.contains(proof));
     }
+}
+
+#[test]
+fn group_plan_correspondence_is_adapter_owned_between_structure_and_deep_vm_gates() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/group_plan.rs")).unwrap();
+    for required in [
+        "pub struct GroupPlanLimits",
+        "pub struct InvalidGroupPlan",
+        "pub fn plan_branches(",
+        "pub fn plan_successor_name_at(",
+        "pub fn validate_preflighted_plan(",
+        "limits.max_branches",
+        "limits.max_effect_sequence",
+        "limits.max_fuel",
+        "HostOperation::for_effect(&branch.effect)",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for forbidden in [
+        "leselang_vm",
+        "Journal",
+        "EffectRequest",
+        "Fuel::",
+        "LSV",
+        "MAX_MERGE_BRANCHES",
+        "MAX_EFFECT_SEQUENCE",
+        "MAX_EXECUTION_FUEL",
+        "impl Default",
+        "serde",
+        ".clone()",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let reference =
+        fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+    let implementation = reference
+        .split_once("impl ReferenceGroupResultBinding for GroupResultBinding {")
+        .unwrap()
+        .1;
+    let validate = implementation
+        .split_once("fn validate(")
+        .unwrap()
+        .1
+        .split_once("fn validate_requests(")
+        .unwrap()
+        .0;
+    let mut offset = 0;
+    for stage in [
+        "leselang_command::validate_group_binding(",
+        "max_branches: crate::MAX_MERGE_BRANCHES",
+        "max_effect_sequence: crate::MAX_EFFECT_SEQUENCE",
+        "max_fuel: crate::MAX_EXECUTION_FUEL",
+        "binding: crate::result_binding::result_binding_limits()",
+        "crate::valid_merge_branch_name",
+        "crate::validate_json_size_capped(",
+        "GroupBindingError::Binding => crate::result_binding::invalid()",
+        "GroupBindingError::Plan => invalid()",
+        "GroupBindingError::Encoding(fault) => fault",
+    ] {
+        offset += validate[offset..]
+            .find(stage)
+            .unwrap_or_else(|| panic!("missing/out-of-order {stage}"))
+            + stage.len();
+    }
+    for forbidden in [
+        "HostOperation::",
+        "atomic_flow_bound()",
+        "reserved_sequences()",
+        "ExecutionOrder::",
+    ] {
+        assert!(
+            !validate.contains(forbidden),
+            "duplicated policy: {forbidden}"
+        );
+    }
+    assert!(
+        implementation.contains("self.plan_successor_name_at(position, crate::MAX_MERGE_BRANCHES)")
+    );
+    let frozen =
+        fs::read_to_string(root().join("crates/leselang-vm/src/group_plan_contract_tests.rs"))
+            .unwrap();
+    assert!(frozen.contains("assert_eq!(comparisons, 3360)"));
+    assert!(!frozen.contains("validate_preflighted_plan"));
+    assert!(!frozen.contains("plan_successor_name_at"));
+    let vertical =
+        fs::read_to_string(root().join("crates/leselang-command/tests/captured_execution.rs"))
+            .unwrap();
+    assert!(vertical.contains(
+        "fn adapter_saved_group_plan_gates_source_reentry_without_vm_or_resource_changes()"
+    ));
+    assert!(vertical.contains("validate_group_binding("));
+    assert!(!vertical.contains("leselang_vm"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("GroupPlanLimits"));
+    assert!(docs.contains("group-plan correspondence is not recovery admission"));
+}
+
+#[test]
+fn complete_group_binding_admission_is_shared_with_explicit_native_encoding_policy() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/group_admission.rs")).unwrap();
+    for required in [
+        "pub struct GroupBindingLimits",
+        "pub enum GroupBindingError<Encoding>",
+        "pub fn validate_group_binding<Encoding>",
+        "validate_encoding: impl FnOnce(&MergePlan) -> Result<(), Encoding>",
+        "mut validate_group_name: impl FnMut(&str) -> bool",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    let entry = adapter
+        .split_once("pub fn validate_group_binding<Encoding>")
+        .unwrap()
+        .1;
+    let mut offset = 0;
+    for stage in [
+        "validate_result_binding_structure(",
+        ".map_err(|_| GroupBindingError::Binding)?",
+        ".validate_preflighted_plan(plan, limits.plan)",
+        "validate_encoding(plan).map_err(GroupBindingError::Encoding)?",
+        "let ty = validate_result_binding(",
+        "!matches!(ty, Type::Scalar(_))",
+    ] {
+        offset += entry[offset..]
+            .find(stage)
+            .unwrap_or_else(|| panic!("missing/out-of-order {stage}"))
+            + stage.len();
+    }
+    for forbidden in [
+        "leselang_vm",
+        "Journal",
+        "EffectRequest",
+        "Fuel::",
+        "MAX_",
+        "serde",
+        ".clone()",
+        "impl Default",
+        "LSV",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let vertical =
+        fs::read_to_string(root().join("crates/leselang-command/tests/captured_execution.rs"))
+            .unwrap();
+    let admit = vertical
+        .split_once("fn admit(plan: &MergePlan)")
+        .unwrap()
+        .1
+        .split_once("for mode in")
+        .unwrap()
+        .0;
+    assert!(admit.contains("plan.validate_shape("));
+    assert!(admit.contains("validate_group_binding("));
+    assert!(!admit.contains("validate_result_binding_structure("));
+    assert!(!admit.contains("validate_result_binding("));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("GroupBindingLimits"));
+    assert!(docs.contains("native encoding errors move unchanged"));
+}
+
+#[test]
+fn structured_plan_protocol_and_shape_admission_are_adapter_owned_with_deep_vm_gates() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/merge_plan.rs")).unwrap();
+    for required in [
+        "pub struct MergePlan",
+        "pub enum ExecutionOrder",
+        "pub struct MergePlanShapeLimits",
+        "pub enum MergePlanShapeError",
+        "pub fn validate_shape(",
+        "pub fn valid_merge_branch_name(",
+        "pub fn new(",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for absent in [
+        "leselang_vm",
+        "Journal",
+        "EffectRequest",
+        "Fuel::",
+        "binding.validate(",
+        "validate_merge_plan(",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    let constructor = adapter
+        .split_once("pub fn new(")
+        .unwrap()
+        .1
+        .split_once("/// Explicit shape policy")
+        .unwrap()
+        .0;
+    assert!(
+        constructor.find(".collect()").unwrap() < constructor.find("plan.validate_shape(").unwrap()
+    );
+    assert!(constructor.contains("code: \"LSV2401\""));
+    let shape = adapter.split_once("pub fn validate_shape(").unwrap().1;
+    assert!(!shape.contains("LSV"));
+    assert!(!shape.contains("MAX_MERGE_BRANCHES"));
+    assert!(!shape.contains("MAX_MERGE_BRANCH_NAME_BYTES"));
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    for absent in [
+        "pub struct MergePlan",
+        "pub enum ExecutionOrder",
+        "impl MergePlan",
+        "pub const MAX_MERGE_BRANCHES",
+        "pub const MAX_MERGE_BRANCH_NAME_BYTES",
+    ] {
+        assert!(!vm.contains(absent), "VM duplicated {absent}");
+    }
+    let validation = vm
+        .split_once("pub(crate) fn validate_merge_plan(")
+        .unwrap()
+        .1
+        .split_once("fn valid_merge_branch_name(")
+        .unwrap()
+        .0;
+    let mut offset = 0;
+    for stage in [
+        "plan.validate_shape(",
+        "max_branches: MAX_MERGE_BRANCHES",
+        "max_name_bytes: MAX_MERGE_BRANCH_NAME_BYTES",
+        "MergePlanShapeError::GroupBinding => group_binding::invalid()",
+        "MergePlanShapeError::Successor => successor::invalid()",
+        "code: \"LSV2401\"",
+        "binding.validate(plan)?",
+    ] {
+        offset += validation[offset..]
+            .find(stage)
+            .unwrap_or_else(|| panic!("missing/out-of-order {stage}"))
+            + stage.len();
+    }
+    for absent in ["HashSet", "format!", "ExecutionOrder::", "minimum"] {
+        assert!(!validation.contains(absent));
+    }
+    assert!(
+        vm.contains("leselang_command::valid_merge_branch_name(name, MAX_MERGE_BRANCH_NAME_BYTES)")
+    );
+    let frozen =
+        fs::read_to_string(root().join("crates/leselang-vm/src/merge_plan_contract_tests.rs"))
+            .unwrap();
+    assert!(frozen.contains("struct FrozenMergePlan"));
+    assert!(frozen.contains("enum FrozenExecutionOrder"));
+    assert!(frozen.contains("assert_eq!(comparisons, 1120)"));
+    assert!(!frozen.contains("validate_shape"));
+    let workflow = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(workflow.contains("--test result_binding --test merge_plan"));
+}
+
+#[test]
+fn group_continuation_data_and_successor_versions_are_product_owned_not_vm_owned() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/group_continuation.rs"))
+            .unwrap();
+    for required in [
+        "pub struct GroupResultBinding",
+        "#[serde(deny_unknown_fields)]",
+        "pub fn is_conditional(",
+        "pub fn is_dataflow(",
+        "pub fn captures_successor(",
+        "pub fn reserved_sequences(",
+        "pub fn continuation_schema(",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for absent in [
+        "leselang_vm",
+        "Journal",
+        "Fuel::",
+        "LSV",
+        "MAX_EFFECT_SEQUENCE",
+        "MAX_EXECUTION_FUEL",
+        "EffectRequest",
+        "MergePlan",
+        ".clone()",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    let reference =
+        fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+    assert!(reference.contains("pub use leselang_command::GroupResultBinding;"));
+    assert!(reference.contains("pub(super) trait ReferenceGroupResultBinding"));
+    assert!(reference.contains("impl ReferenceGroupResultBinding for GroupResultBinding"));
+    assert!(!reference.contains("pub struct GroupResultBinding"));
+    let production = reference.split_once("#[cfg(all(test").unwrap().0;
+    for required in [
+        "leselang_command::validate_group_binding(",
+        "crate::MAX_EXECUTION_FUEL",
+        "crate::MAX_EFFECT_SEQUENCE",
+        "leselang_command::validate_preflighted_group_requests(",
+        "self.validate_saved_capture(request, prefix, &operations)?",
+        "crate::successor::validate_pair(",
+    ] {
+        assert!(production.contains(required), "{required}");
+    }
+    for absent in [
+        "fn is_conditional(",
+        "fn is_dataflow(",
+        "fn captures_successor(",
+        "fn continuation_schema(",
+    ] {
+        assert!(!production.contains(absent), "VM duplicated {absent}");
+    }
+    let successor = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let pair = successor
+        .split_once("pub(super) fn validate_pair(")
+        .unwrap()
+        .1
+        .split_once("enum PreparedResult")
+        .unwrap()
+        .0;
+    let mut offset = 0;
+    for stage in [
+        "validate_effect_request(parent)?",
+        "validate_effect_request(next)?",
+        "validate_bound_value(first, value)?",
+        "leselang_command::validate_preflighted_successor_pair(",
+    ] {
+        offset += pair[offset..]
+            .find(stage)
+            .unwrap_or_else(|| panic!("missing/out-of-order {stage}"))
+            + stage.len();
+    }
+    let shared =
+        fs::read_to_string(root().join("crates/leselang-command/src/successor_correspondence.rs"))
+            .unwrap();
+    let mut offset = 0;
+    for stage in [
+        "let schema_valid = successor_schema_matches(",
+        "if !schema_valid",
+        "parent.has_same_inherited_context(&next)",
+        "first.fuel_remaining <= second.fuel_remaining",
+        "canonical_sequence(&first.token)",
+        "validate_result_binding_extension(",
+    ] {
+        offset += shared[offset..]
+            .find(stage)
+            .unwrap_or_else(|| panic!("missing/out-of-order {stage}"))
+            + stage.len();
+    }
+    assert!(!pair.contains("match first.schema_version"));
+    let frozen =
+        fs::read_to_string(root().join("crates/leselang-vm/src/group_protocol_tests.rs")).unwrap();
+    assert!(frozen.contains("struct FrozenGroupResultBinding"));
+    assert!(frozen.contains("assert_eq!(comparisons, 288)"));
+    assert!(!frozen.contains("leselang_command"));
+}
+
+#[test]
+fn continuation_schema_policy_is_adapter_owned_after_structure_preflight() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/continuation_schema.rs"))
+            .unwrap();
+    for required in [
+        "pub enum ContinuationSchemaError",
+        "pub fn preflighted_result_binding_schema_version(",
+        "pub fn validate_preflighted_continuation_schema(",
+        "max_sequence: u64",
+        "binding: Option<&ResultBinding>",
+        "GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION: u32 = 11",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for absent in [
+        "leselang_vm",
+        "Journal",
+        "LSV",
+        "MAX_EFFECT_SEQUENCE",
+        "impl Default",
+        "pub struct ContinuationImage",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    let reference =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    assert!(reference.contains("pub use leselang_command::continuation_schema::{"));
+    assert!(!reference.contains("pub const CONTINUATION_SCHEMA_VERSION"));
+    let validation = reference
+        .split_once("fn validate_image(")
+        .unwrap()
+        .1
+        .split_once("pub fn validate_effect_request(")
+        .unwrap()
+        .0;
+    let mut offset = 0;
+    for step in [
+        "binding.validate_structure()?",
+        "validate_preflighted_continuation_schema(",
+        "image.result_binding.as_deref()",
+        "MAX_EFFECT_SEQUENCE",
+        "group_binding::invalid()",
+        "code: \"LSV2001\"",
+        "valid_continuation_token(",
+        "image.program_counter != 1",
+        "HostOperation::for_effect(",
+        "binding.validate(&image.pending_effect)?",
+        ".resource_budget()",
+    ] {
+        offset += validation[offset..]
+            .find(step)
+            .unwrap_or_else(|| panic!("missing/out-of-order {step}"))
+            + step.len();
+    }
+    for absent in [
+        "strip_prefix(\"merge-\")",
+        "binding.schema_version()",
+        "binding.body.is_pure()",
+        "expected_version",
+    ] {
+        assert!(!validation.contains(absent), "VM duplicated {absent}");
+    }
+    let proofs =
+        fs::read_to_string(root().join("crates/leselang-vm/src/continuation_schema_tests.rs"))
+            .unwrap();
+    assert!(
+        proofs.contains("continuation_schema_preserves_frozen_selection_and_frame_refusal_order")
+    );
+    assert!(proofs.contains("continuation_structure_precedes_schema_even_for_oversized_body"));
+    assert!(proofs.contains("22_848"));
+    assert!(!proofs.contains("leselang_command::continuation_schema"));
+    let workflow = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(workflow.contains("--test host_protocol --test result_binding"));
 }
 
 #[test]
@@ -561,7 +1192,7 @@ fn product_capture_access_policy_is_adapter_owned_without_bypassing_vm_admission
     }
     let reference =
         fs::read_to_string(root().join("crates/leselang-vm/src/result_binding.rs")).unwrap();
-    let production = reference.split_once("#[cfg(test)]").unwrap().0;
+    let production = reference.split_once("#[cfg(test)]\nmod tests {").unwrap().0;
     let binding =
         fs::read_to_string(root().join("crates/leselang-command/src/result_binding.rs")).unwrap();
     assert!(production.contains("leselang_command::validate_result_binding("));
@@ -646,8 +1277,10 @@ fn product_group_capture_contract_is_adapter_owned_with_explicit_vm_policy() {
     }
     let reference =
         fs::read_to_string(root().join("crates/leselang-vm/src/result_binding.rs")).unwrap();
-    let production = reference.split_once("#[cfg(test)]").unwrap().0;
-    assert!(production.contains("leselang_command::ProjectedGroupExt as ReferenceProjectedGroup"));
+    let production = reference.split_once("#[cfg(test)]\nmod tests {").unwrap().0;
+    assert!(production.contains(
+        "#[cfg(test)]\npub(super) use leselang_command::ProjectedGroupExt as ReferenceProjectedGroup;"
+    ));
     assert!(production.contains("max_members: crate::MAX_MERGE_BRANCHES - 1"));
     assert!(production.contains("min_members: 1"));
     assert!(production.contains("crate::valid_merge_branch_name"));
@@ -761,7 +1394,7 @@ fn product_capture_frames_and_validation_live_in_adapter_with_exact_reference_re
     let reference =
         fs::read_to_string(root().join("crates/leselang-vm/src/result_binding.rs")).unwrap();
     assert!(reference.contains("pub use leselang_command::{"));
-    let production = reference.split_once("#[cfg(test)]").unwrap().0;
+    let production = reference.split_once("#[cfg(test)]\nmod tests {").unwrap().0;
     for absent in [
         "pub struct ProjectedResult",
         "impl ProjectedResult",
@@ -1258,16 +1891,22 @@ fn control_plane_request_correspondence_is_adapter_owned_but_identity_generation
             "VM admission retained product predicate {absent}"
         );
     }
-    let token = admission.find("canonical_continuation_sequence(").unwrap();
-    let command_id = admission
+    let correspondence =
+        fs::read_to_string(root().join("crates/leselang-command/src/request_correspondence.rs"))
+            .unwrap();
+    let token = correspondence.find("canonical_sequence(&").unwrap();
+    let command_id = correspondence
         .find("format!(\"leselang-command-{sequence}\")")
         .unwrap();
-    let key = admission
+    let key = correspondence
         .find("format!(\"leselang-effect-{sequence}\")")
         .unwrap();
-    let operation = admission.find("let operation_valid = match").unwrap();
+    let operation = correspondence.find(".validate_request(").unwrap();
     assert!(token < command_id && command_id < key && key < operation);
-    let query = admission
+    let policy =
+        fs::read_to_string(root().join("crates/leselang-command/src/operation_request.rs"))
+            .unwrap();
+    let query = policy
         .split_once("EffectOperation::Query(query)")
         .unwrap()
         .1;
@@ -1277,19 +1916,23 @@ fn control_plane_request_correspondence_is_adapter_owned_but_identity_generation
                 .find("query_matches_effect(&query.query, effect)")
                 .unwrap()
     );
-    assert_eq!(
-        admission
-            .matches("query_matches_effect(&query.query, effect)")
-            .count(),
-        1
-    );
-    assert_eq!(admission.matches("command_matches_effect(").count(), 3);
-    for branch in admission.split("EffectOperation::Command(command)").skip(1) {
-        let branch = branch.split("command_matches_effect(").next().unwrap();
-        assert!(branch.contains("validate_effect_identity("));
+    assert_eq!(policy.matches("command_matches_effect(").count(), 3);
+    for branch in policy.split("EffectOperation::Command(command)").skip(1) {
+        assert!(
+            branch
+                .split("command_matches_effect(")
+                .next()
+                .unwrap()
+                .contains("validate_effect_identity(")
+        );
     }
-    let normalized = admission.split_whitespace().collect::<String>();
-    assert_eq!(normalized.matches("command_matches_effect(command,effect,&expected_command_id,&expected_idempotency_key,request.continuation.expected_revision,").count(), 3);
+    for absent in [
+        "validate_effect_identity(",
+        "command_matches_effect(",
+        "query_matches_effect(",
+    ] {
+        assert!(!admission.contains(absent));
+    }
     let proof =
         fs::read_to_string(root().join("crates/leselang-vm/src/control_plane_request_tests.rs"))
             .unwrap();
@@ -1300,6 +1943,55 @@ fn control_plane_request_correspondence_is_adapter_owned_but_identity_generation
     ] {
         assert!(proof.contains(name));
     }
+}
+
+#[test]
+fn composed_operation_request_policy_is_vm_free_without_bypassing_reference_admission() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/operation_request.rs"))
+            .unwrap();
+    for required in [
+        "pub struct OperationRequestContext",
+        "pub enum OperationRequestError",
+        "pub fn validate_request(",
+        "pub fn authority(",
+    ] {
+        assert!(adapter.contains(required));
+    }
+    let manifest = fs::read_to_string(root().join("crates/leselang-command/Cargo.toml")).unwrap();
+    for absent in ["leselang-vm", "rusqlite"] {
+        assert!(!manifest.contains(absent));
+    }
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    assert!(!vm.contains("fn validate_effect_identity("));
+    for mapping in [
+        "RequestCorrespondenceError::Operation(OperationRequestError::Capability) => \"LSV2011\"",
+        "RequestCorrespondenceError::Operation(OperationRequestError::Envelope) => \"LSV2012\"",
+        "RequestCorrespondenceError::Operation(OperationRequestError::Mismatch)",
+        "RequestCorrespondenceError::Budget => \"LSV2013\"",
+        "validate_effect_request(&request)",
+    ] {
+        assert!(vm.contains(mapping));
+    }
+    let tests =
+        fs::read_to_string(root().join("crates/leselang-command/tests/host_protocol.rs")).unwrap();
+    for test in [
+        "operation_request_admission_covers_seventy_operations_without_vm_or_wire_changes",
+        "operation_request_category_precedes_authority_and_authority_precedes_payload",
+        "operation_request_identity_limits_and_diagnostics_remain_closed_and_redacted",
+        "operation_request_uses_supplied_command_expectations_without_inventing_identity",
+        "operation_request_correspondence_is_not_source_or_live_authority_admission",
+    ] {
+        assert!(tests.contains(test));
+    }
+    let frozen =
+        fs::read_to_string(root().join("crates/leselang-vm/src/operation_request_tests.rs"))
+            .unwrap();
+    assert!(frozen.contains("fn frozen_validate_effect_request("));
+    assert!(
+        frozen.contains("operation_request_adapter_preserves_frozen_seventy_operation_admission")
+    );
 }
 
 #[test]
@@ -1338,23 +2030,29 @@ fn presentation_request_payload_checks_are_adapter_owned_without_reordering_vm_a
     let image = admission
         .find("validate_image(&request.continuation)?")
         .unwrap();
-    let successor = admission.find(".required_capabilities()").unwrap();
-    let token = admission.find("canonical_continuation_sequence(").unwrap();
-    let identity = admission
+    assert!(
+        image
+            < admission
+                .find("validate_preflighted_effect_request(")
+                .unwrap()
+    );
+    let correspondence =
+        fs::read_to_string(root().join("crates/leselang-command/src/request_correspondence.rs"))
+            .unwrap();
+    let successor = correspondence.find(".required_capabilities()").unwrap();
+    let token = correspondence.find("canonical_sequence(&").unwrap();
+    let identity = correspondence
         .find("request.effect_id != expected_effect_id")
         .unwrap();
-    let operation = admission.find("let operation_valid = match").unwrap();
-    let budget = admission
-        .find("!operation_valid || request.budget != request.continuation.resource_budget()")
+    let operation = correspondence.find(".validate_request(").unwrap();
+    let budget = correspondence
+        .find("if *request.budget != request.continuation.resource_budget()")
         .unwrap();
-    assert!(
-        image < successor
-            && successor < token
-            && token < identity
-            && identity < operation
-            && operation < budget
-    );
-    let gui = admission
+    assert!(successor < token && token < identity && identity < operation && operation < budget);
+    let policy =
+        fs::read_to_string(root().join("crates/leselang-command/src/operation_request.rs"))
+            .unwrap();
+    let gui = policy
         .split_once("(effect, EffectOperation::Presentation(presentation))")
         .unwrap()
         .1;
@@ -1368,11 +2066,21 @@ fn presentation_request_payload_checks_are_adapter_owned_without_reordering_vm_a
         .unwrap();
     assert!(category < capability && capability < authority && authority < payload);
     assert_eq!(
-        admission
+        policy
             .matches("presentation.operation.matches_effect(effect)")
             .count(),
         1
     );
+    for absent in [
+        "ContinuationImage",
+        "leselang_vm",
+        "Fuel::",
+        "Journal",
+        ".clone()",
+        "format!(",
+    ] {
+        assert!(!policy.contains(absent));
+    }
     let cases =
         fs::read_to_string(root().join("crates/leselang-vm/src/presentation_request_tests.rs"))
             .unwrap();
@@ -1621,18 +2329,37 @@ fn presentation_payload_mapping_is_adapter_owned_but_vm_gates_remain_in_order() 
         .split_once("pub fn restore(")
         .unwrap()
         .0;
-    assert_eq!(build.matches("PresentationEnvelope {").count(), 1);
+    assert!(!build.contains("PresentationEnvelope {"));
     assert!(!build.contains("Effect::Ui"));
     let debit = build.find("fuel.charge(1)").unwrap();
     let image = build.find("let image = ContinuationImage").unwrap();
     let map = build
-        .find("PresentationOperation::from_effect(effect)")
+        .find("leselang_command::lower_effect_operation(")
         .unwrap();
     let validation = build.find("validate_effect_request(&request)?").unwrap();
     assert!(debit < image && image < map && map < validation);
-    assert!(build.contains("lower_effect("));
-    assert!(build.contains("origin: CommandOrigin::Leselang"));
-    assert!(build.contains("Confirmation::Confirmed"));
+    assert!(!build.contains("lower_effect("));
+    assert!(!build.contains("origin: CommandOrigin::Leselang"));
+    assert!(!build.contains("Confirmation::Confirmed"));
+    assert!(!build.contains("image.clone()"));
+    let lowering =
+        fs::read_to_string(root().join("crates/leselang-command/src/operation_lowering.rs"))
+            .unwrap();
+    for required in [
+        "PresentationOperation::from_effect(effect)",
+        "lower_effect(",
+        "origin: CommandOrigin::Leselang",
+        "Confirmation::Confirmed",
+        "dry_run: false",
+    ] {
+        assert!(lowering.contains(required));
+    }
+    let gui = lowering
+        .find("PresentationOperation::from_effect(effect)")
+        .unwrap();
+    let identity = lowering.find("command_identity()").unwrap();
+    let control = lowering.find("let plan = lower_effect(").unwrap();
+    assert!(gui < identity && identity < control);
     let cases =
         fs::read_to_string(root().join("crates/leselang-vm/src/presentation_request_tests.rs"))
             .unwrap();
@@ -1644,6 +2371,63 @@ fn presentation_payload_mapping_is_adapter_owned_but_vm_gates_remain_in_order() 
             "presentation_request_refusals_keep_fuel_shape_type_and_authority_precedence"
         )
     );
+}
+
+#[test]
+fn composed_operation_lowering_is_adapter_owned_without_moving_vm_identity_or_fuel() {
+    let policy =
+        fs::read_to_string(root().join("crates/leselang-command/src/operation_lowering.rs"))
+            .unwrap();
+    for absent in [
+        "leselang_vm",
+        "ContinuationImage",
+        "Fuel",
+        "Journal",
+        "serde_json",
+        "leselang-command-",
+        "leselang-effect-",
+    ] {
+        assert!(!policy.contains(absent));
+    }
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    let build = vm
+        .split_once("fn build_effect_request(")
+        .unwrap()
+        .1
+        .split_once("pub fn restore(")
+        .unwrap()
+        .0;
+    for required in [
+        "fuel.charge(1)",
+        "CommandId::new(format!(\"leselang-command-{sequence}\"))",
+        "IdempotencyKey::new(format!(\"leselang-effect-{sequence}\"))",
+        "OperationLoweringError::Identity",
+        "OperationLoweringError::Lowering",
+        "validate_effect_request(&request)?",
+    ] {
+        assert!(build.contains(required));
+    }
+    let tests =
+        fs::read_to_string(root().join("crates/leselang-command/tests/host_protocol.rs")).unwrap();
+    for name in [
+        "operation_lowering_composes_seventy_wire_shapes_with_lazy_identity_and_original_gui_owner",
+        "operation_lowering_identity_refusal_precedes_control_plane_capability_checks",
+        "operation_lowering_rejects_structured_effects_after_exactly_one_identity_attempt",
+        "operation_lowering_gui_construction_is_not_authorization_or_request_admission",
+        "operation_lowering_identity_factory_unwind_does_not_retry_or_retain_owned_capture",
+    ] {
+        assert!(tests.contains(name));
+    }
+    let frozen =
+        fs::read_to_string(root().join("crates/leselang-vm/src/operation_request_tests.rs"))
+            .unwrap();
+    assert!(frozen.contains("fn frozen_build_effect_request("));
+    assert!(
+        frozen.contains("operation_lowering_preserves_frozen_build_wire_fuel_and_refusal_order")
+    );
+    let workflow = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(workflow.contains("--test result_domain --test host_protocol"));
 }
 
 #[test]
@@ -1817,14 +2601,30 @@ fn continuation_context_kernel_preserves_native_phase_order_in_every_succession_
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
+    assert!(
+        helper
+            .split_whitespace()
+            .collect::<String>()
+            .contains("original.as_view().has_same_inherited_context(&saved.as_view())")
+    );
+    let shared_context =
+        fs::read_to_string(root().join("crates/leselang-command/src/request_correspondence.rs"))
+            .unwrap();
+    let shared_context = shared_context
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
     for required in [
         "validate_inherited_context(",
-        "original.continuation.resource_budget()",
+        "self.continuation.resource_budget()",
         "saved.continuation.resource_budget()",
-        "authority(&original.operation) == authority(&saved.operation)",
-        "original.continuation.expected_revision == saved.continuation.expected_revision",
+        "self.operation.authority() == saved.operation.authority()",
+        "self.continuation.expected_revision == saved.continuation.expected_revision",
     ] {
-        assert!(helper.contains(required), "context adapter lost {required}");
+        assert!(
+            shared_context.contains(required),
+            "context adapter lost {required}"
+        );
     }
     assert!(!helper.contains("Fuel::new"));
     let pair = source
@@ -1834,28 +2634,42 @@ fn continuation_context_kernel_preserves_native_phase_order_in_every_succession_
         .split("enum PreparedResult")
         .next()
         .unwrap();
-    let context = pair.find("same_inherited_context(parent, next)").unwrap();
+    let shared = pair
+        .find("leselang_command::validate_preflighted_successor_pair(")
+        .unwrap();
+    assert!(pair.find("validate_bound_value(first, value)?").unwrap() < shared);
+    let pair =
+        fs::read_to_string(root().join("crates/leselang-command/src/successor_correspondence.rs"))
+            .unwrap();
+    let context = pair
+        .find("parent.has_same_inherited_context(&next)")
+        .unwrap();
     assert!(pair.find("!schema_valid").unwrap() < context);
-    assert!(pair.find("validate_bound_value(first, value)?").unwrap() < context);
     assert!(
         context
             < pair
                 .find("first.fuel_remaining <= second.fuel_remaining")
                 .unwrap()
     );
-    assert!(context < pair.find("canonical_continuation_sequence").unwrap());
+    assert!(context < pair.find("canonical_sequence(&first.token)").unwrap());
     let groups =
         fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
     let admission = groups
-        .split("pub(super) fn validate_requests(")
+        .split_once("impl ReferenceGroupResultBinding for GroupResultBinding {")
+        .unwrap()
+        .1
+        .split("fn validate_requests(")
         .nth(1)
         .unwrap()
-        .split("pub(super) fn validate_member(")
+        .split("fn validate_member(")
         .next()
         .unwrap();
+    assert!(admission.contains("leselang_command::validate_preflighted_group_requests("));
+    let admission =
+        fs::read_to_string(root().join("crates/leselang-command/src/group_requests.rs")).unwrap();
     assert_eq!(
         admission
-            .matches("same_inherited_context(first, request)")
+            .matches("first.has_same_inherited_context(&request)")
             .count(),
         2
     );
@@ -1914,18 +2728,37 @@ fn successor_capture_extension_shares_retention_without_authority_or_saved_body_
         .split("enum PreparedResult")
         .next()
         .unwrap();
-    let shared = pair.find("validate_extension(prior, binding,").unwrap();
+    let shared = pair
+        .find("leselang_command::validate_preflighted_successor_pair(")
+        .unwrap();
     for guard in [
         "validate_effect_request(parent)?",
         "validate_effect_request(next)?",
         "validate_bound_value(first, value)?",
-        "same_inherited_context(parent, next)",
-        "first.fuel_remaining <= second.fuel_remaining",
-        "canonical_continuation_sequence",
-        "prior.validate(&first.pending_effect)?",
     ] {
         assert!(
             pair.find(guard).unwrap() < shared,
+            "correspondence displaced {guard}"
+        );
+    }
+    let correspondence =
+        fs::read_to_string(root().join("crates/leselang-command/src/successor_correspondence.rs"))
+            .unwrap();
+    let correspondence = correspondence.split_whitespace().collect::<String>();
+    let extension = correspondence
+        .find("validate_result_binding_extension(prior,")
+        .unwrap();
+    for guard in [
+        "parent.has_same_inherited_context(&next)",
+        "first.fuel_remaining <= second.fuel_remaining",
+        "canonical_sequence(&first.token)",
+        "validate_result_binding(prior, &first.pending_effect, limits, &mut validate_group_name,",
+    ] {
+        assert!(
+            correspondence
+                .find(&guard.split_whitespace().collect::<String>())
+                .unwrap()
+                < extension,
             "extension displaced {guard}"
         );
     }
@@ -1987,7 +2820,10 @@ fn live_and_recovered_capture_correspondence_delegates_traversal_without_project
     let source =
         fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
     let gate = source
-        .split("pub(super) fn validate_saved_capture(")
+        .split_once("impl ReferenceGroupResultBinding for GroupResultBinding {")
+        .unwrap()
+        .1
+        .split("fn validate_saved_capture(")
         .nth(1)
         .unwrap()
         .split("mod correspondence_tests")
@@ -2025,7 +2861,10 @@ fn live_and_recovered_capture_correspondence_delegates_traversal_without_project
     }
     assert!(
         source
-            .split("pub(super) fn advance_capture(")
+            .split_once("impl ReferenceGroupResultBinding for GroupResultBinding {")
+            .unwrap()
+            .1
+            .split("fn advance_capture(")
             .nth(1)
             .unwrap()
             .contains("self.validate_saved_capture(request, prefix, &operations)?")
@@ -2581,10 +3420,17 @@ fn saved_frame_is_shared_data_while_reference_restore_and_authority_remain_nativ
         "image\n        .resource_budget()\n        .validate(ResourceBudgetLimits",
         "ResourceBudgetError::Fuel =>",
         "ResourceBudgetError::AbsoluteDeadline =>",
-        "request.budget != request.continuation.resource_budget()",
+        "leselang_command::validate_preflighted_effect_request(",
+        "budget: &self.budget,",
     ] {
         assert!(code.contains(boundary), "reference frame lost {boundary}");
     }
+    let correspondence =
+        fs::read_to_string(root().join("crates/leselang-command/src/request_correspondence.rs"))
+            .unwrap();
+    assert!(
+        correspondence.contains("if *request.budget != request.continuation.resource_budget()")
+    );
     for removed in ["pub struct ContinuationImage", "pub struct ResourceBudget"] {
         assert!(!code.contains(removed));
     }

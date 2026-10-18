@@ -32,6 +32,10 @@ jobs:
       - name: Package and verify isolated runtime core
         run: cargo +1.98.0 package -p leselang-runtime-core --locked
 
+      # Package verification builds the library, not its dev-dependencies.
+      - name: Fetch normalized standalone test dependencies
+        run: cargo +1.98.0 fetch --manifest-path target/package/leselang-runtime-core-*/Cargo.toml --locked
+
       - name: Test normalized standalone package
         run: cargo +1.98.0 test --manifest-path target/package/leselang-runtime-core-*/Cargo.toml --locked --offline
 
@@ -46,8 +50,8 @@ jobs:
           cargo +1.98.0 run --locked -p gewyvern-dev --
           package leselang --output "$RUNNER_TEMP/leselang-native-source" --verify
 
-      - name: Test reference capture execution without linking the VM
-        run: cargo +1.98.0 test -p leselang-command --locked --test captured_execution --test capture_scope --test structured_value --test result_domain
+      - name: Test reference protocol and capture execution without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test captured_execution --test capture_scope --test structured_value --test result_domain --test host_protocol --test result_binding --test merge_plan
 
       - name: Test reference VM with the SQLite backend disabled
         run: cargo +1.98.0 test -p leselang-vm --locked --no-default-features --features leserpent-profile

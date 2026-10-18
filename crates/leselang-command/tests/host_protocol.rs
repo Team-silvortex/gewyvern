@@ -11,6 +11,709 @@ use leselang_syntax::parse;
 use leserpent_domain::{CommandId, IdempotencyKey};
 use serde_json::{Value, json};
 
+mod request_correspondence {
+    use super::*;
+    use leselang_command::{
+        EffectRequestView, OperationRequestError, RequestCorrespondenceError as Error,
+        ResultBinding, validate_preflighted_effect_request,
+    };
+    use leselang_hir::{Type, computation::Computation, host_call::HostOperation};
+    use leselang_host_contract::Revision;
+    use leselang_runtime_core::{ContinuationFrame, ResourceBudget};
+    use std::{cell::Cell, rc::Rc};
+
+    struct Request<Token> {
+        effect_id: String,
+        required: String,
+        operation: EffectOperation,
+        frame: ContinuationFrame<Token, Revision, Type, Effect, ResultBinding>,
+        budget: ResourceBudget,
+    }
+
+    impl<Token> Request<Token> {
+        fn new(effect: Effect, token: Token) -> Self {
+            let required = HostOperation::for_effect(&effect)
+                .unwrap()
+                .required_capability();
+            let (required, operation) = leselang_command::lower_effect_operation(
+                &effect,
+                Principal::new("operator").unwrap(),
+                CapabilitySet::new([required, "ui.presentation"]),
+                Some(Revision(7)),
+                || {
+                    Some((
+                        CommandId::new("leselang-command-43").unwrap(),
+                        IdempotencyKey::new("leselang-effect-43").unwrap(),
+                    ))
+                },
+            )
+            .unwrap();
+            let frame = ContinuationFrame {
+                schema_version: 1,
+                token,
+                program_counter: 1,
+                expected_revision: Some(Revision(7)),
+                result_type: HostOperation::for_effect(&effect).unwrap().result_type(),
+                pending_effect: effect,
+                fuel_remaining: 19,
+                deadline_ms: 2_000,
+                deadline_at_ms: Some(3_000),
+                max_output_items: 8,
+                result_binding: None,
+                group_result: None,
+            };
+            let budget = frame.resource_budget();
+            Self {
+                effect_id: "effect-43".into(),
+                required,
+                operation,
+                frame,
+                budget,
+            }
+        }
+
+        fn view(&self) -> EffectRequestView<'_, Token> {
+            EffectRequestView {
+                effect_id: &self.effect_id,
+                required_capability: &self.required,
+                operation: &self.operation,
+                continuation: &self.frame,
+                budget: &self.budget,
+            }
+        }
+
+        fn with_cold_body(&mut self) {
+            self.frame.result_binding = Some(Box::new(ResultBinding {
+                name: "reply".into(),
+                locals: vec![],
+                results: vec![],
+                groups: vec![],
+                body: Computation::Host {
+                    effect: Box::new(Effect::UiFocus {
+                        node_id: "private-next".into(),
+                    }),
+                },
+            }));
+        }
+    }
+
+    fn focus() -> Effect {
+        Effect::UiFocus {
+            node_id: "private-widget".into(),
+        }
+    }
+
+    #[test]
+    fn full_request_correspondence_borrows_seventy_original_frames_without_wire_changes() {
+        for (effect, _) in request_admission_cases() {
+            let request = Request::new(effect, 43_u64);
+            let before =
+                serde_json::to_vec(&(&request.frame, &request.operation, &request.budget)).unwrap();
+            let calls = Cell::new(0);
+            assert_eq!(
+                validate_preflighted_effect_request(request.view(), |token| {
+                    assert!(std::ptr::eq(token, &request.frame.token));
+                    calls.set(calls.get() + 1);
+                    Some(*token)
+                }),
+                Ok(())
+            );
+            assert_eq!(calls.get(), 1);
+            assert_eq!(
+                serde_json::to_vec(&(&request.frame, &request.operation, &request.budget)).unwrap(),
+                before
+            );
+        }
+    }
+
+    #[test]
+    fn full_request_correspondence_keeps_cold_identity_operation_and_budget_precedence() {
+        for stage in 0..12 {
+            let mut request = Request::new(focus(), 43_u64);
+            request.with_cold_body();
+            request.budget.fuel_remaining += 1;
+            let expected = match stage {
+                0 => {
+                    request_authority_mut(&mut request.operation)
+                        .1
+                        .clone_from(&CapabilitySet::default());
+                    request.effect_id = "wrong-effect".into();
+                    Error::SuccessorAuthority
+                }
+                1 => {
+                    request.effect_id = "wrong-effect".into();
+                    Error::ContinuationIdentity
+                }
+                2 => {
+                    request.effect_id = "wrong-effect".into();
+                    request.required = "private/wrong-capability".into();
+                    Error::EffectIdentity
+                }
+                3 => {
+                    request.required = "private/wrong-capability".into();
+                    request_authority_mut(&mut request.operation).0.id = "private/invalid".into();
+                    Error::Operation(OperationRequestError::Capability)
+                }
+                4 => {
+                    request_authority_mut(&mut request.operation).0.id = "private/invalid".into();
+                    Error::Operation(OperationRequestError::Envelope)
+                }
+                5 => {
+                    *request_authority_mut(&mut request.operation).2 = u32::MAX;
+                    Error::Operation(OperationRequestError::Envelope)
+                }
+                6 => {
+                    request.frame.pending_effect = Effect::UiFocus {
+                        node_id: "different".into(),
+                    };
+                    Error::Operation(OperationRequestError::Mismatch)
+                }
+                7 => Error::Budget,
+                8 => {
+                    request.budget = request.frame.resource_budget();
+                    request.budget.deadline_ms += 1;
+                    Error::Budget
+                }
+                9 => {
+                    request.budget = request.frame.resource_budget();
+                    request.budget.deadline_at_ms = None;
+                    Error::Budget
+                }
+                10 => {
+                    request.budget = request.frame.resource_budget();
+                    request.budget.max_output_items += 1;
+                    Error::Budget
+                }
+                _ => {
+                    request.frame.result_binding = None;
+                    request.operation = request_admission_cases().remove(0).1;
+                    request_authority_mut(&mut request.operation).0.id = "private/invalid".into();
+                    Error::Operation(OperationRequestError::Mismatch)
+                }
+            };
+            let before =
+                serde_json::to_vec(&(&request.frame, &request.operation, &request.budget)).unwrap();
+            let calls = Cell::new(0);
+            let error = validate_preflighted_effect_request(request.view(), |_| {
+                calls.set(calls.get() + 1);
+                (stage != 1).then_some(43)
+            })
+            .unwrap_err();
+            assert_eq!(error, expected, "stage {stage}");
+            assert_eq!(calls.get(), usize::from(stage != 0));
+            assert!(!format!("{error:?}: {error}").contains("private"));
+            assert!(std::error::Error::source(&error).is_none());
+            assert_eq!(
+                serde_json::to_vec(&(&request.frame, &request.operation, &request.budget)).unwrap(),
+                before
+            );
+        }
+    }
+
+    struct LocalToken(Rc<Cell<usize>>);
+    impl Drop for LocalToken {
+        fn drop(&mut self) {
+            self.0.set(self.0.get() + 1);
+        }
+    }
+
+    #[test]
+    fn full_request_correspondence_accepts_opaque_local_tokens_and_drops_skipped_hooks() {
+        for denied in [false, true] {
+            let token_drops = Rc::new(Cell::new(0));
+            let hook_drops = Rc::new(Cell::new(0));
+            let capture = LocalToken(Rc::clone(&hook_drops));
+            let mut request = Request::new(focus(), LocalToken(Rc::clone(&token_drops)));
+            request.with_cold_body();
+            if denied {
+                *request_authority_mut(&mut request.operation).1 = CapabilitySet::default();
+            }
+            let calls = Cell::new(0);
+            let result = validate_preflighted_effect_request(request.view(), |token| {
+                let _capture = capture;
+                calls.set(calls.get() + 1);
+                assert!(std::ptr::eq(token, &request.frame.token));
+                Some(43)
+            });
+            assert_eq!(
+                result,
+                if denied {
+                    Err(Error::SuccessorAuthority)
+                } else {
+                    Ok(())
+                }
+            );
+            assert_eq!(calls.get(), usize::from(!denied));
+            assert_eq!(hook_drops.get(), 1);
+            assert_eq!(token_drops.get(), 0);
+            drop(request);
+            assert_eq!(token_drops.get(), 1);
+        }
+    }
+
+    #[test]
+    fn full_request_correspondence_never_retries_native_identity_unwind() {
+        let request = Request::new(focus(), 43_u64);
+        let calls = Cell::new(0);
+        let drops = Rc::new(Cell::new(0));
+        let capture = LocalToken(Rc::clone(&drops));
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            validate_preflighted_effect_request(request.view(), |_| {
+                let _capture = capture;
+                calls.set(calls.get() + 1);
+                panic!("trusted native hook unwind")
+            })
+        }));
+        assert!(outcome.is_err());
+        assert_eq!(calls.get(), 1);
+        assert_eq!(drops.get(), 1);
+        assert_eq!(request.frame.fuel_remaining, 19);
+    }
+
+    #[test]
+    fn full_request_correspondence_does_not_admit_frames_or_authenticate_equal_budgets() {
+        let mut request = Request::new(focus(), 43_u64);
+        request.frame.schema_version = u32::MAX;
+        request.frame.program_counter = u32::MAX;
+        request.frame.result_type = Type::Structured;
+        request.frame.fuel_remaining = u64::MAX;
+        request.frame.deadline_ms = 0;
+        request.budget = request.frame.resource_budget();
+        assert_eq!(
+            validate_preflighted_effect_request(request.view(), |_| Some(43)),
+            Ok(())
+        );
+        assert_eq!(
+            validate_preflighted_effect_request(request.view(), |_| None),
+            Err(Error::ContinuationIdentity)
+        );
+    }
+
+    #[test]
+    fn inherited_request_context_borrows_different_token_types_and_leaves_fuel_external() {
+        for defect in 0..9 {
+            let original = Request::new(focus(), 43_u64);
+            let drops = Rc::new(Cell::new(0));
+            let mut saved = Request::new(focus(), LocalToken(Rc::clone(&drops)));
+            match defect {
+                1 => saved.frame.fuel_remaining = 0,
+                2 => saved.frame.expected_revision = None,
+                3 => request_authority_mut(&mut saved.operation).0.id = "different".into(),
+                4 => *request_authority_mut(&mut saved.operation).1 = CapabilitySet::default(),
+                5 => saved.frame.deadline_ms += 1,
+                6 => saved.frame.deadline_at_ms = None,
+                7 => saved.frame.max_output_items += 1,
+                8 => saved.budget.fuel_remaining = u64::MAX,
+                _ => {}
+            }
+            assert_eq!(
+                original.view().has_same_inherited_context(&saved.view()),
+                matches!(defect, 0 | 1 | 8)
+            );
+            assert_eq!(drops.get(), 0);
+            drop(saved);
+            assert_eq!(drops.get(), 1);
+        }
+    }
+}
+
+fn request_admission_cases() -> Vec<(Effect, EffectOperation)> {
+    let mut result = control_plane_cases()
+        .into_iter()
+        .map(|(effect, operation)| {
+            let operation = match operation {
+                leselang_command::PlannedOperation::Query(query) => EffectOperation::Query(query),
+                leselang_command::PlannedOperation::Command(command) => {
+                    EffectOperation::Command(command)
+                }
+            };
+            (effect, operation)
+        })
+        .collect::<Vec<_>>();
+    result.extend(cases().into_iter().map(|mut case| {
+        if case.operation_wire.get("timeout_ms").is_some() {
+            case.operation_wire["timeout_ms"] = json!(2000);
+        }
+        (
+            effect_from_wire(&case.operation_wire),
+            EffectOperation::Presentation(PresentationEnvelope {
+                schema_version: leserpent_domain::DOMAIN_SCHEMA_VERSION,
+                principal: Principal::new("operator").unwrap(),
+                capabilities: CapabilitySet::new(["ui.presentation"]),
+                operation: serde_json::from_value(case.operation_wire).unwrap(),
+            }),
+        )
+    }));
+    assert_eq!(result.len(), 70);
+    result
+}
+
+#[test]
+fn operation_lowering_composes_seventy_wire_shapes_with_lazy_identity_and_original_gui_owner() {
+    use std::cell::Cell;
+    struct Capture<'a>(&'a Cell<usize>);
+    impl Drop for Capture<'_> {
+        fn drop(&mut self) {
+            self.0.set(self.0.get() + 1);
+        }
+    }
+    for (effect, expected) in request_admission_cases() {
+        let calls = Cell::new(0);
+        let drops = Cell::new(0);
+        let capture = Capture(&drops);
+        let principal = expected.authority().0.clone();
+        let principal_buffer = principal.id.as_ptr();
+        let capabilities = expected.authority().1.clone();
+        let before = serde_json::to_vec(&effect).unwrap();
+        let (required, operation) = leselang_command::lower_effect_operation(
+            &effect,
+            principal,
+            capabilities,
+            request_context(&effect).expected_revision,
+            || {
+                let _capture = capture;
+                calls.set(calls.get() + 1);
+                Some((
+                    CommandId::new("command-a").unwrap(),
+                    IdempotencyKey::new("effect-a").unwrap(),
+                ))
+            },
+        )
+        .unwrap();
+        let gui = matches!(operation, EffectOperation::Presentation(_));
+        assert_eq!(calls.get(), usize::from(!gui));
+        assert_eq!(drops.get(), 1);
+        if gui {
+            assert_eq!(operation.authority().0.id.as_ptr(), principal_buffer);
+        }
+        assert_eq!(required, request_context(&effect).required_capability);
+        assert_eq!(operation, expected);
+        assert_eq!(
+            serde_json::to_vec(&operation).unwrap(),
+            serde_json::to_vec(&expected).unwrap()
+        );
+        assert_eq!(serde_json::to_vec(&effect).unwrap(), before);
+        assert_eq!(operation.validate_request(request_context(&effect)), Ok(()));
+    }
+}
+
+#[test]
+fn operation_lowering_identity_refusal_precedes_control_plane_capability_checks() {
+    use leselang_command::{OperationLoweringError, lower_effect_operation};
+    for (effect, expected) in request_admission_cases() {
+        if matches!(expected, EffectOperation::Presentation(_)) {
+            continue;
+        }
+        let calls = std::cell::Cell::new(0);
+        let error = lower_effect_operation(
+            &effect,
+            Principal {
+                id: "private/invalid".into(),
+            },
+            CapabilitySet::new([] as [&str; 0]),
+            None,
+            || {
+                calls.set(calls.get() + 1);
+                None
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error, OperationLoweringError::Identity);
+        assert_eq!(calls.get(), 1);
+        assert!(!format!("{error:?}: {error}").contains("private/invalid"));
+        assert!(std::error::Error::source(&error).is_none());
+        let error = lower_effect_operation(
+            &effect,
+            Principal {
+                id: "private/invalid".into(),
+            },
+            CapabilitySet::new([] as [&str; 0]),
+            None,
+            || {
+                Some((
+                    CommandId::new("command-a").unwrap(),
+                    IdempotencyKey::new("effect-a").unwrap(),
+                ))
+            },
+        )
+        .unwrap_err();
+        assert_eq!(
+            error,
+            OperationLoweringError::Lowering(LoweringError::MissingCapability {
+                capability: leselang_hir::host_call::HostOperation::for_effect(&effect)
+                    .unwrap()
+                    .required_capability(),
+            })
+        );
+    }
+}
+
+#[test]
+fn operation_lowering_rejects_structured_effects_after_exactly_one_identity_attempt() {
+    use leselang_command::{OperationLoweringError, lower_effect_operation};
+    let compute = lower(&parse("fn main() = add(left: 1, right: 2)"))
+        .unwrap()
+        .function
+        .effect;
+    for effect in [
+        Effect::All { branches: vec![] },
+        Effect::Sequence { steps: vec![] },
+        compute,
+    ] {
+        for grant_identity in [false, true] {
+            let calls = std::cell::Cell::new(0);
+            let outcome = lower_effect_operation(
+                &effect,
+                Principal::new("operator").unwrap(),
+                CapabilitySet::default(),
+                None,
+                || {
+                    calls.set(calls.get() + 1);
+                    grant_identity.then(|| {
+                        (
+                            CommandId::new("command-a").unwrap(),
+                            IdempotencyKey::new("effect-a").unwrap(),
+                        )
+                    })
+                },
+            );
+            assert_eq!(calls.get(), 1);
+            assert_eq!(
+                outcome,
+                Err(if grant_identity {
+                    OperationLoweringError::Lowering(
+                        LoweringError::StructuredEffectRequiresExpansion,
+                    )
+                } else {
+                    OperationLoweringError::Identity
+                })
+            );
+        }
+    }
+}
+
+#[test]
+fn operation_lowering_gui_construction_is_not_authorization_or_request_admission() {
+    for (effect, expected) in request_admission_cases() {
+        if !matches!(expected, EffectOperation::Presentation(_)) {
+            continue;
+        }
+        let (_, operation) = leselang_command::lower_effect_operation(
+            &effect,
+            Principal {
+                id: "private/invalid".into(),
+            },
+            CapabilitySet::default(),
+            None,
+            || panic!("GUI must not request command identity"),
+        )
+        .unwrap();
+        assert_eq!(operation.authority().0.id, "private/invalid");
+        assert_eq!(
+            operation.validate_request(request_context(&effect)),
+            Err(leselang_command::OperationRequestError::Capability)
+        );
+    }
+}
+
+#[test]
+fn operation_lowering_identity_factory_unwind_does_not_retry_or_retain_owned_capture() {
+    use std::{
+        cell::Cell,
+        panic::{AssertUnwindSafe, catch_unwind},
+    };
+    struct Capture<'a>(&'a Cell<usize>);
+    impl Drop for Capture<'_> {
+        fn drop(&mut self) {
+            self.0.set(self.0.get() + 1);
+        }
+    }
+    let calls = Cell::new(0);
+    let drops = Cell::new(0);
+    let capture = Capture(&drops);
+    let outcome = catch_unwind(AssertUnwindSafe(|| {
+        leselang_command::lower_effect_operation(
+            &Effect::RuntimeList {
+                filter: Default::default(),
+            },
+            Principal::new("operator").unwrap(),
+            CapabilitySet::new(["runtime.read"]),
+            None,
+            || {
+                let _capture = capture;
+                calls.set(calls.get() + 1);
+                panic!("trusted identity factory");
+            },
+        )
+    }));
+    assert!(outcome.is_err());
+    assert_eq!(calls.get(), 1);
+    assert_eq!(drops.get(), 1);
+}
+
+fn request_context(effect: &Effect) -> leselang_command::OperationRequestContext<'_> {
+    leselang_command::OperationRequestContext {
+        effect,
+        required_capability: leselang_hir::host_call::HostOperation::for_effect(effect)
+            .unwrap()
+            .required_capability(),
+        expected_command_id: "command-a",
+        expected_idempotency_key: "effect-a",
+        expected_revision: Some(leselang_host_contract::Revision(7)),
+    }
+}
+
+fn request_authority_mut(
+    operation: &mut EffectOperation,
+) -> (&mut Principal, &mut CapabilitySet, &mut u32) {
+    match operation {
+        EffectOperation::Query(e) => (&mut e.principal, &mut e.capabilities, &mut e.schema_version),
+        EffectOperation::Command(e) => {
+            (&mut e.principal, &mut e.capabilities, &mut e.schema_version)
+        }
+        EffectOperation::Presentation(e) => {
+            (&mut e.principal, &mut e.capabilities, &mut e.schema_version)
+        }
+    }
+}
+
+#[test]
+fn operation_request_admission_covers_seventy_operations_without_vm_or_wire_changes() {
+    for (effect, operation) in request_admission_cases() {
+        let before = serde_json::to_vec(&operation).unwrap();
+        let authority = operation.authority();
+        let original = match &operation {
+            EffectOperation::Query(e) => (&e.principal, &e.capabilities),
+            EffectOperation::Command(e) => (&e.principal, &e.capabilities),
+            EffectOperation::Presentation(e) => (&e.principal, &e.capabilities),
+        };
+        assert!(std::ptr::eq(authority.0, original.0));
+        assert!(std::ptr::eq(authority.1, original.1));
+        assert_eq!(operation.validate_request(request_context(&effect)), Ok(()));
+        assert_eq!(serde_json::to_vec(&operation).unwrap(), before);
+        let decoded: EffectOperation = serde_json::from_slice(&before).unwrap();
+        assert_eq!(decoded.validate_request(request_context(&effect)), Ok(()));
+        assert_eq!(decoded, operation);
+    }
+}
+
+#[test]
+fn operation_request_category_precedes_authority_and_authority_precedes_payload() {
+    use leselang_command::OperationRequestError;
+    let cases = request_admission_cases();
+    for (effect, expected) in &cases {
+        for (_, other) in &cases {
+            let same_category = std::mem::discriminant(expected) == std::mem::discriminant(other);
+            let mut torn = other.clone();
+            let (principal, capabilities, schema) = request_authority_mut(&mut torn);
+            principal.id = "private/invalid".into();
+            *capabilities = CapabilitySet::new([] as [&str; 0]);
+            *schema = u32::MAX;
+            assert_eq!(
+                torn.validate_request(request_context(effect)),
+                Err(if same_category {
+                    OperationRequestError::Capability
+                } else {
+                    OperationRequestError::Mismatch
+                })
+            );
+            let (_, capabilities, _) = request_authority_mut(&mut torn);
+            *capabilities = CapabilitySet::new([request_context(effect).required_capability]);
+            assert_eq!(
+                torn.validate_request(request_context(effect)),
+                Err(if same_category {
+                    OperationRequestError::Envelope
+                } else {
+                    OperationRequestError::Mismatch
+                })
+            );
+        }
+    }
+}
+
+#[test]
+fn operation_request_identity_limits_and_diagnostics_remain_closed_and_redacted() {
+    use leselang_command::OperationRequestError;
+    for (effect, operation) in request_admission_cases() {
+        for (id, valid) in [
+            ("operator._-:09".into(), true),
+            ("x".repeat(128), true),
+            ("".into(), false),
+            ("x".repeat(129), false),
+            ("private/secret".into(), false),
+            ("\u{00e9}".into(), false),
+        ] {
+            let mut torn = operation.clone();
+            request_authority_mut(&mut torn).0.id = id;
+            assert_eq!(
+                torn.validate_request(request_context(&effect)),
+                if valid {
+                    Ok(())
+                } else {
+                    Err(OperationRequestError::Envelope)
+                }
+            );
+        }
+        for schema in [0, leserpent_domain::DOMAIN_SCHEMA_VERSION + 1, u32::MAX] {
+            let mut torn = operation.clone();
+            *request_authority_mut(&mut torn).2 = schema;
+            assert_eq!(
+                torn.validate_request(request_context(&effect)),
+                Err(OperationRequestError::Envelope)
+            );
+        }
+        let mut context = request_context(&effect);
+        context.required_capability = "private/secret";
+        let error = operation.validate_request(context).unwrap_err();
+        assert_eq!(error, OperationRequestError::Capability);
+        assert!(!format!("{error:?}: {error}").contains("private/secret"));
+        assert!(std::error::Error::source(&error).is_none());
+    }
+}
+
+#[test]
+fn operation_request_uses_supplied_command_expectations_without_inventing_identity() {
+    use leselang_command::OperationRequestError;
+    for (effect, operation) in request_admission_cases() {
+        for field in 0..3 {
+            let mut context = request_context(&effect);
+            match field {
+                0 => context.expected_command_id = "another-command",
+                1 => context.expected_idempotency_key = "another-key",
+                _ => context.expected_revision = None,
+            }
+            assert_eq!(
+                operation.validate_request(context),
+                if matches!(operation, EffectOperation::Command(_)) {
+                    Err(OperationRequestError::Mismatch)
+                } else {
+                    Ok(())
+                }
+            );
+        }
+    }
+}
+
+#[test]
+fn operation_request_correspondence_is_not_source_or_live_authority_admission() {
+    let filter = leselang_host_contract::RuntimeListFilter {
+        environment: Some(String::new()),
+        cluster: None,
+        role: None,
+    };
+    let effect = Effect::RuntimeList {
+        filter: filter.clone(),
+    };
+    assert!(leselang_hir::canonical_source(&effect).is_err());
+    let operation = EffectOperation::Query(leserpent_domain::QueryEnvelope {
+        schema_version: leserpent_domain::DOMAIN_SCHEMA_VERSION,
+        principal: Principal::new("declared-not-authenticated").unwrap(),
+        capabilities: CapabilitySet::new(["runtime.read"]),
+        query: leserpent_domain::Query::RuntimeList { filter },
+    });
+    assert_eq!(operation.validate_request(request_context(&effect)), Ok(()));
+}
+
 struct Case {
     operation: PresentationOperation,
     reply: PresentationResult,

@@ -1116,6 +1116,48 @@ fn lease_issuance_planning_stays_separate_from_existing_lease_settlement() {
 }
 
 #[test]
+fn dispatch_data_is_host_owned_and_reference_types_are_not_mirrored() {
+    let core = fs::read_to_string(root().join("crates/leselang-runtime-core/src/dispatch_data.rs"))
+        .unwrap();
+    for name in [
+        "DispatchLease<Request>",
+        "RetrySchedule<Error>",
+        "FailedEffect<Error>",
+    ] {
+        assert!(core.contains(&format!("pub struct {name}")));
+    }
+    for forbidden in [
+        "leserpent",
+        "leselang_command",
+        "EffectRequest",
+        "EffectErrorClass",
+        "rusqlite",
+        "std::time",
+        "pub enum RetryDisposition",
+    ] {
+        assert!(!core.contains(forbidden), "{forbidden}");
+    }
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    for (name, payload) in [
+        ("DispatchLease", "EffectRequest"),
+        ("RetrySchedule", "EffectError"),
+        ("FailedEffect", "EffectError"),
+    ] {
+        assert!(vm.contains(&format!(
+            "pub type {name} = leselang_runtime_core::{name}<{payload}>;"
+        )));
+        assert!(!vm.contains(&format!("pub struct {name} {{")));
+    }
+    assert!(vm.contains("pub enum RetryDisposition {"));
+    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(exporter.contains("consumer/tests/dispatch_data.rs"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Host-Owned Dispatch Data"));
+    assert!(docs.contains("data\nownership extraction, not a generic scheduler"));
+}
+
+#[test]
 fn ci_and_docs_keep_native_verticals_separate_from_reference_compatibility() {
     let workflow = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
     assert!(workflow.contains("cargo +1.98.0 test -p leselang-hir --locked --no-default-features"));

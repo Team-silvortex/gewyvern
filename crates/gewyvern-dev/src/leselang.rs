@@ -674,6 +674,10 @@ fn prepare(root: &Path) -> Result<(Plan, String), String> {
             "crates/leselang-runtime-core/tests/dispatch_plan.rs",
         ),
         (
+            "dispatch_data",
+            "crates/leselang-runtime-core/tests/dispatch_data.rs",
+        ),
+        (
             "retry_schedule",
             "crates/leselang-runtime-core/tests/retry_schedule.rs",
         ),
@@ -1334,6 +1338,7 @@ mod tests {
             "crates/leselang-runtime-core/src/retry_schedule.rs",
             "crates/leselang-runtime-core/src/dispatch_capacity.rs",
             "crates/leselang-runtime-core/src/dispatch_plan.rs",
+            "crates/leselang-runtime-core/src/dispatch_data.rs",
             "crates/leselang-runtime-core/src/sequence_watermark.rs",
             "crates/leselang-runtime-core/src/successor_chain.rs",
             "crates/leselang-runtime-core/src/sequence_frontier.rs",
@@ -1349,6 +1354,7 @@ mod tests {
             "consumer/tests/retry_schedule.rs",
             "consumer/tests/dispatch_capacity.rs",
             "consumer/tests/dispatch_plan.rs",
+            "consumer/tests/dispatch_data.rs",
             "consumer/tests/sequence_watermark.rs",
             "consumer/tests/successor_chain.rs",
             "consumer/tests/sequence_frontier.rs",

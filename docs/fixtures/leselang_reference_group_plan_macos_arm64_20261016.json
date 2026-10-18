@@ -1,0 +1,164 @@
+{
+  "kind": "leselang-reference-group-plan-correspondence",
+  "validated_at_utc": "2026-10-16T04:31:40.399Z",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "reference_execution_contract": "1.92.0",
+  "native_embedding_contract": "0.162.0",
+  "frozen_group_plan_comparisons": 3360,
+  "valid_group_forms": 10,
+  "execution_orders": 14,
+  "corruption_and_boundary_variants": 24,
+  "successor_name_comparisons": 325,
+  "adapter_source_modes": [
+    "seq",
+    "all"
+  ],
+  "adapter_source_corruptions_per_mode": 5,
+  "baseline_passed": true,
+  "post_migration_parity_passed": true,
+  "explicit_limits_without_resource_mutation": true,
+  "structure_correspondence_size_type_order_preserved": true,
+  "successor_search_window_preserved": true,
+  "adapter_source_reentry_passed": true,
+  "memory_profile_passed": true,
+  "native_profile_passed": true,
+  "wire_or_journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "scope": "Adapter-owned group-plan correspondence and successor naming with explicit caller branch, sequence and fuel ceilings. VM retains structure preflight, bounded plan encoding, full type/scalar admission, original request authority and durable recovery. Frozen before/after rules retain faults and ordering. A VM-free parsed Seq/All fixture composes shared admission with wire-restored group reentry, two captured successors and scalar completion, preserving result/preparations/fuel; fixture identities and ingress policy are not production receipt or recovery authority. No native completeness or physical extraction claim.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/group_plan.rs",
+      "sha256": "b6787df6e667c5733aca1afff134c015717080b406cefe740e0b18cb90df2a87"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "d0fa73d2f269e5697dda86ed44e282af8850a87715b9a88a3b248d918057fefd"
+    },
+    {
+      "path": "crates/leselang-command/tests/merge_plan.rs",
+      "sha256": "873af77f148b193131ff6a3da43c92f8e6a161491320492d158ff178bb6c657b"
+    },
+    {
+      "path": "crates/leselang-command/tests/captured_execution.rs",
+      "sha256": "253a45b99520f524bd0004c8a000cd5691c2dee65cd4f43cdc3b5bcf3ab5af04"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_binding.rs",
+      "sha256": "d3fb52b50673790290065b9f6d5f853f51bf746d32126608903cf5e81d3e2549"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_plan_contract_tests.rs",
+      "sha256": "0e13b15a468c2b9515a70e640c738343dc88e40172af3ef1cc235edf61d714ce"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "9ee0948d7f562367bcb8fa648d1a2986519743d7f3fa5a2bb77fc8e9453ba936"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "dc2ffbf85faa653dac2aafa27cafae1f888c998c6177044f797bd9d89fb61941"
+    },
+    {
+      "path": "tests/language_independence_tdd.rs",
+      "sha256": "954be7c82ca9a5d0ed044e10d73532aaed1ddd5d15c511a7bda23f4edfb11666"
+    }
+  ],
+  "verification": [
+    {
+      "name": "baseline",
+      "path": "/private/tmp/leselang-group-plan-CY5Ynb/baseline.log",
+      "sha256": "74b97c8d0acd66aa45133453e73d59701d814afb68759128466a744c3cf60fc5",
+      "passed": 3
+    },
+    {
+      "name": "parity",
+      "path": "/private/tmp/leselang-group-plan-CY5Ynb/parity.log",
+      "sha256": "77ef72f78c5c1795bc387762cfbad16f066fd63aa6e4c12dbc59908c61dc9e8a",
+      "passed": 3
+    },
+    {
+      "name": "adapter",
+      "path": "/private/tmp/leselang-group-plan-CY5Ynb/adapter.log",
+      "sha256": "d9c5546c83df492098b3063bed30bd173771c2cd240b9a0adb9758a6d4c9a4b2",
+      "passed": 21
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-group-plan-CY5Ynb/runtime.log",
+      "sha256": "9cd7f39ebc1b4892af9a34112e8fd0ee2c03bb56e11d5515e6b4f4277f4fec23",
+      "passed": 3157
+    },
+    {
+      "name": "memory",
+      "path": "/private/tmp/leselang-group-plan-CY5Ynb/memory.log",
+      "sha256": "7b19abf8ae954b42618a22d93e1cb4da1d2e7316c9fe2df1fe74c8c700986c85",
+      "passed": 196
+    },
+    {
+      "name": "native",
+      "path": "/private/tmp/leselang-group-plan-CY5Ynb/native.log",
+      "sha256": "75350cccc937b174bb9cb8d4af64f10393b8febc3c54b472cd1234972b02da53",
+      "passed": 50
+    },
+    {
+      "name": "adapter-tree",
+      "path": "/private/tmp/leselang-group-plan-CY5Ynb/adapter-tree.log",
+      "sha256": "d75f8df9257048210b0b1b1869b59959894d689e09e5f413b05c414042a268bf",
+      "forbidden_dependencies_absent": [
+        "leselang-vm",
+        "rusqlite",
+        "libsqlite3-sys"
+      ]
+    },
+    {
+      "name": "native-tree",
+      "path": "/private/tmp/leselang-group-plan-CY5Ynb/native-tree.log",
+      "sha256": "648ce0bd6a92678072f5e583c34468351fa107a920b6e28eb7d87d17eee4fef6",
+      "forbidden_dependencies_absent": [
+        "leselang-command",
+        "leselang-host-contract",
+        "leserpent-domain",
+        "rusqlite",
+        "libsqlite3-sys"
+      ]
+    },
+    {
+      "name": "root",
+      "path": "/private/tmp/leselang-group-plan-CY5Ynb/root.log",
+      "sha256": "87c0909637363dd5f96d9d1ec22aef66c7b2649ef558b3de52a01c643534894e",
+      "passed": 424
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-group-plan-CY5Ynb/clippy.log",
+      "sha256": "c4ca8545a5b3ac0b37af986feb52630d8a71e66b45369c17222897ed408cdf7d",
+      "strict_warnings_passed": true
+    },
+    {
+      "name": "memory-clippy",
+      "path": "/private/tmp/leselang-group-plan-CY5Ynb/memory-clippy.log",
+      "sha256": "c880101eab22bd54172e895bc58a78473f68fa0dfcd70caf8d76eb9fd68aeece",
+      "strict_warnings_passed": true
+    },
+    {
+      "name": "native-clippy",
+      "path": "/private/tmp/leselang-group-plan-CY5Ynb/native-clippy.log",
+      "sha256": "b64fd83cf0bcc5e3757fe4f036e321e8705d11976a196cf54c84ff82d69941dc",
+      "strict_warnings_passed": true
+    },
+    {
+      "name": "final-root",
+      "path": "/private/tmp/leselang-group-plan-CY5Ynb/final-root.log",
+      "sha256": "5fccdb564a035b3a3a5bd958a200867eab84b7e1ea05657d55888aaeb7f24914",
+      "passed": 424
+    }
+  ],
+  "finalized_on": "2026-10-18",
+  "final_checks": {
+    "cargo_fmt_all": true,
+    "reference_module_rustfmt": true,
+    "git_diff_check": true
+  }
+}

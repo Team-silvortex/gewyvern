@@ -1,0 +1,133 @@
+{
+  "kind": "leselang-reference-merge-plan-protocol",
+  "validated_at_utc": "2026-10-16T04:10:38.244Z",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "reference_execution_contract": "1.91.0",
+  "native_embedding_contract": "0.162.0",
+  "frozen_plan_comparisons": 1120,
+  "execution_orders": 14,
+  "baseline_passed": true,
+  "post_migration_parity_passed": true,
+  "exact_adapter_type_identity": true,
+  "legacy_constructor_faults_preserved": true,
+  "outer_shape_before_deep_binding": true,
+  "memory_profile_passed": true,
+  "native_profile_passed": true,
+  "wire_or_journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "scope": "Adapter-owned MergePlan, ExecutionOrder and outer shape admission with explicit policy. Exact VM reexports preserve enum imports, legacy constructor Fault/LSV2401, 64-member/name ceilings, original buffers and complete conversion-before-validation. VM retains deep group binding, request, authority, fuel and durable gates. Unchecked serde and shape success do not authorize recovery. No native completeness or physical extraction claim.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/merge_plan.rs",
+      "sha256": "2e604475319faef2da96112eb221fc3fed02a21b34010ae3aabd3e6109bad890"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "f7b0b13ef470550c8d529305e52399a5d8ae3f314c72f362448c1b76d0a5612d"
+    },
+    {
+      "path": "crates/leselang-command/tests/merge_plan.rs",
+      "sha256": "5037263ebe8356376a59fc96533e74abd42a26bd2f64fd11e63bb21a61132f09"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "bfce4e009a6b50db3af0e385cbd952e8d1f703b2f2d08684e1912eed5f665f10"
+    },
+    {
+      "path": "crates/leselang-vm/src/merge_plan_contract_tests.rs",
+      "sha256": "6ee4bc9f831138625b731d73780d9abdcc0d9a64f9054766004a1deb0aab28b6"
+    },
+    {
+      "path": "crates/leselang-vm/tests/ephemeral_profile.rs",
+      "sha256": "9a5264238f287b6a02d35ecb92b356d371a4a804a6ef618ce58a9a81a67148f7"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "dc2ffbf85faa653dac2aafa27cafae1f888c998c6177044f797bd9d89fb61941"
+    }
+  ],
+  "verification": [
+    {
+      "name": "baseline",
+      "path": "/private/tmp/leselang-merge-plan-Nyq6Si/baseline.log",
+      "sha256": "fb9348f4947cc46767e38ef5f4c421fb2526856437cde0181237e5dc5c33dfde",
+      "passed": 2
+    },
+    {
+      "name": "parity",
+      "path": "/private/tmp/leselang-merge-plan-Nyq6Si/parity.log",
+      "sha256": "b72839181636911948fb3aa0c285c0d16da5fd5b7a44b3545ef05a3bbb0cee0f",
+      "passed": 2
+    },
+    {
+      "name": "adapter",
+      "path": "/private/tmp/leselang-merge-plan-Nyq6Si/adapter.log",
+      "sha256": "bccba2058ab76cf87278135710ab0488842c93f21f8aab77ac50057ed3998bff",
+      "passed": 5
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-merge-plan-Nyq6Si/runtime.log",
+      "sha256": "820d23e7eaa382a9fd71abd2eee2aca015f731b9f63c18ca03d08497e99e8666",
+      "passed": 3148
+    },
+    {
+      "name": "memory",
+      "path": "/private/tmp/leselang-merge-plan-Nyq6Si/memory.log",
+      "sha256": "c0a0bd02049cee162bb7527a52bac05d1cd4ea892e5765d75be28f1a25886d11",
+      "passed": 193
+    },
+    {
+      "name": "native",
+      "path": "/private/tmp/leselang-merge-plan-Nyq6Si/native.log",
+      "sha256": "0b5e699079f1db63d6035d6df8d2a1f609b8eada0ce90641f5e2dda68a9977be",
+      "passed": 50
+    },
+    {
+      "name": "adapter-tree",
+      "path": "/private/tmp/leselang-merge-plan-Nyq6Si/adapter-tree.log",
+      "sha256": "d75f8df9257048210b0b1b1869b59959894d689e09e5f413b05c414042a268bf",
+      "forbidden_dependencies_absent": [
+        "leselang-vm",
+        "rusqlite"
+      ]
+    },
+    {
+      "name": "native-tree",
+      "path": "/private/tmp/leselang-merge-plan-Nyq6Si/native-tree.log",
+      "sha256": "648ce0bd6a92678072f5e583c34468351fa107a920b6e28eb7d87d17eee4fef6",
+      "forbidden_dependencies_absent": [
+        "leselang-command",
+        "leselang-host-contract",
+        "leserpent-domain",
+        "rusqlite"
+      ]
+    },
+    {
+      "name": "root",
+      "path": "/private/tmp/leselang-merge-plan-Nyq6Si/root.log",
+      "sha256": "f0fbd9ca3523d9063ad87ba5324c6e1e0ca8106575c48c05cc6390a264e665f7",
+      "passed": 422
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-merge-plan-Nyq6Si/clippy.log",
+      "sha256": "0b86fec586028b0cb6ba308413ff9acf6692f3aebb3d8e9d3f6adee26bd5edf7",
+      "strict_warnings_passed": true
+    },
+    {
+      "name": "memory-clippy",
+      "path": "/private/tmp/leselang-merge-plan-Nyq6Si/memory-clippy.log",
+      "sha256": "397f260db549bb69752d18d0798606355ec681147c5c12a4b9f9bc2a60cbffb9",
+      "strict_warnings_passed": true
+    },
+    {
+      "name": "native-clippy",
+      "path": "/private/tmp/leselang-merge-plan-Nyq6Si/native-clippy.log",
+      "sha256": "a2e5d712936e6d5744ed33dcd59bce4ffae472fc312afc305717f57fc1e2d1dd",
+      "strict_warnings_passed": true
+    }
+  ]
+}

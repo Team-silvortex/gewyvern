@@ -261,6 +261,13 @@ an untracked memory continuation is not evidence of durable retention.
 
 ## Product Protocol Ownership
 
+The released `DispatchLease`, `RetrySchedule` and `FailedEffect` paths are exact
+specializations of runtime-core's host-defined request/error containers. Both
+reference journals use those types directly, without data conversion or copies.
+Wire fields, defaults and nested request admission are unchanged. Product error
+classification, retry policy and the `RetryDisposition` enum (including variant
+imports) stay in this adapter; no generic delivery data grants replay authority.
+
 `leselang-command` owns the Leserpent `EffectOperation`, `EffectResult`,
 `PresentationEnvelope`, `PresentationOperation`, `PresentationResult`,
 `DebuggerCancelResult`, `Value` and `StructuredField` payloads. The reference VM re-exports those exact types
@@ -291,12 +298,126 @@ The adapter's `query_matches_effect` and `command_matches_effect` now own the
 four query and four command payload rules. Fixed log pagination, exact filters,
 deployment targets, command/idempotency IDs, revision, Leselang origin, non-dry-run
 execution and operation-specific confirmation retain their released semantics.
-The VM still generates expected IDs from the canonical continuation sequence and
-supplies the saved revision, never expectations copied from a received command.
+The VM supplies its canonical continuation sequence and saved revision; the
+adapter derives expected IDs, never copying them from a received command.
 It checks authority first and budgets afterward; cross-category refusals and
 native/wire/restore fault order are frozen by `src/control_plane_request_tests.rs`.
 These borrowed predicates do not authenticate envelopes, validate canonical input
 or provide replay protection. Non-language registration commands still fail closed.
+
+`EffectOperation::validate_request(OperationRequestContext)` now composes those
+product rules outside the VM: operation category, declared capability, envelope
+schema/principal grammar, then payload correspondence. `authority()` borrows the
+original principal/capability pair without copying or authenticating it. The VM
+keeps complete image/token admission, identity allocation, original budget grants,
+validated request decoding and its `LSV2011`/`LSV2012`/`LSV2013` mapping. No request
+or continuation wire format changes. A frozen 70-operation reference comparison
+and VM-free adapter matrix preserve cross-category and conflicting-error order.
+This removes product policy from execution, not the remaining complete native
+pipeline or host-neutral durable recovery gates.
+
+`validate_preflighted_effect_request(EffectRequestView, canonical_sequence)` now
+shares the full post-image correspondence path: cold successor capabilities,
+canonical identity, derived product IDs, operation checks, then budget equality.
+The caller's trusted identity hook borrows the original token once, only after
+cold authority passes; opaque local tokens need no Clone/Debug/serde/Send bounds.
+The VM still admits the whole image first and retains checked current/legacy
+deserialization and released fault mappings. Frozen 70-operation comparisons and
+1,680 cold-body/conflicting-error cases preserve refusal order. A VM-free parsed
+two-call capture chain shares this gate before wire-restored reentry, with the same
+result, prepared effects and fuel. Equality is not provenance, current authority
+or a recovery grant; no wire, journal or native completeness claim changes.
+
+The construction half now uses `leselang_command::lower_effect_operation` too.
+It owns GUI/query/command envelopes, Leselang origin, non-dry-run and confirmation
+metadata. The VM still generates identities from its own sequence, through a
+once-only factory which GUI requests never invoke. Fuel debit and image creation
+remain before lowering; complete request validation remains afterward. The image
+now moves into the request instead of being cloned again. Seventy-operation wire
+checks and 1,120 frozen construction comparisons preserve successful bytes and
+fuel/identity/type/authority/deadline fault order. Construction is not admission
+or dispatch; neither confirmation metadata nor declared grants prove live authority.
+
+`leselang_command::continuation_schema` owns the released schema tags 1-11,
+result-binding version selection and version/group compatibility. The root VM
+constants remain exact re-exports. Borrowed preflighted entries require bounded
+binding structure and an explicit sequence ceiling; they do not allocate identities
+or authenticate groups. VM frame validation still checks structure first, maps
+group/version refusals to the original faults, then validates token, program
+counter, result type, semantic captures and budgets. A frozen pre-migration
+matrix compares 22,848 frames, including conflicting failures and legacy group-only
+versions. This is product protocol extraction, not host-neutral durable recovery.
+
+`GroupResultBinding` is now the exact `leselang_command` type at its released VM
+path. The adapter owns its closed saved fields, optional defaults, ordered sequence
+observations and bounded-IR group classification/schema choice. It also owns the
+predecessor/successor version predicate. None of these checks authenticate owners,
+reserve sequence numbers or authorize recovery. The VM's private
+`ReferenceGroupResultBinding` extension composes plan admission and retains request/
+capture validation, fuel ownership, execution and journal integration without
+converting or copying the frame.
+Frozen tests compare 288 frame/classification cases and legacy bytes; adapter tests
+cover 4,900 version/owner edges, including deliberately unauthenticated owner text.
+
+`MergePlan`, all 14 `ExecutionOrder` variants and the released branch-count/name
+constants are exact adapter re-exports too. The original `MergePlan::new` remains
+an unbound parallel constructor with the same 64-member/name limits, `Fault` type,
+`LSV2401` message, complete input conversion and owned string buffers. Its shared
+`validate_shape(MergePlanShapeLimits)` checks binding presence, successor names,
+count and unique ASCII names without walking saved bodies. The VM supplies its
+original ceilings, maps shape refusals to the original faults, then retains deep
+group admission and journal/request checks. Shape success and unchecked serde are
+not recovery grants. Frozen tests cover 1,120 plans plus constructor/wire defaults;
+VM-free adapter tests and exact type/variant imports preserve the public boundary.
+
+Group-plan correspondence is adapter-owned through `validate_preflighted_plan`
+and explicit `GroupPlanLimits`: flow/order, prefix names/signatures, ordered
+reservations, caller fuel ceilings and bounded collision-free successor naming.
+Shared admission keeps structure preflight before the rule, then native encoding,
+full binding typing and scalar-result requirements. The VM supplies unchanged limits
+and maps refusals to the same `LSV1409`; request identity/authority, authentic
+receipts and durable recovery still cannot be bypassed. Frozen before/after tests
+compare 3,360 cases across ten valid forms and 14 orders, plus search exhaustion
+and conflicting error precedence. The VM-free source/capture/reentry fixture also
+composes the new rule with explicit admission, preserving both successor calls,
+result, preparations and fuel after wire restoration; five corruptions refuse
+without execution or resource changes. This is correspondence, not full admission
+or a complete host-neutral recovery protocol.
+
+`validate_group_binding` composes that entire ordered admission path in the adapter,
+shared by the VM and the source-to-captured-reentry fixture. `GroupBindingLimits`
+holds explicit plan/capture policies; the caller's once-only encoding hook still
+owns capped serialization. Typed binding/plan/native failures preserve the VM's
+original faults and precedence. Native payloads move without Debug/Clone/Send/Sync
+requirements, and generic diagnostics redact them. Early refusal skips encoding;
+unwind propagates without retry or rollback. Outer plan shape, original binding
+association, request authority, receipts and journal recovery remain separate gates.
+
+`validate_preflighted_group_requests` now owns the complete admitted plan/request
+correspondence pass. Borrowed native row views preserve ordered prefix signatures,
+group owners, inherited authority/revision/deadlines, exact prefix fuel, reserved
+successor spelling, capture types and strictly decreasing successor fuel. The VM
+still runs full plan admission first and retains every request/frame, receipt and
+journal gate. Shared inherited-context comparison uses the existing core kernel;
+it deliberately does not admit budgets or decide fuel progression. Captured member
+type lookup also shares the same bounded-body walker rather than duplicating it.
+Forty real memory-journal snapshots across ten Seq/All flow forms produce 2,880
+frozen corruption comparisons. The VM-free parsed group/reentry proof now checks
+original and restored request rows before both captured successors, with unchanged
+results and fuel. Opaque local row tokens need no Clone/Debug/serde/Send support.
+This is product correspondence, not current authorization or independent recovery.
+
+Atomic and group successor pairs now also share the command adapter's
+`validate_preflighted_successor_pair`. The VM still admits parent then child
+requests, requires a non-scalar completed result and applies its original result
+domain/size gate before delegation. Shared schema/body, context, descending fuel,
+increasing identity, next-before-prior final typing and capture-retention checks
+preserve the existing LSV1407/LSV1405 mapping. Nine actual pairs from seven
+tail/capture/dataflow/conditional/Seq/All flows retain 576 frozen comparisons.
+The VM-free source fixture uses the same pair gate after bounded wire restoration
+with unchanged results, preparation and every fuel cutoff. Borrowed opaque local
+tokens need no native traits; hooks retain ordered calls, refusal and unwind.
+Identity allocation, live authority, receipts and durable settlement stay native.
 
 `EffectResult::matches_control_plane_effect` owns the eight control-plane reply
 correspondence rules in the adapter. Queries keep runtime/history/log identity

@@ -16,6 +16,17 @@ no dependency on any other workspace crate, product DTO, SQLite, async runtime,
 GUI toolkit, account service or generated asset. Inputs and successful outputs
 are opaque host types, with no `Clone`, serialization or language-HIR requirement.
 
+`DispatchLease<Request>`, `RetrySchedule<Error>` and `FailedEffect<Error>` now own
+the reference runtime's actual delivery/retry data definitions. Native hosts
+supply unrelated requests and errors, including move-only GUI-local handles and
+borrowed views; derived codecs/debug/clone and Send/Sync remain conditional.
+These are unchecked data, not authenticated leases, timers or retry decisions.
+Ingress bounds, request matching, live grants, deadlines, atomic storage and
+error classification remain adapter-owned. The reference VM keeps its released
+type paths as exact specializations, plus its original `RetryDisposition` enum
+and variant imports. Original field order, legacy zero retry-count default,
+outer unknown-field behavior and nested native codecs remain unchanged.
+
 `Admission<Input>` owns one immutable request. The host implements
 `AdmissionAdapter<Input>` and explicitly returns `Started`, `Backpressured` or
 `Rejected`. The core never classifies a host failure by its error-code string.

@@ -1,0 +1,129 @@
+{
+  "kind": "leselang-reference-operation-lowering",
+  "validated_at_utc": "2026-10-16T02:45:55.920Z",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "reference_execution_contract": "1.88.0",
+  "native_embedding_contract": "0.162.0",
+  "operations": 70,
+  "frozen_construction_comparisons": 1120,
+  "baseline_passed": true,
+  "post_migration_parity_passed": true,
+  "lazy_identity_factory": true,
+  "original_gui_principal_buffer": true,
+  "redundant_image_clone_removed": true,
+  "memory_profile_passed": true,
+  "native_profile_passed": true,
+  "wire_or_journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "scope": "Adapter-owned GUI/query/command construction and origin/confirmation/dry-run policy. VM owns original lazy identity factory, fuel, continuations, final admission and journal state. Construction alone neither authenticates authority nor authorizes dispatch. No complete native or durable extraction gate is promoted.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/operation_lowering.rs",
+      "sha256": "90328d4d118c00607d1ba99c2d841d0b80fb3a78d59597a84bbe2effb8abec77"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "389ed025a654acf3465f03b481c6995e1404e83a8181f846e23e981f973bf0f0"
+    },
+    {
+      "path": "crates/leselang-command/tests/host_protocol.rs",
+      "sha256": "337c954812853d43f20cc650a8863a144f381e6cb9a9657d237b63e0ebc4b263"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "6b67758e70b6e83897696761d9d8198e0bd717d470ae05c393ea171bb30727e2"
+    },
+    {
+      "path": "crates/leselang-vm/src/operation_request_tests.rs",
+      "sha256": "197cf0f76e895deb84246969860caaf1983b1a4e52a7b2c24c65c8dc4d222c10"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "59ec5b92c70e51ec977208dbff7f89a8b5ca31ae98a3a027a3d1dfd7075623e7"
+    }
+  ],
+  "verification": [
+    {
+      "name": "baseline",
+      "path": "/private/tmp/leselang-operation-lowering-tbzvQh/baseline.log",
+      "sha256": "fbd8138abb0be15454f0b223ac73155a2e08b7bde2eb6da3a8628ee8a04957eb",
+      "passed": 1
+    },
+    {
+      "name": "parity",
+      "path": "/private/tmp/leselang-operation-lowering-tbzvQh/parity.log",
+      "sha256": "14dfe57e0cfcb42f039550f7a07628b8a9b644ee535af952f1c701966e95863b",
+      "passed": 1
+    },
+    {
+      "name": "adapter",
+      "path": "/private/tmp/leselang-operation-lowering-tbzvQh/adapter.log",
+      "sha256": "d01dde3f689822f7c8d41c1808fba961d84f6ec21f23450aaa0b6cb3fc82bbbd",
+      "passed": 5
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-operation-lowering-tbzvQh/runtime.log",
+      "sha256": "7c6c3928013c27fd4abc2e642e6763351ef44ada12920cb60371b719cbf35d28",
+      "passed": 3129
+    },
+    {
+      "name": "memory",
+      "path": "/private/tmp/leselang-operation-lowering-tbzvQh/memory.log",
+      "sha256": "486f67c933b48791cbd72aa84f67aa60f2750824b13a2a50bf6768e7cf423f35",
+      "passed": 186
+    },
+    {
+      "name": "native",
+      "path": "/private/tmp/leselang-operation-lowering-tbzvQh/native.log",
+      "sha256": "8e59d5b7d56c2ee8bc6f9df2ed56f0661ad2d5b03ddf166033083f5a4fca855e",
+      "passed": 50
+    },
+    {
+      "name": "adapter-tree",
+      "path": "/private/tmp/leselang-operation-lowering-tbzvQh/adapter-tree.log",
+      "sha256": "d75f8df9257048210b0b1b1869b59959894d689e09e5f413b05c414042a268bf",
+      "forbidden_dependencies_absent": [
+        "leselang-vm",
+        "rusqlite"
+      ]
+    },
+    {
+      "name": "native-tree",
+      "path": "/private/tmp/leselang-operation-lowering-tbzvQh/native-tree.log",
+      "sha256": "648ce0bd6a92678072f5e583c34468351fa107a920b6e28eb7d87d17eee4fef6",
+      "forbidden_dependencies_absent": [
+        "leselang-command",
+        "leselang-host-contract",
+        "leserpent-domain",
+        "rusqlite"
+      ]
+    },
+    {
+      "name": "root",
+      "path": "/private/tmp/leselang-operation-lowering-tbzvQh/root.log",
+      "sha256": "d00e15d4b49164ff02c977ed59f21831bd20e6e643f2a5337be4fc35717bb8d4",
+      "passed": 416
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-operation-lowering-tbzvQh/clippy.log",
+      "sha256": "94903083a519be9b654b6d667aa12e053fe161d44471472db3d256b7962355fe",
+      "strict_warnings_passed": true
+    },
+    {
+      "name": "memory-clippy",
+      "path": "/private/tmp/leselang-operation-lowering-tbzvQh/memory-clippy.log",
+      "sha256": "fbf258f4fe9dd6f868fa682ec82b7eb267435f72492587a5d9b4e58c442d1d58",
+      "strict_warnings_passed": true
+    },
+    {
+      "name": "native-clippy",
+      "path": "/private/tmp/leselang-operation-lowering-tbzvQh/native-clippy.log",
+      "sha256": "52e38e9be35fe477015d83b81cc1408170ab28595e56ea898ad29b55811d5379",
+      "strict_warnings_passed": true
+    }
+  ]
+}

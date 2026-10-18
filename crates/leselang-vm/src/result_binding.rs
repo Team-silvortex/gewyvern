@@ -10,6 +10,7 @@ pub use leselang_command::{
 };
 pub use leselang_runtime_core::ScalarBinding;
 
+#[cfg(test)]
 pub(super) use leselang_command::ProjectedGroupExt as ReferenceProjectedGroup;
 
 pub(super) fn group_capture_limits() -> GroupCaptureLimits {
@@ -30,7 +31,7 @@ pub(super) fn invalid() -> Fault {
     }
 }
 
-fn result_binding_limits() -> leselang_command::ResultBindingLimits {
+pub(super) fn result_binding_limits() -> leselang_command::ResultBindingLimits {
     leselang_command::ResultBindingLimits {
         captures: CaptureValidationLimits {
             max_saved_bindings: MAX_EFFECT_NESTING_DEPTH,
@@ -52,24 +53,7 @@ pub(super) trait ReferenceResultBinding {
 
 impl ReferenceResultBinding for ResultBinding {
     fn schema_version(&self) -> u32 {
-        if !self.groups.is_empty() {
-            if self.body.is_pure() {
-                crate::GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION
-            } else if self.body.is_result_chain() {
-                crate::GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION
-            } else {
-                crate::GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION
-            }
-        } else if !self.body.is_pure() && !self.body.is_result_chain() {
-            crate::CONDITIONAL_CONTINUATION_SCHEMA_VERSION
-        } else if !self.results.is_empty() || (!self.body.is_pure() && !self.body.is_atomic_tail())
-        {
-            crate::DATAFLOW_CONTINUATION_SCHEMA_VERSION
-        } else if self.body.is_pure() {
-            crate::RESULT_BINDING_CONTINUATION_SCHEMA_VERSION
-        } else {
-            crate::SUCCESSOR_CONTINUATION_SCHEMA_VERSION
-        }
+        leselang_command::continuation_schema::preflighted_result_binding_schema_version(self)
     }
 
     fn validate_structure(&self) -> Result<(), Fault> {

@@ -1,5 +1,10 @@
 use super::*;
 
+#[cfg(test)]
+#[path = "successor_pair_contract_tests.rs"]
+mod pair_contract_tests;
+
+#[cfg(test)]
 fn validate_extension(
     prior: &ResultBinding,
     binding: &ResultBinding,
@@ -29,25 +34,14 @@ pub(super) fn invalid() -> Fault {
 }
 
 pub(super) fn authority(operation: &EffectOperation) -> (&Principal, &CapabilitySet) {
-    match operation {
-        EffectOperation::Query(envelope) => (&envelope.principal, &envelope.capabilities),
-        EffectOperation::Command(envelope) => (&envelope.principal, &envelope.capabilities),
-        EffectOperation::Presentation(envelope) => (&envelope.principal, &envelope.capabilities),
-    }
+    operation.authority()
 }
 
+#[cfg(test)]
 pub(super) fn same_inherited_context(original: &EffectRequest, saved: &EffectRequest) -> bool {
-    leselang_runtime_core::validate_inherited_context(
-        &original.continuation.resource_budget(),
-        &saved.continuation.resource_budget(),
-        || {
-            Ok::<_, std::convert::Infallible>(
-                authority(&original.operation) == authority(&saved.operation),
-            )
-        },
-        || Ok(original.continuation.expected_revision == saved.continuation.expected_revision),
-    )
-    .is_ok()
+    original
+        .as_view()
+        .has_same_inherited_context(&saved.as_view())
 }
 
 pub(super) fn validate_pair(
@@ -58,7 +52,6 @@ pub(super) fn validate_pair(
     validate_effect_request(parent)?;
     validate_effect_request(next)?;
     let first = &parent.continuation;
-    let second = &next.continuation;
     let Step::Done(value) = result else {
         return Err(invalid());
     };
@@ -66,52 +59,21 @@ pub(super) fn validate_pair(
         return Err(invalid());
     }
     validate_bound_value(first, value)?;
-    let schema_valid = match first.schema_version {
-        SUCCESSOR_CONTINUATION_SCHEMA_VERSION => {
-            second.schema_version == CONTINUATION_SCHEMA_VERSION
+    leselang_command::validate_preflighted_successor_pair(
+        parent.as_view(),
+        next.as_view(),
+        value,
+        crate::result_binding::result_binding_limits(),
+        ContinuationToken::as_str,
+        canonical_continuation_sequence,
+        crate::valid_merge_branch_name,
+    )
+    .map_err(|error| match error {
+        leselang_command::SuccessorCorrespondenceError::Mismatch => invalid(),
+        leselang_command::SuccessorCorrespondenceError::InvalidBinding => {
+            crate::result_binding::invalid()
         }
-        DATAFLOW_CONTINUATION_SCHEMA_VERSION => matches!(
-            second.schema_version,
-            CONTINUATION_SCHEMA_VERSION | DATAFLOW_CONTINUATION_SCHEMA_VERSION
-        ),
-        CONDITIONAL_CONTINUATION_SCHEMA_VERSION => matches!(
-            second.schema_version,
-            CONTINUATION_SCHEMA_VERSION
-                | DATAFLOW_CONTINUATION_SCHEMA_VERSION
-                | CONDITIONAL_CONTINUATION_SCHEMA_VERSION
-        ),
-        GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION
-        | GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION => {
-            second.schema_version == first.schema_version
-                && first.group_result.is_some()
-                && first.group_result == second.group_result
-        }
-        _ => false,
-    };
-    if !schema_valid
-        || first
-            .result_binding
-            .as_ref()
-            .is_none_or(|binding| binding.body.is_pure())
-        || !same_inherited_context(parent, next)
-        || first.fuel_remaining <= second.fuel_remaining
-        || canonical_continuation_sequence(&first.token)
-            >= canonical_continuation_sequence(&second.token)
-    {
-        return Err(invalid());
-    }
-    let prior = first.result_binding.as_ref().ok_or_else(invalid)?;
-    let next_type = match &second.result_binding {
-        Some(binding) => binding.validate(&second.pending_effect)?,
-        None => second.result_type,
-    };
-    if prior.validate(&first.pending_effect)? != next_type {
-        return Err(invalid());
-    }
-    if let Some(binding) = &second.result_binding {
-        validate_extension(prior, binding, &first.pending_effect, value)?;
-    }
-    Ok(())
+    })
 }
 
 enum PreparedResult {
