@@ -44,35 +44,62 @@ pub(super) fn same_inherited_context(original: &EffectRequest, saved: &EffectReq
         .has_same_inherited_context(&saved.as_view())
 }
 
+struct SuccessorHost;
+
+impl leselang_command::SuccessorAdmissionHost<ContinuationToken> for SuccessorHost {
+    type Error = Fault;
+
+    fn group_owner_text<'a>(&self, token: &'a ContinuationToken) -> &'a str {
+        token.as_str()
+    }
+
+    fn valid_token(&self, token: &ContinuationToken) -> bool {
+        valid_continuation_token(token)
+    }
+
+    fn canonical_sequence(&self, token: &ContinuationToken) -> Option<u64> {
+        canonical_continuation_sequence(token)
+    }
+
+    fn valid_group_name(&self, name: &str) -> bool {
+        crate::valid_merge_branch_name(name)
+    }
+
+    fn validate_completed_value(
+        &self,
+        parent: leselang_command::EffectRequestView<'_, ContinuationToken>,
+        value: &Value,
+    ) -> Result<(), Fault> {
+        validate_bound_value(parent.continuation, value)
+    }
+}
+
 pub(super) fn validate_pair(
     parent: &EffectRequest,
     result: &Step,
     next: &EffectRequest,
 ) -> Result<(), Fault> {
-    validate_effect_request(parent)?;
-    validate_effect_request(next)?;
-    let first = &parent.continuation;
-    let Step::Done(value) = result else {
-        return Err(invalid());
-    };
-    if matches!(value, Value::Scalar { .. }) {
-        return Err(invalid());
-    }
-    validate_bound_value(first, value)?;
-    leselang_command::validate_preflighted_successor_pair(
+    leselang_command::validate_successor_pair(
         parent.as_view(),
         next.as_view(),
-        value,
-        crate::result_binding::result_binding_limits(),
-        ContinuationToken::as_str,
-        canonical_continuation_sequence,
-        crate::valid_merge_branch_name,
+        match result {
+            Step::Done(value) => Some(value),
+            _ => None,
+        },
+        continuation_admission_limits(),
+        &SuccessorHost,
     )
     .map_err(|error| match error {
-        leselang_command::SuccessorCorrespondenceError::Mismatch => invalid(),
-        leselang_command::SuccessorCorrespondenceError::InvalidBinding => {
-            crate::result_binding::invalid()
-        }
+        leselang_command::SuccessorAdmissionError::Parent(error)
+        | leselang_command::SuccessorAdmissionError::Next(error) => request_admission_fault(error),
+        leselang_command::SuccessorAdmissionError::Completion => invalid(),
+        leselang_command::SuccessorAdmissionError::Value(error) => error,
+        leselang_command::SuccessorAdmissionError::Correspondence(error) => match error {
+            leselang_command::SuccessorCorrespondenceError::Mismatch => invalid(),
+            leselang_command::SuccessorCorrespondenceError::InvalidBinding => {
+                crate::result_binding::invalid()
+            }
+        },
     })
 }
 

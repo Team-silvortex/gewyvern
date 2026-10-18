@@ -1,0 +1,244 @@
+{
+  "kind": "leselang-reference-stored-group-recovery",
+  "validated_on": "2026-10-18",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "reference_execution_contract": "1.101.0",
+  "native_embedding_contract": "0.162.0",
+  "real_sqlite_states": 22,
+  "flow_forms": 8,
+  "frozen_comparisons": 374,
+  "native_state_policy_cases": 96,
+  "baseline_passed": true,
+  "post_migration_parity_passed": true,
+  "original_tables_unchanged": true,
+  "native_checkpoint_handoff_passed": true,
+  "opaque_local_ownership_passed": true,
+  "native_unwind_prefixes_passed": true,
+  "standalone_core_package_passed": true,
+  "wire_or_journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "scope": "Core inspect_group_recovery composes complete stored-member graph, short-circuit completion, required chain and sequence proofs, native state decoding, state/receipt admission and final native records in the original SQLite order. The reference adapter retains owner/plan admission, SQL, bounded decoding, exact original receipt correspondence, cold reservation/original-watermark checks and the outer recovery transaction. Eight real flow forms produce 22 group states and 374 frozen fault-order comparisons with every original metadata/effect/dispatch/group/member table unchanged. Independent core consumers cover 96 state/policy combinations, bounded graph refusal before native work, local opaque keys and receipts, original native error ownership, every reached callback unwind and late record/commit failure before checkpoint handoff with distinct native keys. Policy flags must derive from an already-admitted original plan/state, never untrusted requests to skip checks. The borrowed host owns one stable snapshot and bounds native work; receipts/errors move without Clone, Debug, serde or thread bounds. This adds no evaluator, dispatch, fuel, identity allocation, storage write or automatic rollback. Cross-group identity checks, authentic original grants/budgets and final commit before publishing a complete checkpoint remain external. This is a per-group recovery inspection, not a complete native durable VM, new wire schema or physical repository extraction.",
+  "sources": [
+    {
+      "path": "crates/leselang-runtime-core/src/group_recovery.rs",
+      "sha256": "a0972c3d6ed9ea77573e86a59409e70df93ac676282875294d70e6ba3fa3454a"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/group_graph.rs",
+      "sha256": "4bd18ed987f9327382a9226f2096c4b0eff1c541d1b63848f67180d7ba982acf"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/recovery_fence.rs",
+      "sha256": "72f3c2a451413a4a32d64315cdc76be60e892785ffeb8f3738c8285177b15dd9"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/checkpoint.rs",
+      "sha256": "8664359f4a7fb8acbdeec79ac6f79a51c881966785a2dcf452667f1dbcb7474c"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/lib.rs",
+      "sha256": "1c7f7b6ceaea15c56d4a221847b2f906ee0b280f00e071513b2e70ae8e574af3"
+    },
+    {
+      "path": "crates/leselang-runtime-core/README.md",
+      "sha256": "1058329eedcf6f232f1378e21f17740a24af61c6be4237292ed9ca2594851b85"
+    },
+    {
+      "path": "crates/leselang-runtime-core/tests/recovery_fence.rs",
+      "sha256": "fd102c1f7c566060e29f825bf39efdcd96f01f9e0f2ab2864f13cd5a1615b60b"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "1f0f8623ecc0ab8a92a7d090c946fd6fc70a6efd9f978dfc479adad0ab5c2d0d"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_binding.rs",
+      "sha256": "056690713afad27d78fc58ac85ca7ebe9dda6cb5e963581f9e0e6dd778fbdfc4"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/successor.rs",
+      "sha256": "394dde34beb9c75f741d638b4a302c21b0d36673e4e06245d8dfdb4d987b996a"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_recovery_contract_tests.rs",
+      "sha256": "3336f735ea6cdef58fc3305e0f2447f32480103505e7819fdb0aab3748de8922"
+    },
+    {
+      "path": "crates/gewyvern-dev/src/leselang.rs",
+      "sha256": "419c65ea76addb1b9791bfa68a78d08fa156da54dd1f6f7979f254d8a6a5af88"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "cb31bd4feb8e706a5392aa79557416ad9c0c6916dcfa1918e67dab01ca404f7c"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "f4df6c62c657d71898e60efbd6d71e79c42a024c3af0819d98a308849745d447"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "2ec9f1a16e1cbf28d51e89464cb907fc79498e8b5e286f1a54653f176961191b"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "00eff0119bae017fa0f771b211a731b75ef30a77c2785d311341b5addbf68081"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "6ccab3fb5fc9eea265baac517f9548b91f6f117e8441c5dd0d597bbdca08342b"
+    }
+  ],
+  "verification": [
+    {
+      "name": "baseline",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/baseline.log",
+      "sha256": "24575d219f7b7c3fb444bb9c10b237099e4215a2ccf79adc72aaa2f7428424bd",
+      "toolchain": "1.98.0",
+      "passed": 1
+    },
+    {
+      "name": "parity",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/parity.log",
+      "sha256": "bb377d166aa5e3e60298b06d3a609aecca4f6129e5944a90953f8642557f37c5",
+      "toolchain": "1.98.0",
+      "passed": 1
+    },
+    {
+      "name": "consumer",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/consumer.log",
+      "sha256": "40dcb81c098498e5ebd672e3a3c55767dbac01b4b3337b90b24d29a997950277",
+      "toolchain": "1.98.0",
+      "passed": 17
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/runtime.log",
+      "sha256": "eb9b3bea989899b8deb0dc6c016f8a0949051c4ba13fdcac22c1055a13c36ba0",
+      "toolchain": "1.98.0",
+      "passed": 3207
+    },
+    {
+      "name": "standalone",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/standalone.log",
+      "sha256": "4db8434d0a942f74ca97347fd94991d74f1c7eff641160f53f355fdba2c94c27",
+      "toolchain": "1.98.0",
+      "passed": 573
+    },
+    {
+      "name": "root",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/root.log",
+      "sha256": "3c8c48f611b709042d2cccee2c6d79fcdf064ec71f6197dad9fb94a7b1cd922d",
+      "toolchain": "1.98.0",
+      "passed": 441
+    },
+    {
+      "name": "memory",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/memory.log",
+      "sha256": "8116c1786bf7ced4edb677a721923739b995f3e836f9b544b48e855234315adb",
+      "toolchain": "1.98.0",
+      "passed": 204
+    },
+    {
+      "name": "native",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/native.log",
+      "sha256": "067c3333f8f0d07c69f3aa64283275ab9ca9eafbcdf647b1896b47699078a4cc",
+      "toolchain": "1.98.0",
+      "passed": 50
+    },
+    {
+      "name": "exporter",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/exporter.log",
+      "sha256": "ad2b8c6ead853be6abfdce32532762ee12cb77cadae2bd5b2b973d7c369d707d",
+      "toolchain": "1.98.0",
+      "passed": 16
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/clippy.log",
+      "sha256": "96deaf11b43758bc737c8aeb953a5af77463bc7951d203de05f78cc58583202a",
+      "toolchain": "1.98.0",
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "memory-clippy",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/memory-clippy.log",
+      "sha256": "b10ffadafbf5bb5a4ce514e59aba87ba877010d18ff4742162bdef44b0ce6ea6",
+      "toolchain": "1.98.0",
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "native-clippy",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/native-clippy.log",
+      "sha256": "abe55cf8e642cfca284a3083a014e1f68f560f7af99996393bf44844357bf629",
+      "toolchain": "1.98.0",
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "standalone-tree",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/standalone-tree.log",
+      "sha256": "d4f1be4021d0f032d1ad5dc6324e7cf594b8bd60ff2533e1217c0b5d38b65b33",
+      "dependency_edges": [
+        "normal",
+        "dev"
+      ],
+      "forbidden_dependencies_absent": [
+        "leselang-command",
+        "leselang-host-contract",
+        "leserpent-domain",
+        "rusqlite",
+        "libsqlite3-sys",
+        "leselang-vm",
+        "leselang-hir",
+        "leselang-syntax"
+      ]
+    },
+    {
+      "name": "native-tree",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/native-tree.log",
+      "sha256": "648ce0bd6a92678072f5e583c34468351fa107a920b6e28eb7d87d17eee4fef6",
+      "dependency_edges": [
+        "normal",
+        "dev"
+      ],
+      "forbidden_dependencies_absent": [
+        "leselang-command",
+        "leselang-host-contract",
+        "leserpent-domain",
+        "rusqlite",
+        "libsqlite3-sys"
+      ]
+    },
+    {
+      "name": "fmt",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true
+    },
+    {
+      "name": "profile-fmt",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/profile-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true
+    },
+    {
+      "name": "diff-check",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/diff-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true
+    },
+    {
+      "name": "package",
+      "path": "/private/tmp/leselang-group-recovery-XMKTJf/package.log",
+      "sha256": "9c96f7800434c517e0744bdff096a2a6cc39af3e8049e829caf75a8e61878a0a",
+      "archive_path": "target/package/leselang-runtime-core-2.3.0.crate",
+      "archive_sha256": "9d7999f68e5931f6cf47141bd3846c37cbab38264fc0fbaca2b6d31600bcf78c",
+      "isolated_build_passed": true,
+      "production_and_consumer_bytes_match": true,
+      "warnings": [
+        "manifest has no documentation, homepage or repository"
+      ]
+    }
+  ]
+}

@@ -27,6 +27,9 @@ impl std::error::Error for SuccessorCorrespondenceError {}
 /// Check schema/body, inherited context, decreasing fuel, increasing identity,
 /// next-then-prior final types and finally preserved named captures, in that order.
 ///
+/// Prefer [`crate::validate_successor_pair`] when the requests or completed value
+/// have not already passed admission.
+///
 /// Callers must bound ingress, fully admit both original requests/frames and admit
 /// the parent's non-scalar completed value before entry. Borrowed views and native
 /// token projections must observe one immutable admitted snapshot. Token text must

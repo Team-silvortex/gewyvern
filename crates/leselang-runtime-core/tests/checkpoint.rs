@@ -11,6 +11,287 @@ use leselang_runtime_core::{
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
+mod record_pipeline {
+    use super::*;
+    use leselang_runtime_core::{
+        RecordRecoveryError as Error, RecordRecoveryHost, StoredRecordState as State,
+        inspect_record_recovery,
+    };
+
+    struct Image {
+        key: Native,
+        payload: Native,
+    }
+    struct Host {
+        image: Option<Image>,
+        receipt: Option<Native>,
+        state: State,
+        events: Vec<&'static str>,
+        fail: Option<&'static str>,
+        panic_at: usize,
+        drops: Rc<RefCell<Vec<usize>>>,
+    }
+    impl Host {
+        fn new(state: State, drops: &Rc<RefCell<Vec<usize>>>) -> Self {
+            Self {
+                image: Some(Image {
+                    key: native(1, drops),
+                    payload: native(2, drops),
+                }),
+                receipt: Some(native(3, drops)),
+                state,
+                events: vec![],
+                fail: None,
+                panic_at: 0,
+                drops: drops.clone(),
+            }
+        }
+        fn observe(&mut self, event: &'static str) {
+            self.events.push(event);
+            assert_ne!(self.events.len(), self.panic_at, "native record unwind");
+        }
+        fn check(&mut self, event: &'static str) -> Result<(), Native> {
+            self.observe(event);
+            if self.fail == Some(event) {
+                Err(native(99, &self.drops))
+            } else {
+                Ok(())
+            }
+        }
+    }
+    impl RecordRecoveryHost for Host {
+        type Key = Native;
+        type Image = Image;
+        type Pending = Native;
+        type Completed = Native;
+        type Error = Native;
+        fn admit_image(&mut self) -> Result<Image, Native> {
+            self.check("image")?;
+            Ok(self.image.take().unwrap())
+        }
+        fn sequence(&mut self, _: &Image) -> Result<u64, Native> {
+            self.check("sequence")?;
+            Ok(7)
+        }
+        fn validate_identity(&mut self, image: &Image) -> Result<(), Native> {
+            assert_eq!(image.key.id, 1);
+            self.check("identity")
+        }
+        fn validate_deadline(&mut self, _: &Image) -> Result<(), Native> {
+            self.check("deadline")
+        }
+        fn validate_owner(&mut self, _: &Image) -> Result<(), Native> {
+            self.check("owner")
+        }
+        fn stored_state(&mut self) -> Result<State, Native> {
+            self.check("state")?;
+            Ok(self.state)
+        }
+        fn admit_completed(&mut self) -> Result<Native, Native> {
+            self.check("receipt")?;
+            Ok(self.receipt.take().unwrap())
+        }
+        fn validate_successor(
+            &mut self,
+            _: &Image,
+            receipt: Option<&Native>,
+        ) -> Result<(), Native> {
+            assert_eq!(receipt.is_some(), self.state == State::Completed);
+            self.check("successor")
+        }
+        fn pending_payload(&mut self, image: Image) -> (Native, Native) {
+            self.observe("pending");
+            (image.key, image.payload)
+        }
+        fn completed_payload(&mut self, image: Image, receipt: Native) -> (Native, Native) {
+            self.observe("completed");
+            let Image { key, payload } = image;
+            drop(payload);
+            (key, receipt)
+        }
+    }
+    fn events(state: State) -> Vec<&'static str> {
+        let mut steps = vec![
+            "image", "sequence", "identity", "deadline", "owner", "state",
+        ];
+        if state == State::Completed {
+            steps.push("receipt");
+        }
+        steps.extend([
+            "successor",
+            if state == State::Pending {
+                "pending"
+            } else {
+                "completed"
+            },
+        ]);
+        steps
+    }
+    fn sorted(drops: &Rc<RefCell<Vec<usize>>>) -> Vec<usize> {
+        let mut result = drops.borrow().clone();
+        result.sort();
+        result
+    }
+    #[test]
+    fn stored_record_moves_original_noncomparable_local_owners_and_defers_pending_receipts() {
+        for state in [State::Pending, State::Completed] {
+            let drops = Rc::new(RefCell::new(vec![]));
+            let mut host = Host::new(state, &drops);
+            // A pending row must not invoke a rejecting unused receipt decoder.
+            host.fail = Some("receipt");
+            if state == State::Completed {
+                host.fail = None;
+            }
+            let erased: &mut dyn RecordRecoveryHost<
+                Key = Native,
+                Image = Image,
+                Pending = Native,
+                Completed = Native,
+                Error = Native,
+            > = &mut host;
+            let record = inspect_record_recovery(erased).unwrap();
+            assert_eq!(record.sequence, 7);
+            assert_eq!(record.key.id, 1);
+            assert_eq!(host.events, events(state));
+            match record.payload {
+                RecoveryPayload::Pending(value) => {
+                    assert_eq!(value.id, 2);
+                    assert!(drops.borrow().is_empty());
+                }
+                RecoveryPayload::Completed(value) => {
+                    assert_eq!(value.id, 3);
+                    assert_eq!(*drops.borrow(), [2]);
+                }
+            }
+            drop(record.key);
+            drop(host);
+            assert_eq!(sorted(&drops), [1, 2, 3]);
+        }
+    }
+    #[test]
+    fn stored_record_errors_keep_original_ownership_and_exact_native_stage() {
+        for state in [State::Pending, State::Completed] {
+            let steps = events(state);
+            for (index, stage) in steps[..steps.len() - 1].iter().enumerate() {
+                let drops = Rc::new(RefCell::new(vec![]));
+                let mut host = Host::new(state, &drops);
+                host.fail = Some(stage);
+                let error = match inspect_record_recovery(&mut host) {
+                    Err(error) => error,
+                    Ok(_) => panic!("missing refusal"),
+                };
+                assert!(std::error::Error::source(&error).is_none());
+                assert!(format!("{error:?} {error}").contains("stored effect"));
+                let native = match error {
+                    Error::Image(e) if *stage == "image" => e,
+                    Error::Sequence(e) if *stage == "sequence" => e,
+                    Error::Identity(e) if *stage == "identity" => e,
+                    Error::Deadline(e) if *stage == "deadline" => e,
+                    Error::Owner(e) if *stage == "owner" => e,
+                    Error::State(e) if *stage == "state" => e,
+                    Error::Receipt(e) if *stage == "receipt" => e,
+                    Error::Successor(e) if *stage == "successor" => e,
+                    _ => panic!("reordered native refusal"),
+                };
+                assert_eq!(host.events, steps[..=index]);
+                assert_eq!(native.id, 99);
+                assert!(Rc::ptr_eq(&native.drops, &drops));
+                drop((host, native));
+                assert_eq!(sorted(&drops), [1, 2, 3, 99]);
+            }
+        }
+    }
+    #[test]
+    fn stored_record_every_native_unwind_and_late_cleanup_panic_prevent_payload_handoff() {
+        for state in [State::Pending, State::Completed] {
+            for panic_at in 1..=events(state).len() {
+                let drops = Rc::new(RefCell::new(vec![]));
+                let mut host = Host::new(state, &drops);
+                host.panic_at = panic_at;
+                assert!(
+                    catch_unwind(AssertUnwindSafe(|| inspect_record_recovery(&mut host))).is_err()
+                );
+                assert_eq!(host.events, events(state)[..panic_at]);
+                drop(host);
+                assert_eq!(sorted(&drops), [1, 2, 3]);
+            }
+        }
+        let drops = Rc::new(RefCell::new(vec![]));
+        let mut host = Host::new(State::Completed, &drops);
+        host.image.as_mut().unwrap().payload.poison = true;
+        assert!(catch_unwind(AssertUnwindSafe(|| inspect_record_recovery(&mut host))).is_err());
+        drop(host);
+        assert_eq!(sorted(&drops), [1, 2, 3]);
+    }
+    #[test]
+    fn stored_record_late_refusal_or_commit_failure_never_publishes_checkpoint_prefix() {
+        for state in [State::Pending, State::Completed] {
+            for failure in [None, Some("successor")] {
+                for fail_commit in [false, true] {
+                    let drops = Rc::new(RefCell::new(vec![]));
+                    let mut host = Host::new(state, &drops);
+                    host.fail = failure;
+                    let mut recovery =
+                        CheckpointRecovery::<usize, (Native, Native), (Native, Native)>::new(
+                            2, 100,
+                        );
+                    recovery
+                        .push(RecoveryRecord {
+                            key: 4,
+                            sequence: 1,
+                            payload: RecoveryPayload::Pending((
+                                native(4, &drops),
+                                native(5, &drops),
+                            )),
+                        })
+                        .unwrap();
+                    let committed = Cell::new(false);
+                    let result = (|| {
+                        let record = inspect_record_recovery(&mut host)?;
+                        let key = record.key;
+                        let payload = match record.payload {
+                            RecoveryPayload::Pending(value) => {
+                                RecoveryPayload::Pending((key, value))
+                            }
+                            RecoveryPayload::Completed(value) => {
+                                RecoveryPayload::Completed((key, value))
+                            }
+                        };
+                        recovery
+                            .push(RecoveryRecord {
+                                key: 1,
+                                sequence: record.sequence,
+                                payload,
+                            })
+                            .unwrap();
+                        recovery
+                            .finish((), |_, _| {
+                                if fail_commit {
+                                    return Err(native(99, &drops));
+                                }
+                                committed.set(true);
+                                Ok(())
+                            })
+                            .map_err(|error| match error {
+                                CheckpointCommitError::Host(error) => Error::Successor(error),
+                                _ => panic!("unexpected closed checkpoint"),
+                            })
+                    })();
+                    assert_eq!(result.is_ok(), failure.is_none() && !fail_commit);
+                    assert_eq!(committed.get(), result.is_ok());
+                    drop((result, host));
+                    let expected = if failure.is_some() || fail_commit {
+                        vec![1, 2, 3, 4, 5, 99]
+                    } else {
+                        vec![1, 2, 3, 4, 5]
+                    };
+                    assert_eq!(sorted(&drops), expected);
+                }
+            }
+        }
+    }
+}
+
 struct Native {
     id: usize,
     poison: bool,

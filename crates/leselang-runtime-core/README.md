@@ -439,7 +439,64 @@ finalization, admit aggregate bytes/graphs, verify original frames and current
 authority, and own dispatch/replay/migration. Complete native saved-graph execution
 policy and reference-adapter compatibility remain extraction blockers.
 
+## Shared Effect Record Inspection
+
+`inspect_record_recovery()` and `RecordRecoveryHost` admit one stored effect row
+before checkpoint insertion. Native header reads precede the shared order:
+bounded image admission, canonical sequence, identity, deadline, owner, then
+stored state. Pending rows prove their successor without reading a receipt;
+completed rows first admit the original receipt, then prove the successor.
+Only the accepted path transfers the original identity and payload into
+`RecoveryRecord`. Identity/owner errors cannot be hidden by a later bad state.
+Keys/images/receipts/errors need no Clone, Debug, equality, serialization or thread
+traits, and the host may be an unsized borrowed adapter. Native errors retain
+their original ownership under redacted stage diagnostics. Hooks/destructors are
+trusted: release unused native owners before constructing callback return values;
+callback-internal cleanup and side effects cannot be rolled back by the framework.
+The real SQLite loading loop uses this entry while retaining SQL/codec bounds,
+frame/authority and original owner/successor proofs. Checkpoint staging, global
+graphs/reservations and atomic commit remain mandatory before publication.
+This is stored-record admission, not a new codec, execution grant or durable VM.
+
 ## Shared Flat Group Graph Inspection
+
+`inspect_group_recovery_batch()` wraps the entire stored-group pass. The explicit
+`GroupRecoveryBatchLimits` checks group count before native work and bounds one
+shared successor-reservation index. For each original row,
+`GroupRecoveryBatchHost` admits owner/plan, observes its numeric maximum, supplies
+the original reservation iterator, checks execution order, then inspects the full
+group before the next row is admitted. Late graph faults therefore still precede
+later groups' admission faults. Duplicate, invalid and over-limit reservations
+stop before order/member loading; opaque legacy owners may observe zero.
+Only a completely successful pass returns counts and a maximum, never partial
+groups or an allocation grant. Original rows and native errors move without
+Clone/Debug/serialization/thread bounds; callback/iterator unwind drops unconsumed
+rows and stops without retry. Hosts bound ingress bytes and native work, retain
+the original snapshot, and own authentic authority, original-watermark proofs and
+final checkpoint commit. The real SQLite adapter uses this pass and the per-group
+entry below; neither advances storage watermarks or executes saved code.
+
+`inspect_group_recovery()` composes complete member-graph inspection, completion
+observation, optional chain and sequence proofs, state/receipt admission and final
+record validation in one ordered pass. `GroupRecoveryHost` supplies bounded native
+schema/codec/authority policy against one immutable storage snapshot. The caller
+derives `GroupRecoveryPolicy` from the admitted original plan and state, never from
+untrusted flags that can bypass a proof obligation. Invalid limits/count precede
+every hook; state decoding remains after chain/frontier proofs. Pending groups
+still require final record validation even without a receipt.
+
+Receipts and errors retain their original ownership without Clone, Debug, serde
+or thread bounds; only borrowed graph keys need Eq + Hash. Late refusal drops the
+decoded receipt instead of returning partial recovery. Native hooks and destructors
+are trusted and are not retried or rolled back on unwind. The host remains borrowed
+and caller-owned. This entry performs no dispatch, fuel accounting or storage write.
+It is a per-group inspection, not a durable recovery certificate: owner/plan
+admission, cross-group reservations, authentic original budgets/authority and the
+final transaction commit remain external. `CheckpointRecovery` must withhold the
+complete recovered snapshot until all group proofs and commit succeed. The SQLite
+reference adapter uses the same pass without changing its schema or native gates;
+standalone tests cover opaque local owners, ordered faults, callback unwind and
+late-proof/commit failure before checkpoint handoff.
 
 `validate_group_graph()` borrows complete original rows against an ordered
 declaration. Explicit inclusive counts (up to 64) precede allocation and hooks;

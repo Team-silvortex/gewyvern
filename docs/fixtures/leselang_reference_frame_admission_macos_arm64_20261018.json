@@ -1,0 +1,153 @@
+{
+  "kind": "leselang-reference-continuation-frame-admission",
+  "validated_on": "2026-10-18",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "reference_execution_contract": "1.97.0",
+  "native_embedding_contract": "0.162.0",
+  "frozen_schema_comparisons": 22848,
+  "frozen_operation_comparisons": 1260,
+  "operation_count": 70,
+  "source_torn_frame_cases": 12,
+  "baseline_passed": true,
+  "post_migration_parity_passed": true,
+  "source_wire_reentry_passed": true,
+  "every_fuel_cutoff_passed": true,
+  "opaque_local_tokens_passed": true,
+  "memory_profile_passed": true,
+  "native_profile_passed": true,
+  "wire_or_journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "scope": "Ordered product-frame admission shares binding structure, schema/group compatibility, native token policy, program counter, result signature, complete binding typing and saved budget checks. The real VM delegates with its original limits and maps closed errors to unchanged faults. Frozen pre/post-migration comparisons preserve 22,848 schema/structure combinations and 1,260 budget/conflicting-fault cases across 70 operations. A VM-free parsed-source consumer admits atomic and Seq/All frames before request correspondence and bounded wire-restored reentry, preserving preparation and every fuel cutoff; twelve torn atomic frames refuse without repair. Opaque local tokens/revisions have no Clone, Debug, serde, equality or thread requirements. Hooks borrow original owners, retain traversal order, skip later callbacks after refusal and propagate unwind without retry. Decoded ingress, pending payload bounds, canonical identity/effect admission, authentic authority/budgets, current deadlines, receipts, leases and atomic durable settlement remain caller responsibilities. No new evaluator, identity allocator, meter, codec, wire/journal schema or independent durable VM/extraction promotion.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/continuation_admission.rs",
+      "sha256": "dd21d5a71ea7e44de40c67da398a303f10cc3fc6d28fd9de7e243dd23942c330"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "0993822c3d6aa58e5bcdc7ffc02b0478bbb976818af952d8afd19a6d8c42d56a"
+    },
+    {
+      "path": "crates/leselang-command/tests/continuation_admission.rs",
+      "sha256": "52697237c91f68f8f520d8eeef5b4c21dd34b9a032e93f7a0727db95fd9c18c7"
+    },
+    {
+      "path": "crates/leselang-command/tests/captured_execution.rs",
+      "sha256": "df1cb2c23b80049aa0f91da099f44af025d78ac35e1fca845366044f05ffa643"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "f7f4c9575085d32f6ff6f23368afd8a061d44b098d09c25d7c1526da89dc333f"
+    },
+    {
+      "path": "crates/leselang-vm/src/continuation_schema_tests.rs",
+      "sha256": "0f704f5fe3d865c403f709c52a7c6c7c0607af61b0258131a60cf520f3930fd2"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "0b288a1f72bdf8d2eb9b0c2bbb425296c6d14a772dc550e18fa9cb689d556868"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "823267ecd8636091add27a09b8f73223c30970ea187961f8d3a9eb7407f8b7a9"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "6ccab3fb5fc9eea265baac517f9548b91f6f117e8441c5dd0d597bbdca08342b"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "bdec23fed0c91d85f1554dbe15617d784d9a7a6f73f2302e6cfe70b70e236940"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "9a346e9d4a487adf9a7634273088b0421461bd950e894251e9ab7fb2468a3b4e"
+    }
+  ],
+  "verification": [
+    {
+      "name": "root",
+      "path": "/private/tmp/leselang-frame-admission-Acwkoo/root.log",
+      "sha256": "e1e2e698762d306836cd382458cba4eb9beee664a62e97b753f6d2e0cbb07c57",
+      "passed": 433
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-frame-admission-Acwkoo/clippy.log",
+      "sha256": "6484be74789a924c0b891401e92b06ccbff9d87190ecd25a42b6173e7047cd94",
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "memory-clippy",
+      "path": "/private/tmp/leselang-frame-admission-Acwkoo/memory-clippy.log",
+      "sha256": "02ccf241fb4b63ae16439b04c3898253bc54ff3d69a8e616076dbb5f965902b7",
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "native-clippy",
+      "path": "/private/tmp/leselang-frame-admission-Acwkoo/native-clippy.log",
+      "sha256": "51efeade51068cd8f89325c69ae162439cea25b092b8e8104ef7653aab7eb67f",
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "adapter-tree",
+      "path": "/private/tmp/leselang-frame-admission-Acwkoo/adapter-tree.log",
+      "sha256": "d75f8df9257048210b0b1b1869b59959894d689e09e5f413b05c414042a268bf",
+      "forbidden_dependencies_absent": [
+        "leselang-vm",
+        "rusqlite",
+        "libsqlite3-sys"
+      ]
+    },
+    {
+      "name": "adapter",
+      "path": "/private/tmp/leselang-frame-admission-Acwkoo/adapter.log",
+      "sha256": "ab724e6cc86d773c6257e0c2f2bc72c972ab16ed2d6d6ae3bd0a0f1f9ef45777",
+      "passed": 22
+    },
+    {
+      "name": "baseline",
+      "path": "/private/tmp/leselang-frame-admission-Acwkoo/baseline.log",
+      "sha256": "01283c92ae1d6cf3e9e8e88118182b4bd7cb9542fc27a9bc96430cf135a99167",
+      "passed": 3
+    },
+    {
+      "name": "memory",
+      "path": "/private/tmp/leselang-frame-admission-Acwkoo/memory.log",
+      "sha256": "0f52eec36a6573665cb51d68af66127f4c4e5d989e3b736f38034b909012be59",
+      "passed": 200
+    },
+    {
+      "name": "native-tree",
+      "path": "/private/tmp/leselang-frame-admission-Acwkoo/native-tree.log",
+      "sha256": "648ce0bd6a92678072f5e583c34468351fa107a920b6e28eb7d87d17eee4fef6",
+      "forbidden_dependencies_absent": [
+        "leselang-command",
+        "leselang-host-contract",
+        "leserpent-domain",
+        "rusqlite",
+        "libsqlite3-sys"
+      ]
+    },
+    {
+      "name": "native",
+      "path": "/private/tmp/leselang-frame-admission-Acwkoo/native.log",
+      "sha256": "982dd42f552990557479de0a91087eaf467ec7aab02fdf4fab30f8010e5ebede",
+      "passed": 50
+    },
+    {
+      "name": "parity",
+      "path": "/private/tmp/leselang-frame-admission-Acwkoo/parity.log",
+      "sha256": "479ed5911465dd064735e7346bc8b3ba994a529935fe493c5dbf6c42b8985b32",
+      "passed": 3
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-frame-admission-Acwkoo/runtime.log",
+      "sha256": "72d2a4b201f36c7bd76c0045f68fe060b197b31ba79f32c942fc4725cb42fb90",
+      "passed": 3186
+    }
+  ]
+}

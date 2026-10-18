@@ -1,0 +1,195 @@
+{
+  "kind": "leselang-reference-complete-successor-admission",
+  "validated_on": "2026-10-18",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "baseline_toolchain": "1.94.1",
+  "reference_execution_contract": "1.99.0",
+  "native_embedding_contract": "0.162.0",
+  "real_successor_pairs": 9,
+  "flow_forms": 7,
+  "frozen_pair_comparisons": 576,
+  "frozen_conflicting_fault_comparisons": 5400,
+  "source_group_pair_count": 2,
+  "baseline_passed": true,
+  "post_migration_parity_passed": true,
+  "source_wire_reentry_passed": true,
+  "every_fuel_cutoff_passed": true,
+  "opaque_local_owners_passed": true,
+  "native_error_ownership_passed": true,
+  "memory_profile_passed": true,
+  "native_profile_passed": true,
+  "wire_or_journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "scope": "Complete product successor admission composes parent request, next request, non-scalar completion, native result-domain admission and successor correspondence in the reference order. The real VM keeps original limits, token/name policy and bounded result admission, mapping parent/next provenance and move-only native value failures to the original faults. Frozen request/frame/pair gates cover nine real pairs from seven atomic/group forms, preserving 576 comparisons and adding 5,400 conflicting parent/child/completion cases with unchanged input bytes. VM-free parsed atomic/conditional reentry preserves every fuel cutoff, wire bytes, results and preparation count; Seq/All source flows also admit both original and decoded captured successor pairs without resource changes. Direct tests recheck mutated and decoded rows, preserve zero-output refusal and leave live grants external. Opaque GUI-local tokens and errors need no Clone, Debug, equality, serde or thread traits; unsized hosts borrow original frame/value owners, skip later gates on refusal and propagate unwind at every reached atomic hook without retry. Native errors retain original ownership and generic diagnostics do not format their payloads. This composes existing gates, not a new evaluator, codec, allocator, meter or receipt authenticator. Ingress/pending payload bounds, stable native policy, authentic authority/original budgets, live deadlines, leases and atomic settlement remain caller responsibilities. No wire/journal schema change or independent durable VM/extraction promotion. The legacy baseline and initial parity ran on the local default Rust 1.94.1; the final full runtime and memory/native profiles also passed CI-pinned Rust 1.98.0.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/successor_admission.rs",
+      "sha256": "8d58f99782d8fd63a71043f1ce6925f53c1beb262371def0f326846a811ac017"
+    },
+    {
+      "path": "crates/leselang-command/src/successor_correspondence.rs",
+      "sha256": "fd2635543d6129bf553030b882f95eb728d89cc06fba77682f54d6780cb3f97b"
+    },
+    {
+      "path": "crates/leselang-command/src/request_admission.rs",
+      "sha256": "17bf2efd7bfe2751da903581854d4d23bce2f236080b1016e3e88aa11d2b100d"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "ae502f404988fe8d5869fe3ab5da5bab1588b14e7938aa92b99d5e323f2a0c27"
+    },
+    {
+      "path": "crates/leselang-command/tests/captured_execution.rs",
+      "sha256": "0c306c405fef8ed90eceaa4ec5096bc8994dc67fbc2224632546ea06d2d2a174"
+    },
+    {
+      "path": "crates/leselang-vm/src/successor.rs",
+      "sha256": "d3551d8aebe745a46ffee49d300efb936c45ffaace0c9a99f94f05d9c8c2fe71"
+    },
+    {
+      "path": "crates/leselang-vm/src/successor_pair_contract_tests.rs",
+      "sha256": "4b9fea9a2be7a00322e417951534e98596057ba2d196b3e965bb5970c7d98408"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "181bdba1f8381cb9d1d22c6f85f1c9d008b461ce57df4e4f8ae25614d7bb2abe"
+    },
+    {
+      "path": "crates/leselang-vm/src/operation_request_tests.rs",
+      "sha256": "3c741519d6e03bf3ad3f12a9dc302325a4e2532313d778d320cd7a354763e51a"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "a47ae4177b74ce53711bc29552c101a4711220ac9890c338de99a8bddbadf7d1"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "05f014688a8f08d19e0ee15c3342e6e71291e61896ce5eb3fdcd004c3950b69a"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "90ed72caae2cd5a86115e7c39dcd2faeac71266935f3318835c33681cbd584eb"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "52ffc8b1b7618e2f7659e932db2771cdc0dc3c8bcad6c39527aabdf6da7e8309"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "6ccab3fb5fc9eea265baac517f9548b91f6f117e8441c5dd0d597bbdca08342b"
+    }
+  ],
+  "verification": [
+    {
+      "name": "baseline",
+      "path": "/private/tmp/leselang-successor-admission-pybCT0/baseline.log",
+      "sha256": "34bc83acb82cae1affd121ab47803e85f2bd39418691afffdfb371e24c99f806",
+      "toolchain": "1.94.1",
+      "passed": 2
+    },
+    {
+      "name": "parity",
+      "path": "/private/tmp/leselang-successor-admission-pybCT0/parity.log",
+      "sha256": "ba2990e210456a571382aae87b6f17dba8ffa40087f52c6617fc4377a4c09970",
+      "toolchain": "1.94.1",
+      "passed": 2
+    },
+    {
+      "name": "runtime-1.94.1",
+      "path": "/private/tmp/leselang-successor-admission-pybCT0/runtime-1.94.1.log",
+      "sha256": "63df95eb4727d5710994d01222d5bdde2ac9376c04f725b484ff4121b148a865",
+      "toolchain": "1.94.1",
+      "passed": 3195
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-successor-admission-pybCT0/runtime.log",
+      "sha256": "1a360a6d812f9a41a90b7b7c5ad4fdc867f28582469266a26349b46c0d308a04",
+      "toolchain": "1.98.0",
+      "passed": 3195
+    },
+    {
+      "name": "memory",
+      "path": "/private/tmp/leselang-successor-admission-pybCT0/memory.log",
+      "sha256": "8754f094d02a3e94041fc8737d2cd67b11f7b70a879a86b3792fa06c3fa6b605",
+      "toolchain": "1.98.0",
+      "passed": 202
+    },
+    {
+      "name": "native",
+      "path": "/private/tmp/leselang-successor-admission-pybCT0/native.log",
+      "sha256": "e0e1c572657d3e060cf9aef18f286b9e25d4baf555f346cae1902bd207f7c808",
+      "toolchain": "1.98.0",
+      "passed": 50
+    },
+    {
+      "name": "root",
+      "path": "/private/tmp/leselang-successor-admission-pybCT0/root.log",
+      "sha256": "71530326e0339c52c3197f2b1155fe030004d2778cf6fc86a20793aae0dd683e",
+      "toolchain": "1.98.0",
+      "passed": 437
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-successor-admission-pybCT0/clippy.log",
+      "sha256": "9e8796619001e09c45e624b854c11622a33ebad891371830f9012b9c334089a6",
+      "toolchain": "1.98.0",
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "memory-clippy",
+      "path": "/private/tmp/leselang-successor-admission-pybCT0/memory-clippy.log",
+      "sha256": "0d4f21c30416f23ace545a2caeb8b86bf95bea7d6ed1dd7d88fd82001ba7e4c9",
+      "toolchain": "1.98.0",
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "native-clippy",
+      "path": "/private/tmp/leselang-successor-admission-pybCT0/native-clippy.log",
+      "sha256": "6faf060d09625611c11b10ede4e883ff0d5120d2b96bcab5d209b58a7c55d418",
+      "toolchain": "1.98.0",
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "adapter-tree",
+      "path": "/private/tmp/leselang-successor-admission-pybCT0/adapter-tree.log",
+      "sha256": "953327dfb6b2113958809140e58dd8952128bb9dc6b90ba7a024ebf6c4091caa",
+      "toolchain": "1.98.0",
+      "dependency_edges": [
+        "normal",
+        "dev"
+      ],
+      "forbidden_dependencies_absent": [
+        "leselang-vm",
+        "rusqlite",
+        "libsqlite3-sys"
+      ]
+    },
+    {
+      "name": "native-tree",
+      "path": "/private/tmp/leselang-successor-admission-pybCT0/native-tree.log",
+      "sha256": "648ce0bd6a92678072f5e583c34468351fa107a920b6e28eb7d87d17eee4fef6",
+      "toolchain": "1.98.0",
+      "dependency_edges": [
+        "normal",
+        "dev"
+      ],
+      "forbidden_dependencies_absent": [
+        "leselang-command",
+        "leselang-host-contract",
+        "leserpent-domain",
+        "rusqlite",
+        "libsqlite3-sys"
+      ]
+    },
+    {
+      "name": "consumer",
+      "path": "/private/tmp/leselang-successor-admission-pybCT0/consumer.log",
+      "sha256": "99f549d309809b5436a6cd646e4762442af5ed85aa8b2afef69b91d8ec44f1be",
+      "toolchain": "1.98.0",
+      "passed": 93
+    }
+  ]
+}

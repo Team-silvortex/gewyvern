@@ -27,7 +27,7 @@ fn frozen_binding_schema(binding: &ResultBinding) -> u32 {
     clippy::manual_range_patterns,
     reason = "Frozen reference keeps each released version explicit."
 )]
-fn frozen_validate_image(image: &ContinuationImage) -> Result<(), Fault> {
+pub(super) fn frozen_validate_image(image: &ContinuationImage) -> Result<(), Fault> {
     if let Some(binding) = &image.result_binding {
         binding.validate_structure()?;
     }
@@ -278,4 +278,60 @@ fn continuation_structure_precedes_schema_even_for_oversized_body() {
     image.group_result = Some(ContinuationToken("invalid".into()));
     assert_eq!(validate_image(&image), Err(result_binding::invalid()));
     assert_eq!(validate_image(&image), frozen_validate_image(&image));
+}
+
+#[test]
+fn frame_admission_preserves_all_operations_budget_edges_and_conflicting_faults() {
+    let mut comparisons = 0;
+    for request in crate::continuation_contract_tests::requests() {
+        for defect in 0..18 {
+            let mut image = request.continuation.clone();
+            match defect {
+                0 => {}
+                1 => image.fuel_remaining = 0,
+                2 => image.fuel_remaining = MAX_EXECUTION_FUEL,
+                3 => image.fuel_remaining = MAX_EXECUTION_FUEL + 1,
+                4 => image.deadline_ms = 0,
+                5 => image.deadline_ms = MAX_EFFECT_DEADLINE_MS,
+                6 => image.deadline_ms = MAX_EFFECT_DEADLINE_MS + 1,
+                7 => image.deadline_at_ms = Some(i64::MAX as u64),
+                8 => image.deadline_at_ms = Some(i64::MAX as u64 + 1),
+                9 => image.max_output_items = 0,
+                10 => image.max_output_items = DEFAULT_MAX_OUTPUT_ITEMS,
+                11 => image.max_output_items = DEFAULT_MAX_OUTPUT_ITEMS + 1,
+                12 => image.result_type = Type::Structured,
+                13 => image.pending_effect = Effect::Sequence { steps: vec![] },
+                14 => {
+                    image.program_counter = 0;
+                    image.pending_effect = Effect::Sequence { steps: vec![] };
+                    image.fuel_remaining = 0;
+                }
+                15 => {
+                    image.fuel_remaining = 0;
+                    image.deadline_ms = 0;
+                    image.deadline_at_ms = Some(u64::MAX);
+                    image.max_output_items = 0;
+                }
+                16 => {
+                    image.deadline_ms = 0;
+                    image.deadline_at_ms = Some(u64::MAX);
+                    image.max_output_items = 0;
+                }
+                17 => {
+                    image.deadline_at_ms = Some(u64::MAX);
+                    image.max_output_items = 0;
+                }
+                _ => unreachable!(),
+            }
+            let before = serde_json::to_vec(&image).unwrap();
+            assert_eq!(
+                validate_image(&image),
+                frozen_validate_image(&image),
+                "{defect}"
+            );
+            assert_eq!(serde_json::to_vec(&image).unwrap(), before);
+            comparisons += 1;
+        }
+    }
+    assert_eq!(comparisons, 1_260);
 }

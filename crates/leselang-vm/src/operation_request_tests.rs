@@ -260,11 +260,10 @@ fn request_correspondence_preserves_cold_authority_identity_and_budget_fault_ord
     }
 }
 
-// Frozen before moving request policy out of the VM. Image checks remain shared;
-// the operation-category, authority and payload ordering below is intentionally fixed.
-fn frozen_validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
+// Frozen frame and request gates keep the original cross-layer refusal order.
+pub(super) fn frozen_validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
     use leselang_command::{command_matches_effect, query_matches_effect};
-    validate_image(&request.continuation)?;
+    crate::continuation_schema_tests::frozen_validate_image(&request.continuation)?;
     if let Some(binding) = &request.continuation.result_binding {
         let (_, capabilities) = successor::authority(&request.operation);
         if binding
@@ -464,4 +463,73 @@ fn operation_request_adapter_preserves_frozen_seventy_operation_admission() {
             }
         }
     }
+}
+
+#[test]
+fn complete_request_admission_preserves_frozen_frame_before_correspondence_and_decode() {
+    let cases = requests();
+    let mut comparisons = 0;
+    for (index, original) in cases.iter().enumerate() {
+        for frame_defect in 0..10 {
+            for request_defect in 0..6 {
+                let mut request = original.clone();
+                let image = &mut request.continuation;
+                match frame_defect {
+                    0 => {}
+                    1 => {
+                        image.schema_version = 0;
+                        image.result_binding = Some(Box::new(ResultBinding {
+                            name: "x".repeat(leselang_hir::MAX_BRANCH_NAME_BYTES + 1),
+                            locals: vec![],
+                            results: vec![],
+                            groups: vec![],
+                            body: leselang_hir::computation::Computation::Literal {
+                                value: ScalarValue::None,
+                            },
+                        }));
+                    }
+                    2 => image.schema_version = 0,
+                    3 => image.token = ContinuationToken("private/invalid".into()),
+                    4 => image.program_counter = 0,
+                    5 => image.result_type = Type::Structured,
+                    6 => image.fuel_remaining = MAX_EXECUTION_FUEL + 1,
+                    7 => image.deadline_ms = 0,
+                    8 => image.deadline_at_ms = Some(u64::MAX),
+                    9 => image.max_output_items = DEFAULT_MAX_OUTPUT_ITEMS + 1,
+                    _ => unreachable!(),
+                }
+                match request_defect {
+                    0 => {}
+                    1 => request.effect_id = "private/wrong-effect".into(),
+                    2 => request.required_capability = "wrong-capability".into(),
+                    3 => match &mut request.operation {
+                        EffectOperation::Query(e) => e.principal.id.clear(),
+                        EffectOperation::Command(e) => e.principal.id.clear(),
+                        EffectOperation::Presentation(e) => e.principal.id.clear(),
+                    },
+                    4 => request.operation = cases[(index + 1) % cases.len()].operation.clone(),
+                    5 => {
+                        request.effect_id = "wrong-effect".into();
+                        request.required_capability = "wrong-capability".into();
+                        request.budget.fuel_remaining = u64::MAX;
+                    }
+                    _ => unreachable!(),
+                }
+                let before = serde_json::to_vec(&request).unwrap();
+                let expected = frozen_validate_effect_request(&request);
+                assert_eq!(
+                    validate_effect_request(&request),
+                    expected,
+                    "operation {index}, frame {frame_defect}, request {request_defect}"
+                );
+                assert_eq!(
+                    serde_json::from_slice::<EffectRequest>(&before).is_ok(),
+                    expected.is_ok()
+                );
+                assert_eq!(serde_json::to_vec(&request).unwrap(), before);
+                comparisons += 1;
+            }
+        }
+    }
+    assert_eq!(comparisons, 4_200);
 }

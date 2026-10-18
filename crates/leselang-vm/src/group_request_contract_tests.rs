@@ -6,6 +6,150 @@ use leselang_hir::{Effect, Type, host_call::HostOperation};
 
 type Snapshot = (ContinuationToken, MergePlan, Vec<(String, EffectRequest)>);
 
+fn frozen_graph(
+    owner: &ContinuationToken,
+    plan: &MergePlan,
+    rows: &[(&str, &EffectRequest)],
+) -> Result<(), Fault> {
+    plan.validate_shape(leselang_command::MergePlanShapeLimits {
+        max_branches: crate::MAX_MERGE_BRANCHES,
+        max_name_bytes: crate::MAX_MERGE_BRANCH_NAME_BYTES,
+    })
+    .map_err(|error| match error {
+        leselang_command::MergePlanShapeError::GroupBinding => invalid(),
+        leselang_command::MergePlanShapeError::Successor => crate::successor::invalid(),
+        leselang_command::MergePlanShapeError::Branches => Fault {
+            code: "LSV2401".into(),
+            message: "structured merge plan is invalid or exceeds runtime bounds".into(),
+        },
+    })?;
+    if let Some(binding) = &plan.result_binding {
+        binding.validate(plan)?;
+    }
+    if !valid_continuation_token(owner) {
+        return Err(journal_fault("LSV4032", "merge group token is invalid"));
+    }
+    let mismatch = || {
+        journal_fault(
+            "LSV4032",
+            "merge branch requests do not match the declared plan",
+        )
+    };
+    if rows.len() != plan.branches.len() {
+        return Err(mismatch());
+    }
+    let mut identities = std::collections::HashSet::new();
+    for (position, (name, request)) in rows.iter().enumerate() {
+        crate::operation_request_tests::frozen_validate_effect_request(request)?;
+        if *name != plan.branches[position]
+            || request.continuation.token == *owner
+            || !identities.insert(request.continuation.token.as_str())
+        {
+            return Err(mismatch());
+        }
+    }
+    if let Some(binding) = &plan.result_binding {
+        frozen_validate_requests(binding, owner, plan, rows)?;
+    } else if rows
+        .iter()
+        .any(|(_, request)| request.continuation.group_result.is_some())
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+#[test]
+fn complete_merge_graph_admission_preserves_frozen_plan_owner_request_and_correspondence_order() {
+    let mut comparisons = 0;
+    let mut states = 0;
+    for parallel in [false, true] {
+        for kind in 0..5 {
+            for original in snapshots(parallel, kind) {
+                states += 1;
+                for plan_defect in [0, 25, 27, 28, 29, 32] {
+                    for request_defect in [0, 3, 4, 7, 16, 17] {
+                        for bad_owner in [false, true] {
+                            let mut candidate = original.clone();
+                            mutate(&mut candidate, 0, plan_defect);
+                            mutate(&mut candidate, 0, request_defect);
+                            if bad_owner {
+                                candidate.0 = ContinuationToken(String::new());
+                            }
+                            let bytes = serde_json::to_vec(&candidate).unwrap();
+                            let rows = candidate
+                                .2
+                                .iter()
+                                .map(|(name, request)| (name.as_str(), request))
+                                .collect::<Vec<_>>();
+                            assert_eq!(
+                                validate_merge_graph_input(&candidate.0, &candidate.1, &rows),
+                                frozen_graph(&candidate.0, &candidate.1, &rows),
+                                "parallel {parallel}, kind {kind}, plan {plan_defect}, request {request_defect}, owner {bad_owner}"
+                            );
+                            assert_eq!(serde_json::to_vec(&candidate).unwrap(), bytes);
+                            comparisons += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(states, 40);
+    assert_eq!(comparisons, 2_880);
+}
+
+#[test]
+fn complete_merge_graph_admission_retains_unbound_group_identity_and_owner_refusals() {
+    let mut comparisons = 0;
+    for parallel in [false, true] {
+        let mut original = snapshots(parallel, 0).remove(0);
+        original.1.result_binding = None;
+        original.1.order = if parallel {
+            ExecutionOrder::Parallel
+        } else {
+            ExecutionOrder::Sequential
+        };
+        for (_, request) in &mut original.2 {
+            request.continuation.group_result = None;
+            request.continuation.schema_version = 1;
+        }
+        for defect in 0..7 {
+            let mut candidate = original.clone();
+            match defect {
+                0 => {}
+                1 => {
+                    candidate.2.pop();
+                }
+                2 => candidate.2[0].0 = "wrong".into(),
+                3 => candidate.0 = candidate.2[0].1.continuation.token.clone(),
+                4 => candidate.2[1].1 = candidate.2[0].1.clone(),
+                5 => {
+                    candidate.2[0].1.continuation.group_result = Some(candidate.0.clone());
+                    candidate.2[0].1.continuation.schema_version = 6;
+                }
+                6 => candidate.2[0].1.continuation.program_counter = 0,
+                _ => unreachable!(),
+            }
+            let rows = candidate
+                .2
+                .iter()
+                .map(|(name, request)| (name.as_str(), request))
+                .collect::<Vec<_>>();
+            let expected = frozen_graph(&candidate.0, &candidate.1, &rows);
+            assert_eq!(expected.is_ok(), defect == 0);
+            let bytes = serde_json::to_vec(&candidate).unwrap();
+            assert_eq!(
+                validate_merge_graph_input(&candidate.0, &candidate.1, &rows),
+                expected
+            );
+            assert_eq!(serde_json::to_vec(&candidate).unwrap(), bytes);
+            comparisons += 1;
+        }
+    }
+    assert_eq!(comparisons, 14);
+}
+
 fn snapshot(vm: &Vm) -> Snapshot {
     #[cfg(not(feature = "sqlite-journal"))]
     let Journal::Ephemeral(journal) = &vm.journal;

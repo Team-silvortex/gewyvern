@@ -103,6 +103,281 @@ mod request_correspondence {
         }
     }
 
+    fn admission_limits() -> leselang_command::ContinuationAdmissionLimits {
+        use leselang_hir::projection_access::ProjectionAccessLimits;
+        use leselang_runtime_core::{
+            CaptureValidationLimits, GroupCaptureLimits, ResourceBudgetLimits,
+        };
+        leselang_command::ContinuationAdmissionLimits {
+            binding: leselang_command::ResultBindingLimits {
+                captures: CaptureValidationLimits {
+                    max_saved_bindings: 16,
+                    max_name_bytes: 64,
+                },
+                groups: GroupCaptureLimits {
+                    min_members: 1,
+                    max_members: 4,
+                },
+                accesses: ProjectionAccessLimits {
+                    max_nodes: 256,
+                    max_depth: 32,
+                },
+            },
+            budget: ResourceBudgetLimits {
+                max_fuel: 100,
+                max_deadline_ms: 2000,
+                max_deadline_at_ms: 3000,
+                max_output_items: 8,
+            },
+            max_group_sequence: 43,
+        }
+    }
+
+    #[test]
+    fn checked_request_admission_covers_seventy_operations_without_copying_original_frames() {
+        let cases = request_admission_cases();
+        assert_eq!(cases.len(), 70);
+        for (effect, _) in cases {
+            let request = Request::new(effect, 43_u64);
+            let before =
+                serde_json::to_vec(&(&request.frame, &request.operation, &request.budget)).unwrap();
+            let calls = std::cell::RefCell::new(Vec::new());
+            assert_eq!(
+                leselang_command::validate_effect_request(
+                    request.view(),
+                    admission_limits(),
+                    |_| panic!("no group owner"),
+                    |token| {
+                        assert!(std::ptr::eq(token, &request.frame.token));
+                        calls.borrow_mut().push("token");
+                        true
+                    },
+                    |_| panic!("no group capture"),
+                    |token| {
+                        assert!(std::ptr::eq(token, &request.frame.token));
+                        calls.borrow_mut().push("sequence");
+                        Some(*token)
+                    },
+                ),
+                Ok(())
+            );
+            assert_eq!(*calls.borrow(), ["token", "sequence"]);
+            assert_eq!(
+                serde_json::to_vec(&(&request.frame, &request.operation, &request.budget)).unwrap(),
+                before
+            );
+        }
+    }
+
+    #[test]
+    fn checked_request_admission_keeps_frame_before_cold_authority_and_canonical_identity() {
+        use leselang_command::continuation_schema::ContinuationSchemaError;
+        use leselang_command::{
+            ContinuationAdmissionError as Frame, RequestAdmissionError as Admission,
+        };
+        for stage in 0..9 {
+            let mut request = Request::new(focus(), 43_u64);
+            request.with_cold_body();
+            request.frame.schema_version = 3;
+            let expected = match stage {
+                0 => {
+                    request.frame.schema_version = 0;
+                    request.frame.program_counter = 0;
+                    *request_authority_mut(&mut request.operation).1 = CapabilitySet::default();
+                    Err(Admission::Frame(Frame::Schema(
+                        ContinuationSchemaError::Version {
+                            actual: 0,
+                            expected: 3,
+                        },
+                    )))
+                }
+                1 => {
+                    request.frame.program_counter = 0;
+                    Err(Admission::Frame(Frame::Token))
+                }
+                2 => {
+                    request.frame.program_counter = 0;
+                    *request_authority_mut(&mut request.operation).1 = CapabilitySet::default();
+                    Err(Admission::Frame(Frame::ProgramCounter))
+                }
+                3 => {
+                    request.frame.fuel_remaining = 101;
+                    *request_authority_mut(&mut request.operation).1 = CapabilitySet::default();
+                    Err(Admission::Frame(Frame::Budget(
+                        leselang_runtime_core::ResourceBudgetError::Fuel,
+                    )))
+                }
+                4 => {
+                    *request_authority_mut(&mut request.operation).1 = CapabilitySet::default();
+                    request.effect_id = "private/wrong-effect".into();
+                    Err(Admission::Correspondence(Error::SuccessorAuthority))
+                }
+                5 => Err(Admission::Correspondence(Error::ContinuationIdentity)),
+                6 => {
+                    request.effect_id = "private/wrong-effect".into();
+                    request.budget.fuel_remaining += 1;
+                    Err(Admission::Correspondence(Error::EffectIdentity))
+                }
+                7 => {
+                    request.budget.fuel_remaining += 1;
+                    Err(Admission::Correspondence(Error::Budget))
+                }
+                _ => Ok(()),
+            };
+            let before =
+                serde_json::to_vec(&(&request.frame, &request.operation, &request.budget)).unwrap();
+            let token_calls = Cell::new(0);
+            let sequence_calls = Cell::new(0);
+            let result = leselang_command::validate_effect_request(
+                request.view(),
+                admission_limits(),
+                |_| panic!("no group owner"),
+                |_| {
+                    token_calls.set(token_calls.get() + 1);
+                    stage != 1
+                },
+                |_| true,
+                |_| {
+                    sequence_calls.set(sequence_calls.get() + 1);
+                    (stage != 5).then_some(43)
+                },
+            );
+            assert_eq!(result, expected, "stage {stage}");
+            assert_eq!(token_calls.get(), usize::from(stage != 0));
+            assert_eq!(sequence_calls.get(), usize::from(stage >= 5));
+            if let Err(error) = result {
+                assert!(!format!("{error:?}: {error}").contains("private"));
+                assert!(std::error::Error::source(&error).is_none());
+            }
+            assert_eq!(
+                serde_json::to_vec(&(&request.frame, &request.operation, &request.budget)).unwrap(),
+                before
+            );
+        }
+    }
+
+    #[test]
+    fn checked_request_admission_borrows_opaque_local_owners_in_original_hook_order() {
+        let drops = Rc::new(Cell::new(0));
+        let mut request = Request::new(focus(), LocalToken(Rc::clone(&drops)));
+        request.frame.group_result = Some(LocalToken(Rc::clone(&drops)));
+        request.frame.schema_version = 6;
+        let events = std::cell::RefCell::new(Vec::new());
+        assert_eq!(
+            leselang_command::validate_effect_request(
+                request.view(),
+                admission_limits(),
+                |owner| {
+                    assert!(std::ptr::eq(
+                        owner,
+                        request.frame.group_result.as_ref().unwrap()
+                    ));
+                    events.borrow_mut().push("owner");
+                    "merge-1"
+                },
+                |token| {
+                    assert!(std::ptr::eq(token, &request.frame.token));
+                    events.borrow_mut().push("token");
+                    true
+                },
+                |_| panic!("no group capture"),
+                |token| {
+                    assert!(std::ptr::eq(token, &request.frame.token));
+                    events.borrow_mut().push("sequence");
+                    Some(43)
+                },
+            ),
+            Ok(())
+        );
+        assert_eq!(*events.borrow(), ["owner", "token", "sequence"]);
+        assert_eq!(drops.get(), 0);
+        drop(request);
+        assert_eq!(drops.get(), 2);
+    }
+
+    #[test]
+    fn checked_request_admission_propagates_each_native_unwind_and_drops_unused_hooks() {
+        for stage in 0..3 {
+            let token_drops = Rc::new(Cell::new(0));
+            let hook_drops = Rc::new(Cell::new(0));
+            let owner_capture = LocalToken(Rc::clone(&hook_drops));
+            let token_capture = LocalToken(Rc::clone(&hook_drops));
+            let sequence_capture = LocalToken(Rc::clone(&hook_drops));
+            let mut request = Request::new(focus(), LocalToken(Rc::clone(&token_drops)));
+            request.frame.group_result = Some(LocalToken(Rc::clone(&token_drops)));
+            request.frame.schema_version = 6;
+            let calls = std::cell::RefCell::new(Vec::new());
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                leselang_command::validate_effect_request(
+                    request.view(),
+                    admission_limits(),
+                    |_| {
+                        let _capture = owner_capture;
+                        calls.borrow_mut().push(0);
+                        assert_ne!(stage, 0, "trusted owner hook unwind");
+                        "merge-1"
+                    },
+                    |_| {
+                        let _capture = token_capture;
+                        calls.borrow_mut().push(1);
+                        assert_ne!(stage, 1, "trusted token hook unwind");
+                        true
+                    },
+                    |_| true,
+                    |_| {
+                        let _capture = sequence_capture;
+                        calls.borrow_mut().push(2);
+                        panic!("trusted sequence hook unwind")
+                    },
+                )
+            }));
+            assert!(outcome.is_err());
+            assert_eq!(*calls.borrow(), (0..=stage).collect::<Vec<_>>());
+            assert_eq!(hook_drops.get(), 3);
+            assert_eq!(token_drops.get(), 0);
+            assert_eq!(request.frame.fuel_remaining, 19);
+            drop(request);
+            assert_eq!(token_drops.get(), 2);
+        }
+    }
+
+    #[test]
+    fn checked_request_admission_rechecks_mutable_data_without_promoting_live_grants() {
+        use leselang_command::{ContinuationAdmissionError, RequestAdmissionError};
+        let mut request = Request::new(focus(), 43_u64);
+        let check = |request: &Request<u64>| {
+            leselang_command::validate_effect_request(
+                request.view(),
+                admission_limits(),
+                |_| "",
+                |_| true,
+                |_| true,
+                |_| Some(43),
+            )
+        };
+        assert_eq!(check(&request), Ok(()));
+        request.frame.program_counter = 0;
+        assert_eq!(
+            check(&request),
+            Err(RequestAdmissionError::Frame(
+                ContinuationAdmissionError::ProgramCounter
+            ))
+        );
+        // The low-level gate remains explicitly preflighted, not a frame validator.
+        assert_eq!(
+            validate_preflighted_effect_request(request.view(), |_| Some(43)),
+            Ok(())
+        );
+        request.frame.program_counter = 1;
+        request.frame.fuel_remaining = 0;
+        request.frame.max_output_items = 0;
+        request.budget = request.frame.resource_budget();
+        assert_eq!(check(&request), Ok(()));
+        // A consistent exhausted frame is not a debit, refill or execution grant.
+        assert_eq!(request.frame.fuel_remaining, 0);
+        assert_eq!(request.frame.max_output_items, 0);
+    }
+
     #[test]
     fn full_request_correspondence_borrows_seventy_original_frames_without_wire_changes() {
         for (effect, _) in request_admission_cases() {

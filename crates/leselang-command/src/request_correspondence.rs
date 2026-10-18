@@ -65,6 +65,8 @@ impl std::error::Error for RequestCorrespondenceError {}
 
 /// Check cold successor authority, identity, operation, then exact budget equality.
 ///
+/// Use [`crate::validate_effect_request`] when the frame has not yet been admitted.
+///
 /// Callers must bound ingress and fully admit the original frame, including the
 /// pending effect and captured body, before entry. The trusted sequence hook must
 /// recognize canonical, nonzero, bounded identities in the caller's token domain;

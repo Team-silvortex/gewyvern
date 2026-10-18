@@ -26,11 +26,36 @@ pub(super) fn invalid() -> Fault {
     }
 }
 
+pub(super) fn admission_limits() -> leselang_command::GroupBindingLimits {
+    leselang_command::GroupBindingLimits {
+        plan: leselang_command::GroupPlanLimits {
+            max_branches: crate::MAX_MERGE_BRANCHES,
+            max_effect_sequence: crate::MAX_EFFECT_SEQUENCE,
+            max_fuel: crate::MAX_EXECUTION_FUEL,
+        },
+        binding: crate::result_binding::result_binding_limits(),
+    }
+}
+
+pub(super) fn validate_plan_encoding(plan: &MergePlan) -> Result<(), Fault> {
+    crate::validate_json_size_capped(plan, crate::MAX_CONTINUATION_BYTES, "group-result plan")
+}
+
+pub(super) fn admission_fault(error: leselang_command::GroupBindingError<Fault>) -> Fault {
+    match error {
+        leselang_command::GroupBindingError::Binding => crate::result_binding::invalid(),
+        leselang_command::GroupBindingError::Plan => invalid(),
+        leselang_command::GroupBindingError::Encoding(fault) => fault,
+    }
+}
+
 pub(super) trait ReferenceGroupResultBinding {
     fn branches(&self) -> Result<&[HirBranch], Fault>;
     fn successor_name_at(&self, position: usize) -> Result<String, Fault>;
     fn has_successor(&self, plan: &MergePlan) -> bool;
+    #[cfg(any(test, feature = "sqlite-journal"))]
     fn validate(&self, plan: &MergePlan) -> Result<Type, Fault>;
+    #[cfg(test)]
     fn validate_requests(
         &self,
         owner: &ContinuationToken,
@@ -85,34 +110,19 @@ impl ReferenceGroupResultBinding for GroupResultBinding {
                 .is_ok_and(|branches| plan.branches.len() > branches.len())
     }
 
+    #[cfg(any(test, feature = "sqlite-journal"))]
     fn validate(&self, plan: &MergePlan) -> Result<Type, Fault> {
         leselang_command::validate_group_binding(
             self,
             plan,
-            leselang_command::GroupBindingLimits {
-                plan: leselang_command::GroupPlanLimits {
-                    max_branches: crate::MAX_MERGE_BRANCHES,
-                    max_effect_sequence: crate::MAX_EFFECT_SEQUENCE,
-                    max_fuel: crate::MAX_EXECUTION_FUEL,
-                },
-                binding: crate::result_binding::result_binding_limits(),
-            },
+            admission_limits(),
             crate::valid_merge_branch_name,
-            |plan| {
-                crate::validate_json_size_capped(
-                    plan,
-                    crate::MAX_CONTINUATION_BYTES,
-                    "group-result plan",
-                )
-            },
+            validate_plan_encoding,
         )
-        .map_err(|error| match error {
-            leselang_command::GroupBindingError::Binding => crate::result_binding::invalid(),
-            leselang_command::GroupBindingError::Plan => invalid(),
-            leselang_command::GroupBindingError::Encoding(fault) => fault,
-        })
+        .map_err(admission_fault)
     }
 
+    #[cfg(test)]
     fn validate_requests(
         &self,
         owner: &ContinuationToken,

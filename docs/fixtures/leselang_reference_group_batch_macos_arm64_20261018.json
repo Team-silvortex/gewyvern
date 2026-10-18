@@ -1,0 +1,210 @@
+{
+  "kind": "leselang-reference-stored-group-batch",
+  "validated_on": "2026-10-18",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "reference_execution_contract": "1.102.0",
+  "native_embedding_contract": "0.162.0",
+  "real_sqlite_states": 14,
+  "flow_forms": 8,
+  "frozen_comparisons": 364,
+  "baseline_passed": true,
+  "post_migration_parity_passed": true,
+  "original_tables_unchanged": true,
+  "native_checkpoint_handoff_passed": true,
+  "opaque_local_ownership_passed": true,
+  "native_unwind_prefixes_passed": true,
+  "standalone_core_package_passed": true,
+  "wire_or_journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "scope": "Core inspect_group_recovery_batch owns one bounded reservation index and the complete original row order: native owner/plan admission, numeric maximum observation, successor reservation insertion, execution-order proof, then complete per-group inspection. The actual SQLite adapter uses both batch and member pipelines. Fourteen two-group database states from eight flow forms exercise 364 frozen comparisons with either group corrupted and conflicting native faults; all metadata, effect, dispatch, group and branch tables remain unchanged. Native consumers cover count/slot limits, duplicates, zero and overflow, move-only local owners/errors, every reached callback and iterator unwind, and late proof/commit failure blocking checkpoint handoff. Summaries expose counts and maxima only after complete success, not identities, receipts or execution grants. The original bounded SQL snapshot, owner/plan admission, authentic authority, cold-slot original-watermark proofs and final atomic commit remain adapter responsibilities. No wire/schema change, saved-code evaluation, fuel, dispatch, watermark repair, complete native durable VM or repository extraction is introduced.",
+  "sources": [
+    {
+      "path": "crates/leselang-runtime-core/src/group_recovery_batch.rs",
+      "sha256": "716310206017ac79a6edda1bd36e62105cbeba44213149da4d6b7f4d2d923c61"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/group_recovery.rs",
+      "sha256": "a0972c3d6ed9ea77573e86a59409e70df93ac676282875294d70e6ba3fa3454a"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/recovery_fence.rs",
+      "sha256": "72f3c2a451413a4a32d64315cdc76be60e892785ffeb8f3738c8285177b15dd9"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/checkpoint.rs",
+      "sha256": "8664359f4a7fb8acbdeec79ac6f79a51c881966785a2dcf452667f1dbcb7474c"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/lib.rs",
+      "sha256": "e455edbfdba6bf9ae7d698cad5219e96ee2be2639c2ceccb5adb7e60163858bf"
+    },
+    {
+      "path": "crates/leselang-runtime-core/README.md",
+      "sha256": "d4c8ee89392793214bb0cfb89a6d87bf2eec8ffc715716e324062cf737481aa4"
+    },
+    {
+      "path": "crates/leselang-runtime-core/tests/recovery_fence.rs",
+      "sha256": "f3e4e8f7fc1f917704a7582098498a192caefe742973600f0c7dd98252a98c6b"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "2e866952e9947f46f9ba6e10984a2a6787dc74feab6e0b86f06900b675cb6153"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_recovery_contract_tests.rs",
+      "sha256": "623e16c13f544c7756def6b5d5350f09d422f113fa625de66806baa7cfb0eaa0"
+    },
+    {
+      "path": "crates/gewyvern-dev/src/leselang.rs",
+      "sha256": "1566f35392e8deb4e920607821f3ed9bbabe24cf123a39615c8f427df2d6ce29"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "109a0632e2b6de04ac228c93c25f95ed14d254653e7b316255a86c7553880b16"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "153b402f3af0ed8234fbd3172bb014bb5894ae6d92bc1a84cb969beb5e5e41be"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "6a69ead5ff1b6c8816fd86fe9a4de94d384ca849479540ee1045280cd64de82e"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "64565a3b93e4cc2e6d40933fa7e53e8058da55b3e0a8b7c7a3725cedd9d441aa"
+    }
+  ],
+  "verification": [
+    {
+      "name": "baseline",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/baseline.log",
+      "sha256": "3715a223c1b730876dd7ad092055aa79a40fab81490db07ef8124bd3b1d9880e",
+      "toolchain": "1.98.0",
+      "passed": 1
+    },
+    {
+      "name": "parity",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/parity.log",
+      "sha256": "bc82daf00910aae0db6a0d96a498d1b802e4001c02fb6acd1091f328c0cb79e6",
+      "toolchain": "1.98.0",
+      "passed": 2
+    },
+    {
+      "name": "consumer",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/consumer.log",
+      "sha256": "ecea8f31d4287b7d480f5dafbf04bc43f35282cebf05bc2ebb5c146c9c15cd7f",
+      "toolchain": "1.98.0",
+      "passed": 22
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/runtime.log",
+      "sha256": "b0281e956461bd3ece7e6d2802195954be046d1664f41def80a54a837dcb9798",
+      "toolchain": "1.98.0",
+      "passed": 3213
+    },
+    {
+      "name": "standalone",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/standalone.log",
+      "sha256": "20b83545c235a34b1ac747f0d5953adb991280864f84547b19290e6cb5a38fc4",
+      "toolchain": "1.98.0",
+      "passed": 578
+    },
+    {
+      "name": "root",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/root.log",
+      "sha256": "cc75467725daa48fd70261df948d0ccd9d261eadd33fd5df086761ad2f16ba27",
+      "toolchain": "1.98.0",
+      "passed": 443
+    },
+    {
+      "name": "memory",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/memory.log",
+      "sha256": "9db85425a9ed2d50c89ffc7f9b475fcc81127ec32ff709a759497fc229ea026c",
+      "toolchain": "1.98.0",
+      "passed": 204
+    },
+    {
+      "name": "native",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/native.log",
+      "sha256": "d32ff74655cc4989aa5246cc7ba858045f71e73236289bbe1041812dcbf75ec6",
+      "toolchain": "1.98.0",
+      "passed": 50
+    },
+    {
+      "name": "exporter",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/exporter.log",
+      "sha256": "9ab538260f32c8d4f508047628eb8b65ec472253e9b8d986988ed63ad1bc92c8",
+      "toolchain": "1.98.0",
+      "passed": 16
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/clippy.log",
+      "sha256": "39e8629ae5db661b9f536ab90e9d2a5e857d5f7805f4c0d064904217d744b6d2",
+      "passed": true,
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "memory-clippy",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/memory-clippy.log",
+      "sha256": "6748b4ee35d82f79f8cc25d9609505fa58490170e54f70d666ed3453f44fa5e8",
+      "passed": true,
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "native-clippy",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/native-clippy.log",
+      "sha256": "2bb95691850274ec92a6d4190a6337591b1647ad7061f1813def702e23a3b3a7",
+      "passed": true,
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "fmt",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true
+    },
+    {
+      "name": "profile-fmt",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/profile-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true
+    },
+    {
+      "name": "diff-check",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/diff-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true
+    },
+    {
+      "name": "standalone-tree",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/standalone-tree.log",
+      "sha256": "a00e176e6f0362ecc9778a833c4f9c85ceb89b08cdb37ca39423fbd4d43d9a4d",
+      "passed": true
+    },
+    {
+      "name": "native-tree",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/native-tree.log",
+      "sha256": "648ce0bd6a92678072f5e583c34468351fa107a920b6e28eb7d87d17eee4fef6",
+      "passed": true
+    },
+    {
+      "name": "package",
+      "path": "/private/tmp/leselang-batch-recovery-2lTGO7/package.log",
+      "sha256": "0e9e38b713f3d85ccfea99ae7217555afb47ccc44a45d09e9e069b9ac16c9003",
+      "passed": true,
+      "warnings": [
+        "Pre-existing manifest metadata: no documentation, homepage or repository."
+      ]
+    }
+  ],
+  "package_archive": {
+    "path": "target/package/leselang-runtime-core-2.3.0.crate",
+    "sha256": "ce6c000f10e332e960bd607a1b43576a698c8df805e40e73ab89cb3b3c9ac2e4",
+    "normalized_sources_and_consumer_match": true
+  }
+}

@@ -266,6 +266,7 @@ mod group_requests {
         }
     }
     struct Row {
+        effect_id: String,
         frame: ContinuationFrame<LocalToken, Revision, Type, Effect, ResultBinding>,
         operation: EffectOperation,
         budget: ResourceBudget,
@@ -273,7 +274,7 @@ mod group_requests {
     impl Row {
         fn view(&self) -> EffectRequestView<'_, LocalToken> {
             EffectRequestView {
-                effect_id: "fixture",
+                effect_id: &self.effect_id,
                 required_capability: "ui.presentation",
                 operation: &self.operation,
                 continuation: &self.frame,
@@ -323,6 +324,7 @@ mod group_requests {
                 (
                     if index == 0 { "a" } else { "b" },
                     Row {
+                        effect_id: format!("effect-{}", index + 2),
                         frame,
                         operation,
                         budget,
@@ -350,6 +352,348 @@ mod group_requests {
             result_type,
             max_successor_names: 64,
             binding_limits: group_admission::policy().binding,
+        }
+    }
+
+    mod complete_graph {
+        use super::*;
+        use leselang_command::{
+            ContinuationAdmissionLimits, GroupBindingError, MergeGraphAdmissionError as Error,
+            MergeGraphAdmissionHost, MergeGraphAdmissionLimits, MergePlanAdmissionError,
+            MergePlanAdmissionLimits, validate_merge_graph, validate_merge_plan,
+        };
+        use leselang_runtime_core::{GroupGraphError, GroupGraphMismatch, ResourceBudgetLimits};
+        use std::{
+            cell::RefCell,
+            panic::{AssertUnwindSafe, catch_unwind},
+        };
+
+        fn policy() -> MergeGraphAdmissionLimits {
+            MergeGraphAdmissionLimits {
+                plan: MergePlanAdmissionLimits {
+                    shape: limits(),
+                    group: group_admission::policy(),
+                },
+                frame: ContinuationAdmissionLimits {
+                    binding: group_admission::policy().binding,
+                    budget: ResourceBudgetLimits {
+                        max_fuel: 101,
+                        max_deadline_ms: 1000,
+                        max_deadline_at_ms: 2000,
+                        max_output_items: 4,
+                    },
+                    max_group_sequence: 101,
+                },
+            }
+        }
+
+        struct NativeError(Rc<Cell<usize>>);
+        impl Drop for NativeError {
+            fn drop(&mut self) {
+                self.0.set(self.0.get() + 1);
+            }
+        }
+        struct Host<'a> {
+            plan: &'a MergePlan,
+            events: RefCell<Vec<String>>,
+            panic_at: Cell<usize>,
+            encodings: Cell<usize>,
+            fail_encoding: Cell<usize>,
+            error_drops: Rc<Cell<usize>>,
+        }
+        impl<'a> Host<'a> {
+            fn new(plan: &'a MergePlan) -> Self {
+                Self {
+                    plan,
+                    events: RefCell::new(vec![]),
+                    panic_at: Cell::new(0),
+                    encodings: Cell::new(0),
+                    fail_encoding: Cell::new(0),
+                    error_drops: Rc::new(Cell::new(0)),
+                }
+            }
+            fn event(&self, value: String) {
+                self.events.borrow_mut().push(value);
+                assert_ne!(
+                    self.events.borrow().len(),
+                    self.panic_at.get(),
+                    "native unwind"
+                );
+            }
+        }
+        fn sequence(token: &str) -> Option<u64> {
+            let text = token.strip_prefix("continuation-")?;
+            let value = text.parse::<u64>().ok()?;
+            ((1..=101).contains(&value) && value.to_string() == text).then_some(value)
+        }
+        impl MergeGraphAdmissionHost<LocalToken> for Host<'_> {
+            type Error = NativeError;
+            fn token_text<'a>(&self, token: &'a LocalToken) -> &'a str {
+                self.event(format!("text:{}", token.0));
+                &token.0
+            }
+            fn valid_token(&self, token: &LocalToken) -> bool {
+                self.event(format!("token:{}", token.0));
+                token.0 == "merge-1" || sequence(&token.0).is_some()
+            }
+            fn canonical_sequence(&self, token: &LocalToken) -> Option<u64> {
+                self.event(format!("sequence:{}", token.0));
+                sequence(&token.0)
+            }
+            fn valid_group_name(&self, name: &str) -> bool {
+                self.event(format!("name:{name}"));
+                valid_merge_branch_name(name, 64)
+            }
+            fn validate_plan_encoding(&self, plan: &MergePlan) -> Result<(), NativeError> {
+                assert!(std::ptr::eq(plan, self.plan));
+                self.event("encoding".into());
+                self.encodings.set(self.encodings.get() + 1);
+                if self.encodings.get() == self.fail_encoding.get() {
+                    Err(NativeError(self.error_drops.clone()))
+                } else {
+                    Ok(())
+                }
+            }
+        }
+        fn check(
+            owner: &LocalToken,
+            rows: &[(&str, Row)],
+            host: &Host<'_>,
+        ) -> Result<(), Error<NativeError>> {
+            let object: &dyn MergeGraphAdmissionHost<LocalToken, Error = NativeError> = host;
+            validate_merge_graph(
+                owner,
+                host.plan,
+                rows,
+                policy(),
+                |row| {
+                    host.event(format!("view:{}", row.effect_id));
+                    let view = row.view();
+                    assert!(std::ptr::eq(view.continuation, &row.frame));
+                    view
+                },
+                object,
+            )
+        }
+
+        #[test]
+        fn complete_graph_borrows_local_opaque_rows_and_rechecks_all_ten_bound_plan_forms() {
+            for parallel in [false, true] {
+                for kind in 0..5 {
+                    let (group, plan) = group_plan_fixture(parallel, kind);
+                    let before = serde_json::to_vec(&plan).unwrap();
+                    let drops = Rc::new(Cell::new(0));
+                    let owner = LocalToken("merge-1".into(), drops.clone());
+                    let requests = rows(&group, &plan, &drops);
+                    let host = Host::new(&plan);
+                    let result = validate_merge_plan(
+                        &plan,
+                        policy().plan,
+                        |_| true,
+                        |plan| host.validate_plan_encoding(plan),
+                    )
+                    .unwrap();
+                    assert_eq!(
+                        result,
+                        Some(if kind == 1 {
+                            Type::UiFocus
+                        } else {
+                            Type::Scalar(leselang_hir::computation::ScalarType::None)
+                        })
+                    );
+                    assert_eq!(host.encodings.get(), 1);
+                    host.encodings.set(0);
+                    check(&owner, &requests, &host).unwrap();
+                    assert_eq!(host.encodings.get(), 2);
+                    assert_eq!(serde_json::to_vec(&plan).unwrap(), before);
+                    assert_eq!(requests[0].1.frame.fuel_remaining, 101);
+                    assert_eq!(
+                        requests[1].1.frame.fuel_remaining,
+                        if parallel { 101 } else { 100 }
+                    );
+                    assert_eq!(drops.get(), 0);
+                    drop(requests);
+                    assert_eq!(drops.get(), 4);
+                    drop(owner);
+                    assert_eq!(drops.get(), 5);
+                }
+            }
+        }
+
+        #[test]
+        fn complete_graph_keeps_plan_owner_count_request_identity_and_correspondence_order() {
+            for defect in 0..7 {
+                let (group, mut plan) = group_plan_fixture(false, 0);
+                let drops = Rc::new(Cell::new(0));
+                let mut owner = LocalToken("merge-1".into(), drops.clone());
+                let mut requests = rows(&group, &plan, &drops);
+                if defect <= 2 {
+                    requests.pop();
+                }
+                if defect <= 1 {
+                    owner.0 = "bad".into();
+                }
+                if defect == 0 {
+                    plan.branches.clear();
+                }
+                if defect == 3 {
+                    requests[0].0 = "wrong";
+                    requests[0].1.frame.program_counter = 0;
+                }
+                if defect == 4 {
+                    requests[0].0 = "wrong";
+                }
+                if defect == 5 {
+                    requests[1].1.effect_id = "effect-2".into();
+                    requests[1].1.frame.token.0 = "continuation-2".into();
+                }
+                if defect == 6 {
+                    requests[0].1.frame.fuel_remaining = 99;
+                    requests[0].1.budget = requests[0].1.frame.resource_budget();
+                }
+                let host = Host::new(&plan);
+                let error = check(&owner, &requests, &host).unwrap_err();
+                assert!(
+                    match defect {
+                        0 => matches!(error, Error::Plan(MergePlanAdmissionError::Shape(_))),
+                        1 => matches!(error, Error::Owner),
+                        2 => matches!(error, Error::Graph(GroupGraphError::Count)),
+                        3 => matches!(
+                            error,
+                            Error::Graph(GroupGraphError::Native { index: 0, .. })
+                        ),
+                        4 => matches!(
+                            error,
+                            Error::Graph(GroupGraphError::Member {
+                                index: 0,
+                                mismatch: GroupGraphMismatch::Name,
+                            })
+                        ),
+                        5 => matches!(
+                            error,
+                            Error::Graph(GroupGraphError::Member {
+                                index: 1,
+                                mismatch: GroupGraphMismatch::Duplicate,
+                            })
+                        ),
+                        6 => matches!(error, Error::Correspondence),
+                        _ => unreachable!(),
+                    },
+                    "defect {defect}: {error:?}"
+                );
+                assert_eq!(
+                    host.encodings.get(),
+                    if defect == 0 {
+                        0
+                    } else if defect == 6 {
+                        2
+                    } else {
+                        1
+                    }
+                );
+                if defect <= 2 {
+                    assert!(
+                        !host
+                            .events
+                            .borrow()
+                            .iter()
+                            .any(|event| event.starts_with("view:"))
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn complete_graph_preserves_both_owned_encoding_failures_and_each_unwind_prefix() {
+            let (group, plan) = group_plan_fixture(false, 1);
+            let drops = Rc::new(Cell::new(0));
+            let owner = LocalToken("merge-1".into(), drops.clone());
+            let requests = rows(&group, &plan, &drops);
+            for pass in [1, 2] {
+                let host = Host::new(&plan);
+                host.fail_encoding.set(pass);
+                let error = check(&owner, &requests, &host).unwrap_err();
+                assert!(std::error::Error::source(&error).is_none());
+                assert_eq!(format!("{error:?}"), format!("{error}"));
+                let original = match error {
+                    Error::Plan(MergePlanAdmissionError::Binding(GroupBindingError::Encoding(
+                        e,
+                    ))) if pass == 1 => e,
+                    Error::Binding(GroupBindingError::Encoding(e)) if pass == 2 => e,
+                    _ => panic!("lost native encoding error"),
+                };
+                assert!(Rc::ptr_eq(&original.0, &host.error_drops));
+                assert_eq!(host.error_drops.get(), 0);
+                drop(original);
+                assert_eq!(host.error_drops.get(), 1);
+                assert_eq!(host.encodings.get(), pass);
+            }
+            let host = Host::new(&plan);
+            check(&owner, &requests, &host).unwrap();
+            let expected = host.events.into_inner();
+            for cutoff in 1..=expected.len() {
+                let host = Host::new(&plan);
+                host.panic_at.set(cutoff);
+                assert!(
+                    catch_unwind(AssertUnwindSafe(|| check(&owner, &requests, &host))).is_err()
+                );
+                assert_eq!(*host.events.borrow(), expected[..cutoff]);
+                assert_eq!(drops.get(), 0);
+                assert_eq!(requests[0].1.frame.fuel_remaining, 101);
+            }
+        }
+
+        #[test]
+        fn complete_unbound_plan_skips_encoding_and_rejects_bound_members_without_authorizing_them()
+        {
+            let (group, mut plan) = group_plan_fixture(false, 0);
+            plan.result_binding = None;
+            plan.order = ExecutionOrder::Sequential;
+            assert_eq!(
+                validate_merge_plan(
+                    &plan,
+                    policy().plan,
+                    |_| panic!("unbound group name hook"),
+                    |_| -> Result<(), ()> { panic!("unbound encoding hook") }
+                ),
+                Ok(None)
+            );
+            for bad_shape in [false, true] {
+                let mut candidate = plan.clone();
+                if bad_shape {
+                    candidate.branches.clear();
+                }
+                let dropped = Rc::new(Cell::new(0));
+                let capture = NativeError(dropped.clone());
+                let result = validate_merge_plan(
+                    &candidate,
+                    policy().plan,
+                    |_| panic!("uncalled name hook"),
+                    move |_| -> Result<(), ()> {
+                        drop(capture);
+                        panic!("uncalled encoding hook");
+                    },
+                );
+                assert_eq!(result.is_err(), bad_shape);
+                assert_eq!(dropped.get(), 1);
+            }
+            let drops = Rc::new(Cell::new(0));
+            let owner = LocalToken("merge-1".into(), drops.clone());
+            let mut requests = rows(&group, &plan, &drops);
+            for (_, row) in &mut requests {
+                row.frame.group_result = None;
+                row.frame.schema_version = 1;
+            }
+            let host = Host::new(&plan);
+            check(&owner, &requests, &host).unwrap();
+            assert_eq!(host.encodings.get(), 0);
+            requests[0].1.frame.group_result = Some(LocalToken("merge-1".into(), drops.clone()));
+            requests[0].1.frame.schema_version = group.continuation_schema();
+            assert!(matches!(
+                check(&owner, &requests, &host),
+                Err(Error::UnexpectedGroupOwner)
+            ));
+            assert_eq!(host.encodings.get(), 0);
         }
     }
 

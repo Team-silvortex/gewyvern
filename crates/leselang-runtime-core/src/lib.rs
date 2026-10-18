@@ -31,11 +31,14 @@ mod dispatch_plan;
 mod fold;
 mod fuel;
 mod group_graph;
+mod group_recovery;
+mod group_recovery_batch;
 mod host_result;
 mod local_execution;
 mod outcome_summary;
 mod owned_scope;
 mod projection;
+mod record_recovery;
 mod recovery;
 mod recovery_fence;
 mod reply;
@@ -112,6 +115,13 @@ pub use group_graph::{
     GroupGraphError, GroupGraphMember, GroupGraphMismatch, MAX_GROUP_GRAPH_MEMBERS,
     validate_group_graph,
 };
+pub use group_recovery::{
+    GroupRecoveryError, GroupRecoveryHost, GroupRecoveryPolicy, inspect_group_recovery,
+};
+pub use group_recovery_batch::{
+    GroupRecoveryBatchError, GroupRecoveryBatchHost, GroupRecoveryBatchLimits,
+    GroupRecoveryBatchSummary, inspect_group_recovery_batch,
+};
 pub use host_result::{HostResultDomain, HostResultError, validate_host_result};
 pub use local_execution::{LocalExecutionLease, LocalExecutionScope, ScopedLocalExecution};
 pub use outcome_summary::{
@@ -119,6 +129,10 @@ pub use outcome_summary::{
 };
 pub use owned_scope::with_owned_scope_state;
 pub use projection::{ProjectionError, ScalarProjectionField, validate_scalar_projection};
+pub use record_recovery::{
+    RecordRecoveryError, RecordRecoveryHost, RecordRecoveryResult, StoredRecordState,
+    inspect_record_recovery,
+};
 pub use recovery::CalculationFailure;
 pub use recovery_fence::{
     GroupReceiptError, ReservationError, ReservationObservation, ReservationProofError,

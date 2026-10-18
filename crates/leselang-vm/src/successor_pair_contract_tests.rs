@@ -2,8 +2,8 @@ use super::*;
 
 // Frozen complete pair gate before moving correspondence into the adapter.
 fn frozen(parent: &EffectRequest, result: &Step, next: &EffectRequest) -> Result<(), Fault> {
-    validate_effect_request(parent)?;
-    validate_effect_request(next)?;
+    crate::operation_request_tests::frozen_validate_effect_request(parent)?;
+    crate::operation_request_tests::frozen_validate_effect_request(next)?;
     let first = &parent.continuation;
     let second = &next.continuation;
     let Step::Done(value) = result else {
@@ -12,7 +12,20 @@ fn frozen(parent: &EffectRequest, result: &Step, next: &EffectRequest) -> Result
     if matches!(value, Value::Scalar { .. }) {
         return Err(invalid());
     }
-    validate_bound_value(first, value)?;
+    if value.result_type() != first.result_type {
+        return Err(Fault {
+            code: "LSV2103".into(),
+            message: "effect result does not match pending effect".into(),
+        });
+    }
+    let count = crate::validate_value(value, 0)?;
+    if count > first.max_output_items || first.max_output_items == 0 {
+        return Err(Fault {
+            code: "LSV2102".into(),
+            message: "bound result exceeds the output item limit".into(),
+        });
+    }
+    crate::validate_json_size_capped(value, MAX_JOURNAL_ENTRY_BYTES, "bound host result")?;
     let schema_valid = leselang_command::continuation_schema::successor_schema_matches(
         first.schema_version,
         first.group_result.as_ref().map(ContinuationToken::as_str),
@@ -252,4 +265,35 @@ fn successor_pair_preserves_real_atomic_and_group_reentry_and_frozen_refusal_ord
     }
     assert_eq!(pairs.len(), 9);
     assert_eq!(comparisons, 576);
+}
+
+#[test]
+fn complete_successor_admission_keeps_parent_child_completion_and_value_fault_precedence() {
+    let mut comparisons = 0;
+    for (parent, result, next) in pairs() {
+        for first_defect in [0, 1, 2, 5, 7, 11, 12, 13, 14, 31] {
+            for second_defect in [0, 1, 2, 5, 7, 11, 12, 13, 14, 31] {
+                for value_defect in [0, 17, 18, 19, 20, 21] {
+                    let (mut first, mut done, mut second) =
+                        (parent.clone(), result.clone(), next.clone());
+                    mutate(&mut first, &mut done, first_defect);
+                    mutate(&mut second, &mut done, second_defect);
+                    // Result-only defects must not repair either request's torn budget.
+                    mutate(&mut parent.clone(), &mut done, value_defect);
+                    let before = serde_json::to_vec(&(&first, &done, &second)).unwrap();
+                    assert_eq!(
+                        validate_pair(&first, &done, &second),
+                        frozen(&first, &done, &second),
+                        "parent {first_defect}, child {second_defect}, value {value_defect}"
+                    );
+                    assert_eq!(
+                        serde_json::to_vec(&(&first, &done, &second)).unwrap(),
+                        before
+                    );
+                    comparisons += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(comparisons, 5_400);
 }

@@ -929,7 +929,8 @@ lowering, authority, exact residual bytes, saved fuel, restart restoration and
 first-receipt replay; invalid cold fields fail before effect admission. These are
 **generic IR data and reference-host execution proofs, not two complete native
 language pipelines**. Full source parsing/lowering/type inference, host results and
-recovery frames still need generic host policy; the VM still requires SQLite.
+recovery frames still need generic host policy. SQLite is now an optional reference
+backend, not a prerequisite for native or memory-only builds.
 
 An isolated source-subset check copies only HIR, syntax, host-contract, runtime-core
 and product-neutral identity crates into a fresh temporary workspace with its own
@@ -1038,7 +1039,8 @@ inference and signature typing. An isolated five-crate workspace verifies the
 same public API without product sources or SQLite. These are **pure inference and
 typed preparation proofs, not complete source-to-effect language pipelines**.
 Generic source lowering, full effect-flow typing, complete reply-lifecycle acceptance
-and suspension/recovery frames remain pending; the production VM still requires SQLite.
+and suspension/recovery frames are not established by this slice alone; SQLite is
+an optional reference backend rather than a native-core dependency.
 Received-value validation and pure execution are shared by the later layers below.
 
 ### Shared Bounded Atomic Call Inference
@@ -7763,9 +7765,10 @@ recovery and repository extraction remain open.
 The reference operation-request policy is now adapter-owned. The VM delegates
 category/capability/envelope/payload correspondence to
 `leselang_command::EffectOperation::validate_request(OperationRequestContext)`;
-the adapter also owns borrowed declared-authority access. Original frame and
-successor-pair admission, canonical sequence/identity allocation, budget grants, closed
-current/legacy request decoding and durable state stay with the VM. Payload-free
+the adapter also owns borrowed declared-authority access. The VM composes shared
+frame and successor-pair admission while retaining canonical sequence/identity
+allocation, budget grants, closed current/legacy request decoding and durable state.
+Payload-free
 adapter errors map to the same `LSV2011`/`LSV2012`/`LSV2013` faults, including the
 earlier category mismatch fence. Tests cover all 70 operations without importing
 the VM and compare the reference entry against its frozen pre-migration behavior.
@@ -7781,9 +7784,10 @@ then derives product IDs, validates the operation and compares every budget fiel
 The borrowed view imposes no traits on the opaque token; the trusted hook recognizes
 canonical nonzero bounded identities, runs at most once, and does not allocate an
 identity. Unwind propagates without retry, and skipped hooks release their captures.
-Closed errors contain no token or payload. The VM still fully validates the frame
-before this entry, and both current and legacy request decoders still call the full
-VM admission gate. Equal forged budgets do not become authenticated grants.
+Closed errors contain no token or payload. The complete request entry below fully
+validates the frame before this low-level pass, and both current and legacy request
+decoders still call the full VM admission gate. Equal forged budgets do not become
+authenticated grants.
 The [request-correspondence proof](fixtures/leselang_reference_request_correspondence_macos_arm64_20261018.json)
 records the 24,570-case frozen operation matrix, 1,680 additional cold-body/conflicting
 error cases, opaque local-token ownership and the VM-free source-to-two-requests,
@@ -7894,9 +7898,9 @@ successor identity, captured type/group signatures, decreasing fuel and inherite
 context; original prefix identities are checked last. Token text and canonical
 sequence policy remain native, with bounded successor naming and explicit binding
 limits. Trusted hooks retain traversal order, propagate unwind without retry and
-do not confer authority. Full plan admission still runs first in the VM, and full
-request/frame validation, receipt matching and atomic journal recovery remain
-mandatory. Shared inherited context reuses the core kernel without deciding fuel;
+do not confer authority. The complete graph entry below composes full plan and
+request/frame admission around this pass; receipt matching and atomic journal
+recovery remain mandatory. Shared inherited context reuses the core kernel without deciding fuel;
 both group-member and saved-request checks now share one capture-type walker.
 The [group-request proof](fixtures/leselang_reference_group_requests_macos_arm64_20261018.json)
 covers 40 real memory-journal states across ten Seq/All flows and 2,880 frozen
@@ -7906,7 +7910,7 @@ and retains uninterrupted output. Opaque local-token borrowing, callback refusal
 order and unwind also have direct adapter tests. This does not promote the native
 embedding contract or claim host-neutral durable recovery or physical extraction.
 
-The next shared boundary is complete successor-pair correspondence through
+Preflighted successor-pair correspondence is shared through
 `validate_preflighted_successor_pair`. Full parent/child request admission and the
 parent's completed non-scalar result-domain checks still precede this entry.
 The adapter then preserves schema/body, inherited context, descending fuel,
@@ -7921,6 +7925,161 @@ after bounded wire restoration at every fuel cutoff; twelve torn-row variants
 and opaque local-token refusal/unwind tests cover the adapter boundary. This
 does not authenticate raw receipts, admit unbounded values or authorize recovery;
 live grants, original budgets, leases and atomic settlement remain native gates.
+
+Ordered product-frame admission is now shared through
+`validate_continuation_frame` with explicit `ContinuationAdmissionLimits`.
+The real VM and VM-free parsed-source consumer use the same binding-structure,
+schema, native-token, program-counter, result-signature, complete-binding and
+saved-budget checks in that order. Native hooks borrow opaque tokens without
+Clone, Debug, serde, equality or thread traits; owner-text and token hooks run at
+most once, later hooks are skipped after refusal, and native unwind is never
+retried or rolled back. Closed adapter errors retain no private payload and map
+to the original VM fault codes and messages. Zero remaining fuel/output retain
+their historical representation; frame consistency does not grant execution.
+The [frame-admission proof](fixtures/leselang_reference_frame_admission_macos_arm64_20261018.json)
+retains 22,848 frozen schema/structure comparisons and adds 1,260 budget and
+conflicting-fault comparisons across all 70 operations. Bounded atomic and Seq/All
+wire restoration now passes the complete frame gate before request correspondence
+and reentry, with unchanged preparation and fuel; twelve torn atomic frames are
+refused without repair. Ingress codecs, canonical
+pending-effect admission, original authority/budgets, deadlines, receipts and
+atomic durable settlement remain caller-owned. No wire/journal version changes,
+new evaluator or native durable-VM/extraction promotion are implied.
+
+For requests not already admitted, prefer `leselang_command::validate_effect_request`
+over manually composing frame and correspondence passes. The real VM and VM-free
+source consumer now use this complete entry for original and wire-restored atomic
+and Seq/All requests. `RequestAdmissionError` preserves frame-versus-correspondence
+provenance without private data; native mapping retains every prior fault code and
+message. Caller limits and owner-text/token-syntax/canonical-sequence hooks remain
+explicit, borrow original owners and keep their once-only refusal/unwind order.
+The [complete-request proof](fixtures/leselang_reference_request_admission_macos_arm64_20261018.json)
+retains 24,570 operation and 1,680 cold-authority comparisons, adding 4,200 mixed
+frame/request fault cases against frozen frame and request gates, including checked
+decoding. Twelve torn source frames refuse before request identity; parsed reentry
+keeps original preparation and every fuel cutoff. The lower-level preflighted API
+remains available, not a frame certificate. Success does not admit unbounded ingress,
+strengthen legacy canonical pending-effect rules, authenticate grants or authorize
+recovery. Recheck mutable or decoded data; original authority, deadlines, receipts
+and durable settlement remain native responsibilities, not an extraction promotion.
+
+For a pair not already admitted, use `leselang_command::validate_successor_pair`
+with explicit frame limits and a `SuccessorAdmissionHost`. The real VM and parsed
+atomic/conditional and Seq/All source consumers now share the complete order: parent request,
+next request, non-scalar completion, native result domain, then correspondence.
+The host supplies original token/name policy and validates the completed value's
+type, recursive bounds, output items and encoded size; `ResultValueDomain` supports
+the latter without a VM dependency. `None` represents a non-completed native state.
+`SuccessorAdmissionError` distinguishes parent, next, completion, original native
+value error and correspondence. Generic diagnostics never format native payloads,
+and move-only local errors require no Debug or thread traits. Hooks borrow original
+owners, preserve early refusal and propagate unwind without retry; sequence hooks
+run again during correspondence and must observe the same immutable policy.
+The [complete-successor proof](fixtures/leselang_reference_successor_admission_macos_arm64_20261018.json)
+retains nine real atomic/group pairs and 576 frozen comparisons, adding 5,400 mixed
+parent/child/completion fault cases against frozen request, frame and pair gates.
+VM-free source reentry preserves wire bytes, output, preparation and every fuel
+cutoff; both group modes admit original and wire-restored captured successor pairs.
+Direct tests cover mutated/decoded rows, empty output grants, opaque local
+owners, original error ownership and unwind at every reached native hook. This
+entry neither authenticates a receipt nor establishes live authority, consumes
+fuel, runs saved code or publishes journal state. The native durable embedding
+remains developing; no wire schema change or physical extraction is claimed.
+
+Complete outer-plan and input-graph admission are shared through
+`leselang_command::validate_merge_plan` and `validate_merge_graph`, with explicit
+`MergePlanAdmissionLimits`, `MergeGraphAdmissionLimits` and a
+`MergeGraphAdmissionHost`. The reference VM and VM-free parsed Seq/All consumer
+now use the same order: outer shape and complete binding, group-owner syntax,
+member count, each complete request before row name/owner exclusion/duplicate
+identity, then bound-plan revalidation and group correspondence. Bound graphs
+deliberately retain the second binding/encoding pass from the reference path;
+there is no cached admission certificate. Unbound plans skip encoding and group
+correspondence but still refuse members carrying group ownership. Plan encoding
+failures retain their original ownership and distinguish the first and second
+pass; generic diagnostics never format native payloads. Borrowed local tokens
+need PartialEq for owner correspondence, not Hash, Clone, Debug, serde or thread
+traits. Native text must faithfully identify original tokens, and views/policy
+must stay stable throughout the call. Refusal skips later work; callback unwind
+propagates without retry, fuel debit, identity allocation or journal publication.
+The [complete-merge proof](fixtures/leselang_reference_merge_admission_macos_arm64_20261018.json)
+retains 2,880 frozen group-request comparisons and adds 2,880 full-graph conflicting
+fault cases across 40 real snapshots from ten flow forms, plus 14 unbound/identity
+cases. Source reentry admits both original and decoded graphs at every saved
+stage, preserving results, preparation and fuel while rejecting 48 torn rows.
+Direct tests cover ten-form typing, opaque local owners, both original encoding
+failures and unwind at every reached callback. This is product-adapter convergence,
+not host-neutral durable recovery: bounded ingress, original grants/budgets,
+current deadlines, authentic receipts and atomic storage settlement remain native.
+That migration was recorded at reference contract `1.100.0`; native embedding remains `0.162.0`,
+Developing at completion 10, without a physical extraction claim.
+
+The stored-group pass now uses core `inspect_group_recovery` and
+`GroupRecoveryHost` rather than SQLite-owned orchestration. The adapter first
+admits owner/plan, accumulates cross-group reservations and loads original rows.
+The shared pass inspects the complete member graph, short-circuit completion,
+required successor chain and pending sequence, then state/receipt consistency,
+bounded native receipt admission and final bound-record/reservation proofs.
+`GroupRecoveryPolicy` is derived from admitted plan/state, not an untrusted choice
+of which checks to skip. Pending groups run the final proof without a receipt.
+The host keeps SQL, codecs, exact original receipt correspondence, current policy
+and original-watermark authority; no saved body runs and nothing commits here.
+Late refusal drops the decoded receipt before handoff. Move-only local owners and
+native errors need no Debug, serialization or thread traits; unwind skips later
+hooks without retry. Host state remains caller-owned.
+The [stored-group recovery proof](fixtures/leselang_reference_group_recovery_macos_arm64_20261018.json)
+covers 374 frozen comparisons over 22 real SQLite states from eight flow forms,
+checking exact fault order and unchanged original tables. Standalone consumers
+cover 96 state/policy combinations, graph refusal, owned native errors, every
+reached hook unwind and checkpoint handoff with distinct native keys. A late record
+or commit failure cannot publish their staged snapshot. The source exporter
+includes the new core implementation and the same independent consumer tests.
+That migration was recorded at reference execution contract `1.101.0`, not native durable
+VM completeness: original authority, cross-group proofs, atomic commit and the
+complete language recovery pipeline still govern the remaining extraction gate.
+
+The complete stored-group collection now delegates to core
+`inspect_group_recovery_batch`, with one bounded global reservation index. It
+preserves row order: native owner/plan admission, original numeric observation,
+successor reservations, execution-order proof, then the complete per-group pass.
+Only after every group succeeds does it return count/maximum observations.
+No later group is admitted after an earlier failure; no partial summary is
+published, and original rows/errors move without payload-formatting or cloning.
+The SQLite adapter retains bounded SQL/decoding, original authority/watermark
+proofs and the final immediate-transaction commit. The count limit is already
+covered by the journal's outer aggregate-record gate; it creates no new grant.
+The [batch recovery proof](fixtures/leselang_reference_group_batch_macos_arm64_20261018.json)
+records 364 frozen comparisons over 14 two-group SQLite states from eight flow
+forms, including corruptions in either group and conflicting faults, with all
+original tables unchanged. Standalone consumers cover global reservation limits,
+duplicate/invalid sequences, original error ownership, unwind at every hook and
+iterator observation, and late-proof/commit failure before checkpoint publication.
+That migration advanced reference execution to `1.102.0`; native embedding stays `0.162.0`,
+Developing at completion 10. This closes the collection orchestration boundary,
+not authentic portable storage, complete native durable execution or physical
+repository extraction.
+
+Stored effect rows now use core `inspect_record_recovery` and
+`RecordRecoveryHost` before entering checkpoint staging. The shared order is
+image admission, canonical sequence, identity, deadline, owner, then state.
+Pending rows prove successors without reading terminal bytes; completed rows
+admit the original terminal receipt before proving successors. Thus a corrupt
+state/receipt cannot hide an earlier identity/deadline/owner refusal. Native SQL
+headers, bounded codecs, frame checks, original budgets and authority remain in
+the adapter; admitted records grant no execution rights. Opaque local keys need
+no comparison, cloning or serialization, and an unsized borrowed host is supported.
+Callbacks own their internal cleanup: unused owners must be released before
+constructing return values. Refusal/unwind never retries a hook or publishes a
+partial checkpoint, but this is not rollback of arbitrary native side effects.
+The [stored-record proof](fixtures/leselang_reference_record_recovery_macos_arm64_20261018.json)
+records 784 frozen comparisons across 49 original records from eight flow forms
+and 24 SQLite states, including conflicting faults and malformed unused pending
+receipts, with all original tables unchanged. Independent consumers cover both
+states, every reached hook refusal/unwind, original move-only local ownership,
+late cleanup and late-proof/commit failure before checkpoint publication.
+Reference execution advances to `1.103.0`; native embedding remains `0.162.0`,
+Developing at completion 10. Global graph proofs, authentic storage and complete
+native durable execution remain separate extraction obligations.
 
 **The current 2.3.0-and-later phase closes acceptance gates; physical extraction is deferred.**
 It is not an automatic version-triggered move. No replacement extraction version

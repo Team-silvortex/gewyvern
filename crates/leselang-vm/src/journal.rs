@@ -5,17 +5,18 @@ use std::{fs, path::Path, time::Duration};
 
 #[cfg(feature = "sqlite-journal")]
 use crate::validate_image;
+#[cfg(all(test, feature = "sqlite-journal"))]
+use leselang_runtime_core::validate_group_receipt;
 #[cfg(feature = "sqlite-journal")]
 use leselang_runtime_core::{
-    CheckpointCommitError, CheckpointError, CheckpointRecovery, GroupReceiptError, RecoveryPayload,
-    RecoveryRecord, SequenceReservations, StoredGroupState, dispatch_lease_capacity_exhausted,
-    validate_group_receipt,
+    CheckpointCommitError, CheckpointError, CheckpointRecovery, GroupGraphMember,
+    GroupReceiptError, RecoveryRecord, StoredGroupState, dispatch_lease_capacity_exhausted,
 };
 use leselang_runtime_core::{
     ClockError, DispatchAttemptError, DispatchLeaseError, DispatchLeaseObservation,
-    DispatchLeasePlanError, DispatchLeaseStamp, GroupGraphError, GroupGraphMember,
-    RetrySchedulePoint, checked_clock_add, next_dispatch_attempt, plan_dispatch_lease,
-    validate_dispatch_lease, validate_group_graph, validate_retry_schedule,
+    DispatchLeasePlanError, DispatchLeaseStamp, GroupGraphError, RetrySchedulePoint,
+    checked_clock_add, next_dispatch_attempt, plan_dispatch_lease, validate_dispatch_lease,
+    validate_retry_schedule,
 };
 #[cfg(feature = "sqlite-journal")]
 use rusqlite::{
@@ -112,6 +113,14 @@ pub(crate) enum Journal {
 #[cfg(test)]
 #[path = "group_request_contract_tests.rs"]
 mod group_request_contract_tests;
+
+#[cfg(all(test, feature = "sqlite-journal"))]
+#[path = "journal/group_recovery_contract_tests.rs"]
+mod group_recovery_contract_tests;
+
+#[cfg(all(test, feature = "sqlite-journal"))]
+#[path = "journal/record_recovery_contract_tests.rs"]
+mod record_recovery_contract_tests;
 
 #[derive(Default)]
 pub(crate) struct EphemeralJournal {
@@ -1447,66 +1456,8 @@ impl SqliteJournal {
             .next()
             .map_err(|error| journal_error("LSV4005", "failed to read journal record", error))?
         {
-            let token: String = row
-                .get(0)
-                .map_err(|error| journal_error("LSV4005", "invalid journal token", error))?;
-            let state: String = row
-                .get(1)
-                .map_err(|error| journal_error("LSV4005", "invalid journal state", error))?;
-            let image_bytes: Vec<u8> = row
-                .get(2)
-                .map_err(|error| journal_error("LSV4005", "invalid journal image", error))?;
-            let image: ContinuationImage = decode_bounded(&image_bytes, MAX_CONTINUATION_BYTES)?;
-            validate_image(&image)?;
-            let sequence =
-                crate::canonical_continuation_sequence(&image.token).ok_or_else(|| {
-                    journal_fault("LSV4007", "journal continuation sequence is invalid")
-                })?;
-            if image.token.as_str() != token {
-                return Err(journal_fault(
-                    "LSV4007",
-                    "journal token does not match continuation image",
-                ));
-            }
-            let stored_deadline: Option<i64> = row.get(3).map_err(|error| {
-                journal_error("LSV4005", "invalid journal effect deadline", error)
-            })?;
-            let stored_deadline = stored_deadline
-                .map(|value| {
-                    u64::try_from(value)
-                        .map_err(|_| journal_fault("LSV4007", "effect deadline is invalid"))
-                })
-                .transpose()?;
-            if stored_deadline != image.deadline_at_ms {
-                return Err(journal_fault(
-                    "LSV4007",
-                    "journal deadline does not match continuation image",
-                ));
-            }
-            group_binding::validate_owner(&transaction, &image)?;
-
-            let (key, payload) = match state.as_str() {
-                "pending" => {
-                    successor::validate_record(&transaction, &image, None)?;
-                    (image.token.clone(), RecoveryPayload::Pending(image))
-                }
-                "completed" => {
-                    let step_bytes: Vec<u8> = row.get(4).map_err(|error| {
-                        journal_error("LSV4005", "invalid completed journal record", error)
-                    })?;
-                    let step: Step = decode_bounded(&step_bytes, MAX_JOURNAL_ENTRY_BYTES)?;
-                    validate_terminal_step(&step)?;
-                    successor::validate_record(&transaction, &image, Some(&step))?;
-                    (image.token, RecoveryPayload::Completed(step))
-                }
-                _ => return Err(journal_fault("LSV4007", "invalid journal record state")),
-            };
             recovery
-                .push(RecoveryRecord {
-                    key,
-                    sequence,
-                    payload,
-                })
+                .push(recover_effect_record(&transaction, row)?)
                 .map_err(checkpoint_fault)?;
         }
 
@@ -2656,6 +2607,160 @@ impl SqliteJournal {
 }
 
 #[cfg(feature = "sqlite-journal")]
+type RecoveredEffectRecord = RecoveryRecord<ContinuationToken, ContinuationImage, Step>;
+
+#[cfg(feature = "sqlite-journal")]
+fn recover_effect_record(
+    connection: &Connection,
+    row: &rusqlite::Row<'_>,
+) -> Result<RecoveredEffectRecord, Fault> {
+    use leselang_runtime_core::{RecordRecoveryError, inspect_record_recovery};
+    let token: String = row
+        .get(0)
+        .map_err(|error| journal_error("LSV4005", "invalid journal token", error))?;
+    let state: String = row
+        .get(1)
+        .map_err(|error| journal_error("LSV4005", "invalid journal state", error))?;
+    inspect_record_recovery(&mut SqliteRecoveryRecord {
+        connection,
+        row,
+        token,
+        state,
+    })
+    .map_err(|error| match error {
+        RecordRecoveryError::Image(error)
+        | RecordRecoveryError::Sequence(error)
+        | RecordRecoveryError::Identity(error)
+        | RecordRecoveryError::Deadline(error)
+        | RecordRecoveryError::Owner(error)
+        | RecordRecoveryError::State(error)
+        | RecordRecoveryError::Receipt(error)
+        | RecordRecoveryError::Successor(error) => error,
+    })
+}
+
+#[cfg(feature = "sqlite-journal")]
+struct SqliteRecoveryRecord<'a, 'row> {
+    connection: &'a Connection,
+    row: &'a rusqlite::Row<'row>,
+    token: String,
+    state: String,
+}
+
+#[cfg(feature = "sqlite-journal")]
+impl leselang_runtime_core::RecordRecoveryHost for SqliteRecoveryRecord<'_, '_> {
+    type Key = ContinuationToken;
+    type Image = ContinuationImage;
+    type Pending = ContinuationImage;
+    type Completed = Step;
+    type Error = Fault;
+
+    fn admit_image(&mut self) -> Result<ContinuationImage, Fault> {
+        let bytes: Vec<u8> = self
+            .row
+            .get(2)
+            .map_err(|error| journal_error("LSV4005", "invalid journal image", error))?;
+        let image: ContinuationImage = decode_bounded(&bytes, MAX_CONTINUATION_BYTES)?;
+        validate_image(&image)?;
+        Ok(image)
+    }
+    fn sequence(&mut self, image: &ContinuationImage) -> Result<u64, Fault> {
+        crate::canonical_continuation_sequence(&image.token)
+            .ok_or_else(|| journal_fault("LSV4007", "journal continuation sequence is invalid"))
+    }
+    fn validate_identity(&mut self, image: &ContinuationImage) -> Result<(), Fault> {
+        if image.token.as_str() != self.token {
+            return Err(journal_fault(
+                "LSV4007",
+                "journal token does not match continuation image",
+            ));
+        }
+        Ok(())
+    }
+    fn validate_deadline(&mut self, image: &ContinuationImage) -> Result<(), Fault> {
+        let stored_deadline: Option<i64> = self
+            .row
+            .get(3)
+            .map_err(|error| journal_error("LSV4005", "invalid journal effect deadline", error))?;
+        let stored_deadline = stored_deadline
+            .map(|value| {
+                u64::try_from(value)
+                    .map_err(|_| journal_fault("LSV4007", "effect deadline is invalid"))
+            })
+            .transpose()?;
+        if stored_deadline != image.deadline_at_ms {
+            return Err(journal_fault(
+                "LSV4007",
+                "journal deadline does not match continuation image",
+            ));
+        }
+        Ok(())
+    }
+    fn validate_owner(&mut self, image: &ContinuationImage) -> Result<(), Fault> {
+        group_binding::validate_owner(self.connection, image)
+    }
+    fn stored_state(&mut self) -> Result<leselang_runtime_core::StoredRecordState, Fault> {
+        use leselang_runtime_core::StoredRecordState;
+        match self.state.as_str() {
+            "pending" => Ok(StoredRecordState::Pending),
+            "completed" => Ok(StoredRecordState::Completed),
+            _ => Err(journal_fault("LSV4007", "invalid journal record state")),
+        }
+    }
+    fn admit_completed(&mut self) -> Result<Step, Fault> {
+        let bytes: Vec<u8> = self
+            .row
+            .get(4)
+            .map_err(|error| journal_error("LSV4005", "invalid completed journal record", error))?;
+        let step = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
+        validate_terminal_step(&step)?;
+        Ok(step)
+    }
+    fn validate_successor(
+        &mut self,
+        image: &ContinuationImage,
+        completed: Option<&Step>,
+    ) -> Result<(), Fault> {
+        successor::validate_record(self.connection, image, completed)
+    }
+    fn pending_payload(
+        &mut self,
+        image: ContinuationImage,
+    ) -> (ContinuationToken, ContinuationImage) {
+        (image.token.clone(), image)
+    }
+    fn completed_payload(
+        &mut self,
+        image: ContinuationImage,
+        completed: Step,
+    ) -> (ContinuationToken, Step) {
+        let ContinuationImage {
+            token,
+            expected_revision,
+            result_type,
+            pending_effect,
+            result_binding,
+            group_result,
+            schema_version: _,
+            program_counter: _,
+            fuel_remaining: _,
+            deadline_ms: _,
+            deadline_at_ms: _,
+            max_output_items: _,
+        } = image;
+        // Release unused image owners before constructing the handoff value.
+        drop((
+            expected_revision,
+            result_type,
+            pending_effect,
+            result_binding,
+            group_result,
+        ));
+        (token, completed)
+    }
+}
+
+#[cfg(feature = "sqlite-journal")]
 fn checkpoint_fault(error: CheckpointError) -> Fault {
     match error {
         CheckpointError::RecordLimit => {
@@ -3569,54 +3674,77 @@ fn validate_debugger_audit_records(connection: &Connection) -> Result<(), Fault>
     Ok(())
 }
 
+struct MergeGraphHost;
+
+impl leselang_command::MergeGraphAdmissionHost<ContinuationToken> for MergeGraphHost {
+    type Error = Fault;
+    fn token_text<'a>(&self, token: &'a ContinuationToken) -> &'a str {
+        token.as_str()
+    }
+    fn valid_token(&self, token: &ContinuationToken) -> bool {
+        valid_continuation_token(token)
+    }
+    fn canonical_sequence(&self, token: &ContinuationToken) -> Option<u64> {
+        crate::canonical_continuation_sequence(token)
+    }
+    fn valid_group_name(&self, name: &str) -> bool {
+        crate::valid_merge_branch_name(name)
+    }
+    fn validate_plan_encoding(&self, plan: &MergePlan) -> Result<(), Fault> {
+        crate::group_binding::validate_plan_encoding(plan)
+    }
+}
+
 #[cfg_attr(not(test), allow(dead_code))]
 fn validate_merge_graph_input(
     group_token: &ContinuationToken,
     plan: &MergePlan,
     branches: &[(&str, &EffectRequest)],
 ) -> Result<(), Fault> {
-    validate_merge_plan(plan)?;
-    if !valid_continuation_token(group_token) {
-        return Err(journal_fault("LSV4032", "merge group token is invalid"));
-    }
-    validate_group_graph(
-        group_token.as_str(),
-        &plan.branches,
+    leselang_command::validate_merge_graph(
+        group_token,
+        plan,
         branches,
-        crate::MAX_MERGE_BRANCHES,
-        |position, (name, request)| {
-            validate_effect_request(request)?;
-            Ok(GroupGraphMember {
-                name,
-                position: Some(position),
-                identity: request.continuation.token.as_str(),
-            })
+        leselang_command::MergeGraphAdmissionLimits {
+            plan: crate::merge_plan_admission_limits(),
+            frame: crate::continuation_admission_limits(),
         },
+        |request| request.as_view(),
+        &MergeGraphHost,
     )
     .map_err(|error| match error {
-        GroupGraphError::Native { error, .. } => error,
-        _ => journal_fault(
+        leselang_command::MergeGraphAdmissionError::Plan(error) => {
+            crate::merge_plan_admission_fault(error)
+        }
+        leselang_command::MergeGraphAdmissionError::Owner => {
+            journal_fault("LSV4032", "merge group token is invalid")
+        }
+        leselang_command::MergeGraphAdmissionError::Graph(GroupGraphError::Native {
+            error,
+            ..
+        }) => crate::request_admission_fault(error),
+        leselang_command::MergeGraphAdmissionError::Graph(_) => journal_fault(
             "LSV4032",
             "merge branch requests do not match the declared plan",
         ),
-    })?;
-    if let Some(binding) = &plan.result_binding {
-        binding.validate_requests(group_token, plan, branches)?;
-    } else if branches
-        .iter()
-        .any(|(_, request)| request.continuation.group_result.is_some())
-    {
-        return Err(crate::group_binding::invalid());
-    }
-    Ok(())
+        leselang_command::MergeGraphAdmissionError::Binding(error) => {
+            crate::group_binding::admission_fault(error)
+        }
+        leselang_command::MergeGraphAdmissionError::Correspondence
+        | leselang_command::MergeGraphAdmissionError::UnexpectedGroupOwner => {
+            crate::group_binding::invalid()
+        }
+    })
 }
 
 #[cfg(feature = "sqlite-journal")]
 type RecoveredMergeBranch = (String, i64, String, Option<Vec<u8>>, String);
 
 #[cfg(feature = "sqlite-journal")]
+type RawMergeGroup = (String, Vec<u8>, String, Option<Vec<u8>>, String);
+
+#[cfg(feature = "sqlite-journal")]
 fn validate_merge_graph_records(connection: &Connection) -> Result<u64, Fault> {
-    type RawMergeGroup = (String, Vec<u8>, String, Option<Vec<u8>>, String);
     let groups = {
         let mut statement = connection
             .prepare(
@@ -3641,17 +3769,55 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<u64, Fault> {
             .map_err(|error| journal_error("LSV4005", "failed to read merge graph", error))?
     };
 
-    let mut successor_reservations = SequenceReservations::new(
-        MAX_JOURNAL_RECORDS * crate::MAX_MERGE_BRANCHES,
-        crate::MAX_EFFECT_SEQUENCE,
-    );
-    let mut highest_sequence = 0;
-    for (token, plan_bytes, state, terminal_bytes, order) in groups {
+    use leselang_runtime_core::{
+        GroupRecoveryBatchError, GroupRecoveryBatchLimits, inspect_group_recovery_batch,
+    };
+    inspect_group_recovery_batch(
+        groups,
+        GroupRecoveryBatchLimits {
+            max_groups: MAX_JOURNAL_RECORDS,
+            max_reservations: MAX_JOURNAL_RECORDS * crate::MAX_MERGE_BRANCHES,
+            max_sequence: crate::MAX_EFFECT_SEQUENCE,
+        },
+        &mut RecoveredGroupsHost(connection),
+    )
+    .map(|summary| summary.highest_sequence)
+    .map_err(|error| match error {
+        GroupRecoveryBatchError::Admission(error)
+        | GroupRecoveryBatchError::Order(error)
+        | GroupRecoveryBatchError::Group(error) => error,
+        GroupRecoveryBatchError::Reservation(_) => crate::group_binding::invalid(),
+        GroupRecoveryBatchError::Limit => {
+            journal_fault("LSV4006", "journal group count exceeds limit")
+        }
+    })
+}
+
+#[cfg(feature = "sqlite-journal")]
+struct AdmittedMergeGroup {
+    token: ContinuationToken,
+    plan: MergePlan,
+    state: String,
+    terminal: Option<Vec<u8>>,
+    order: String,
+}
+
+#[cfg(feature = "sqlite-journal")]
+struct RecoveredGroupsHost<'a>(&'a Connection);
+
+#[cfg(feature = "sqlite-journal")]
+impl leselang_runtime_core::GroupRecoveryBatchHost<RawMergeGroup> for RecoveredGroupsHost<'_> {
+    type Group = AdmittedMergeGroup;
+    type Error = Fault;
+
+    fn admit_group(&mut self, stored: RawMergeGroup) -> Result<AdmittedMergeGroup, Fault> {
+        let (token, plan_bytes, state, terminal, order) = stored;
         let token = ContinuationToken(token);
         if !valid_continuation_token(&token) {
             return Err(journal_fault("LSV4007", "merge group token is invalid"));
         }
-        let token_collision: bool = connection
+        let token_collision: bool = self
+            .0
             .query_row(
                 "SELECT EXISTS(SELECT 1 FROM vm_effects WHERE token = ?1)",
                 [token.as_str()],
@@ -3669,22 +3835,47 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<u64, Fault> {
         let plan: MergePlan = decode_bounded(&plan_bytes, MAX_CONTINUATION_BYTES)?;
         validate_merge_plan(&plan)
             .map_err(|_| journal_fault("LSV4007", "merge group plan is invalid"))?;
-        highest_sequence = highest_sequence.max(merge_reserved_sequence(&token, &plan));
-        if let Some(binding) = &plan.result_binding {
-            for sequence in binding.reserved_sequences() {
-                successor_reservations
-                    .insert(sequence)
-                    .map_err(|_| crate::group_binding::invalid())?;
-            }
-        }
-        if execution_order_label(plan.order) != order {
+        Ok(AdmittedMergeGroup {
+            token,
+            plan,
+            state,
+            terminal,
+            order,
+        })
+    }
+    fn highest_sequence(&mut self, group: &AdmittedMergeGroup) -> u64 {
+        merge_reserved_sequence(&group.token, &group.plan)
+    }
+    fn reserved_sequences<'a>(
+        &'a mut self,
+        group: &'a AdmittedMergeGroup,
+    ) -> impl Iterator<Item = u64> + 'a {
+        group
+            .plan
+            .result_binding
+            .iter()
+            .flat_map(|binding| binding.reserved_sequences())
+    }
+    fn validate_order(&mut self, group: &AdmittedMergeGroup) -> Result<(), Fault> {
+        if execution_order_label(group.plan.order) != group.order {
             return Err(journal_fault(
                 "LSV4007",
                 "execution order conflicts with group plan",
             ));
         }
+        Ok(())
+    }
+    fn inspect_group(&mut self, group: AdmittedMergeGroup) -> Result<(), Fault> {
+        let AdmittedMergeGroup {
+            token,
+            plan,
+            state,
+            terminal,
+            ..
+        } = group;
         let branches: Vec<RecoveredMergeBranch> = {
-            let mut statement = connection
+            let mut statement = self
+                .0
                 .prepare(
                     "SELECT b.branch_name, b.position, e.state, e.terminal_step, b.branch_token
                      FROM vm_merge_branches b
@@ -3709,41 +3900,123 @@ fn validate_merge_graph_records(connection: &Connection) -> Result<u64, Fault> {
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|error| journal_error("LSV4005", "failed to read merge branches", error))?
         };
-        validate_group_graph(
-            token.as_str(),
-            &plan.branches,
-            &branches,
-            crate::MAX_MERGE_BRANCHES,
-            |_, branch| {
-                Ok::<_, std::convert::Infallible>(GroupGraphMember {
-                    name: &branch.0,
-                    position: usize::try_from(branch.1).ok(),
-                    identity: branch.4.as_str(),
-                })
-            },
-        )
-        .map_err(|_| journal_fault("LSV4007", "merge branches do not match their declared plan"))?;
-        let all_completed = branches.iter().all(|branch| branch.2 == "completed");
-        if matches!(
-            plan.order,
-            ExecutionOrder::ResultChain | ExecutionOrder::Dataflow
-        ) {
-            successor::validate_chain(connection, &token)?;
-        }
-        if plan.order.is_sequential() && state == "pending" {
-            validate_pending_sequence(connection, &token, &branches)?;
-        }
-        let terminal = recover_group_receipt(&state, all_completed, terminal_bytes, |terminal| {
-            validate_unbound_group_receipt(&plan, &branches, terminal)
-        })?;
-        // Cold reservations require allocation proof from the original watermark;
-        // imported identities must not launder an unallocated reservation.
-        group_binding::validate_records(connection, &token, &plan, terminal.as_ref())?;
+        validate_recovered_group(self.0, &token, &plan, &branches, &state, terminal)
     }
-    let reservations = successor_reservations
-        .finish()
-        .map_err(|_| crate::group_binding::invalid())?;
-    Ok(highest_sequence.max(reservations.highest_sequence))
+}
+
+#[cfg(feature = "sqlite-journal")]
+fn validate_recovered_group(
+    connection: &Connection,
+    token: &ContinuationToken,
+    plan: &MergePlan,
+    branches: &[RecoveredMergeBranch],
+    state: &str,
+    terminal_bytes: Option<Vec<u8>>,
+) -> Result<(), Fault> {
+    use leselang_runtime_core::{GroupRecoveryError, GroupRecoveryPolicy, inspect_group_recovery};
+    inspect_group_recovery(
+        token.as_str(),
+        &plan.branches,
+        branches,
+        GroupRecoveryPolicy {
+            max_members: crate::MAX_MERGE_BRANCHES,
+            require_chain: matches!(
+                plan.order,
+                ExecutionOrder::ResultChain | ExecutionOrder::Dataflow
+            ),
+            require_pending_sequence: plan.order.is_sequential() && state == "pending",
+        },
+        terminal_bytes,
+        &mut RecoveredGroupHost {
+            connection,
+            token,
+            plan,
+            branches,
+            state,
+        },
+    )
+    .map(|_| ())
+    .map_err(|error| match error {
+        GroupRecoveryError::Graph(GroupGraphError::Native { error, .. })
+        | GroupRecoveryError::Chain(error)
+        | GroupRecoveryError::Sequence(error)
+        | GroupRecoveryError::State(error)
+        | GroupRecoveryError::Records(error)
+        | GroupRecoveryError::Receipt(GroupReceiptError::Native(error)) => error,
+        GroupRecoveryError::Graph(_) => {
+            journal_fault("LSV4007", "merge branches do not match their declared plan")
+        }
+        GroupRecoveryError::Receipt(GroupReceiptError::State) => invalid_group_receipt_state(),
+    })
+}
+
+#[cfg(feature = "sqlite-journal")]
+struct RecoveredGroupHost<'a> {
+    connection: &'a Connection,
+    token: &'a ContinuationToken,
+    plan: &'a MergePlan,
+    branches: &'a [RecoveredMergeBranch],
+    state: &'a str,
+}
+
+#[cfg(feature = "sqlite-journal")]
+impl leselang_runtime_core::GroupRecoveryHost<RecoveredMergeBranch, str>
+    for RecoveredGroupHost<'_>
+{
+    type Encoded = Vec<u8>;
+    type Receipt = Step;
+    type Error = Fault;
+    fn member<'a>(
+        &mut self,
+        _: usize,
+        branch: &'a RecoveredMergeBranch,
+    ) -> Result<GroupGraphMember<'a, str>, Fault>
+    where
+        str: 'a,
+    {
+        Ok(GroupGraphMember {
+            name: &branch.0,
+            position: usize::try_from(branch.1).ok(),
+            identity: branch.4.as_str(),
+        })
+    }
+    fn is_completed(&mut self, branch: &RecoveredMergeBranch) -> bool {
+        branch.2 == "completed"
+    }
+    fn validate_chain(&mut self) -> Result<(), Fault> {
+        successor::validate_chain(self.connection, self.token)
+    }
+    fn validate_pending_sequence(
+        &mut self,
+        branches: &[RecoveredMergeBranch],
+    ) -> Result<(), Fault> {
+        validate_pending_sequence(self.connection, self.token, branches)
+    }
+    fn stored_state(&mut self) -> Result<StoredGroupState, Fault> {
+        match self.state {
+            "pending" => Ok(StoredGroupState::Pending),
+            "completed" => Ok(StoredGroupState::Completed),
+            _ => Err(invalid_group_receipt_state()),
+        }
+    }
+    fn admit_receipt(&mut self, bytes: Vec<u8>) -> Result<Step, Fault> {
+        let terminal: Step = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
+        validate_terminal_step(&terminal)?;
+        validate_unbound_group_receipt(self.plan, self.branches, &terminal)?;
+        Ok(terminal)
+    }
+    fn validate_records(&mut self, terminal: Option<&Step>) -> Result<(), Fault> {
+        // Keep original watermark/cold-reservation proofs inside the same transaction.
+        group_binding::validate_records(self.connection, self.token, self.plan, terminal)
+    }
+}
+
+#[cfg(feature = "sqlite-journal")]
+fn invalid_group_receipt_state() -> Fault {
+    journal_fault(
+        "LSV4007",
+        "merge group state conflicts with its branch graph",
+    )
 }
 
 #[cfg(feature = "sqlite-journal")]
@@ -3797,7 +4070,7 @@ fn validate_pending_sequence(
     })
 }
 
-#[cfg(feature = "sqlite-journal")]
+#[cfg(all(test, feature = "sqlite-journal"))]
 fn recover_group_receipt(
     state: &str,
     all_completed: bool,

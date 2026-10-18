@@ -14,7 +14,7 @@ use leselang_command::{
 };
 use leselang_command::{
     ExecutionOrder, GroupBindingLimits, GroupPlanLimits, GroupResultBinding, MergePlan,
-    MergePlanShapeLimits, validate_group_binding,
+    MergePlanShapeLimits,
 };
 use leselang_hir::{
     Effect, Type,
@@ -61,6 +61,19 @@ const CAPTURES: ResultBindingLimits = ResultBindingLimits {
         max_depth: 32,
     },
 };
+
+fn frame_limits() -> leselang_command::ContinuationAdmissionLimits {
+    leselang_command::ContinuationAdmissionLimits {
+        binding: CAPTURES,
+        budget: leselang_runtime_core::ResourceBudgetLimits {
+            max_fuel: 10_000,
+            max_deadline_ms: 2000,
+            max_deadline_at_ms: i64::MAX as u64,
+            max_output_items: 4,
+        },
+        max_group_sequence: 101,
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Refusal {
@@ -238,6 +251,95 @@ impl ResultValueHost for Adapter<'_, '_> {
             return Err(Refusal::Admission);
         }
         Ok(())
+    }
+}
+
+impl Adapter<'_, '_> {
+    fn admit_successor_value(
+        &self,
+        result_type: Type,
+        max_output_items: usize,
+        value: &Value,
+    ) -> Result<(), Refusal> {
+        validate_host_result(
+            &ResultValueDomain {
+                result_type,
+                value_limits: ValueValidationLimits {
+                    max_depth: 16,
+                    max_fields: 4,
+                    max_query_items: 4,
+                },
+                max_output_items,
+                host: self,
+            },
+            value,
+        )
+        .map_err(|_| Refusal::Admission)
+    }
+}
+
+impl leselang_command::SuccessorAdmissionHost<u64> for Adapter<'_, '_> {
+    type Error = Refusal;
+
+    fn group_owner_text<'a>(&self, _: &'a u64) -> &'a str {
+        panic!("atomic source fixture has no group owner")
+    }
+
+    fn valid_token(&self, token: &u64) -> bool {
+        0 < *token && *token <= 64
+    }
+
+    fn canonical_sequence(&self, token: &u64) -> Option<u64> {
+        self.valid_token(token).then_some(*token)
+    }
+
+    fn valid_group_name(&self, name: &str) -> bool {
+        valid_name(name)
+    }
+
+    fn validate_completed_value(
+        &self,
+        parent: leselang_command::EffectRequestView<'_, u64>,
+        value: &Value,
+    ) -> Result<(), Refusal> {
+        self.admit_successor_value(
+            parent.continuation.result_type,
+            parent.continuation.max_output_items,
+            value,
+        )
+    }
+}
+
+fn canonical_group_sequence(token: &str) -> Option<u64> {
+    let sequence = token.strip_prefix("continuation-")?.parse::<u64>().ok()?;
+    (0 < sequence && sequence <= 101 && token == format!("continuation-{sequence}"))
+        .then_some(sequence)
+}
+
+impl leselang_command::SuccessorAdmissionHost<String> for Adapter<'_, '_> {
+    type Error = Refusal;
+    fn group_owner_text<'a>(&self, token: &'a String) -> &'a str {
+        token.as_str()
+    }
+    fn valid_token(&self, token: &String) -> bool {
+        canonical_group_sequence(token).is_some()
+    }
+    fn canonical_sequence(&self, token: &String) -> Option<u64> {
+        canonical_group_sequence(token)
+    }
+    fn valid_group_name(&self, name: &str) -> bool {
+        valid_name(name)
+    }
+    fn validate_completed_value(
+        &self,
+        parent: leselang_command::EffectRequestView<'_, String>,
+        value: &Value,
+    ) -> Result<(), Refusal> {
+        self.admit_successor_value(
+            parent.continuation.result_type,
+            parent.continuation.max_output_items,
+            value,
+        )
     }
 }
 
@@ -486,14 +588,12 @@ fn run_with_request_admission(
             )?;
             if let Some((parent, value)) = &previous {
                 let before = (fuel.remaining(), prepared.get());
-                leselang_command::validate_preflighted_successor_pair(
+                leselang_command::validate_successor_pair(
                     parent.view(),
                     request.view(),
-                    value,
-                    CAPTURES,
-                    |_| "unused-group-owner",
-                    |token| Some(*token),
-                    valid_name,
+                    Some(value),
+                    frame_limits(),
+                    &adapter,
                 )
                 .map_err(|_| Refusal::Admission)?;
                 assert_eq!((fuel.remaining(), prepared.get()), before);
@@ -583,7 +683,7 @@ fn admit_atomic_request(
     remaining: u64,
     sequence: u64,
 ) -> Result<AtomicRequest, Failure> {
-    use leselang_command::{EffectRequestView, validate_preflighted_effect_request};
+    use leselang_command::{EffectRequestView, validate_effect_request};
     use leselang_host_contract::{CapabilitySet, Principal};
     use leselang_runtime_core::ContinuationFrame;
     use leserpent_domain::{CommandId, IdempotencyKey};
@@ -629,7 +729,7 @@ fn admit_atomic_request(
     let restored = serde_json::from_slice(&bytes).unwrap();
     let budget = frame.resource_budget();
     for candidate in [&frame, &restored] {
-        validate_preflighted_effect_request(
+        validate_effect_request(
             EffectRequestView {
                 effect_id: &format!("effect-{sequence}"),
                 required_capability: &required,
@@ -637,6 +737,10 @@ fn admit_atomic_request(
                 continuation: candidate,
                 budget: &budget,
             },
+            frame_limits(),
+            |_| "",
+            |token| 0 < *token && *token <= 64,
+            valid_name,
             |token| (0 < *token && *token <= 64).then_some(*token),
         )
         .map_err(|_| Refusal::Admission)?;
@@ -652,11 +756,114 @@ fn admit_atomic_request(
     let bytes = serde_json::to_vec(&request).unwrap();
     assert!(bytes.len() < 16 * 1024);
     let restored: AtomicRequest = serde_json::from_slice(&bytes).unwrap();
-    validate_preflighted_effect_request(restored.view(), |token| {
-        (0 < *token && *token <= 64).then_some(*token)
-    })
+    validate_effect_request(
+        restored.view(),
+        frame_limits(),
+        |_| "",
+        |token| 0 < *token && *token <= 64,
+        valid_name,
+        |token| (0 < *token && *token <= 64).then_some(*token),
+    )
     .map_err(|_| Refusal::Admission)?;
     Ok(restored)
+}
+
+#[test]
+fn source_restored_frames_refuse_torn_admission_without_repair() {
+    use leselang_command::ContinuationAdmissionError as Error;
+    use leselang_runtime_core::ResourceBudgetError;
+
+    let (original, _, _) = source_pair_fixture();
+    for defect in 0..12 {
+        let mut request = original.clone();
+        let expected = match defect {
+            0 => {
+                request.frame.schema_version = 0;
+                None
+            }
+            1 => {
+                request.frame.program_counter = 0;
+                Some(Error::ProgramCounter)
+            }
+            2 => {
+                request.frame.result_type = Type::Structured;
+                Some(Error::ResultType)
+            }
+            3 => {
+                request.frame.fuel_remaining = frame_limits().budget.max_fuel + 1;
+                Some(Error::Budget(ResourceBudgetError::Fuel))
+            }
+            4 => {
+                request.frame.deadline_ms = 0;
+                Some(Error::Budget(ResourceBudgetError::Deadline))
+            }
+            5 => {
+                request.frame.deadline_at_ms = Some(u64::MAX);
+                Some(Error::Budget(ResourceBudgetError::AbsoluteDeadline))
+            }
+            6 => {
+                request.frame.max_output_items = frame_limits().budget.max_output_items + 1;
+                Some(Error::Budget(ResourceBudgetError::Output))
+            }
+            7 => {
+                request.frame.group_result = Some(0);
+                None
+            }
+            8 => {
+                request.frame.token = 0;
+                Some(Error::Token)
+            }
+            9 => {
+                request.frame.result_binding = None;
+                None
+            }
+            10 => {
+                request.frame.result_binding.as_mut().unwrap().body = Computation::Local {
+                    name: "missing".into(),
+                };
+                // Changing flow shape can refuse its schema before lexical typing.
+                None
+            }
+            11 => {
+                request.frame.result_binding.as_mut().unwrap().name =
+                    "x".repeat(CAPTURES.captures.max_name_bytes + 1);
+                Some(Error::Binding)
+            }
+            _ => unreachable!(),
+        };
+        let bytes = serde_json::to_vec(&request).unwrap();
+        assert!(bytes.len() < 16 * 1024);
+        let restored: AtomicRequest = serde_json::from_slice(&bytes).unwrap();
+        let error = leselang_command::validate_continuation_frame(
+            &restored.frame,
+            frame_limits(),
+            |_| "",
+            |token| 0 < *token && *token <= 64,
+            valid_name,
+        )
+        .unwrap_err();
+        assert_eq!(
+            leselang_command::validate_effect_request(
+                restored.view(),
+                frame_limits(),
+                |_| "",
+                |token| 0 < *token && *token <= 64,
+                valid_name,
+                |_| panic!("frame refusal must precede request identity"),
+            ),
+            Err(leselang_command::RequestAdmissionError::Frame(error)),
+        );
+        if let Some(expected) = expected {
+            assert_eq!(error, expected, "defect {defect}");
+        } else {
+            assert!(
+                matches!(error, Error::Schema(_)),
+                "defect {defect}: {error:?}"
+            );
+        }
+        assert_eq!(serde_json::to_vec(&restored).unwrap(), bytes);
+        assert_eq!(restored.budget, original.budget);
+    }
 }
 
 #[test]
@@ -716,6 +923,281 @@ fn source_pair_fixture() -> (AtomicRequest, AtomicRequest, Value) {
     .unwrap();
     let value = reply(&trace.effects[0]);
     (parent, next, value)
+}
+
+#[test]
+fn complete_successor_admission_rechecks_requests_before_completion_and_value() {
+    use leselang_command::{SuccessorAdmissionError as Error, validate_successor_pair};
+
+    let (mut parent, mut next, value) = source_pair_fixture();
+    let allowed = Cell::new(true);
+    let prepared = Cell::new(0);
+    let host = Adapter {
+        allowed: &allowed,
+        prepared: &prepared,
+        fail_projection: false,
+        marker: PhantomData,
+    };
+    let check = |parent: &AtomicRequest, next: &AtomicRequest, value: Option<&Value>| {
+        validate_successor_pair(parent.view(), next.view(), value, frame_limits(), &host)
+    };
+    assert_eq!(check(&parent, &next, Some(&value)), Ok(()));
+    parent.frame.program_counter = 0;
+    next.frame.schema_version = 0;
+    assert!(matches!(check(&parent, &next, None), Err(Error::Parent(_))));
+    parent.frame.program_counter = 1;
+    assert!(matches!(check(&parent, &next, None), Err(Error::Next(_))));
+    next.frame.schema_version =
+        leselang_command::continuation_schema::preflighted_result_binding_schema_version(
+            next.frame.result_binding.as_ref().unwrap(),
+        );
+    assert_eq!(check(&parent, &next, None), Err(Error::Completion));
+    assert_eq!(
+        check(
+            &parent,
+            &next,
+            Some(&Value::Scalar {
+                value: ScalarValue::None
+            })
+        ),
+        Err(Error::Completion)
+    );
+    assert_eq!(
+        check(
+            &parent,
+            &next,
+            Some(&Value::UiActivate {
+                node_id: "a".into()
+            })
+        ),
+        Err(Error::Value(Refusal::Admission))
+    );
+    assert!(matches!(
+        check(
+            &parent,
+            &next,
+            Some(&Value::UiFocus {
+                node_id: "other".into()
+            })
+        ),
+        Err(Error::Correspondence(_))
+    ));
+    for limit in [0, 4] {
+        parent.frame.max_output_items = limit;
+        parent.budget = parent.frame.resource_budget();
+        next.frame.max_output_items = limit;
+        next.budget = next.frame.resource_budget();
+        let bytes = serde_json::to_vec(&(&parent, &next, &value)).unwrap();
+        let (first, second, raw): (AtomicRequest, AtomicRequest, Value) =
+            serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(
+            check(&first, &second, Some(&raw)),
+            if limit == 0 {
+                Err(Error::Value(Refusal::Admission))
+            } else {
+                Ok(())
+            }
+        );
+        assert_eq!(
+            serde_json::to_vec(&(&parent, &next, &value)).unwrap(),
+            bytes
+        );
+        assert_eq!(serde_json::to_vec(&(&first, &second, &raw)).unwrap(), bytes);
+    }
+    // Consistency does not consume or refresh the caller's execution grant.
+    allowed.set(false);
+    assert_eq!(check(&parent, &next, Some(&value)), Ok(()));
+    assert!(!allowed.get());
+    assert_eq!(prepared.get(), 0);
+    assert_eq!(
+        (parent.frame.fuel_remaining, next.frame.fuel_remaining),
+        (100, 80)
+    );
+}
+
+#[test]
+fn complete_successor_admission_borrows_local_owners_and_preserves_each_native_unwind() {
+    use leselang_command::{
+        EffectRequestView, SuccessorAdmissionError, SuccessorAdmissionHost, validate_successor_pair,
+    };
+    use leselang_host_contract::Revision;
+    use leselang_runtime_core::ContinuationFrame;
+    use std::{
+        cell::RefCell,
+        error::Error,
+        panic::{AssertUnwindSafe, catch_unwind},
+        rc::Rc,
+    };
+
+    struct Token {
+        sequence: u64,
+        drops: Rc<Cell<usize>>,
+    }
+    impl Drop for Token {
+        fn drop(&mut self) {
+            self.drops.set(self.drops.get() + 1);
+        }
+    }
+    struct NativeFailure(Rc<Cell<usize>>);
+    impl Drop for NativeFailure {
+        fn drop(&mut self) {
+            self.0.set(self.0.get() + 1);
+        }
+    }
+    type Frame = ContinuationFrame<Token, Revision, Type, Effect, ResultBinding>;
+    fn local(request: &AtomicRequest, drops: &Rc<Cell<usize>>) -> Frame {
+        let frame = request.frame.clone();
+        Frame {
+            token: Token {
+                sequence: frame.token,
+                drops: drops.clone(),
+            },
+            schema_version: frame.schema_version,
+            program_counter: frame.program_counter,
+            expected_revision: frame.expected_revision,
+            result_type: frame.result_type,
+            pending_effect: frame.pending_effect,
+            fuel_remaining: frame.fuel_remaining,
+            deadline_ms: frame.deadline_ms,
+            deadline_at_ms: frame.deadline_at_ms,
+            max_output_items: frame.max_output_items,
+            result_binding: frame.result_binding,
+            group_result: None,
+        }
+    }
+    fn view<'a>(request: &'a AtomicRequest, frame: &'a Frame) -> EffectRequestView<'a, Token> {
+        EffectRequestView {
+            effect_id: &request.effect_id,
+            required_capability: &request.required,
+            operation: &request.operation,
+            continuation: frame,
+            budget: &request.budget,
+        }
+    }
+    struct Host<'a> {
+        first: &'a Frame,
+        second: &'a Frame,
+        value: &'a Value,
+        calls: RefCell<Vec<String>>,
+        panic_at: Cell<Option<usize>>,
+        fail_value: Cell<bool>,
+        failure_drops: Rc<Cell<usize>>,
+    }
+    impl Host<'_> {
+        fn record(&self, event: String) {
+            let mut calls = self.calls.borrow_mut();
+            calls.push(event);
+            assert_ne!(self.panic_at.get(), Some(calls.len()), "native hook unwind");
+        }
+    }
+    impl SuccessorAdmissionHost<Token> for Host<'_> {
+        type Error = NativeFailure;
+        fn group_owner_text<'a>(&self, _: &'a Token) -> &'a str {
+            panic!("no group owner")
+        }
+        fn valid_token(&self, token: &Token) -> bool {
+            assert!(
+                std::ptr::eq(token, &self.first.token) || std::ptr::eq(token, &self.second.token)
+            );
+            self.record(format!("token:{}", token.sequence));
+            token.sequence > 0
+        }
+        fn canonical_sequence(&self, token: &Token) -> Option<u64> {
+            self.record(format!("sequence:{}", token.sequence));
+            Some(token.sequence)
+        }
+        fn valid_group_name(&self, name: &str) -> bool {
+            self.record(format!("name:{name}"));
+            valid_name(name)
+        }
+        fn validate_completed_value(
+            &self,
+            parent: EffectRequestView<'_, Token>,
+            value: &Value,
+        ) -> Result<(), NativeFailure> {
+            assert!(std::ptr::eq(parent.continuation, self.first));
+            assert!(std::ptr::eq(value, self.value));
+            self.record("value".into());
+            if self.fail_value.get() {
+                Err(NativeFailure(self.failure_drops.clone()))
+            } else {
+                Ok(())
+            }
+        }
+    }
+    let (parent, next, value) = source_pair_fixture();
+    let drops = Rc::new(Cell::new(0));
+    let failure_drops = Rc::new(Cell::new(0));
+    let first = local(&parent, &drops);
+    let second = local(&next, &drops);
+    let before = serde_json::to_vec(&(&parent, &next, &value)).unwrap();
+    let host = Host {
+        first: &first,
+        second: &second,
+        value: &value,
+        calls: RefCell::new(vec![]),
+        panic_at: Cell::new(None),
+        fail_value: Cell::new(false),
+        failure_drops: failure_drops.clone(),
+    };
+    let check = || {
+        let policy: &dyn SuccessorAdmissionHost<Token, Error = NativeFailure> = &host;
+        validate_successor_pair(
+            view(&parent, &first),
+            view(&next, &second),
+            Some(&value),
+            frame_limits(),
+            policy,
+        )
+    };
+    assert!(check().is_ok());
+    let events = host.calls.borrow().clone();
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| !event.starts_with("name:"))
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        [
+            "token:1",
+            "sequence:1",
+            "token:2",
+            "sequence:2",
+            "value",
+            "sequence:1",
+            "sequence:2"
+        ]
+    );
+    for cutoff in 1..=events.len() {
+        host.calls.borrow_mut().clear();
+        host.panic_at.set(Some(cutoff));
+        assert!(catch_unwind(AssertUnwindSafe(check)).is_err());
+        assert_eq!(*host.calls.borrow(), events[..cutoff]);
+        assert_eq!(drops.get(), 0);
+        assert_eq!(failure_drops.get(), 0);
+        assert_eq!(
+            serde_json::to_vec(&(&parent, &next, &value)).unwrap(),
+            before
+        );
+    }
+    host.panic_at.set(None);
+    host.fail_value.set(true);
+    host.calls.borrow_mut().clear();
+    let error = check().unwrap_err();
+    assert_eq!(error.to_string(), "invalid successor completed value");
+    assert_eq!(format!("{error:?}"), error.to_string());
+    assert!(error.source().is_none());
+    assert_eq!(host.calls.borrow().last().unwrap(), "value");
+    let SuccessorAdmissionError::Value(original) = error else {
+        panic!("native failure lost")
+    };
+    assert!(Rc::ptr_eq(&original.0, &failure_drops));
+    assert_eq!(failure_drops.get(), 0);
+    drop(original);
+    assert_eq!(failure_drops.get(), 1);
+    drop(host);
+    drop((first, second));
+    assert_eq!(drops.get(), 2);
 }
 
 #[test]
@@ -908,10 +1390,7 @@ fn source_atomic_requests_share_frame_correspondence_before_wire_restored_reentr
 
 #[test]
 fn adapter_saved_group_plan_gates_source_reentry_without_vm_or_resource_changes() {
-    use leselang_command::{
-        EffectOperation, EffectRequestView, GroupRequestContext,
-        validate_preflighted_group_requests,
-    };
+    use leselang_command::{EffectOperation, EffectRequestView};
     use leselang_host_contract::{CapabilitySet, Principal, Revision};
     use leselang_runtime_core::{ContinuationFrame, ResourceBudget};
 
@@ -932,6 +1411,46 @@ fn adapter_saved_group_plan_gates_source_reentry_without_vm_or_resource_changes(
                 continuation: &self.frame,
                 budget: &self.budget,
             }
+        }
+    }
+    struct GraphHost;
+    impl leselang_command::MergeGraphAdmissionHost<String> for GraphHost {
+        type Error = Refusal;
+        fn token_text<'a>(&self, token: &'a String) -> &'a str {
+            token.as_str()
+        }
+        fn valid_token(&self, token: &String) -> bool {
+            token == "merge-1" || canonical(token).is_some()
+        }
+        fn canonical_sequence(&self, token: &String) -> Option<u64> {
+            canonical(token)
+        }
+        fn valid_group_name(&self, name: &str) -> bool {
+            valid_name(name)
+        }
+        fn validate_plan_encoding(&self, plan: &MergePlan) -> Result<(), Refusal> {
+            let bytes = serde_json::to_vec(plan).map_err(|_| Refusal::Admission)?;
+            if bytes.len() > 16 * 1024 {
+                Err(Refusal::Admission)
+            } else {
+                Ok(())
+            }
+        }
+    }
+    fn plan_policy() -> leselang_command::MergePlanAdmissionLimits {
+        leselang_command::MergePlanAdmissionLimits {
+            shape: MergePlanShapeLimits {
+                max_branches: 4,
+                max_name_bytes: 64,
+            },
+            group: GroupBindingLimits {
+                plan: GroupPlanLimits {
+                    max_branches: 4,
+                    max_effect_sequence: 101,
+                    max_fuel: 1000,
+                },
+                binding: CAPTURES,
+            },
         }
     }
     fn saved_request(
@@ -973,36 +1492,26 @@ fn adapter_saved_group_plan_gates_source_reentry_without_vm_or_resource_changes(
         }
     }
     fn canonical(token: &str) -> Option<u64> {
-        let sequence = token.strip_prefix("continuation-")?.parse::<u64>().ok()?;
-        (0 < sequence && sequence <= 101 && token == format!("continuation-{sequence}"))
-            .then_some(sequence)
+        canonical_group_sequence(token)
     }
     fn check_requests(
         plan: &MergePlan,
         requests: &[(String, SavedRequest)],
     ) -> Result<(), Refusal> {
-        let group = admit(plan)?;
-        let result_type =
-            validate_result_binding(&group.binding, &group.pending, CAPTURES, valid_name)
-                .map_err(|_| Refusal::Admission)?;
         let names = requests
             .iter()
             .map(|(name, request)| (name.as_str(), request))
             .collect::<Vec<_>>();
-        validate_preflighted_group_requests(
-            group,
-            GroupRequestContext {
-                owner: &"merge-1".into(),
-                plan,
-                result_type,
-                max_successor_names: 4,
-                binding_limits: CAPTURES,
-            },
+        leselang_command::validate_merge_graph(
+            &"merge-1".into(),
+            plan,
             &names,
+            leselang_command::MergeGraphAdmissionLimits {
+                plan: plan_policy(),
+                frame: frame_limits(),
+            },
             |request| request.view(),
-            String::as_str,
-            |token| canonical(token),
-            valid_name,
+            &GraphHost,
         )
         .map_err(|_| Refusal::Admission)
     }
@@ -1014,21 +1523,7 @@ fn adapter_saved_group_plan_gates_source_reentry_without_vm_or_resource_changes(
     ) {
         let remaining = fuel.remaining();
         let preparations = prepared.get();
-        for (_, request) in requests {
-            if let Some(binding) = &request.frame.result_binding {
-                validate_result_binding(
-                    binding,
-                    &request.frame.pending_effect,
-                    CAPTURES,
-                    valid_name,
-                )
-                .unwrap();
-            }
-            leselang_command::validate_preflighted_effect_request(request.view(), |token| {
-                canonical(token)
-            })
-            .unwrap();
-        }
+        assert_eq!(check_requests(plan, requests), Ok(()));
         let bytes = serde_json::to_vec(requests).unwrap();
         assert!(bytes.len() < 32 * 1024);
         let restored: Vec<(String, SavedRequest)> = serde_json::from_slice(&bytes).unwrap();
@@ -1071,37 +1566,14 @@ fn adapter_saved_group_plan_gates_source_reentry_without_vm_or_resource_changes(
 
     // Fixture-owned ingress/identity policy, not a production recovery authority.
     fn admit(plan: &MergePlan) -> Result<&GroupResultBinding, Refusal> {
-        plan.validate_shape(MergePlanShapeLimits {
-            max_branches: 4,
-            max_name_bytes: 64,
+        leselang_command::validate_merge_plan(plan, plan_policy(), valid_name, |plan| {
+            leselang_command::MergeGraphAdmissionHost::validate_plan_encoding(&GraphHost, plan)
         })
         .map_err(|_| Refusal::Admission)?;
-        let group = plan.result_binding.as_deref().ok_or(Refusal::Admission)?;
-        validate_group_binding(
-            group,
-            plan,
-            GroupBindingLimits {
-                plan: GroupPlanLimits {
-                    max_branches: 4,
-                    max_effect_sequence: 101,
-                    max_fuel: 1000,
-                },
-                binding: CAPTURES,
-            },
-            valid_name,
-            |plan| {
-                let bytes = serde_json::to_vec(plan).map_err(|_| Refusal::Admission)?;
-                if bytes.len() > 16 * 1024 {
-                    Err(Refusal::Admission)
-                } else {
-                    Ok(())
-                }
-            },
-        )
-        .map_err(|_| Refusal::Admission)?;
-        Ok(group)
+        plan.result_binding.as_deref().ok_or(Refusal::Admission)
     }
 
+    let mut admitted_pairs = 0;
     for mode in ["seq", "all"] {
         let expression = compile(&source(mode));
         let expected = run(&expression, 1000, true).unwrap();
@@ -1210,6 +1682,29 @@ fn adapter_saved_group_plan_gates_source_reentry_without_vm_or_resource_changes(
                 ),
             ));
             verify_requests(&active_plan, &requests, &fuel, &prepared);
+            if position > 0 {
+                let parent = &requests[requests.len() - 2].1;
+                let next = &requests.last().unwrap().1;
+                let value = reply(&parent.frame.pending_effect);
+                let bytes = serde_json::to_vec(&(parent, next, &value)).unwrap();
+                let (first, second, raw): (SavedRequest, SavedRequest, Value) =
+                    serde_json::from_slice(&bytes).unwrap();
+                let before = (fuel.remaining(), prepared.get());
+                for (first, second, value) in [(parent, next, &value), (&first, &second, &raw)] {
+                    leselang_command::validate_successor_pair(
+                        first.view(),
+                        second.view(),
+                        Some(value),
+                        frame_limits(),
+                        &adapter,
+                    )
+                    .unwrap();
+                }
+                assert_eq!((fuel.remaining(), prepared.get()), before);
+                assert_eq!(serde_json::to_vec(&(&first, &second, &raw)).unwrap(), bytes);
+                assert_eq!(serde_json::to_vec(&(parent, next, &value)).unwrap(), bytes);
+                admitted_pairs += 1;
+            }
             step = resume(&effect, &binding, &reply(&effect), &adapter, &mut fuel).unwrap();
         }
         assert_eq!(step, Step::Done(expected.value));
@@ -1217,6 +1712,7 @@ fn adapter_saved_group_plan_gates_source_reentry_without_vm_or_resource_changes(
         assert_eq!(prepared.get(), expected.preparations);
         assert_eq!(serde_json::to_vec(&restored).unwrap(), bytes);
     }
+    assert_eq!(admitted_pairs, 2);
 }
 
 #[test]

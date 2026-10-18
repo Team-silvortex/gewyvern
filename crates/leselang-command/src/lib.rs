@@ -2,6 +2,7 @@
 
 mod capture_replay;
 mod capture_scope;
+mod continuation_admission;
 pub mod continuation_schema;
 mod control_plane_reply;
 mod control_plane_request;
@@ -14,6 +15,7 @@ mod group_continuation;
 mod group_plan;
 mod group_requests;
 mod host_protocol;
+mod merge_admission;
 mod merge_plan;
 mod operation_lowering;
 mod operation_request;
@@ -24,12 +26,14 @@ mod presentation_value;
 mod projected_group;
 mod projected_result;
 mod projection_access;
+mod request_admission;
 mod request_correspondence;
 mod result_binding;
 mod result_domain;
 mod result_view;
 mod scalar_projection;
 mod structured_value;
+mod successor_admission;
 mod successor_correspondence;
 mod value;
 mod value_validation;
@@ -39,6 +43,9 @@ pub use capture_replay::{
 pub use capture_scope::{
     ResultCaptureHost, ResultCaptureLimits, resume_preflighted_result_binding_in_scope,
     snapshot_preflighted_result_scope,
+};
+pub use continuation_admission::{
+    ContinuationAdmissionError, ContinuationAdmissionLimits, validate_continuation_frame,
 };
 pub use control_plane_request::{command_matches_effect, query_matches_effect};
 pub use effect_preparation::{EffectPreparationError, prepare_preflighted_effect_in_scope};
@@ -56,6 +63,10 @@ pub use host_protocol::{
     DebuggerCancelResult, EffectOperation, EffectResult, PresentationEnvelope,
     PresentationOperation, PresentationResult,
 };
+pub use merge_admission::{
+    MergeGraphAdmissionError, MergeGraphAdmissionHost, MergeGraphAdmissionLimits,
+    MergePlanAdmissionError, MergePlanAdmissionLimits, validate_merge_graph, validate_merge_plan,
+};
 pub use merge_plan::{
     ExecutionOrder, MAX_MERGE_BRANCH_NAME_BYTES, MAX_MERGE_BRANCHES, MergePlan,
     MergePlanShapeError, MergePlanShapeLimits, valid_merge_branch_name,
@@ -67,6 +78,7 @@ pub use projected_group::{
 };
 pub use projected_result::{InvalidProjectedResult, ProjectedField, ProjectedResult};
 pub use projection_access::validate_captured_projection_accesses;
+pub use request_admission::{RequestAdmissionError, validate_effect_request};
 pub use request_correspondence::{
     EffectRequestView, RequestCorrespondenceError, validate_preflighted_effect_request,
 };
@@ -76,6 +88,9 @@ pub use result_binding::{
 pub use result_domain::{ResultValueDomain, ResultValueError, ResultValueHost};
 pub use result_view::{ResultView, ResultViewError};
 pub use structured_value::{ValueBoundsError, ValueValidationLimits, validate_value_items};
+pub use successor_admission::{
+    SuccessorAdmissionError, SuccessorAdmissionHost, validate_successor_pair,
+};
 pub use successor_correspondence::{
     SuccessorCorrespondenceError, validate_preflighted_successor_pair,
 };

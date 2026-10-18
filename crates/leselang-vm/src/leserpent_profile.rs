@@ -1476,107 +1476,91 @@ fn validate_pending_effect_contract(image: &ContinuationImage) -> Result<(), Fau
 }
 
 fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
-    if let Some(binding) = &image.result_binding {
-        binding.validate_structure()?;
-    }
-    leselang_command::continuation_schema::validate_preflighted_continuation_schema(
-        image.result_binding.as_deref(),
-        image.group_result.as_ref().map(ContinuationToken::as_str),
-        image.schema_version,
-        MAX_EFFECT_SEQUENCE,
+    leselang_command::validate_continuation_frame(
+        image,
+        continuation_admission_limits(),
+        ContinuationToken::as_str,
+        valid_continuation_token,
+        valid_merge_branch_name,
     )
-    .map_err(|error| match error {
-        leselang_command::continuation_schema::ContinuationSchemaError::Group => {
-            group_binding::invalid()
-        }
-        leselang_command::continuation_schema::ContinuationSchemaError::Version {
-            actual,
-            expected,
-        } => Fault {
-            code: "LSV2001".to_string(),
-            message: format!("unsupported continuation version {actual}, expected {expected}"),
-        },
-    })?;
-    if !valid_continuation_token(&image.token) {
-        return Err(Fault {
-            code: "LSV2006".to_string(),
-            message: "invalid continuation token".to_string(),
-        });
-    }
-    if image.program_counter != 1 {
-        return Err(Fault {
-            code: "LSV2014".to_string(),
-            message: "continuation program counter is unsupported".to_string(),
-        });
-    }
-    let expected_type = leselang_hir::host_call::HostOperation::for_effect(&image.pending_effect)
-        .map(|operation| operation.result_type())
-        .ok_or_else(|| Fault {
-            code: "LSV2015".to_string(),
-            message: "structured control flow cannot be restored as a single continuation"
-                .to_string(),
-        })?;
-    if image.result_type != expected_type {
-        return Err(Fault {
-            code: "LSV2016".to_string(),
-            message: "continuation result type does not match its pending effect".to_string(),
-        });
-    }
-    if let Some(binding) = &image.result_binding {
-        binding.validate(&image.pending_effect)?;
-    }
-    image
-        .resource_budget()
-        .validate(ResourceBudgetLimits {
+    .map_err(continuation_admission_fault)
+}
+
+fn continuation_admission_limits() -> leselang_command::ContinuationAdmissionLimits {
+    leselang_command::ContinuationAdmissionLimits {
+        binding: result_binding::result_binding_limits(),
+        budget: ResourceBudgetLimits {
             max_fuel: MAX_EXECUTION_FUEL,
             max_deadline_ms: MAX_EFFECT_DEADLINE_MS,
             max_deadline_at_ms: i64::MAX as u64,
             max_output_items: DEFAULT_MAX_OUTPUT_ITEMS,
-        })
-        .map_err(|error| {
-            let (code, message) = match error {
-                ResourceBudgetError::Fuel => ("LSV2007", "continuation fuel exceeds runtime limit"),
-                ResourceBudgetError::Deadline => {
-                    ("LSV2008", "continuation deadline exceeds runtime limit")
-                }
-                ResourceBudgetError::AbsoluteDeadline => {
-                    ("LSV2011", "continuation absolute deadline is out of range")
-                }
-                ResourceBudgetError::Output => (
-                    "LSV2009",
-                    "continuation output limit exceeds runtime maximum",
-                ),
-            };
-            Fault {
-                code: code.to_string(),
-                message: message.to_string(),
-            }
-        })?;
-    Ok(())
+        },
+        max_group_sequence: MAX_EFFECT_SEQUENCE,
+    }
+}
+
+fn continuation_admission_fault(error: leselang_command::ContinuationAdmissionError) -> Fault {
+    use leselang_command::ContinuationAdmissionError;
+    use leselang_command::continuation_schema::ContinuationSchemaError;
+    let code = match error {
+        ContinuationAdmissionError::Binding => return result_binding::invalid(),
+        ContinuationAdmissionError::Schema(ContinuationSchemaError::Group) => {
+            return group_binding::invalid();
+        }
+        ContinuationAdmissionError::Schema(ContinuationSchemaError::Version { .. }) => "LSV2001",
+        ContinuationAdmissionError::Token => "LSV2006",
+        ContinuationAdmissionError::ProgramCounter => "LSV2014",
+        ContinuationAdmissionError::StructuredEffect => "LSV2015",
+        ContinuationAdmissionError::ResultType => "LSV2016",
+        ContinuationAdmissionError::Budget(ResourceBudgetError::Fuel) => "LSV2007",
+        ContinuationAdmissionError::Budget(ResourceBudgetError::Deadline) => "LSV2008",
+        ContinuationAdmissionError::Budget(ResourceBudgetError::AbsoluteDeadline) => "LSV2011",
+        ContinuationAdmissionError::Budget(ResourceBudgetError::Output) => "LSV2009",
+    };
+    Fault {
+        code: code.into(),
+        message: error.to_string(),
+    }
 }
 
 pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
-    use leselang_command::{OperationRequestError, RequestCorrespondenceError};
-    validate_image(&request.continuation)?;
-    leselang_command::validate_preflighted_effect_request(
+    leselang_command::validate_effect_request(
         request.as_view(),
+        continuation_admission_limits(),
+        ContinuationToken::as_str,
+        valid_continuation_token,
+        valid_merge_branch_name,
         canonical_continuation_sequence,
     )
-    .map_err(|error| {
-        let code = match error {
-            RequestCorrespondenceError::SuccessorAuthority => "LSV1407",
-            RequestCorrespondenceError::ContinuationIdentity
-            | RequestCorrespondenceError::EffectIdentity => "LSV2010",
-            RequestCorrespondenceError::Operation(OperationRequestError::Capability) => "LSV2011",
-            RequestCorrespondenceError::Operation(OperationRequestError::Envelope) => "LSV2012",
-            RequestCorrespondenceError::Operation(OperationRequestError::Mismatch)
-            | RequestCorrespondenceError::Budget => "LSV2013",
-        };
-        Fault {
-            code: code.into(),
-            message: error.to_string(),
+    .map_err(request_admission_fault)
+}
+
+fn request_admission_fault(error: leselang_command::RequestAdmissionError) -> Fault {
+    match error {
+        leselang_command::RequestAdmissionError::Frame(error) => {
+            continuation_admission_fault(error)
         }
-    })
+        leselang_command::RequestAdmissionError::Correspondence(error) => {
+            request_correspondence_fault(error)
+        }
+    }
+}
+
+fn request_correspondence_fault(error: leselang_command::RequestCorrespondenceError) -> Fault {
+    use leselang_command::{OperationRequestError, RequestCorrespondenceError};
+    let code = match error {
+        RequestCorrespondenceError::SuccessorAuthority => "LSV1407",
+        RequestCorrespondenceError::ContinuationIdentity
+        | RequestCorrespondenceError::EffectIdentity => "LSV2010",
+        RequestCorrespondenceError::Operation(OperationRequestError::Capability) => "LSV2011",
+        RequestCorrespondenceError::Operation(OperationRequestError::Envelope) => "LSV2012",
+        RequestCorrespondenceError::Operation(OperationRequestError::Mismatch)
+        | RequestCorrespondenceError::Budget => "LSV2013",
+    };
+    Fault {
+        code: code.into(),
+        message: error.to_string(),
+    }
 }
 
 fn generated_effect_identity_fault() -> Fault {
@@ -1789,22 +1773,40 @@ fn merge_output_fault(items: usize, limit: usize) -> Fault {
 }
 
 pub(crate) fn validate_merge_plan(plan: &MergePlan) -> Result<(), Fault> {
-    plan.validate_shape(leselang_command::MergePlanShapeLimits {
-        max_branches: MAX_MERGE_BRANCHES,
-        max_name_bytes: MAX_MERGE_BRANCH_NAME_BYTES,
-    })
-    .map_err(|error| match error {
-        leselang_command::MergePlanShapeError::GroupBinding => group_binding::invalid(),
-        leselang_command::MergePlanShapeError::Successor => successor::invalid(),
-        leselang_command::MergePlanShapeError::Branches => Fault {
-            code: "LSV2401".to_string(),
-            message: "structured merge plan is invalid or exceeds runtime bounds".to_string(),
+    leselang_command::validate_merge_plan(
+        plan,
+        merge_plan_admission_limits(),
+        valid_merge_branch_name,
+        group_binding::validate_plan_encoding,
+    )
+    .map(|_| ())
+    .map_err(merge_plan_admission_fault)
+}
+
+fn merge_plan_admission_limits() -> leselang_command::MergePlanAdmissionLimits {
+    leselang_command::MergePlanAdmissionLimits {
+        shape: leselang_command::MergePlanShapeLimits {
+            max_branches: MAX_MERGE_BRANCHES,
+            max_name_bytes: MAX_MERGE_BRANCH_NAME_BYTES,
         },
-    })?;
-    if let Some(binding) = &plan.result_binding {
-        binding.validate(plan)?;
+        group: group_binding::admission_limits(),
     }
-    Ok(())
+}
+
+fn merge_plan_admission_fault(error: leselang_command::MergePlanAdmissionError<Fault>) -> Fault {
+    match error {
+        leselang_command::MergePlanAdmissionError::Binding(error) => {
+            group_binding::admission_fault(error)
+        }
+        leselang_command::MergePlanAdmissionError::Shape(error) => match error {
+            leselang_command::MergePlanShapeError::GroupBinding => group_binding::invalid(),
+            leselang_command::MergePlanShapeError::Successor => successor::invalid(),
+            leselang_command::MergePlanShapeError::Branches => Fault {
+                code: "LSV2401".to_string(),
+                message: "structured merge plan is invalid or exceeds runtime bounds".to_string(),
+            },
+        },
+    }
 }
 
 fn valid_merge_branch_name(name: &str) -> bool {

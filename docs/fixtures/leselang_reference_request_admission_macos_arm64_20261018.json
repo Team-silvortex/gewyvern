@@ -1,0 +1,167 @@
+{
+  "kind": "leselang-reference-complete-request-admission",
+  "validated_on": "2026-10-18",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "reference_execution_contract": "1.98.0",
+  "native_embedding_contract": "0.162.0",
+  "operation_count": 70,
+  "frozen_operation_comparisons": 24570,
+  "frozen_cold_authority_comparisons": 1680,
+  "frozen_frame_request_comparisons": 4200,
+  "source_torn_frame_cases": 12,
+  "baseline_passed": true,
+  "post_migration_parity_passed": true,
+  "checked_decode_parity_passed": true,
+  "source_wire_reentry_passed": true,
+  "every_fuel_cutoff_passed": true,
+  "opaque_local_tokens_passed": true,
+  "memory_profile_passed": true,
+  "native_profile_passed": true,
+  "wire_or_journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "scope": "Complete product request admission composes full frame validation before cold successor authority, native canonical identity, operation and exact budget correspondence. The real VM supplies unchanged limits/hooks and maps payload-free Frame/Correspondence provenance to the original faults; both current and legacy request decoders retain this gate. A VM-free parsed-source consumer uses the same complete entry for original and bounded wire-restored atomic and Seq/All requests, with unchanged output, preparation and every fuel cutoff. Twelve torn source frames refuse before request identity. Frozen frame and request gates retain 24,570 operation and 1,680 cold-authority comparisons and add 4,200 conflicting frame/request cases including checked decoding. Opaque local owners require no Clone, Debug, serde, equality or thread traits; ordered owner/token/sequence hooks borrow original data, skip later work on refusal, drop unused captures and propagate each native unwind without retry. Preflighted correspondence remains available only after frame admission. Mutable/decoded data must be rechecked; consistent exhausted budgets are not grants. Ingress/pending payload bounds, canonical restore admission, authentic authority/original budgets, current deadlines, receipts, leases and atomic settlement remain native. No new evaluator, codec, allocator, meter, wire/journal schema or independent durable VM/extraction promotion.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/request_admission.rs",
+      "sha256": "17bf2efd7bfe2751da903581854d4d23bce2f236080b1016e3e88aa11d2b100d"
+    },
+    {
+      "path": "crates/leselang-command/src/request_correspondence.rs",
+      "sha256": "20f64f6f0fd78307772874bfef6d2676f6bde6945e821044e0b25b70f5393f04"
+    },
+    {
+      "path": "crates/leselang-command/src/continuation_admission.rs",
+      "sha256": "dd21d5a71ea7e44de40c67da398a303f10cc3fc6d28fd9de7e243dd23942c330"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "3ee0c5687a87355439249b21d322a8af46736826d7640215d027f3cea6c6fe8c"
+    },
+    {
+      "path": "crates/leselang-command/tests/host_protocol.rs",
+      "sha256": "6932e639d10180b3ca63224fb03b07209f166f5fb41cd60217180ec90b6f31b0"
+    },
+    {
+      "path": "crates/leselang-command/tests/captured_execution.rs",
+      "sha256": "a4f23c21c1ae01574110eb0a51fac0aa71083b869e780087324b1ba79c8cabd3"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "50ad06e160baf069f7aa42f3a4b747b50e348e93085e999a37b8e890948fcf5a"
+    },
+    {
+      "path": "crates/leselang-vm/src/operation_request_tests.rs",
+      "sha256": "9504ee58413b7c0435022cb151970ebcc801a7052597e8c1cc90e63bde9a31ab"
+    },
+    {
+      "path": "crates/leselang-vm/src/continuation_schema_tests.rs",
+      "sha256": "786bc5e4f3765e6b6803b6ad84d235cebac001cfc28a6a1707cf2ccb00044efe"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "b8ce707e8e0e43ff1f1484e72f59fae427bd14e0cd7a51c1eff6a0d052bbba34"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "107fe8ec9f6ca93d82ab7411cc129f03f4408c2a6a8737eb329e4bbabf431d89"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "14dc82df7ee72313017689f521d62b8f3418da8016a2315c7a758a409a5691d0"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "e75efc29a26e9c5d54cd3d2e2d3323d5f9254ede089308204abb72fd69934bc2"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "6ccab3fb5fc9eea265baac517f9548b91f6f117e8441c5dd0d597bbdca08342b"
+    }
+  ],
+  "verification": [
+    {
+      "name": "root",
+      "path": "/private/tmp/leselang-request-admission-d0siSq/root.log",
+      "sha256": "169f9e502b5ad5a70c9131613eabef4d671443bac429efd8697a4853e29069b1",
+      "passed": 435
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-request-admission-d0siSq/clippy.log",
+      "sha256": "b4724756d06efb4a590cdd42b11cf8b7c611cf6f5385bb84975da07e7e4d8ab4",
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "memory-clippy",
+      "path": "/private/tmp/leselang-request-admission-d0siSq/memory-clippy.log",
+      "sha256": "7cda8730264f4048488ddada089ceaeba1eda6f6b4ab3a935a31033af4698c05",
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "native-clippy",
+      "path": "/private/tmp/leselang-request-admission-d0siSq/native-clippy.log",
+      "sha256": "79da96bd850235e7fd6f7a37511d1102932d1a6eed04742ff9be9163447e3fe4",
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "adapter-tree",
+      "path": "/private/tmp/leselang-request-admission-d0siSq/adapter-tree.log",
+      "sha256": "d75f8df9257048210b0b1b1869b59959894d689e09e5f413b05c414042a268bf",
+      "forbidden_dependencies_absent": [
+        "leselang-vm",
+        "rusqlite",
+        "libsqlite3-sys"
+      ]
+    },
+    {
+      "name": "baseline",
+      "path": "/private/tmp/leselang-request-admission-d0siSq/baseline.log",
+      "sha256": "a8d5a6bd5f81233f60a04420e8e21b1c43b66866fb1bbbac3071b72951ef03ac",
+      "passed": 4
+    },
+    {
+      "name": "consumer",
+      "path": "/private/tmp/leselang-request-admission-d0siSq/consumer.log",
+      "sha256": "23e04c395022a9afe99f2096b678f91c4a1e455ed72cdb14000fcd235b9e944c",
+      "passed": 91
+    },
+    {
+      "name": "memory",
+      "path": "/private/tmp/leselang-request-admission-d0siSq/memory.log",
+      "sha256": "0969cb718c24d52e9b21190dc2ebed012f48d975a991231de91d7232aff70d1f",
+      "passed": 201
+    },
+    {
+      "name": "native-tree",
+      "path": "/private/tmp/leselang-request-admission-d0siSq/native-tree.log",
+      "sha256": "648ce0bd6a92678072f5e583c34468351fa107a920b6e28eb7d87d17eee4fef6",
+      "forbidden_dependencies_absent": [
+        "leselang-command",
+        "leselang-host-contract",
+        "leserpent-domain",
+        "rusqlite",
+        "libsqlite3-sys"
+      ]
+    },
+    {
+      "name": "native",
+      "path": "/private/tmp/leselang-request-admission-d0siSq/native.log",
+      "sha256": "4282719ec77250ce67ad80018e7e075d034ed282cbd25aa8c54c35720b8dd945",
+      "passed": 50
+    },
+    {
+      "name": "parity",
+      "path": "/private/tmp/leselang-request-admission-d0siSq/parity.log",
+      "sha256": "235d730387f0e02dff51acb0e266d8e85248b0bed64f83c74f91f86e9902f53a",
+      "passed": 4
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-request-admission-d0siSq/runtime.log",
+      "sha256": "a41e25b8f5871eb92a81f47634e7ff7143887b33386489a2e69b0da55fb7ee6c",
+      "passed": 3192
+    }
+  ]
+}
