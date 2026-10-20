@@ -15,6 +15,8 @@ For `gewyvern`, the middle numeric component is treated as the **minor** line:
 - `v1.20.x`
 - `v2.0.0`
 - `v2.1.x`
+- `v2.3.x`
+- `v2.4.x`
 
 The rule from here forward is simple:
 
@@ -69,7 +71,7 @@ background cleanup.
   Final pre-`1.0` sealing line focused on repeatable release gates, surface
   freeze judgment, and documentation/system coherence.
 - [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
-  Current stable line focused on keeping the sealed core, machine contracts,
+  First sealed stable line focused on keeping the core, machine contracts,
   Linux proof paths, and release evidence coherent.
 - [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md)
   Formal release note for the first sealed stable line.
@@ -82,6 +84,12 @@ background cleanup.
   pure recovery, and named group-result bindings; `2.1.5` adds reusable pure
   functions, group-driven automation, closed GUI projections and bounded text
   inspection alongside development-cache improvements.
+- [docs/history/v2.3.x.md](v2.3.x.md)
+  Shared release alignment and acceptance-gated Leselang extraction readiness,
+  without a version-triggered repository move.
+- [docs/history/v2.4.x.md](v2.4.x.md)
+  Current maintenance line with continued Leselang independence, shared-owner
+  restoration, and isolated native source verification.
 - [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md)
   Forward-looking minor-line plan from `0.15.x` through `0.20.x`, intended to
   make `v1.0.0` the direct next step after the final pre-`1.0` seal.
@@ -107,7 +115,9 @@ background cleanup.
 | `v1.0.0` | First sealed stable line with repeatable release gates, Linux proof, and frozen machine-facing shelves | sealed baseline | [docs/history/v1.0.0.md](docs/history/v1.0.0.md) |
 | `v1.20.x` | Final closure window for reliability, security, performance, frontend conformance, deployment, desktop UX, and documentation | completed seal | [project/release/leserpent-2-patch-seal.json](../../project/release/leserpent-2-patch-seal.json) |
 | `v2.0.0` | Released protocolized network-debugging infrastructure with Rust control authority and replaceable operator frontends | sealed release baseline | [docs/history/v2.0.0-release-notes.md](v2.0.0-release-notes.md) |
-| `v2.1.x` | Post-release maintenance and bounded Leselang computation/control-flow development without relabeling frozen contracts | active line | [docs/history/v2.1.x.md](v2.1.x.md) |
+| `v2.1.x` | Post-release maintenance and bounded Leselang computation/control-flow development without relabeling frozen contracts | historical snapshot | [docs/history/v2.1.x.md](v2.1.x.md) |
+| `v2.3.x` | Shared release alignment and acceptance-gated Leselang extraction readiness | historical snapshot | [docs/history/v2.3.x.md](v2.3.x.md) |
+| `v2.4.x` | Shared maintenance line with continued Leselang independence and isolated native source verification | active line | [docs/history/v2.4.x.md](v2.4.x.md) |
 | `v1.0.0 release` | Formal stable-release note for the first sealed mainline ship | release note | [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md) |
 | `v0.15.x -> v1.0.0` | Forward roadmap through `v0.20.x` with `v1.0.0` as the intended direct successor | completed roadmap | [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md) |
 
@@ -159,7 +169,7 @@ Use other pages when you want something else:
 - for the current structured reading paths, use
   [docs/book/index.md](docs/book/index.md)
 - for the current active release posture, use
-  [docs/history/v2.1.x.md](v2.1.x.md)
+  [docs/history/v2.4.x.md](v2.4.x.md)
 - for the formal stable-release announcement shelf, use
   [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md)
 - for the shortest ledger of historical release lines, use this page

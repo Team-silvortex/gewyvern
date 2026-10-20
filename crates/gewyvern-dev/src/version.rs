@@ -504,6 +504,26 @@ fn parse_number(bytes: &[u8], start: usize) -> Option<(u64, usize)> {
         .map(|value| (value, end))
 }
 
+fn update_release_line_markers(
+    document: &str,
+    current: &ProductVersion,
+    target: &ProductVersion,
+) -> (String, usize) {
+    let old_line = current.active_line();
+    let offsets = release_line_markers(document)
+        .into_iter()
+        .filter(|(major, minor, _)| *major == current.major && *minor == current.minor)
+        .map(|(_, _, offset)| offset + usize::from(document.as_bytes()[offset] == b'v'))
+        .filter(|&offset| document[offset..].starts_with(&old_line))
+        .collect::<Vec<_>>();
+    let mut updated = document.to_string();
+    let new_line = target.active_line();
+    for &offset in offsets.iter().rev() {
+        updated.replace_range(offset..offset + old_line.len(), &new_line);
+    }
+    (updated, offsets.len())
+}
+
 fn plan_update(
     root: &Path,
     current: &ProductVersion,
@@ -590,7 +610,6 @@ fn plan_update(
 
     if current.active_line() != target.active_line() {
         let old_line = current.active_line();
-        let new_line = target.active_line();
         let mut replacements = 0;
         for path in markdown_files(root)? {
             let relative = path
@@ -600,7 +619,7 @@ fn plan_update(
             if relative == Path::new("docs/leserpent-2-roadmap.md") {
                 continue;
             }
-            replacements += updates.replace_all_if_present(&relative, &old_line, &new_line)?;
+            replacements += updates.replace_active_line_if_present(&relative, current, target)?;
         }
         if replacements == 0 {
             return Err(format!(
@@ -763,11 +782,11 @@ impl UpdateSet {
         })
     }
 
-    fn replace_all_if_present(
+    fn replace_active_line_if_present(
         &mut self,
         relative: impl AsRef<Path>,
-        current: &str,
-        target: &str,
+        current: &ProductVersion,
+        target: &ProductVersion,
     ) -> Result<usize, String> {
         let path = self.root.join(relative.as_ref());
         let document = self
@@ -775,9 +794,9 @@ impl UpdateSet {
             .get(&path)
             .map(|change| change.updated.clone())
             .unwrap_or(read_regular_file(&path)?);
-        let count = document.matches(current).count();
+        let (updated, count) = update_release_line_markers(&document, current, target);
         if count > 0 {
-            self.transform(relative, |document| Ok(document.replace(current, target)))?;
+            self.transform(relative, |_| Ok(updated))?;
         }
         Ok(count)
     }
@@ -1046,6 +1065,26 @@ mod tests {
             .map(|(major, minor, _)| (major, minor))
             .collect::<BTreeSet<_>>(),
             BTreeSet::from([(1, 0), (1, 17)])
+        );
+    }
+
+    #[test]
+    fn active_line_update_preserves_smtp_statuses_and_unrelated_versions() {
+        let current = ProductVersion::parse("2.1.0").unwrap();
+        let target = ProductVersion::parse("2.10.0").unwrap();
+        let (updated, count) = update_release_line_markers(
+            "Current `v2.1.x`, docs/history/v2.1.x.md, `2.1.x`; SMTP `250 2.1.x`; \
+             baseline `1.0.x`, release `2.1.0`, identifier `prefix2.1.xsuffix`, \
+             noncanonical `02.1.x` and `2.01.x`.",
+            &current,
+            &target,
+        );
+        assert_eq!(count, 3);
+        assert_eq!(
+            updated,
+            "Current `v2.10.x`, docs/history/v2.10.x.md, `2.10.x`; SMTP `250 2.1.x`; \
+             baseline `1.0.x`, release `2.1.0`, identifier `prefix2.1.xsuffix`, \
+             noncanonical `02.1.x` and `2.01.x`."
         );
     }
 

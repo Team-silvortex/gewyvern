@@ -151,6 +151,9 @@ fn macos_bundle_inherits_the_workspace_version_by_default() {
 #[test]
 fn docs_describe_the_active_minor_line_without_component_versions() {
     let readme = read_repo_file("README.md");
+    let leserpent_overview = read_repo_file("LESERPENT.md");
+    let docs_index = read_repo_file("docs/index.md");
+    let history_index = read_repo_file("docs/history/index.md");
     let monorepo = read_repo_file("docs/monorepo-stack.md");
     let leserpent_readme = read_repo_file("apps/leserpent/README.md");
     let root_manifest = read_repo_file("Cargo.toml");
@@ -169,6 +172,24 @@ fn docs_describe_the_active_minor_line_without_component_versions() {
 
     let maintenance_path = format!("docs/history/v{active_line}.md");
     assert!(readme.contains(&format!("[Current maintenance notes]({maintenance_path})")));
+    assert!(leserpent_overview.starts_with(&format!("# Leserpent v{active_line}\n")));
+    assert!(
+        leserpent_overview.contains(&format!("[Current maintenance notes]({maintenance_path})"))
+    );
+    assert!(docs_index.contains(&format!(
+        "[v{active_line} maintenance notes](history/v{active_line}.md)"
+    )));
+    let active_rows = history_index
+        .lines()
+        .filter(|line| line.contains("| active line |"))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        active_rows.len(),
+        1,
+        "history must identify one active line"
+    );
+    assert!(active_rows[0].starts_with(&format!("| `v{active_line}` |")));
+    assert!(active_rows[0].contains(&format!("](v{active_line}.md)")));
     let maintenance = read_repo_file(&maintenance_path);
     assert!(maintenance.starts_with(&format!("# v{active_line} Maintenance Line\n")));
 

@@ -100,7 +100,7 @@ Before cutting a release, use `cargo dev version check` to verify that Cargo,
 product version. Preview a deliberate version change before applying it:
 
 ```bash
-cargo dev version set 2.3.0 --dry-run
+cargo dev version set 2.4.0 --dry-run
 ```
 
 Removing `--dry-run` applies the update transactionally. It does not create a

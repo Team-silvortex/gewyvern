@@ -610,7 +610,7 @@ dependencies = [
 
 [[package]]
 name = "etragon"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -804,7 +804,7 @@ dependencies = [
 
 [[package]]
 name = "gewyc"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "gewyvern",
  "silvortex-bounded-io",
@@ -812,18 +812,18 @@ dependencies = [
 
 [[package]]
 name = "gewylang-compiler"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "gewylang-syntax",
 ]
 
 [[package]]
 name = "gewylang-contract"
-version = "2.3.0"
+version = "2.4.0"
 
 [[package]]
 name = "gewylang-ir"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "gewylang-contract",
  "serde",
@@ -833,7 +833,7 @@ dependencies = [
 
 [[package]]
 name = "gewylang-syntax"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "gewylang-contract",
  "libc",
@@ -841,7 +841,7 @@ dependencies = [
 
 [[package]]
 name = "gewyvern"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "gewylang-compiler",
  "gewylang-contract",
@@ -866,7 +866,7 @@ dependencies = [
 
 [[package]]
 name = "gewyvern-dev"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "ring",
  "serde_json",
@@ -874,7 +874,7 @@ dependencies = [
 
 [[package]]
 name = "gewyvern-install-contract"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "ring",
  "serde",
@@ -1089,7 +1089,7 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "leselang-command"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "leselang-hir",
  "leselang-host-contract",
@@ -1102,7 +1102,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-hir"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "leselang-host-contract",
  "leselang-runtime-core",
@@ -1113,7 +1113,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-host-contract"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1122,7 +1122,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-observe"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "leselang-command",
  "leselang-hir",
@@ -1137,7 +1137,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-runtime-core"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1145,7 +1145,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-syntax"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1153,7 +1153,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-ui"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "leselang-command",
  "leselang-hir",
@@ -1165,7 +1165,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-vm"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "leselang-command",
  "leselang-hir",
@@ -1180,7 +1180,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-adapters"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "gewyvern-install-contract",
  "leserpent-domain",
@@ -1201,7 +1201,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-cli"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "leselang-command",
  "leselang-hir",
@@ -1222,7 +1222,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-domain"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "http",
  "leselang-host-contract",
@@ -1233,7 +1233,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-frontend-package"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "ring",
  "serde",
@@ -1243,7 +1243,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-protocol"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "gewyvern-install-contract",
  "leselang-command",
@@ -1258,7 +1258,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-runtime"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "leselang-command",
  "leselang-hir",
@@ -1272,7 +1272,7 @@ dependencies = [
 
 [[package]]
 name = "leserpentd"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "leselang-hir",
  "leselang-observe",
@@ -2204,14 +2204,14 @@ dependencies = [
 
 [[package]]
 name = "silvortex-bounded-io"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "libc",
 ]
 
 [[package]]
 name = "silvortex-identity"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "serde",
  "serde_json",
