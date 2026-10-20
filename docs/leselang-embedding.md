@@ -6848,7 +6848,8 @@ used by `LocalVm`. Closed scopes skip native admission; structural/native refusa
 revocation and escaping unwind close before retained input cleanup. Success
 retains original return frames, captures, identity, declaration, limits and fuel,
 but does not retain the borrowed scope. Legacy unscoped restore is unchanged.
-This adds no transfer escape from `LocalVm` and no new final-effect restore entry.
+That binding-only increment added no transfer escape from `LocalVm` and no
+new final-effect restore entry.
 
 The coupled source pipeline now restores parent and collectors under that one
 fence. If the parent has already been restored and child admission then refuses,
@@ -6868,6 +6869,204 @@ the borrowed value is not fenced; callback-internal cleanup remains trusted.
 Later dispatch must still check live leases and native authority. Authentic
 durable codecs, crash reconciliation, external cancellation and complete graph
 extraction remain separate gates, not properties of this local borrow.
+
+### Shared-Owner Final Group Restoration
+
+`native::Vm::restore_pending_final_in_scope` now gives final requests the same
+borrowed-owner restoration boundary as binding requests. It delegates to the
+existing final restoration core used by `LocalVm`; it does not synthesize a
+return frame, replace the original meter or introduce another evaluator.
+The coordinator lends its original scope to both the pending parent and prepared
+Seq/All collectors. Success starts Awaiting and does not retain the borrowed
+scope. Zero-fuel admission remains valid; only explicit acceptance and polling
+can project the final result, subject to the original budget and live host policy.
+
+Twelve numeric/text host and source combinations cover final Seq, All and repeat
+groups, both directly and after a completed atomic helper. The shared pipeline
+moves the actual pending parent and collector states repeatedly at each transfer
+boundary. Every fuel cutoff matches uninterrupted execution, including final
+group assembly failure. Stale root receipts and reordered group rows retain
+retryable ownership without spending fuel. Parent and child restore refusal,
+revocation and unwind close the same owner; a retained parent is cancelled
+explicitly, and sibling scopes remain open. Pending, collected and accepted
+final results can be cancelled without projection or rollback claims.
+
+The [final shared-owner proof](fixtures/leselang_native_final_shared_owner_macos_arm64_20261020.json)
+also records structural-limit refusal before native admission, move-only
+identity/error cleanup, callback revocation winning over its result, and the
+unchanged tests in an isolated source consumer. Native embedding is `0.169.0`,
+still Developing/Draft at completion 10. The raw session does not own subsequent
+scope closure or external cancellation; callback-internal cleanup remains trusted.
+This is in-memory final-group composition, not a durable codec, process-crash
+settlement, complete independent VM or repository extraction.
+
+### Borrowed-Scope VM Lifecycle
+
+`native::Vm::try_accept_in_scope`, `poll_in_scope` and `cancel_in_scope`
+extend the shared-owner restoration path through the rest of the original
+session lifecycle. `LocalVm` delegates to these same implementations; there is
+no second state machine, evaluator, meter or receipt conversion.
+
+Keep the original coordinator scope around the raw VM and collectors, lend it
+to every scoped operation, and still check live authority and leases at dispatch:
+
+```rust,ignore
+let mut owner = scope.bind(vm);
+let (scope, vm) = owner.as_parts_mut();
+vm.try_accept_in_scope(&identity, reply, &authority, scope)?;
+let next = vm.poll_in_scope(&environment, scope)?;
+// Explicit cancellation uses vm.cancel_in_scope(scope).
+```
+
+A closed scope cancels before validation or evaluation callbacks. Ordinary
+reply rejection returns the original input, leaves Awaiting open and spends no
+fuel. Completion or terminal refusal closes the owner; escaping callback unwind
+preserves HostUncertain. Cancellation revokes before retained cleanup and does
+not overwrite Completed, Failed or HostUncertain, even if cleanup itself unwinds.
+Core-owned pending identities, frames and receipts use the existing inner fences.
+Values already consumed inside a native callback remain native-owned.
+
+These are explicit borrowed operations:
+the raw VM does not remember or authenticate its owner.
+Passing another scope is an adapter contract violation;
+ordinary `poll`, `try_accept` and `cancel` remain unscoped. Dropping a raw VM alone
+does not close a borrowed scope. Use `scope.bind(vm)` (or the coordinator's existing
+scope-bound state) for owner-first Drop ordering. `LocalVm` still has no ownership
+transfer escape. Arbitrary host work, dispatch, external cancellation and durable
+settlement remain host duties, not effects of these methods.
+
+Six move-only lifecycle tests cover binding and final restoration, retryable
+receipts, closed-scope admission, validation/re-entry unwind, terminal cleanup,
+sibling isolation and raw-versus-bound Drop. The existing two-host coupled
+Seq/All/repeat pipelines now use scoped operations throughout, without manual
+completion closure. Every fuel cutoff and parent/child restore fault remains
+covered. The [borrowed-lifecycle proof](fixtures/leselang_native_scoped_lifecycle_macos_arm64_20261020.json)
+records their isolated source-consumer verification. Native embedding `0.170.0`
+remains Developing/Draft at completion 10; complete VM, durable recovery and
+repository extraction are not promoted.
+
+### Borrowed-Scope Host Work And Metering
+
+Restored raw VMs can now fence host-owned work without transferring the
+coordinator's scope into `LocalVm`:
+
+- `with_host_work_in_scope(input, work, scope)` returns a normal output unchanged
+  and pending; a normal native Err is not an automatic terminal failure.
+- `with_host_outcome_in_scope(input, work, scope)` accepts explicit
+  Pending/Cancelled/Failed/Uncertain classification from the adapter.
+- `with_metered_host_outcome_in_scope(input, work, scope)` additionally lends the
+  original session-owned Fuel, shared with assembly and later re-entry.
+
+`LocalVm` delegates to these exact implementations. Both paths use the original
+session core's Awaiting transition and the same inner cleanup fence; there is no
+second interpreter, replacement meter, input/reply conversion or automatic charge.
+Non-awaiting and closed-scope calls return the original input without entering
+work. Debits survive Pending, terminal classification and unwind. Exhaustion
+policy remains explicit, and native callbacks must never refill or replace Fuel.
+A compile-fail check prevents returning the borrowed meter from a callback.
+
+Cancelled/Failed/Uncertain close the scope before core-retained pending cleanup.
+Escaping native unwind preserves HostUncertain; cleanup unwind does not overwrite
+an already selected terminal reason. A terminal outcome may return an original
+collector to the coordinator after revocation for explicit cancellation. Ok(output)
+only means work was entered, not that it succeeded or accepted a reply.
+If a callback closes the scope but returns Pending, its classification is not
+rewritten: the scope remains closed and the next scoped operation cancels before
+entering native work. Hosts must check the lease before dispatching returned work.
+Callback-local cleanup, live authority, output handling and external cancellation
+remain host duties. The methods neither authenticate an input nor prevent repeat
+calls, roll back effects or provide a native-code sandbox.
+
+The existing two-capture source checkpoint fixture now routes identical saved
+graphs and prepared collectors through both owning LocalVm and a scope-bound raw
+VM. Each ownership mode covers 440 numeric/text frontier/order combinations,
+every assembly/return fuel cutoff, 1,760 cancellation/Drop cases and 660 live
+collector/capture/cold-return refusals against the original manual re-entry.
+Four additional move-only tests cover binding/final host work, input identity,
+state refusal, exact meter continuity, outcome/cleanup unwind and callback
+revocation. The [scoped host-work proof](fixtures/leselang_native_scoped_host_work_macos_arm64_20261020.json)
+records independent source and external-consumer verification. Native embedding
+`0.171.0` remains Developing/Draft at completion 10. This strengthens local
+composition, not durable settlement, complete language parity or repository
+extraction.
+
+### Guarded Restored Source Pipelines
+
+The continuous native source fixture now composes the borrowed-scope APIs in one
+execution path rather than testing restoration and host work only in isolation.
+Two unrelated numeric/text hosts run 24 host/program combinations: mixed
+atomic/Seq/All/repeat helper captures with later effects, plus direct and
+atomic-prefix final groups.
+
+Each parent moves through the existing pending binding/final handoff while
+quiescent. The restored VM then lends its original meter and scope to native
+work; prepared Seq/All collectors move through their own restoration checkpoints
+inside that callback. The parent cannot be transferred while mutably borrowed
+by active host work. Replies still pass original identity/domain checks and
+explicit VM polling before capture return or final projection.
+
+Without extra native charging, every fuel cutoff matches the original source
+pipeline's values, invocations, request counts and remaining budget. With an
+explicit adapter-owned charge at every collection checkpoint, restored and
+untransferred parents match at every cutoff. Successful extra debits account
+exactly for the difference from the unmetered path; failed charges do not refill
+the budget or permit later dispatch.
+
+At every native collection checkpoint, refusal, scope revocation, explicit
+cancellation and escaping unwind are injected in both charged and uncharged
+modes. The retained parent seals Failed, Cancelled or HostUncertain through the
+existing host-work entry, without a coordinator close/cancel repair. Requests
+and invocations stop at the injected frontier; later host work and polling cannot
+replay it, while a sibling scope stays open. Stale receipt rejection preserves
+the original input and meter on successful paths.
+
+The [guarded pipeline proof](fixtures/leselang_native_guarded_pipeline_macos_arm64_20261020.json)
+records the same three integration tests in a product-free source export and its
+external consumer. No public API or native contract version changes are needed:
+native embedding stays `0.171.0`, Developing/Draft at completion 10. This extends
+continuous in-memory composition, not arbitrary complete-language parity,
+durable codecs, process-crash settlement, external cancellation delivery or
+physical extraction. Work already performed is not rolled back, and cleanup
+inside native callbacks remains a host responsibility.
+
+### Decoded Checkpoint Successor Effects
+
+The bounded source-checkpoint fixture now continues beyond pure return bodies.
+The ordinary source compiler produces a four-group program. Two completed groups
+are captured, the third Seq/All group is saved at a collection frontier, and its
+decoded return frames select a fourth group on a distinct host generation.
+Operands for that new group come from a restored atom, the second captured group,
+and the computed result of the third group.
+
+Only bounded host-owned bytes leave the initial execution; its tree, adapters,
+collectors and domains are dropped before decoding. Recovery rebuilds the two
+captured graphs and the pending collector, then uses the existing session,
+host-work, correlation, reply acceptance and final-projection paths. The adapter
+correlates the exact source-selected successor node and current result domain;
+decoding a handle does not itself grant dispatch authority.
+
+Numeric and text result models cover 880 source/frontier/order combinations per
+ownership mode. The owning session and scope-bound raw session produce identical
+values, remaining fuel, successor counts and terminal states. Settled captured
+groups are never prepared or dispatched again; the pending group dispatches only
+its saved unpublished operands. The new group is correlated once and dispatches
+three operations. Old replies are rejected both with their old identity and with
+the new identity but wrong result domain, retaining their original allocation
+and the VM's fuel.
+
+Eight representative host/group combinations exercise every fuel cutoff from
+restored collection through successor preparation, assembly and final projection.
+Both owners use one saved meter. Live denial before re-entry, revocation after
+correlation, and cancellation of the new request close the parent before any new
+dispatch; subsequent poll/work cannot reopen it.
+
+The [decoded successor proof](fixtures/leselang_native_checkpoint_successor_macos_arm64_20261020.json)
+records independent source and external-consumer verification. No public API or
+contract version changes: native embedding remains `0.171.0`, Developing/Draft at
+completion 10. This closes a composition gap in a bounded fixture, not arbitrary
+source checkpoint compatibility, a production codec/journal, process-crash
+settlement or complete native VM extraction. Committed-byte provenance is supplied
+by the test host; the fixture does not establish cross-process exactly-once effects.
 
 ### Metered Owned Checkpoint Recovery
 
@@ -6971,8 +7170,9 @@ unchecked-addition edge. Public callers still pass the original reference policy
 and error checks, so this is journal-boundary hardening, not a claim that ordinary
 public calls previously bypassed those checks.
 
-The reference VM delegates transient planning but retains its original error
-classification and fault codes. Permanent errors do not evaluate retry policy;
+The reference VM now routes product classification and transient planning through
+the command adapter while retaining the original fault codes and terminal replay.
+Permanent errors do not evaluate retry policy;
 transient errors validate policy even when already exhausted. Committed terminal
 results, including cancellation, replay before late malformed error/policy data
 is inspected. Lease redelivery and admission attempts remain distinct from
@@ -8378,10 +8578,225 @@ phases, original full-width maxima, move-only metadata/error ownership, every ho
 unwind, destructor failures and commit-then-unwind uncertainty.
 Product audit identities/origins, request authority, concrete graph/receipt proofs,
 SQL/schema policy and storage atomicity stay native rather than coupling the
-language core to Leserpent. Reference execution remains `1.105.0`; native
-embedding is now `0.168.0` after shared-owner graph restoration, still Developing at
+language core to Leserpent. That migration advanced reference execution to `1.105.0`; native
+embedding remains `0.171.0` after decoded-checkpoint successor convergence, still Developing at
 completion 10. This closes the ordered
 finalization boundary, not complete native durable execution or repository extraction.
+
+### Product Request Codec Ownership
+
+The command adapter now owns the closed current-operation and legacy-query
+request envelopes through `decode_effect_request` and `DecodedEffectRequest<C>`.
+The continuation representation belongs to the caller: the released VM supplies
+its original `ContinuationImage`, while the VM-free source/re-entry fixture uses
+its existing numeric-token frames. That fixture now decodes the same canonical
+product envelope before its unchanged frame/request admission.
+
+The VM retains its public `EffectRequest` fields, canonical serialization and
+complete post-decode validation. Only serde envelope parsing and legacy query
+normalization moved. Current-before-legacy matching, rejection of unknown,
+missing, duplicate or mixed fields, nested codecs, optional absolute deadlines,
+and the original untagged error name remain unchanged. No round-trip conversion,
+new meter, token format, capability grant or dispatch is introduced.
+
+Decoded data is deliberately untrusted. Successful decoding is not semantic
+budget validation, current authority, authentic continuation provenance or
+permission to replay. Callers still bound ingress and run full frame, request,
+budget and live-policy checks. Streaming callers also enforce end-of-input or
+their transport framing; the decoder reads one value, not an entire stream.
+Native continuation values need only Deserialize,
+not Clone, Debug or Serialize; borrowed JSON continuations can retain the
+original input lifetime.
+
+The [request codec proof](fixtures/leselang_reference_request_codec_macos_arm64_20261020.json)
+records frozen comparisons for 70 operation shapes plus four legacy queries:
+74 valid canonical outputs, 1,332 malformed inputs and 592 semantic-admission
+failures retain their exact bytes or errors. The existing VM-free captured
+source/successor pipeline and released journal suites use the migrated decoder.
+That migration advanced reference execution to `1.106.0`; native embedding remains `0.171.0`,
+Developing/Draft at completion 10. This removes a real product protocol boundary
+from the VM without claiming complete native durable recovery or repository
+extraction. Wire and journal schema versions do not change.
+
+### Product Debugger Audit Ownership
+
+The command adapter owns `DebuggerAuditContext`, `DebuggerAuditRecord`, bounded
+identity validation, attribution projection/matching and exact persisted origin
+labels. The released VM paths re-export those same types, with unchanged fields,
+serde behavior and byte order. The observer constructs audit metadata directly
+from the command adapter rather than importing product DTOs through the VM.
+Both journal backends use the same adapter projection and comparison functions;
+SQLite keeps its own row decoding and maps unknown origin labels to its original
+`InvalidQuery` error.
+
+Audit metadata is not authority or proof of a successful cancellation. Projection
+does not validate or commit. Attribution matching intentionally excludes the
+original timestamp and cannot compare the idempotency key or continuation,
+which are absent from a record. The journal still checks those persisted
+identities and the authoritative terminal state before accepting an exact replay.
+Cancellation admission order, current operation checks, conflict handling,
+retention, recovery validation and transactional publication are unchanged.
+The adapter returns an identity error; the reference VM retains the exact
+`LSV2015` mapping. No product policy moves into the host-neutral language core.
+
+The [debugger audit proof](fixtures/leselang_reference_debugger_audit_macos_arm64_20261020.json)
+records 270 valid wire comparisons, 5,670 malformed wire comparisons and 3,945
+native identity checks against frozen pre-migration logic. Direct VM-free
+adapter tests exercise all five origin labels and the non-authoritative metadata
+boundary; the existing memory, SQLite reopen/conflict and observer suites remain
+the end-to-end cancellation checks.
+That migration advanced reference execution to `1.107.0`; native embedding remains `0.171.0`,
+Developing/Draft at completion 10. This is a product adapter migration, not
+complete host-neutral durable recovery or permission to split the repository.
+Product version, wire schemas and journal schema remain unchanged.
+
+### Product Semantic Retry Ownership
+
+The command adapter now owns `RetryPolicy`, `EffectErrorClass`, `EffectError`,
+the released default/maximum policy constants, error metadata validation and
+`plan_effect_retry`. Public VM paths re-export the original shapes and values.
+The reference VM still owns `RetryDisposition`, terminal steps and journal
+publication. The adapter delegates numeric retry counts, capped exponential
+backoff and checked ready-times to the existing runtime-core planner; there is
+no second scheduler, timer, retry registry or fuel grant.
+
+Decision order remains part of compatibility. VM clock admission, deadline
+cleanup and authoritative terminal replay precede the adapter. Inside the
+adapter, invalid error metadata precedes classification; permanent errors do
+not inspect retry policy or clock. Transient errors validate product policy
+before the shared clock/budget planner, even when the retry budget is already
+exhausted. Generic planning callers must still validate ingress clocks and
+current authority themselves. A numeric proposal is never permission to
+dispatch, reuse an expired lease or reset an execution deadline.
+
+The original `LSV2201`/`LSV2202`/`LSV2203` mapping stays in the reference VM.
+Persisted error validation uses the same adapter metadata rules. Serde decoding
+remains separate from semantic admission, including the released acceptance of
+unknown metadata fields; this migration does not silently tighten the wire
+format. Retry payloads are borrowed during planning and retain their ownership.
+
+The [retry policy proof](fixtures/leselang_reference_retry_policy_macos_arm64_20261020.json)
+records 60,480 frozen planning comparisons, 3,156 native metadata checks and 164
+wire comparisons with unchanged serialized bytes or exact diagnostics. VM-free
+adapter tests cover policy/error precedence and clock overflow. The original
+memory/SQLite retry pipeline now accepts adapter-owned types directly and
+continues to verify saved fuel/deadlines, stale leases, restart, retry exhaustion
+and terminal replay before late invalid errors or policy.
+That migration advanced reference execution to `1.108.0`; native embedding remains `0.171.0`,
+Developing/Draft at completion 10. Product version and wire/journal schemas stay
+unchanged; complete host-neutral durable recovery and repository extraction
+remain separate gates.
+
+### Product Merge Completion Ownership
+
+The command adapter now owns the actual completion-set admission and ordered
+assembly used by the reference VM, through `merge_preflighted_completions`.
+It checks the explicit output ceiling and completion count, rejects unknown or
+duplicate branch names, validates every outcome and applicable member binding,
+then checks the saturated aggregate item count. Only after complete admission
+does it select the first terminal outcome or assemble fields in declaration
+order. Arrival order never chooses the winning terminal. Prefix mode preserves
+all fields, while completed chain/dataflow modes select their declared final
+value.
+
+The bridge retains the existing VM `BranchCompletion`, `BranchOutcome`, `Step`,
+continuation checks and fault mapping. The adapter consumes these through
+`MergeCompletionHost`; native terminals and errors need no Clone/serde/Send
+bounds. Callback hosts are trusted validators, not a sandbox or external-effect
+rollback mechanism. The function requires a fully admitted bounded plan and
+binding before entry; its output is uncommitted data, not an authenticated
+receipt or permission to execute/replay.
+
+VM order remains full plan admission, adapter assembly, final value validation,
+bounded wire encoding, then saved-binding completion where applicable. Journal
+ownership, publication, capture/successor handling and original fuel remain
+unchanged. No replacement evaluator, collector session or persistence format is
+introduced.
+
+The [merge completion proof](fixtures/leselang_reference_merge_completion_macos_arm64_20261020.json)
+records 9,720 frozen outcome comparisons across six admitted plan forms, both
+completion orders, five budgets and prefix/final modes, plus 432 malformed-plan
+and completion/refusal comparisons. Exact steps, fault precedence, serialized
+bytes and the input plan are preserved. Direct VM-free tests cover move-only
+terminal/error identity, late validation failure after an early stop, saturating
+counts, early refusal without native hooks and declared final-value selection.
+The existing memory/SQLite group, capture and successor suites exercise the
+migrated production path, including modes beyond the six frozen fixture forms.
+That migration advanced reference execution to `1.109.0`; native embedding remains `0.171.0`,
+Developing/Draft at completion 10. This is product algorithm migration, not
+complete native durable recovery or repository extraction; product, wire and
+journal versions stay unchanged.
+
+### Product Bounded JSON Ownership
+
+The product adapter's `leselang_command::bounded_json::{encode, measure}` now
+owns the shared compact-JSON output bound. Command-plan encoding and the released
+VM's continuation, request, journal and merge-output paths use the same writer.
+`measure` counts writes without an output buffer; `encode` returns an output
+buffer only on success. Both borrow the input, invoke its serializer once and accept
+non-Clone, non-Send and borrowed values. Their typed errors carry the first
+attempted byte count or the original serialization error, not VM fault codes.
+
+VM wrappers retain the exact `LSV3001`/`LSV3002` labels and messages. Plan wrappers
+retain `PlanCodecError`, including its attempted-size field and validation-first
+order. Recursive structure admission still precedes continuation serialization;
+semantic validation, authority, budget defaults, journal transactions and wire
+schemas remain with their existing owners. The native source export gains no
+JSON codec or product dependency from this migration.
+
+The [bounded JSON proof](fixtures/leselang_reference_bounded_json_macos_arm64_20261020.json)
+records 9,800 frozen boundary cases across all 70 released operation requests and
+their images, operations, budgets and effect steps, checking both encoding and
+size validation. Another 200 plan cases preserve bytes, attempted sizes and
+validation order across all five origins. Direct tests cover UTF-8/escaped-byte
+bounds, borrowed local serializers and native serialization errors.
+
+Overflow is now sticky even if a custom serializer catches a write error: it
+cannot turn truncated output into successful encoding or successful measurement.
+This is an intentional hardening of that malformed custom-serializer case, not
+a change to released derived DTO encoding. The helper is not a CPU, recursion
+or allocator-capacity sandbox; it neither validates arbitrary custom JSON output
+nor rolls back serializer side effects. A successful measurement is not a permit
+to skip bounds on a later encoding of a stateful serializer.
+
+That migration advanced reference execution to `1.110.0`; native embedding remains `0.171.0`,
+Developing/Draft at completion 10. `complete_vm` and `full_extraction_gate` remain
+false; product version stays `2.4.0`, with no new native API or durable-recovery claim.
+
+### Product Retention Policy Ownership
+
+`leselang_command::retention_policy` now owns the released `RetentionPolicy`,
+`CompactionReport`, default retention/batch sizes and batch ceiling. The old VM
+paths re-export the exact types and constants. Field names, default values,
+unknown-field decoding and `LSV2301` refusal remain unchanged. Both memory and
+SQLite journals use the same pure `removal_count` calculation after policy
+admission; the owning journal still supplies its total-record ceiling.
+
+A count is not eviction authority. Journals still identify eligible logical
+units, protect live group members, order candidates and own deletion/replay
+reconciliation. SQLite retains its immediate transaction, row checks and audit
+cascade; no schema or durable transaction boundary is changed.
+
+The memory implementation now measures all selected payloads with the shared
+bounded JSON writer before deleting any map entry. Byte accounting no longer
+materializes temporary JSON buffers. If a later payload fails its encoding
+bound, all selected dispatches, groups and audit rows remain unchanged instead
+of losing an earlier part of the batch. Commit then applies the preflighted
+token/group removals under the original exclusive journal borrow. This is
+in-process failure protection, not crash durability or allocation-failure recovery.
+
+The [retention proof](fixtures/leselang_reference_retention_macos_arm64_20261020.json)
+records 168 policy-admission and 1,008 batch-sizing boundary cases, including
+full-width counts; 20 frozen successful-compaction comparisons preserve exact
+reports, pruning order, live-group protection and audit state. Five isolated
+corrupt-state injection sites cover plan, merged result, local completion,
+request and retry-error encoding. A red/green test demonstrates the former
+partial mutation and the corrected whole-batch refusal; these private fixtures
+do not claim that invalid payloads can pass normal public admission.
+
+Reference execution advances to `1.111.0`; native embedding remains `0.171.0`,
+Developing/Draft at completion 10. Product version stays `2.4.0`; full extraction
+and complete native durable recovery remain separate, unsatisfied gates.
 
 **The current 2.3.0-and-later phase closes acceptance gates; physical extraction is deferred.**
 It is not an automatic version-triggered move. No replacement extraction version

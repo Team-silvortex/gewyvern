@@ -218,6 +218,31 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
         self.core.cancel()
     }
 
+    /// Revoke the coordinator's scope before releasing retained state.
+    /// Existing terminal reasons remain sticky, including cleanup unwind.
+    /// This borrows the scope; it does not cancel external host work.
+    pub fn cancel_in_scope(&mut self, scope: &LocalExecutionScope) -> bool {
+        scope.close();
+        self.cancel()
+    }
+
+    pub(crate) fn call_in_scope<Output>(
+        &mut self,
+        scope: &LocalExecutionScope,
+        step: impl FnOnce(&mut Self, &LocalExecutionScope) -> Output,
+    ) -> Output {
+        if !scope.is_open() {
+            self.cancel();
+        }
+        let fence = CallFence::new(Some(scope));
+        let output = step(self, scope);
+        if matches!(self.status(), EffectSessionStatus::Terminal(_)) {
+            scope.close();
+        }
+        fence.finish();
+        output
+    }
+
     /// Consume only a waiting binding session and move its original owners,
     /// remaining meter and immutable policy out without executing native code.
     /// Initial, final-request, accepted and terminal sessions return unchanged.
@@ -290,6 +315,33 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
         Self::restore_pending_final_with_scope(identity, declaration, fuel, limits, admit, None)
     }
 
+    /// Restore a final request under a coordinator's existing local fence.
+    ///
+    /// Like `restore_pending_in_scope`, this borrows but does not retain the
+    /// scope. Refusal, native revocation or escaping unwind closes it before
+    /// retained inputs are released. Success preserves the original final
+    /// request and meter, without redispatch or invented return frames. Native
+    /// admission and callback-internal cleanup remain trusted. Use the same scope
+    /// for scoped acceptance, polling and cancellation; this raw session does not
+    /// remember it or cancel external collectors.
+    pub fn restore_pending_final_in_scope<Error>(
+        identity: Identity,
+        declaration: &'schema Declaration,
+        fuel: Fuel,
+        limits: EffectStackLimits,
+        admit: impl FnOnce(&Identity, &'schema Declaration, &Fuel) -> Result<(), Error>,
+        scope: &LocalExecutionScope,
+    ) -> Result<Self, StackedSessionRestoreError<Error>> {
+        Self::restore_pending_final_with_scope(
+            identity,
+            declaration,
+            fuel,
+            limits,
+            admit,
+            Some(scope),
+        )
+    }
+
     pub(crate) fn restore_pending_final_with_scope<Error>(
         identity: Identity,
         declaration: &'schema Declaration,
@@ -333,20 +385,83 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
         output
     }
 
-    pub(crate) fn with_host_work<Input, Output>(
+    /// Fence unmetered host work under the coordinator's original scope.
+    /// Only Awaiting enters `work`; otherwise return the original input.
+    /// A normal output (including Err) stays pending and is not a receipt.
+    /// Escaping unwind seals HostUncertain and closes the scope before retained
+    /// pending-state cleanup. Callback-local destruction remains native-owned.
+    /// This does not bind input to a request, prevent repeated work, cancel
+    /// external effects or roll them back. Use the same scope for every call.
+    pub fn with_host_work_in_scope<Input, Output>(
+        &mut self,
+        input: Input,
+        work: impl FnOnce(Input) -> Output,
+        scope: &LocalExecutionScope,
+    ) -> Result<Output, Input> {
+        self.with_host_outcome_in_scope(input, |input| HostWorkOutcome::Pending(work(input)), scope)
+    }
+
+    /// Like `with_host_work_in_scope`, with explicit native outcome policy.
+    /// Pending retains the session. Cancelled/Failed/Uncertain revoke before
+    /// retained cleanup and preserve the corresponding terminal reason.
+    /// Ok(output) means work was entered, not that its outcome was successful.
+    /// Return collectors in a terminal outcome to receive them after revocation;
+    /// cancelling/disposal of external work remains the coordinator's duty.
+    pub fn with_host_outcome_in_scope<Input, Output>(
         &mut self,
         input: Input,
         work: impl FnOnce(Input) -> HostWorkOutcome<Output>,
+        scope: &LocalExecutionScope,
     ) -> Result<Output, Input> {
-        self.core.with_host_work(input, work)
+        self.call_in_scope(scope, |session, scope| {
+            session.core.with_host_work(input, |input| {
+                // Revoke before the core's locally owned pending frames unwind.
+                let fence = CallFence::new(Some(scope));
+                let output = work(input);
+                if !matches!(&output, HostWorkOutcome::Pending(_)) {
+                    scope.close();
+                }
+                fence.finish();
+                output
+            })
+        })
     }
 
-    pub(crate) fn with_metered_host_work<Input, Output>(
+    /// Classify host work using the original session-owned meter and scope.
+    /// Only Awaiting lends Fuel; refusal returns the input without charging.
+    /// Debits survive pending returns, terminal outcomes and unwind. No new
+    /// meter, automatic charge/refund, reply acceptance or re-entry is supplied.
+    /// Trusted native code must charge correctly and never replace/refill Fuel;
+    /// exhaustion is not inferred from output. Callback-local cleanup, live
+    /// dispatch authorization and external cancellation remain host duties.
+    ///
+    /// ```compile_fail
+    /// use leselang_hir::effect_stack_session::StackedControlSession;
+    /// use leselang_hir::effect_session::HostWorkOutcome;
+    /// use leselang_runtime_core::LocalExecutionScope;
+    /// fn leak(vm: &mut StackedControlSession<'_, '_, (), (), (), u8, (), ()>,
+    ///         scope: &LocalExecutionScope) {
+    ///     let _ = vm.with_metered_host_outcome_in_scope(
+    ///         (), |_, fuel| HostWorkOutcome::Pending(fuel), scope);
+    /// }
+    /// ```
+    pub fn with_metered_host_outcome_in_scope<Input, Output>(
         &mut self,
         input: Input,
         work: impl FnOnce(Input, &mut Fuel) -> HostWorkOutcome<Output>,
+        scope: &LocalExecutionScope,
     ) -> Result<Output, Input> {
-        self.core.with_metered_host_work(input, work)
+        self.call_in_scope(scope, |session, scope| {
+            session.core.with_metered_host_work(input, |input, fuel| {
+                let fence = CallFence::new(Some(scope));
+                let output = work(input, fuel);
+                if !matches!(&output, HostWorkOutcome::Pending(_)) {
+                    scope.close();
+                }
+                fence.finish();
+                output
+            })
+        })
     }
 
     /// Shared original acceptance; success retains every frame until explicit poll.
@@ -365,7 +480,12 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
         self.core.try_accept(identity, reply, authority)
     }
 
-    pub(crate) fn try_accept_in_scope<View: ?Sized, Authority>(
+    /// Accept under the coordinator's original local scope without retaining it.
+    /// Closed scopes cancel before validation; ordinary reply rejection remains
+    /// retryable. Validation unwind revokes before core-owned pending cleanup.
+    /// Callback-local cleanup is trusted, just as for the owning local wrapper.
+    /// Hosts must supply the same scope used for restoration and later polls.
+    pub fn try_accept_in_scope<View: ?Sized, Authority>(
         &mut self,
         identity: &Identity,
         reply: Reply,
@@ -378,8 +498,11 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
         Declaration: HostResultDomain<View>,
         Authority: ReplyAuthority<Identity>,
     {
-        self.core
-            .try_accept_with_scope(identity, reply, authority, Some(scope))
+        self.call_in_scope(scope, |session, scope| {
+            session
+                .core
+                .try_accept_with_scope(identity, reply, authority, Some(scope))
+        })
     }
 }
 impl<Node: ?Sized, Value, Capture, Identity, Declaration: ?Sized, Reply> fmt::Debug
@@ -463,8 +586,10 @@ impl<
     /// This borrows, but does not retain or replace, the unique scope. Structural
     /// refusal, native refusal, revocation or unwind closes it before retained
     /// inputs are released. Success preserves the original meter and frames.
-    /// Native admission and callback-internal cleanup remain trusted. The caller
-    /// still owns later lifecycle closure, dispatch checks and cancellation.
+    /// Native admission and callback-internal cleanup remain trusted. Use the
+    /// same scope with `try_accept_in_scope`, `poll_in_scope` and
+    /// `cancel_in_scope`; the caller still owns dispatch checks and external
+    /// cancellation. The raw session does not remember its scope.
     pub fn restore_pending_in_scope<Error>(
         identity: Identity,
         declaration: &'schema Declaration,
@@ -587,6 +712,36 @@ impl<
             >,
     {
         self.poll_with_scope(environment, None)
+    }
+
+    /// Execute one slice under the coordinator's original local scope.
+    /// A closed scope cancels before native callbacks. Completion, failure or
+    /// unwind revokes the shared owner, using the same lifecycle as `LocalVm`.
+    /// No scope is retained: callers must keep using this same owner for all
+    /// scoped operations and check its lease at external dispatch boundaries.
+    pub fn poll_in_scope<Environment>(
+        &mut self,
+        environment: &Environment,
+        scope: &LocalExecutionScope,
+    ) -> StackedEffectSessionPollResult<Value, Environment::Dispatch, Environment::Error>
+    where
+        Environment: EffectSessionEnvironment<
+                'expression,
+                'schema,
+                Field,
+                Operation,
+                HostEffect,
+                IrResult,
+                Result = Value,
+                Capture = Capture,
+                Identity = Identity,
+                Declaration = Declaration,
+                Reply = Reply,
+            >,
+    {
+        self.call_in_scope(scope, |session, scope| {
+            session.poll_with_scope(environment, Some(scope))
+        })
     }
 
     pub(crate) fn poll_with_scope<Environment>(

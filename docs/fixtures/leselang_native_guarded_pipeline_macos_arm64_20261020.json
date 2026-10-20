@@ -1,0 +1,104 @@
+{
+  "kind": "leselang-native-guarded-restored-pipeline",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "native_embedding_contract": "0.171.0",
+  "reference_execution_contract": "1.105.0",
+  "hosts": 2,
+  "host_program_combinations": 24,
+  "integration_tests_added": 3,
+  "native_charging_modes": 2,
+  "parent_transfer_modes": 2,
+  "injected_work_fault_modes": 4,
+  "source_restore_host_work_reply_reentry_composed": true,
+  "parent_transfer_only_while_quiescent": true,
+  "original_prepared_collectors": true,
+  "same_meter_for_native_work_and_reentry": true,
+  "every_fuel_cutoff": true,
+  "every_native_work_checkpoint_fault": true,
+  "terminal_parent_without_manual_repair": true,
+  "sibling_scope_isolation": true,
+  "isolated_consumer_passed": true,
+  "new_public_api": false,
+  "new_meter_or_evaluator": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "process_crash_recovery": false,
+  "production_durable_codec": false,
+  "automatic_external_cancellation": false,
+  "wire_or_journal_schema_changed": false,
+  "scope": "The existing two-host native source pipeline now combines quiescent binding/final parent transfer with scoped host work, original prepared Seq/All collector restoration, receipt validation and explicit capture/final re-entry. Twenty-four numeric/text host/program combinations cover mixed atomic/group captures with successors and direct/atomic-prefix final groups. Without native charges, all fuel cutoffs match original source values, invocation prefixes, request counts and remaining budgets. With an explicit debit at every collection checkpoint, restored and untransferred parents match every fuel cutoff and successful debits account exactly for the difference from unmetered execution. Refusal, scope revocation, explicit cancellation and escaping unwind at every work checkpoint seal the retained parent Failed/Cancelled/HostUncertain without a coordinator close/cancel repair. No later work or polling replays effects, no fuel is reset or refunded, and sibling scopes stay open. Parent ownership is transferred only before the active host-work borrow; child collectors checkpoint inside that callback. All code uses existing native APIs and the original evaluator/meter. This is bounded in-memory pipeline convergence, not arbitrary complete-language parity, a production durable codec, process-crash settlement, external cancellation delivery or physical extraction. Native callback-local cleanup and already-performed effects remain host responsibilities.",
+  "sources": [
+    {
+      "path": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "72c54279a85b5f9c935a539ac519c0d9a5252550198794112d0a776c546d0069"
+    },
+    {
+      "path": "crates/leselang-vm/src/native.rs",
+      "sha256": "d895cfcdff7fb4e23eafb1ea2a691138dfd9d489c39777384793cc21b83c8dfa"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_stack_session.rs",
+      "sha256": "f2237f795c64696b8fdbda5e21ae8035ba6ca8fda89520713c235330aca52ae7"
+    },
+    {
+      "path": "crates/leselang-hir/src/local_effect_session.rs",
+      "sha256": "0d33c0282caa5521ecec531184685952dd84d80cff6b9c38bfae347ae32e16dc"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_session.rs",
+      "sha256": "dc61d54cf4f0b3cf9314bb7f7236f37820569e690a972524dc417ecbb881b069"
+    },
+    {
+      "path": "crates/leselang-hir/src/prepared_sequence.rs",
+      "sha256": "cef0c19ef2b2530314a24b9c8100b3519853f011a0959f0c960b0a6874160a2d"
+    },
+    {
+      "path": "crates/leselang-hir/src/prepared_parallel.rs",
+      "sha256": "e03943042c23cdc2aabf66c6a8518827d70f6abb19e5c6715ba551714f346da0"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/local_execution.rs",
+      "sha256": "5b87372ca61605b4452c69c0541604fdfd4371a64ad4f24c8afc83b09b70508a"
+    }
+  ],
+  "verification": [
+    {
+      "name": "default-feature-runtime-hir-vm",
+      "path": "/private/tmp/leselang-guarded-pipeline-runtime.log",
+      "sha256": "0a1d771080817993ff2b3f23d70139a7e039be425119bf50485e5caeccde13ce",
+      "passed": 3119
+    },
+    {
+      "name": "isolated-source-tests-and-strict-clippy",
+      "path": "/private/tmp/leselang-guarded-pipeline-export.log",
+      "sha256": "51f42da4554418a345ee6623c75fcb6c5004862f33764f3dee2ebe6fb16a73b0",
+      "passed": 2558
+    },
+    {
+      "name": "default-feature-strict-clippy",
+      "path": "/private/tmp/leselang-guarded-pipeline-clippy.log",
+      "sha256": "88c8701caa964341bdfdafd52976144a0877c03cea9372dc90cbb75ee1aa0fa9",
+      "passed": true
+    },
+    {
+      "name": "native-dependency-tree",
+      "path": "/private/tmp/leselang-guarded-pipeline-tree.log",
+      "sha256": "4d46f81d96b4b52cb903c179e3af89a4fe5a25519cd9fbe82cc6603144537035",
+      "passed": true
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-guarded-pipeline-2.4.0",
+    "manifest_sha256": "372a6b88ff2855c7686fa87443778cb0594f25fe9e919842976b898019f60cb9",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2014,
+    "consumer_tests": 544,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}

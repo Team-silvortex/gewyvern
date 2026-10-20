@@ -1,0 +1,131 @@
+{
+  "kind": "leselang-reference-product-retention",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "reference_execution_contract": "1.111.0",
+  "native_embedding_contract": "0.171.0",
+  "batch_sizing_comparisons": 1008,
+  "policy_admission_comparisons": 168,
+  "successful_compaction_comparisons": 20,
+  "encoding_refusal_sites": 5,
+  "released_fault_comparisons": 42,
+  "direct_adapter_tests": 3,
+  "vm_retention_tests": 3,
+  "both_journals_share_policy": true,
+  "released_vm_types_are_exact_reexports": true,
+  "memory_batch_preflight_before_mutation": true,
+  "no_disposable_json_output_buffers": true,
+  "successful_report_and_state_parity": true,
+  "red_green_failure_atomicity_regression": true,
+  "adapter_has_no_vm_or_sqlite_dependency": true,
+  "isolated_consumer_passed": true,
+  "policy_grants_deletion_authority": false,
+  "wire_or_journal_schema_changed": false,
+  "new_native_api": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "The product adapter now owns RetentionPolicy, CompactionReport, defaults, batch ceiling, semantic policy admission and pure removal-count arithmetic. Released VM paths are exact reexports; LSV2301 and serde field/unknown-field behavior remain unchanged. Memory and SQLite journals share numeric batch sizing but retain eligible logical-unit selection, live-group protection, ordering, audit cascade and storage ownership. Memory compaction first measures every selected payload using the existing bounded JSON codec; it commits map removals only after all checks pass, avoiding temporary JSON output buffers. Five private corrupt-state fixtures exercise oversized merge plans/results, local completions, dispatch requests and retry metadata, preserving exact LSV3002 labels, all maps, audits and local inputs on refusal. The pre-fix test demonstrates partial deletion; successful behavior matches the frozen previous implementation across 20 retention/batch combinations. SQLite keeps its immediate transaction and unchanged deletion/replay reconciliation. This is in-process failure protection, not proof that malformed values can enter through public admission, allocation-failure recovery, crash durability or full native repository extraction.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/retention_policy.rs",
+      "sha256": "7e5d6816b8d6a310bfdf1f1dbd8e075e8306b028333aa0d76f2da4a04e59cfe5"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "e874f8610cb50fefe621917951ddd1bdff5893b4849a2aea4a8531360f0c3d1e"
+    },
+    {
+      "path": "crates/leselang-command/tests/retention_policy.rs",
+      "sha256": "bd364887877cafb084baa624683fc87d8df014fd1398f7c68f9614c0401664ff"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "d9fee5456d7cd84be764466d1a35e8af7319ac8377da6bdf059a2a38fdf7a0a4"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "f25d184dc2a3b823e3ddf600c39cd4c67381a4ccd0dc9d9f4c9b5ee1c4e7d75e"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/retention_tests.rs",
+      "sha256": "4b99fb5ecf23b60d574ad2370ee1f79a373014bbd66d63ae449e34a7a05aceca"
+    }
+  ],
+  "regression": {
+    "before": {
+      "path": "/private/tmp/leselang-retention-red.log",
+      "sha256": "05c80a4ea006624fa2fc17cf0d670c87dd9b46ec93d8deb22d5a0747c1f51ac8",
+      "expected_failure": true,
+      "message": "defect 0 partially mutated the batch"
+    },
+    "after": {
+      "path": "/private/tmp/leselang-retention-verified-regression.log",
+      "sha256": "740a772c4ae4e4a40325c4e9b2250057d227d6a1a34a4c84341ef493a4a22f73",
+      "passed": 3
+    }
+  },
+  "verification": [
+    {
+      "name": "default-command-vm-and-observe",
+      "path": "/private/tmp/leselang-retention-runtime.log",
+      "passed": 1067,
+      "sha256": "c7eeae80c292a9c858c3964ce893604033f471a30a26d11f6682e6ca8001a6ee"
+    },
+    {
+      "name": "final-retention-regression",
+      "path": "/private/tmp/leselang-retention-verified-regression.log",
+      "passed": 3,
+      "sha256": "740a772c4ae4e4a40325c4e9b2250057d227d6a1a34a4c84341ef493a4a22f73"
+    },
+    {
+      "name": "no-sqlite-reference-ephemeral-and-audit",
+      "path": "/private/tmp/leselang-retention-memory.log",
+      "passed": 110,
+      "sha256": "2624700c21875527af3c0e48853ca89a71c0a9ea7e668b0ae4ec73184474d260"
+    },
+    {
+      "name": "command-vm-observe-strict-clippy",
+      "path": "/private/tmp/leselang-retention-clippy.log",
+      "passed": true,
+      "sha256": "da4042cf17406978990920a74d870b59c466c6ca8f4871b3b8ab533b3a3a1e9e"
+    },
+    {
+      "name": "isolated-source-tests-and-strict-clippy",
+      "path": "/private/tmp/leselang-retention-export.log",
+      "passed": 2564,
+      "sha256": "6fbe5bee7f5376a610835f96b37c748f30875cc76e80f4bd79713b3c55ae4e12"
+    },
+    {
+      "name": "native-dependency-tree",
+      "path": "/private/tmp/leselang-retention-tree.log",
+      "passed": true,
+      "sha256": "e03ee4f4ba3f6f63bb9d4f4daaa06b992ea6e1048adfd73da8df9aae216928c6"
+    },
+    {
+      "name": "adapter-dependency-tree",
+      "path": "/private/tmp/leselang-retention-adapter-tree.log",
+      "passed": true,
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "name": "root-guard-strict-clippy",
+      "path": "/private/tmp/leselang-retention-guard-clippy.log",
+      "passed": true,
+      "sha256": "ae7302eaa85f5bf54ff177555b4a1a0250ced48573296061a279fd6053bf1659"
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-retention-2.4.0",
+    "manifest_sha256": "38667700c703537892dc55f29894ca6512e8268c7a1f7c47f3b39a8e30f82617",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2017,
+    "consumer_tests": 547,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}

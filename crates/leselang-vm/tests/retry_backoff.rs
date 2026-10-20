@@ -2,9 +2,8 @@ use leselang_hir::lower;
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_syntax::parse;
 use leselang_vm::{
-    EffectError, EffectErrorClass, EffectRequest, EffectResult, MAX_EFFECT_DEADLINE_MS,
-    MAX_RETRY_DELAY_MS, MAX_SEMANTIC_RETRIES, PresentationResult, RetryDisposition, RetryPolicy,
-    ScalarValue, Step, Value, Vm,
+    EffectRequest, EffectResult, MAX_EFFECT_DEADLINE_MS, MAX_RETRY_DELAY_MS, MAX_SEMANTIC_RETRIES,
+    PresentationResult, RetryDisposition, ScalarValue, Step, Value, Vm,
 };
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -309,3 +308,4 @@ fn terminal_replay_precedes_late_invalid_error_and_policy_without_rearming() {
         }
     }
 }
+use leselang_command::{EffectError, EffectErrorClass, RetryPolicy};

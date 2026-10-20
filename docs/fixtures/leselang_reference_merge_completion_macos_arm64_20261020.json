@@ -1,0 +1,107 @@
+{
+  "kind": "leselang-reference-product-merge-completion",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "reference_execution_contract": "1.109.0",
+  "native_embedding_contract": "0.171.0",
+  "outcome_comparisons": 9720,
+  "refusal_comparisons": 432,
+  "admitted_plan_forms": 6,
+  "direct_adapter_tests": 5,
+  "frozen_vm_tests": 2,
+  "production_vm_uses_adapter_assembly": true,
+  "all_outcomes_checked_before_terminal_selection": true,
+  "declaration_order_not_arrival_order": true,
+  "exact_fault_and_byte_parity": true,
+  "vm_finalization_and_journal_retained": true,
+  "move_only_native_terminals_and_errors": true,
+  "adapter_has_no_vm_or_sqlite_dependency": true,
+  "isolated_consumer_passed": true,
+  "assembly_grants_authority": false,
+  "wire_or_journal_schema_changed": false,
+  "new_meter_or_evaluator": false,
+  "new_native_api": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "The command adapter now owns the production completion-count/name validation, native outcome/member checks, saturated item accounting and declaration-ordered value/terminal assembly. The VM retains full plan/binding admission, released BranchCompletion/BranchOutcome/Step types, continuation and failure validation, exact fault mapping, final value/encoding bounds and saved-binding completion. All outcomes are admitted before aggregate bounds and terminal selection; a stop cannot hide later invalid data and arrival order cannot select a different terminal. Frozen parity covers six admitted plan forms, nine outcome kinds per member, both arrival orders, five budgets and prefix/final modes, plus malformed plan/completion combinations. Exact results, faults, serialized bytes and input-plan bytes match. Direct VM-free consumers keep move-only local terminal/error pointer identity, release discarded ownership, preserve validation refusal order and use saturating counts. Existing default memory/SQLite group/capture/successor suites exercise the same migrated path including additional plan forms. The adapter requires a pre-admitted bounded plan and trusted validators; assembly is uncommitted data, not execution, authentic recovery or replay authority. No fuel construction, replacement evaluator, journal schema change or complete native durable recovery is claimed.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/merge_completion.rs",
+      "sha256": "d6511cc1b90f249a40c4861e5e16c32e32d71758a9c17c139848ddf4d8817b2a"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "94b82b6a9fceef0806d4f8255faab04ea56998a6906040238e3300e84488a929"
+    },
+    {
+      "path": "crates/leselang-command/tests/merge_completion.rs",
+      "sha256": "4efee283e72a5b9e82effd4f4460b9887b7fc864ff472f4a55d7b8ab799952a0"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "03f560232da6a2fcd368b1abf57be7213d0f7ba84df72a5f2780fa265f5a256f"
+    },
+    {
+      "path": "crates/leselang-vm/src/merge_completion_tests.rs",
+      "sha256": "e7f6c655a47e5a2b0683bb2c96ac16ab82e4233078cf5082e887c9c1037afc3e"
+    }
+  ],
+  "verification": [
+    {
+      "name": "default-command-vm-and-observe",
+      "path": "/private/tmp/leselang-merge-completion-runtime.log",
+      "passed": 1053,
+      "sha256": "0c24015ea3ece185702d9436f76350108bdf79c03c90cc1152f40bc22d9def3d"
+    },
+    {
+      "name": "no-sqlite-reference-ephemeral-and-audit",
+      "path": "/private/tmp/leselang-merge-completion-memory.log",
+      "passed": 104,
+      "sha256": "6910fc1ca2a370cf0d4def620146565ebb59da8750dadfd4d3ad103f3d0fe5ab"
+    },
+    {
+      "name": "command-vm-observe-strict-clippy",
+      "path": "/private/tmp/leselang-merge-completion-clippy.log",
+      "passed": true,
+      "sha256": "b8176b2f105380b2d4e1ae87d75b8c237287c800f551bb6711e6d2f584324a2c"
+    },
+    {
+      "name": "isolated-source-tests-and-strict-clippy",
+      "path": "/private/tmp/leselang-merge-completion-export.log",
+      "passed": 2564,
+      "sha256": "ef223d4772f0de5b7ae3abb08c9c9220a9c479a0fca5e01ab1409a3c7b38dad9"
+    },
+    {
+      "name": "native-dependency-tree",
+      "path": "/private/tmp/leselang-merge-completion-tree.log",
+      "passed": true,
+      "sha256": "a6a9848bb972b7b9c70e2c91868d8091815bcfad7bedf759ec158f00496aec6a"
+    },
+    {
+      "name": "adapter-dependency-tree",
+      "path": "/private/tmp/leselang-merge-completion-adapter-tree.log",
+      "passed": true,
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "name": "root-guard-strict-clippy",
+      "path": "/private/tmp/leselang-merge-completion-guard-clippy.log",
+      "passed": true,
+      "sha256": "d8f9f8a4781814c9cfc206344689044b62b55eabc7852963f289842ef08fb095"
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-merge-completion-2.4.0",
+    "manifest_sha256": "38667700c703537892dc55f29894ca6512e8268c7a1f7c47f3b39a8e30f82617",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2017,
+    "consumer_tests": 547,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}

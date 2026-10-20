@@ -1,0 +1,106 @@
+{
+  "kind": "leselang-native-decoded-checkpoint-successors",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "native_embedding_contract": "0.171.0",
+  "reference_execution_contract": "1.105.0",
+  "host_models": 2,
+  "host_generations_per_program": 4,
+  "ownership_modes": 2,
+  "integration_tests_added": 3,
+  "frontier_combinations_per_owner": 880,
+  "fuel_cutoff_program_combinations": 8,
+  "policy_cases_per_owner": 24,
+  "source_compiled_before_checkpoint": true,
+  "old_execution_dropped_before_decode": true,
+  "decoded_frames_select_successor": true,
+  "distinct_successor_host_generation": true,
+  "no_settled_group_redispatch": true,
+  "stale_identity_and_domain_refused": true,
+  "same_meter_through_successor": true,
+  "dual_owner_parity": true,
+  "revocation_and_cancellation_before_new_dispatch": true,
+  "isolated_consumer_passed": true,
+  "new_public_api": false,
+  "new_meter_or_evaluator": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "process_crash_recovery": false,
+  "production_durable_codec": false,
+  "cross_process_exactly_once": false,
+  "wire_or_journal_schema_changed": false,
+  "scope": "A bounded four-group source family is compiled by the existing compiler, runs two groups into distinct captured graphs, then saves the third Seq/All group at every collection frontier. Only host-owned bytes escape the initial execution. Decoded saved frames rebuild original captures and collectors and select a fourth group on a new host generation through existing native session APIs. Its operands depend on a restored atom, the second captured graph and the third group result. Numeric/text hosts cover 880 source/frontier/order combinations per owning or scope-bound raw session. Captured settled groups are not prepared or dispatched again; only unpublished third-group operands resume. Old replies fail both stale identity and current-identity/wrong-domain checks without consuming their allocation or fuel. Eight representative host/group combinations cover every remaining-fuel cutoff with owning/raw parity through final successor projection. Before-reentry denial, after-correlation revocation and explicit request cancellation stop before successor dispatch, seal the parent and reject later work. This is bounded host-owned byte recovery composition, not a production codec or journal, arbitrary source compatibility, crash settlement, cross-process exactly-once effects, complete language coverage or full extraction. Committed-byte provenance and already-performed side effects remain host responsibilities. No public API or contract version is added.",
+  "sources": [
+    {
+      "path": "crates/leselang-hir/tests/saved_group.rs",
+      "sha256": "e8e6430ac1535e815ab370e2e7db2ee5507c5d156e0f16106fc451cce283eba3"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_stack_session.rs",
+      "sha256": "f2237f795c64696b8fdbda5e21ae8035ba6ca8fda89520713c235330aca52ae7"
+    },
+    {
+      "path": "crates/leselang-hir/src/local_effect_session.rs",
+      "sha256": "0d33c0282caa5521ecec531184685952dd84d80cff6b9c38bfae347ae32e16dc"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_session.rs",
+      "sha256": "dc61d54cf4f0b3cf9314bb7f7236f37820569e690a972524dc417ecbb881b069"
+    },
+    {
+      "path": "crates/leselang-hir/src/prepared_sequence.rs",
+      "sha256": "cef0c19ef2b2530314a24b9c8100b3519853f011a0959f0c960b0a6874160a2d"
+    },
+    {
+      "path": "crates/leselang-hir/src/prepared_parallel.rs",
+      "sha256": "e03943042c23cdc2aabf66c6a8518827d70f6abb19e5c6715ba551714f346da0"
+    },
+    {
+      "path": "crates/leselang-vm/src/native.rs",
+      "sha256": "d895cfcdff7fb4e23eafb1ea2a691138dfd9d489c39777384793cc21b83c8dfa"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/local_execution.rs",
+      "sha256": "5b87372ca61605b4452c69c0541604fdfd4371a64ad4f24c8afc83b09b70508a"
+    }
+  ],
+  "verification": [
+    {
+      "name": "default-feature-runtime-hir-vm",
+      "path": "/private/tmp/leselang-checkpoint-successor-runtime.log",
+      "passed": 3122,
+      "sha256": "f324b896af04b09a1b81f976fa6d88725e93e05386167b67d4739b71e8c41652"
+    },
+    {
+      "name": "isolated-source-tests-and-strict-clippy",
+      "path": "/private/tmp/leselang-checkpoint-successor-export.log",
+      "passed": 2564,
+      "sha256": "1af3f8220006034ea4e8adb65d648452639d5b1834f399886dfe4054a5988fd2"
+    },
+    {
+      "name": "default-feature-strict-clippy",
+      "path": "/private/tmp/leselang-checkpoint-successor-clippy.log",
+      "passed": true,
+      "sha256": "954c743ba224f5ff161920dfb9cfe71cde971c269f8fa7828140c410e1ee3f70"
+    },
+    {
+      "name": "native-dependency-tree",
+      "path": "/private/tmp/leselang-checkpoint-successor-tree.log",
+      "passed": true,
+      "sha256": "403164ded5c4a66248d1eaba6cf00fecacdbbb5443dfeea1020eecb3e0026224"
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-checkpoint-successor-2.4.0",
+    "manifest_sha256": "38667700c703537892dc55f29894ca6512e8268c7a1f7c47f3b39a8e30f82617",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2017,
+    "consumer_tests": 547,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}

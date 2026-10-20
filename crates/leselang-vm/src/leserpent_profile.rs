@@ -1,7 +1,8 @@
 // Released Leserpent specialization; included at the crate root for API compatibility.
 
-use std::collections::{BTreeMap, BTreeSet};
-use std::io::{self, Write};
+use std::collections::BTreeMap;
+#[cfg(test)]
+use std::collections::BTreeSet;
 #[cfg(feature = "sqlite-journal")]
 use std::path::Path;
 
@@ -9,22 +10,25 @@ use std::path::Path;
 use leselang_hir::CAPABILITY_UI_PRESENTATION;
 use leselang_hir::{Effect, HirProgram, Type, authorize, canonical_source};
 #[cfg(test)]
+use leselang_host_contract::CommandOrigin;
+#[cfg(test)]
 use leselang_host_contract::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
     CAPABILITY_RUNTIME_REFRESH, Confirmation,
 };
-use leselang_host_contract::{CapabilitySet, CommandOrigin, Principal, Revision};
+use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_runtime_core::{
-    Fuel, ResourceBudgetError, ResourceBudgetLimits, RetryPlanError, RetryTiming,
-    SequenceWatermarkRequirement, plan_retry_schedule,
+    Fuel, ResourceBudgetError, ResourceBudgetLimits, SequenceWatermarkRequirement,
 };
+use leserpent_domain::{CommandId, IdempotencyKey};
 #[cfg(test)]
-use leserpent_domain::DOMAIN_SCHEMA_VERSION;
-use leserpent_domain::{CommandId, IdempotencyKey, QueryEnvelope};
+use leserpent_domain::{DOMAIN_SCHEMA_VERSION, QueryEnvelope};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
 mod admission;
+#[cfg(test)]
+mod bounded_json_tests;
 mod computation;
 #[cfg(test)]
 mod continuation_contract_tests;
@@ -34,16 +38,24 @@ mod continuation_schema_tests;
 mod control_plane_reply_tests;
 #[cfg(test)]
 mod control_plane_request_tests;
+#[cfg(test)]
+mod debugger_audit_adapter_tests;
 mod group_binding;
 mod host_result;
 mod journal;
+#[cfg(test)]
+mod merge_completion_tests;
 #[cfg(test)]
 mod merge_plan_contract_tests;
 #[cfg(test)]
 mod operation_request_tests;
 #[cfg(test)]
 mod presentation_request_tests;
+#[cfg(test)]
+mod request_codec_tests;
 mod result_binding;
+#[cfg(test)]
+mod retry_policy_adapter_tests;
 mod scheduling;
 mod successor;
 #[cfg(test)]
@@ -88,14 +100,13 @@ pub const DEFAULT_MAX_OUTPUT_ITEMS: usize = 10_000;
 pub const DEFAULT_DISPATCH_LEASE_MS: u64 = 30_000;
 pub const MAX_DISPATCH_LEASE_MS: u64 = 5 * 60 * 1_000;
 pub const MAX_DISPATCH_ATTEMPTS: u32 = 100;
-pub const DEFAULT_MAX_SEMANTIC_RETRIES: u32 = 3;
-pub const MAX_SEMANTIC_RETRIES: u32 = 16;
-pub const DEFAULT_RETRY_BASE_DELAY_MS: u64 = 250;
-pub const DEFAULT_RETRY_MAX_DELAY_MS: u64 = 30_000;
-pub const MAX_RETRY_DELAY_MS: u64 = 60 * 60 * 1_000;
-pub const DEFAULT_COMPLETED_RETENTION: usize = 5_000;
-pub const DEFAULT_COMPACTION_BATCH: usize = 500;
-pub const MAX_COMPACTION_BATCH: usize = 1_000;
+pub use leselang_command::retention_policy::{
+    DEFAULT_COMPACTION_BATCH, DEFAULT_COMPLETED_RETENTION, MAX_COMPACTION_BATCH,
+};
+pub use leselang_command::retry_policy::{
+    DEFAULT_MAX_SEMANTIC_RETRIES, DEFAULT_RETRY_BASE_DELAY_MS, DEFAULT_RETRY_MAX_DELAY_MS,
+    MAX_RETRY_DELAY_MS, MAX_SEMANTIC_RETRIES,
+};
 pub const MAX_STRUCTURED_VALUE_DEPTH: usize = 16;
 const MAX_EFFECT_SEQUENCE: u64 = i64::MAX as u64 - 1;
 
@@ -135,70 +146,22 @@ impl EffectRequest {
 
 // Keep released Rust paths as exact aliases, with no wire conversion or duplicate DTOs.
 pub use leselang_command::{
-    DebuggerCancelResult, EffectOperation, EffectResult, PresentationEnvelope,
-    PresentationOperation, PresentationResult, StructuredField, Value,
+    DebuggerAuditContext, DebuggerAuditRecord, DebuggerCancelResult, EffectOperation, EffectResult,
+    PresentationEnvelope, PresentationOperation, PresentationResult, StructuredField, Value,
 };
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CurrentEffectRequestWire {
-    effect_id: String,
-    required_capability: String,
-    operation: EffectOperation,
-    continuation: ContinuationImage,
-    budget: ResourceBudget,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct LegacyQueryEffectRequestWire {
-    effect_id: String,
-    required_capability: String,
-    query: QueryEnvelope,
-    continuation: ContinuationImage,
-    budget: ResourceBudget,
-}
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum EffectRequestWire {
-    Current(CurrentEffectRequestWire),
-    LegacyQuery(LegacyQueryEffectRequestWire),
-}
 
 impl<'de> Deserialize<'de> for EffectRequest {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let wire = EffectRequestWire::deserialize(deserializer)?;
-        let request = match wire {
-            EffectRequestWire::Current(CurrentEffectRequestWire {
-                effect_id,
-                required_capability,
-                operation,
-                continuation,
-                budget,
-            }) => Self {
-                effect_id,
-                required_capability,
-                operation,
-                continuation,
-                budget,
-            },
-            EffectRequestWire::LegacyQuery(LegacyQueryEffectRequestWire {
-                effect_id,
-                required_capability,
-                query,
-                continuation,
-                budget,
-            }) => Self {
-                effect_id,
-                required_capability,
-                operation: EffectOperation::Query(query),
-                continuation,
-                budget,
-            },
+        let decoded = leselang_command::decode_effect_request(deserializer)?;
+        let request = Self {
+            effect_id: decoded.effect_id,
+            required_capability: decoded.required_capability,
+            operation: decoded.operation,
+            continuation: decoded.continuation,
+            budget: decoded.budget,
         };
         validate_effect_request(&request)
             .map_err(|fault| D::Error::custom(format!("{}: {}", fault.code, fault.message)))?;
@@ -209,36 +172,7 @@ impl<'de> Deserialize<'de> for EffectRequest {
 /// Released specialization of host-neutral owned dispatch data; no wire conversion.
 pub type DispatchLease = leselang_runtime_core::DispatchLease<EffectRequest>;
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct RetryPolicy {
-    pub max_retries: u32,
-    pub base_delay_ms: u64,
-    pub max_delay_ms: u64,
-}
-
-impl Default for RetryPolicy {
-    fn default() -> Self {
-        Self {
-            max_retries: DEFAULT_MAX_SEMANTIC_RETRIES,
-            base_delay_ms: DEFAULT_RETRY_BASE_DELAY_MS,
-            max_delay_ms: DEFAULT_RETRY_MAX_DELAY_MS,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum EffectErrorClass {
-    Transient,
-    Permanent,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct EffectError {
-    pub class: EffectErrorClass,
-    pub code: String,
-    pub message: String,
-}
+pub use leselang_command::{EffectError, EffectErrorClass, RetryPolicy};
 
 pub type FailedEffect = leselang_runtime_core::FailedEffect<EffectError>;
 pub type RetrySchedule = leselang_runtime_core::RetrySchedule<EffectError>;
@@ -251,27 +185,7 @@ pub enum RetryDisposition {
     Terminal(Step),
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct RetentionPolicy {
-    pub max_completed_records: usize,
-    pub max_delete_per_run: usize,
-}
-
-impl Default for RetentionPolicy {
-    fn default() -> Self {
-        Self {
-            max_completed_records: DEFAULT_COMPLETED_RETENTION,
-            max_delete_per_run: DEFAULT_COMPACTION_BATCH,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct CompactionReport {
-    pub removed_records: usize,
-    pub remaining_completed: usize,
-    pub reclaimed_logical_bytes: usize,
-}
+pub use leselang_command::{CompactionReport, RetentionPolicy};
 
 pub use leselang_command::{
     ExecutionOrder, MAX_MERGE_BRANCH_NAME_BYTES, MAX_MERGE_BRANCHES, MergePlan,
@@ -322,28 +236,6 @@ pub enum CancellationReason {
 pub struct Cancellation {
     pub continuation: ContinuationToken,
     pub reason: CancellationReason,
-    pub observed_at_ms: u64,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct DebuggerAuditContext {
-    pub command_id: CommandId,
-    pub idempotency_key: IdempotencyKey,
-    pub principal: Principal,
-    pub origin: CommandOrigin,
-    pub session_id: String,
-    pub expected_revision: Revision,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct DebuggerAuditRecord {
-    pub command_id: CommandId,
-    pub principal_id: String,
-    pub origin: CommandOrigin,
-    pub session_id: String,
-    pub expected_revision: Revision,
     pub observed_at_ms: u64,
 }
 
@@ -1088,31 +980,13 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
                 self.visible_step(&lease.request.continuation.token, completed),
             ));
         }
-        validate_effect_error(&error)?;
-        let schedule = if error.class == EffectErrorClass::Transient {
-            validate_retry_policy(policy)?;
-            plan_retry_schedule(
-                lease.retry_count,
-                now_ms,
-                RetryTiming {
-                    max_retries: policy.max_retries,
-                    base_delay_ms: policy.base_delay_ms,
-                    max_delay_ms: policy.max_delay_ms,
-                },
-            )
-            .map_err(|error| match error {
-                RetryPlanError::Timing => Fault {
-                    code: "LSV2201".into(),
-                    message: "semantic retry policy exceeds runtime bounds".into(),
-                },
-                RetryPlanError::Clock(_) => Fault {
-                    code: "LSV2203".into(),
-                    message: "semantic retry clock overflow".into(),
-                },
-            })?
-        } else {
-            None
-        };
+        let schedule = leselang_command::retry_policy::plan_effect_retry(
+            lease.retry_count,
+            now_ms,
+            &error,
+            policy,
+        )
+        .map_err(effect_retry_fault)?;
         let disposition = match schedule {
             None => RetryDisposition::Terminal(Step::Failed(FailedEffect {
                 error,
@@ -1415,20 +1289,8 @@ fn encode_json_capped<T: Serialize>(
     limit: usize,
     label: &str,
 ) -> Result<Vec<u8>, Fault> {
-    let mut writer = CappedWriter::new(limit);
-    if let Err(error) = serde_json::to_writer(&mut writer, value) {
-        if writer.overflowed {
-            return Err(Fault {
-                code: "LSV3002".to_string(),
-                message: format!("{label} exceeds {limit} bytes"),
-            });
-        }
-        return Err(Fault {
-            code: "LSV3001".to_string(),
-            message: format!("failed to encode {label}: {error}"),
-        });
-    }
-    Ok(writer.output)
+    leselang_command::bounded_json::encode(value, limit)
+        .map_err(|error| bounded_json_fault(error, label))
 }
 
 fn validate_json_size_capped<T: Serialize>(
@@ -1436,20 +1298,28 @@ fn validate_json_size_capped<T: Serialize>(
     limit: usize,
     label: &str,
 ) -> Result<(), Fault> {
-    let mut writer = CappedCounter::new(limit);
-    if let Err(error) = serde_json::to_writer(&mut writer, value) {
-        if writer.overflowed {
-            return Err(Fault {
-                code: "LSV3002".to_string(),
-                message: format!("{label} exceeds {limit} bytes"),
-            });
-        }
-        return Err(Fault {
+    measure_json_capped(value, limit, label).map(|_| ())
+}
+
+fn measure_json_capped<T: Serialize>(value: &T, limit: usize, label: &str) -> Result<usize, Fault> {
+    leselang_command::bounded_json::measure(value, limit)
+        .map_err(|error| bounded_json_fault(error, label))
+}
+
+fn bounded_json_fault(
+    error: leselang_command::bounded_json::BoundedJsonError,
+    label: &str,
+) -> Fault {
+    match error {
+        leselang_command::bounded_json::BoundedJsonError::Limit { limit, .. } => Fault {
+            code: "LSV3002".to_string(),
+            message: format!("{label} exceeds {limit} bytes"),
+        },
+        leselang_command::bounded_json::BoundedJsonError::Serialize(error) => Fault {
             code: "LSV3001".to_string(),
             message: format!("failed to encode {label}: {error}"),
-        });
+        },
     }
-    Ok(())
 }
 
 pub fn decode_continuation(bytes: &[u8]) -> Result<ContinuationImage, Fault> {
@@ -1575,62 +1445,31 @@ fn validate_scheduler_time(now_ms: u64) -> Result<(), Fault> {
 }
 
 fn validate_debugger_audit(audit: &DebuggerAuditContext) -> Result<(), Fault> {
-    let valid_session = !audit.session_id.is_empty()
-        && audit.session_id.len() <= 128
-        && audit
-            .session_id
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b':' | b'.'));
-    let valid_principal =
-        !audit.principal.id.is_empty()
-            && audit.principal.id.len() <= 128
-            && audit.principal.id.bytes().all(|byte| {
-                byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b':' | b'.')
-            });
-    if !valid_session || !valid_principal {
-        return Err(Fault {
-            code: "LSV2015".to_string(),
-            message: "invalid debugger audit identity".to_string(),
-        });
-    }
-    Ok(())
+    leselang_command::debugger_audit::validate_debugger_audit(audit).map_err(|error| Fault {
+        code: "LSV2015".to_string(),
+        message: error.to_string(),
+    })
 }
 
 fn validate_effect_clock(now_ms: u64, timeout_ms: u64) -> Result<u64, Fault> {
     leselang_runtime_core::validate_execution_deadline(now_ms, timeout_ms)
 }
 
-fn validate_retry_policy(policy: &RetryPolicy) -> Result<(), Fault> {
-    if policy.max_retries > MAX_SEMANTIC_RETRIES
-        || policy.base_delay_ms == 0
-        || policy.base_delay_ms > MAX_RETRY_DELAY_MS
-        || policy.max_delay_ms < policy.base_delay_ms
-        || policy.max_delay_ms > MAX_RETRY_DELAY_MS
-    {
-        return Err(Fault {
-            code: "LSV2201".to_string(),
-            message: "semantic retry policy exceeds runtime bounds".to_string(),
-        });
-    }
-    Ok(())
+fn validate_effect_error(error: &EffectError) -> Result<(), Fault> {
+    leselang_command::retry_policy::validate_effect_error(error).map_err(effect_retry_fault)
 }
 
-fn validate_effect_error(error: &EffectError) -> Result<(), Fault> {
-    if error.code.is_empty()
-        || error.code.len() > 64
-        || !error
-            .code
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
-        || error.message.is_empty()
-        || error.message.len() > 1_024
-    {
-        return Err(Fault {
-            code: "LSV2202".to_string(),
-            message: "effect error metadata is invalid".to_string(),
-        });
+fn effect_retry_fault(error: leselang_command::retry_policy::EffectRetryError) -> Fault {
+    use leselang_command::retry_policy::EffectRetryError;
+    Fault {
+        code: match error {
+            EffectRetryError::Metadata => "LSV2202",
+            EffectRetryError::Policy => "LSV2201",
+            EffectRetryError::Clock => "LSV2203",
+        }
+        .into(),
+        message: error.to_string(),
     }
-    Ok(())
 }
 
 pub fn merge_declared(
@@ -1664,93 +1503,18 @@ fn merge_declared_inner(
     finish_binding: bool,
 ) -> Result<Step, Fault> {
     validate_merge_plan(plan)?;
-    if max_output_items > DEFAULT_MAX_OUTPUT_ITEMS {
-        return Err(Fault {
-            code: "LSV2404".to_string(),
-            message: "structured merge output budget exceeds runtime bounds".to_string(),
-        });
-    }
-    if completions.len() != plan.branches.len() {
-        return Err(Fault {
-            code: "LSV2402".to_string(),
-            message: "structured merge completion set is incomplete".to_string(),
-        });
-    }
-
-    let expected = plan
-        .branches
-        .iter()
-        .map(String::as_str)
-        .collect::<BTreeSet<_>>();
-    let mut by_branch = BTreeMap::new();
-    let mut output_items = 0usize;
-    for completion in completions {
-        if !valid_merge_branch_name(&completion.branch)
-            || !expected.contains(completion.branch.as_str())
-            || by_branch.contains_key(&completion.branch)
-        {
-            return Err(Fault {
-                code: "LSV2402".to_string(),
-                message: "structured merge completion set does not match its plan".to_string(),
-            });
-        }
-        output_items = output_items.saturating_add(validate_branch_outcome(&completion.outcome)?);
-        if let (Some(binding), BranchOutcome::Value(value)) =
-            (&plan.result_binding, &completion.outcome)
-        {
-            binding.validate_member(&completion.branch, value)?;
-        }
-        by_branch.insert(completion.branch, completion.outcome);
-    }
-    if output_items > max_output_items {
-        return Err(merge_output_fault(output_items, max_output_items));
-    }
-
-    let mut fields = Vec::with_capacity(plan.branches.len());
-    let mut terminal = None;
-    for branch in &plan.branches {
-        let outcome = by_branch.remove(branch).ok_or_else(|| Fault {
-            code: "LSV2402".to_string(),
-            message: "structured merge completion set is incomplete".to_string(),
-        })?;
-        match outcome {
-            BranchOutcome::Value(value) => fields.push(StructuredField {
-                name: branch.clone(),
-                value: Box::new(value),
-            }),
-            BranchOutcome::Cancelled(cancellation) => {
-                terminal = Some(Step::Cancelled(cancellation));
-                break;
-            }
-            BranchOutcome::Failed(failure) => {
-                terminal = Some(Step::Failed(failure));
-                break;
-            }
-            BranchOutcome::Fault(fault) => {
-                terminal = Some(Step::Fault(fault));
-                break;
-            }
-        }
-    }
-    let step = if let Some(terminal) = terminal {
-        terminal
-    } else if matches!(
-        plan.order,
-        ExecutionOrder::ResultChain
-            | ExecutionOrder::Dataflow
-            | ExecutionOrder::GroupTail
-            | ExecutionOrder::GroupCapture
-            | ExecutionOrder::ParallelGroupTail
-            | ExecutionOrder::ParallelGroupCapture
-            | ExecutionOrder::GroupDataflow
-            | ExecutionOrder::ParallelGroupDataflow
-            | ExecutionOrder::GroupConditional
-            | ExecutionOrder::ParallelGroupConditional
-    ) && finish_binding
-    {
-        Step::Done(*fields.pop().ok_or_else(successor::invalid)?.value)
-    } else {
-        Step::Done(Value::Structured { fields })
+    let merged = leselang_command::merge_completion::merge_preflighted_completions(
+        plan,
+        completions,
+        max_output_items,
+        DEFAULT_MAX_OUTPUT_ITEMS,
+        finish_binding,
+        &ReferenceMergeCompletionHost,
+    )
+    .map_err(merge_completion_fault)?;
+    let step = match merged {
+        leselang_command::merge_completion::MergedCompletion::Value(value) => Step::Done(value),
+        leselang_command::merge_completion::MergedCompletion::Terminal(step) => step,
     };
     if let Step::Done(value) = &step {
         validate_value(value, 1)?;
@@ -1763,6 +1527,77 @@ fn merge_declared_inner(
         return Ok(binding.finish(value));
     }
     Ok(step)
+}
+
+struct ReferenceMergeCompletionHost;
+
+impl leselang_command::merge_completion::MergeCompletionHost for ReferenceMergeCompletionHost {
+    type Completion = BranchCompletion;
+    type Outcome = BranchOutcome;
+    type Terminal = Step;
+    type Error = Fault;
+
+    fn into_parts(completion: BranchCompletion) -> (String, BranchOutcome) {
+        (completion.branch, completion.outcome)
+    }
+
+    fn validate_outcome(&self, outcome: &BranchOutcome) -> Result<usize, Fault> {
+        validate_branch_outcome(outcome)
+    }
+
+    fn validate_member(
+        &self,
+        binding: &GroupResultBinding,
+        branch: &str,
+        outcome: &BranchOutcome,
+    ) -> Result<(), Fault> {
+        if let BranchOutcome::Value(value) = outcome {
+            binding.validate_member(branch, value)?;
+        }
+        Ok(())
+    }
+
+    fn into_value_or_terminal(
+        outcome: BranchOutcome,
+    ) -> leselang_command::merge_completion::MergedCompletion<Step> {
+        use leselang_command::merge_completion::MergedCompletion;
+        match outcome {
+            BranchOutcome::Value(value) => MergedCompletion::Value(value),
+            BranchOutcome::Cancelled(cancellation) => {
+                MergedCompletion::Terminal(Step::Cancelled(cancellation))
+            }
+            BranchOutcome::Failed(failure) => MergedCompletion::Terminal(Step::Failed(failure)),
+            BranchOutcome::Fault(fault) => MergedCompletion::Terminal(Step::Fault(fault)),
+        }
+    }
+}
+
+fn merge_completion_fault(
+    error: leselang_command::merge_completion::MergeCompletionError<Fault>,
+) -> Fault {
+    use leselang_command::merge_completion::MergeCompletionError;
+    let (code, message) = match error {
+        MergeCompletionError::Native(error) => return error,
+        MergeCompletionError::OutputItems { items, limit } => {
+            return merge_output_fault(items, limit);
+        }
+        MergeCompletionError::MissingFinalValue => return successor::invalid(),
+        MergeCompletionError::OutputBudget => (
+            "LSV2404",
+            "structured merge output budget exceeds runtime bounds",
+        ),
+        MergeCompletionError::Incomplete => {
+            ("LSV2402", "structured merge completion set is incomplete")
+        }
+        MergeCompletionError::Mismatch => (
+            "LSV2402",
+            "structured merge completion set does not match its plan",
+        ),
+    };
+    Fault {
+        code: code.into(),
+        message: message.into(),
+    }
 }
 
 fn merge_output_fault(items: usize, limit: usize) -> Fault {
@@ -1903,17 +1738,11 @@ fn value_bounds_fault(error: leselang_command::ValueBoundsError) -> Fault {
 }
 
 fn validate_retention_policy(policy: &RetentionPolicy) -> Result<(), Fault> {
-    if policy.max_completed_records == 0
-        || policy.max_completed_records > MAX_JOURNAL_RECORDS
-        || policy.max_delete_per_run == 0
-        || policy.max_delete_per_run > MAX_COMPACTION_BATCH
-    {
-        return Err(Fault {
+    leselang_command::retention_policy::validate_retention_policy(policy, MAX_JOURNAL_RECORDS)
+        .map_err(|error| Fault {
             code: "LSV2301".to_string(),
-            message: "journal retention policy exceeds runtime bounds".to_string(),
-        });
-    }
-    Ok(())
+            message: error.to_string(),
+        })
 }
 
 fn continuation_age_order(
@@ -1988,74 +1817,6 @@ fn atomic_step_from_effect_result(
             "LSV2102",
             format!("effect returned {count} items, limit is {limit}"),
         ),
-    }
-}
-
-struct CappedWriter {
-    output: Vec<u8>,
-    limit: usize,
-    overflowed: bool,
-}
-
-impl CappedWriter {
-    fn new(limit: usize) -> Self {
-        Self {
-            output: Vec::new(),
-            limit,
-            overflowed: false,
-        }
-    }
-}
-
-impl Write for CappedWriter {
-    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        if self.output.len().saturating_add(buffer.len()) > self.limit {
-            self.overflowed = true;
-            return Err(io::Error::new(
-                io::ErrorKind::FileTooLarge,
-                "continuation exceeds limit",
-            ));
-        }
-        self.output.extend_from_slice(buffer);
-        Ok(buffer.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-struct CappedCounter {
-    bytes: usize,
-    limit: usize,
-    overflowed: bool,
-}
-
-impl CappedCounter {
-    fn new(limit: usize) -> Self {
-        Self {
-            bytes: 0,
-            limit,
-            overflowed: false,
-        }
-    }
-}
-
-impl Write for CappedCounter {
-    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        if self.bytes.saturating_add(buffer.len()) > self.limit {
-            self.overflowed = true;
-            return Err(io::Error::new(
-                io::ErrorKind::FileTooLarge,
-                "encoded value exceeds limit",
-            ));
-        }
-        self.bytes += buffer.len();
-        Ok(buffer.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
     }
 }
 

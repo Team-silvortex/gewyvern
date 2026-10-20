@@ -7,6 +7,15 @@
 //! a timer, worker, global lock, journal or implicit async source semantics.
 //! `LocalVm` opts into shared local scope ownership around the same session;
 //! the unwrapped `Vm` keeps its original ownership and auto-trait behavior.
+//! Coordinators may restore binding or final pending VMs under the same borrowed
+//! local scope as their prepared collectors. Raw VMs do not retain that scope;
+//! `try_accept_in_scope`, `poll_in_scope` and `cancel_in_scope` reuse `LocalVm`'s
+//! lifecycle fence when passed that same owner. Keep the raw VM in a scope-bound
+//! owner for drop ordering; ordinary unscoped methods remain unscoped. Dispatch
+//! lease checks and external cancellation still belong to the host.
+//! Scoped host-work/outcome methods also share `LocalVm`'s original pending-state
+//! fence and meter. Native outcome classification and correct Fuel use remain
+//! trusted adapter policy; a returned output is not an accepted receipt.
 //!
 //! The current native compiler/session profiles are not full reference-language,
 //! durable-recovery or wire/auth/GUI compatibility certificates. Feature

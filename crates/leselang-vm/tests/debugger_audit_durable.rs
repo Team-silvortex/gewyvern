@@ -51,6 +51,98 @@ durable_case!(
 );
 
 #[test]
+fn adapter_owned_origin_labels_survive_reopen_and_corruption_is_not_repaired() {
+    use leselang_host_contract::CommandOrigin;
+
+    for (origin, label) in [
+        (CommandOrigin::Gui, "gui"),
+        (CommandOrigin::Cli, "cli"),
+        (CommandOrigin::Leselang, "leselang"),
+        (CommandOrigin::Model, "model"),
+        (CommandOrigin::CompatibilityAdapter, "compatibility_adapter"),
+    ] {
+        let root = JournalPath::new();
+        let path = root.0.join("audit.sqlite3");
+        let mut owner = Vm::open_journal(&path, 500).unwrap();
+        let request = contract::focus(&mut owner);
+        let mut context = contract::audit("origin");
+        context.origin = origin;
+        let record = owner
+            .cancel_effect_audited(&request.continuation, 101, &context)
+            .unwrap();
+        drop(owner);
+        let connection = rusqlite::Connection::open(&path).unwrap();
+        let stored_origin = || {
+            connection
+                .query_row("SELECT origin FROM vm_debugger_audit", [], |row| {
+                    row.get::<_, String>(0)
+                })
+                .unwrap()
+        };
+        let terminal_bytes = || {
+            connection
+                .query_row("SELECT terminal_step FROM vm_effects", [], |row| {
+                    row.get::<_, Vec<u8>>(0)
+                })
+                .unwrap()
+        };
+        assert_eq!(stored_origin(), label);
+        let terminal = terminal_bytes();
+        let mut reopened = Vm::open_journal(&path, 0).unwrap();
+        assert_eq!(
+            reopened.debugger_audit(&context.command_id).unwrap(),
+            Some(record.clone())
+        );
+        assert_eq!(
+            reopened
+                .cancel_effect_audited(&request.continuation, 200, &context)
+                .unwrap(),
+            record
+        );
+        drop(reopened);
+        assert!(matches!(
+            connection.execute("UPDATE vm_debugger_audit SET origin = 'unknown'", []),
+            Err(rusqlite::Error::SqliteFailure(error, _))
+                if error.code == rusqlite::ErrorCode::ConstraintViolation
+        ));
+        assert_eq!(stored_origin(), label);
+        // Corrupt only this disposable fixture to exercise recovery beyond SQL constraints.
+        connection
+            .execute_batch("PRAGMA ignore_check_constraints = ON;")
+            .unwrap();
+        for invalid in [label.to_uppercase(), format!("{label} "), String::new()] {
+            connection
+                .execute("UPDATE vm_debugger_audit SET origin = ?1", [&invalid])
+                .unwrap();
+            let fault = Vm::open_journal(&path, 0).err().unwrap();
+            assert_eq!(fault.code, "LSV4007");
+            assert_eq!(
+                fault.message,
+                format!(
+                    "debugger audit origin is invalid: {}",
+                    rusqlite::Error::InvalidQuery
+                )
+            );
+            assert_eq!(stored_origin(), invalid);
+            assert_eq!(terminal_bytes(), terminal);
+        }
+        connection
+            .execute("UPDATE vm_debugger_audit SET origin = ?1", [label])
+            .unwrap();
+        connection
+            .execute_batch("PRAGMA ignore_check_constraints = OFF;")
+            .unwrap();
+        assert_eq!(
+            Vm::open_journal(&path, 0)
+                .unwrap()
+                .debugger_audit(&context.command_id)
+                .unwrap(),
+            Some(record)
+        );
+    }
+}
+
+#[test]
 fn shared_audit_replay_discards_pending_cache_when_completion_was_already_pruned() {
     let root = JournalPath::new();
     let path = root.0.join("audit.sqlite3");

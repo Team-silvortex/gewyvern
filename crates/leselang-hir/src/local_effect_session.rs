@@ -16,7 +16,6 @@ use crate::{
         StackedControlSession, StackedEffectSessionPollResult, StackedSessionRestoreError,
     },
     ir::Computation,
-    local_scope::CallFence,
 };
 
 /// One local lifetime owner and the unchanged stacked session, not a second VM.
@@ -171,36 +170,7 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
 
     /// Revoke before cancelling retained state, preserving any existing terminal reason.
     pub fn cancel(&mut self) -> bool {
-        self.scope.close();
-        self.session.cancel()
-    }
-
-    fn call<Output>(
-        &mut self,
-        step: impl FnOnce(
-            &mut StackedControlSession<
-                'expression,
-                'schema,
-                Node,
-                Value,
-                Capture,
-                Identity,
-                Declaration,
-                Reply,
-            >,
-            &LocalExecutionScope,
-        ) -> Output,
-    ) -> Output {
-        if !self.scope.is_open() {
-            self.session.cancel();
-        }
-        let fence = CallFence::new(Some(&self.scope));
-        let output = step(&mut self.session, &self.scope);
-        if matches!(self.session.status(), EffectSessionStatus::Terminal(_)) {
-            self.scope.close();
-        }
-        fence.finish();
-        output
+        self.session.cancel_in_scope(&self.scope)
     }
 
     /// Explicitly fence a host-owned operation while awaiting an external reply.
@@ -222,7 +192,8 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
         input: Input,
         work: impl FnOnce(Input) -> Output,
     ) -> Result<Output, Input> {
-        self.with_host_outcome(input, |input| HostWorkOutcome::Pending(work(input)))
+        self.session
+            .with_host_work_in_scope(input, work, &self.scope)
     }
 
     /// Like `with_host_work`, but the adapter explicitly classifies a normal
@@ -244,18 +215,8 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
         input: Input,
         work: impl FnOnce(Input) -> HostWorkOutcome<Output>,
     ) -> Result<Output, Input> {
-        self.call(|session, scope| {
-            session.with_host_work(input, |input| {
-                // Revoke before the core's locally owned pending frames unwind.
-                let fence = CallFence::new(Some(scope));
-                let output = work(input);
-                if !matches!(&output, HostWorkOutcome::Pending(_)) {
-                    scope.close();
-                }
-                fence.finish();
-                output
-            })
-        })
+        self.session
+            .with_host_outcome_in_scope(input, work, &self.scope)
     }
 
     /// Classify native work using the same owned meter as evaluation/re-entry.
@@ -282,17 +243,8 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
         input: Input,
         work: impl FnOnce(Input, &mut Fuel) -> HostWorkOutcome<Output>,
     ) -> Result<Output, Input> {
-        self.call(|session, scope| {
-            session.with_metered_host_work(input, |input, fuel| {
-                let fence = CallFence::new(Some(scope));
-                let output = work(input, fuel);
-                if !matches!(&output, HostWorkOutcome::Pending(_)) {
-                    scope.close();
-                }
-                fence.finish();
-                output
-            })
-        })
+        self.session
+            .with_metered_host_outcome_in_scope(input, work, &self.scope)
     }
 
     /// Exact original acceptance: a normal rejection returns the original input
@@ -312,7 +264,8 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
         Declaration: HostResultDomain<View>,
         Authority: ReplyAuthority<Identity>,
     {
-        self.call(|session, scope| session.try_accept_in_scope(identity, reply, authority, scope))
+        self.session
+            .try_accept_in_scope(identity, reply, authority, &self.scope)
     }
 }
 
@@ -421,6 +374,6 @@ impl<
                 Reply = Reply,
             >,
     {
-        self.call(|session, scope| session.poll_with_scope(environment, Some(scope)))
+        self.session.poll_in_scope(environment, &self.scope)
     }
 }

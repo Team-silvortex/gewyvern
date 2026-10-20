@@ -2269,6 +2269,602 @@ fn nested_identity_program() -> Node {
     )
 }
 
+mod borrowed_lifecycle {
+    use super::*;
+
+    fn restore<'a, 's>(
+        expression: &'a Node,
+        host: &Host<'s>,
+        scope: &LocalExecutionScope,
+        final_request: bool,
+    ) -> RestoredSession<'a, 's> {
+        let mut original =
+            RestoredSession::new(expression, Vec::new(), Fuel::new(100), STACK_LIMITS);
+        drop(request(original.poll_in_scope(host, scope).unwrap()));
+        let remaining = original.fuel_remaining();
+        let restored = if final_request {
+            let pending = original.try_into_pending_final().unwrap();
+            RestoredSession::restore_pending_final_in_scope(
+                pending.identity,
+                pending.declaration,
+                pending.fuel,
+                pending.limits,
+                |_, _, _| Ok::<_, PrivateError>(()),
+                scope,
+            )
+        } else {
+            let pending = original.try_into_pending_binding().unwrap();
+            let frames = pending
+                .continuation
+                .into_frames()
+                .into_iter()
+                .map(|frame| {
+                    let (name, body, capture) = frame.into_parts();
+                    SavedEffectReturnFrame {
+                        name,
+                        body,
+                        capture,
+                    }
+                })
+                .collect();
+            RestoredSession::restore_pending_in_scope(
+                pending.identity,
+                pending.declaration,
+                frames,
+                pending.fuel,
+                pending.limits,
+                |_, _, _, _| Ok::<_, PrivateError>(()),
+                scope,
+            )
+        }
+        .unwrap();
+        assert_eq!(restored.fuel_remaining(), remaining);
+        assert_eq!(restored.status(), EffectSessionStatus::Awaiting);
+        assert!(scope.is_open());
+        host.hooks.cleanup_liveness.borrow_mut().clear();
+        restored
+    }
+
+    fn program(final_request: bool) -> Node {
+        if final_request {
+            call(1, integer(0))
+        } else {
+            nested_identity_program()
+        }
+    }
+
+    #[test]
+    fn restored_scoped_acceptance_unwind_revokes_before_retained_cleanup() {
+        for final_request in [false, true] {
+            for stage in [
+                Stage::Equality,
+                Stage::Authority,
+                Stage::Borrow,
+                Stage::Type,
+                Stage::Domain,
+            ] {
+                host!(hooks, domains, host);
+                let expression = program(final_request);
+                let scope = LocalExecutionScope::new();
+                let sibling = LocalExecutionScope::new();
+                hooks.lease.replace(Some(scope.lease()));
+                let mut vm = restore(&expression, &host, &scope, final_request);
+                let remaining = vm.fuel_remaining();
+                hooks.fault.set((stage, Mode::Unwind));
+                assert!(
+                    catch_unwind(AssertUnwindSafe(|| {
+                        vm.try_accept_in_scope(
+                            &host.identity(1, 1),
+                            host.reply(ScalarValue::Integer(42)),
+                            &host,
+                            &scope,
+                        )
+                    }))
+                    .is_err()
+                );
+                assert!(!scope.is_open());
+                assert!(sibling.is_open());
+                assert_eq!(
+                    vm.status(),
+                    EffectSessionStatus::Terminal(EffectSessionEnd::HostUncertain)
+                );
+                let cleanup = hooks.cleanup_liveness.borrow();
+                assert!(cleanup.contains(&("identity", true)));
+                assert!(cleanup.contains(&("reply", true)));
+                assert!(cleanup.iter().all(|(_, closed)| *closed));
+                assert_eq!(
+                    cleanup.iter().any(|(role, _)| *role == "capture"),
+                    !final_request
+                );
+                drop(cleanup);
+                let calls = hooks.events.borrow().len();
+                assert!(!vm.cancel_in_scope(&scope));
+                assert!(matches!(
+                    vm.poll_in_scope(&host, &scope).unwrap(),
+                    EffectSessionPoll::Terminal(EffectSessionEnd::HostUncertain)
+                ));
+                assert_eq!(hooks.events.borrow().len(), calls);
+                assert_eq!(vm.fuel_remaining(), remaining);
+            }
+        }
+    }
+
+    #[test]
+    fn restored_closed_scope_cancels_before_poll_or_reply_validation() {
+        for final_request in [false, true] {
+            for poll in [false, true] {
+                host!(hooks, domains, host);
+                let expression = program(final_request);
+                let scope = LocalExecutionScope::new();
+                hooks.lease.replace(Some(scope.lease()));
+                let mut vm = restore(&expression, &host, &scope, final_request);
+                let remaining = vm.fuel_remaining();
+                let calls = hooks.events.borrow().len();
+                scope.close();
+                if poll {
+                    assert!(matches!(
+                        vm.poll_in_scope(&host, &scope).unwrap(),
+                        EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+                    ));
+                } else {
+                    let reply = host.reply(ScalarValue::Integer(42));
+                    let pointer = &*reply.buffer as *const u8;
+                    let rejected = vm
+                        .try_accept_in_scope(&host.identity(1, 1), reply, &host, &scope)
+                        .unwrap_err();
+                    assert_eq!(&*rejected.reply.buffer as *const u8, pointer);
+                    assert!(matches!(
+                        rejected.error,
+                        EffectSessionReplyError::NotAwaiting(EffectSessionStatus::Terminal(
+                            EffectSessionEnd::Cancelled
+                        ))
+                    ));
+                }
+                assert_eq!(vm.fuel_remaining(), remaining);
+                assert_eq!(hooks.events.borrow().len(), calls);
+                assert!(
+                    hooks
+                        .cleanup_liveness
+                        .borrow()
+                        .iter()
+                        .all(|(_, closed)| *closed)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn restored_scoped_rejection_retries_original_reply_then_completion_closes() {
+        for final_request in [false, true] {
+            host!(hooks, domains, host);
+            let expression = program(final_request);
+            let scope = LocalExecutionScope::new();
+            let sibling = LocalExecutionScope::new();
+            hooks.lease.replace(Some(scope.lease()));
+            let mut vm = restore(&expression, &host, &scope, final_request);
+            let remaining = vm.fuel_remaining();
+            let mut reply = host.reply(ScalarValue::Integer(42));
+            let pointer = &*reply.buffer as *const u8;
+            for stage in [Stage::Authority, Stage::Type, Stage::Domain] {
+                hooks.fault.set((stage, Mode::Reject));
+                reply = vm
+                    .try_accept_in_scope(&host.identity(1, 1), reply, &host, &scope)
+                    .unwrap_err()
+                    .reply;
+                assert_eq!(&*reply.buffer as *const u8, pointer);
+                assert!(scope.is_open());
+                assert_eq!(vm.status(), EffectSessionStatus::Awaiting);
+                assert_eq!(vm.fuel_remaining(), remaining);
+                assert_eq!(hooks.capture_drops.get(), 0);
+                assert_eq!(hooks.key_drops.get(), 0);
+                assert_eq!(hooks.reply_drops.get(), 0);
+            }
+            hooks.fault.set((Stage::Prepare, Mode::Normal));
+            vm.try_accept_in_scope(&host.identity(1, 1), reply, &host, &scope)
+                .unwrap();
+            assert_eq!(vm.status(), EffectSessionStatus::Ready);
+            assert_eq!(vm.fuel_remaining(), remaining);
+            assert!(scope.is_open());
+            assert!(matches!(
+                vm.poll_in_scope(&host, &scope).unwrap(),
+                EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::Integer(42)))
+            ));
+            assert!(!scope.is_open());
+            assert!(sibling.is_open());
+            assert!(!vm.cancel_in_scope(&scope));
+            assert_eq!(
+                vm.status(),
+                EffectSessionStatus::Terminal(EffectSessionEnd::Completed)
+            );
+            assert_eq!(host.serial.get(), 1);
+        }
+    }
+
+    #[test]
+    fn restored_scoped_reentry_refusal_and_unwind_keep_terminal_reason() {
+        for final_request in [false, true] {
+            for stage in [Stage::Preflight, Stage::Restore, Stage::Project] {
+                if final_request && stage != Stage::Project {
+                    continue;
+                }
+                for mode in [Mode::Reject, Mode::Unwind] {
+                    host!(hooks, domains, host);
+                    let expression = if final_request {
+                        program(true)
+                    } else {
+                        nested_program()
+                    };
+                    let scope = LocalExecutionScope::new();
+                    let sibling = LocalExecutionScope::new();
+                    hooks.lease.replace(Some(scope.lease()));
+                    let mut vm = restore(&expression, &host, &scope, final_request);
+                    vm.try_accept_in_scope(
+                        &host.identity(1, 1),
+                        host.reply(ScalarValue::Integer(42)),
+                        &host,
+                        &scope,
+                    )
+                    .unwrap();
+                    hooks.cleanup_liveness.borrow_mut().clear();
+                    hooks.fault.set((stage, mode));
+                    let result = catch_unwind(AssertUnwindSafe(|| vm.poll_in_scope(&host, &scope)));
+                    let end = if mode == Mode::Unwind {
+                        assert!(result.is_err());
+                        EffectSessionEnd::HostUncertain
+                    } else {
+                        assert!(result.unwrap().is_err());
+                        EffectSessionEnd::Failed
+                    };
+                    assert!(!scope.is_open());
+                    assert!(sibling.is_open());
+                    let cleanup = hooks.cleanup_liveness.borrow();
+                    assert!(cleanup.contains(&("identity", true)));
+                    // Values consumed inside projection remain native-owned.
+                    assert!(cleanup.contains(&("reply", stage != Stage::Project)));
+                    if !final_request {
+                        assert_eq!(
+                            cleanup.iter().rev().find(|(role, _)| *role == "capture"),
+                            Some(&("capture", true))
+                        );
+                    }
+                    drop(cleanup);
+                    let remaining = vm.fuel_remaining();
+                    let calls = hooks.events.borrow().len();
+                    assert!(!vm.cancel_in_scope(&scope));
+                    assert!(matches!(
+                        vm.poll_in_scope(&host, &scope).unwrap(),
+                        EffectSessionPoll::Terminal(actual) if actual == end
+                    ));
+                    assert_eq!(hooks.events.borrow().len(), calls);
+                    assert_eq!(vm.fuel_remaining(), remaining);
+                    assert_eq!(host.serial.get(), 1);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn restored_scoped_cancel_revokes_before_pending_or_accepted_cleanup_unwind() {
+        for final_request in [false, true] {
+            for accepted in [false, true] {
+                for unwind in [false, true] {
+                    host!(hooks, domains, host);
+                    let expression = program(final_request);
+                    let scope = LocalExecutionScope::new();
+                    hooks.lease.replace(Some(scope.lease()));
+                    let mut vm = restore(&expression, &host, &scope, final_request);
+                    if accepted {
+                        vm.try_accept_in_scope(
+                            &host.identity(1, 1),
+                            host.reply(ScalarValue::Integer(42)),
+                            &host,
+                            &scope,
+                        )
+                        .unwrap();
+                    }
+                    hooks.key_drop_panic.set(unwind && final_request);
+                    hooks.capture_drop_panic.set(unwind && !final_request);
+                    let remaining = vm.fuel_remaining();
+                    let result = catch_unwind(AssertUnwindSafe(|| vm.cancel_in_scope(&scope)));
+                    hooks.key_drop_panic.set(false);
+                    if unwind {
+                        assert!(result.is_err());
+                    } else {
+                        assert!(result.unwrap());
+                    }
+                    assert!(!scope.is_open());
+                    assert!(
+                        hooks
+                            .cleanup_liveness
+                            .borrow()
+                            .iter()
+                            .all(|(_, closed)| *closed)
+                    );
+                    assert!(!vm.cancel_in_scope(&scope));
+                    assert!(matches!(
+                        vm.poll_in_scope(&host, &scope).unwrap(),
+                        EffectSessionPoll::Terminal(EffectSessionEnd::Cancelled)
+                    ));
+                    assert_eq!(vm.fuel_remaining(), remaining);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn restored_raw_vm_borrows_owner_and_bound_drop_revokes_first() {
+        for final_request in [false, true] {
+            for bound in [false, true] {
+                host!(hooks, domains, host);
+                let expression = program(final_request);
+                let scope = LocalExecutionScope::new();
+                let lease = scope.lease();
+                hooks.lease.replace(Some(lease.clone()));
+                let vm = restore(&expression, &host, &scope, final_request);
+                if bound {
+                    drop(scope.bind(vm));
+                } else {
+                    drop(vm);
+                    assert!(scope.is_open());
+                }
+                assert_eq!(lease.is_open(), !bound);
+                let cleanup = hooks.cleanup_liveness.borrow();
+                assert!(cleanup.contains(&("identity", bound)));
+                assert!(cleanup.iter().all(|(_, closed)| *closed == bound));
+            }
+        }
+    }
+
+    #[test]
+    fn restored_scoped_host_work_preserves_move_only_input_and_original_meter() {
+        for final_request in [false, true] {
+            host!(hooks, domains, host);
+            let expression = program(final_request);
+            let scope = LocalExecutionScope::new();
+            let mut vm = restore(&expression, &host, &scope, final_request);
+            let before = vm.fuel_remaining();
+            let input = host.reply(ScalarValue::Integer(42));
+            let pointer = &*input.buffer as *const u8;
+            let Ok(Err(input)) = vm.with_host_work_in_scope(input, Err::<(), _>, &scope) else {
+                panic!("ordinary native error remains pending")
+            };
+            assert_eq!(&*input.buffer as *const u8, pointer);
+            assert_eq!(vm.fuel_remaining(), before);
+            let Ok(input) = vm.with_metered_host_outcome_in_scope(
+                input,
+                |input, fuel| {
+                    assert_eq!(fuel.remaining(), before);
+                    fuel.charge(5).unwrap();
+                    HostWorkOutcome::Pending(input)
+                },
+                &scope,
+            ) else {
+                panic!("restored pending work")
+            };
+            assert_eq!(&*input.buffer as *const u8, pointer);
+            assert_eq!(vm.fuel_remaining(), before - 5);
+            assert_eq!(vm.status(), EffectSessionStatus::Awaiting);
+            assert!(scope.is_open());
+            let Ok(Err(FuelExhausted)) = vm.with_metered_host_outcome_in_scope(
+                (),
+                |(), fuel| HostWorkOutcome::Pending(fuel.charge(before)),
+                &scope,
+            ) else {
+                panic!("exhaustion policy remains explicit")
+            };
+            assert_eq!(vm.fuel_remaining(), before - 5);
+            assert!(scope.is_open());
+            assert!(!hooks.events.borrow().contains(&Stage::Restore));
+            vm.try_accept_in_scope(&host.identity(1, 1), input, &host, &scope)
+                .unwrap();
+            assert_eq!(vm.fuel_remaining(), before - 5);
+            assert!(matches!(
+                vm.poll_in_scope(&host, &scope).unwrap(),
+                EffectSessionPoll::Value(PureValue::Scalar(ScalarValue::Integer(42)))
+            ));
+            assert_eq!(
+                vm.fuel_remaining(),
+                before - 5 - if final_request { 0 } else { 2 }
+            );
+            assert!(!scope.is_open());
+            assert_eq!(host.serial.get(), 1);
+        }
+    }
+
+    #[test]
+    fn restored_scoped_host_work_refuses_every_nonawaiting_state_without_entering() {
+        for final_request in [false, true] {
+            for phase in 0..7 {
+                host!(hooks, domains, host);
+                let expression = program(final_request);
+                let scope = LocalExecutionScope::new();
+                let mut vm = if phase == 0 {
+                    RestoredSession::new(&expression, Vec::new(), Fuel::new(100), STACK_LIMITS)
+                } else {
+                    restore(&expression, &host, &scope, final_request)
+                };
+                match phase {
+                    1 | 2 => {
+                        vm.try_accept_in_scope(
+                            &host.identity(1, 1),
+                            host.reply(ScalarValue::Integer(42)),
+                            &host,
+                            &scope,
+                        )
+                        .unwrap();
+                        if phase == 2 {
+                            drop(vm.poll_in_scope(&host, &scope).unwrap());
+                        }
+                    }
+                    3 => assert!(vm.cancel_in_scope(&scope)),
+                    4 => {
+                        scope.close();
+                    }
+                    5 | 6 => {
+                        vm.with_host_outcome_in_scope(
+                            (),
+                            |()| {
+                                if phase == 5 {
+                                    HostWorkOutcome::Failed(())
+                                } else {
+                                    HostWorkOutcome::Uncertain(())
+                                }
+                            },
+                            &scope,
+                        )
+                        .unwrap();
+                    }
+                    _ => {}
+                }
+                let remaining = vm.fuel_remaining();
+                let calls = hooks.events.borrow().len();
+                let mut input = Box::new(17);
+                let pointer = &*input as *const i32;
+                input = vm
+                    .with_host_work_in_scope::<_, ()>(input, |_| panic!("not Awaiting"), &scope)
+                    .unwrap_err();
+                input = vm
+                    .with_host_outcome_in_scope::<_, ()>(input, |_| panic!("not Awaiting"), &scope)
+                    .unwrap_err();
+                input = vm
+                    .with_metered_host_outcome_in_scope::<_, ()>(
+                        input,
+                        |_, _| panic!("not Awaiting"),
+                        &scope,
+                    )
+                    .unwrap_err();
+                assert_eq!(&*input as *const i32, pointer);
+                assert_eq!(vm.fuel_remaining(), remaining);
+                assert_eq!(hooks.events.borrow().len(), calls);
+                assert_eq!(scope.is_open(), phase < 2);
+            }
+        }
+    }
+
+    #[test]
+    fn restored_scoped_host_outcomes_and_unwind_revoke_before_retained_cleanup() {
+        for final_request in [false, true] {
+            for metered in [false, true] {
+                for phase in 0..4 {
+                    for cleanup_unwind in [false, true] {
+                        if cleanup_unwind && phase == 3 {
+                            continue;
+                        }
+                        host!(hooks, domains, host);
+                        let expression = program(final_request);
+                        let scope = LocalExecutionScope::new();
+                        let sibling = LocalExecutionScope::new();
+                        hooks.lease.replace(Some(scope.lease()));
+                        let mut vm = restore(&expression, &host, &scope, final_request);
+                        let remaining = vm.fuel_remaining();
+                        hooks.key_drop_panic.set(cleanup_unwind && final_request);
+                        hooks
+                            .capture_drop_panic
+                            .set(cleanup_unwind && !final_request);
+                        let input = host.reply(ScalarValue::Integer(42));
+                        let pointer = &*input.buffer as *const u8;
+                        let work = |input| {
+                            assert!(scope.is_open());
+                            match phase {
+                                0 => HostWorkOutcome::Cancelled(input),
+                                1 => HostWorkOutcome::Failed(input),
+                                2 => HostWorkOutcome::Uncertain(input),
+                                _ => panic!("native work unwind"),
+                            }
+                        };
+                        let result = catch_unwind(AssertUnwindSafe(|| {
+                            if metered {
+                                vm.with_metered_host_outcome_in_scope(
+                                    input,
+                                    |input, fuel| {
+                                        fuel.charge(7).unwrap();
+                                        work(input)
+                                    },
+                                    &scope,
+                                )
+                            } else {
+                                vm.with_host_outcome_in_scope(input, work, &scope)
+                            }
+                        }));
+                        hooks.key_drop_panic.set(false);
+                        assert!(!scope.is_open());
+                        assert!(sibling.is_open());
+                        if phase == 3 || cleanup_unwind {
+                            assert!(result.is_err());
+                        } else {
+                            let Ok(input) = result.unwrap() else {
+                                panic!("pending work was not entered")
+                            };
+                            assert_eq!(&*input.buffer as *const u8, pointer);
+                            drop(input);
+                        }
+                        let end = match phase {
+                            0 => EffectSessionEnd::Cancelled,
+                            1 => EffectSessionEnd::Failed,
+                            _ => EffectSessionEnd::HostUncertain,
+                        };
+                        assert_eq!(vm.status(), EffectSessionStatus::Terminal(end));
+                        assert_eq!(vm.fuel_remaining(), remaining - if metered { 7 } else { 0 });
+                        let cleanup = hooks.cleanup_liveness.borrow();
+                        assert!(cleanup.contains(&("identity", true)));
+                        assert!(
+                            cleanup
+                                .iter()
+                                .filter(|(role, _)| *role != "reply")
+                                .all(|(_, closed)| *closed)
+                        );
+                        // Input already moved into the callback is native-owned on unwind.
+                        assert!(cleanup.contains(&("reply", phase != 3)));
+                        drop(cleanup);
+                        assert!(!vm.cancel_in_scope(&scope));
+                        assert!(matches!(
+                            vm.poll_in_scope(&host, &scope).unwrap(),
+                            EffectSessionPoll::Terminal(actual) if actual == end
+                        ));
+                        assert_eq!(host.serial.get(), 1);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn restored_scoped_host_work_cannot_reenter_after_callback_revokes_owner() {
+        for final_request in [false, true] {
+            host!(hooks, domains, host);
+            let expression = program(final_request);
+            let scope = LocalExecutionScope::new();
+            let mut vm = restore(&expression, &host, &scope, final_request);
+            let before = vm.fuel_remaining();
+            let input = Box::new(17);
+            let pointer = &*input as *const i32;
+            let input = vm
+                .with_metered_host_outcome_in_scope(
+                    input,
+                    |input, fuel| {
+                        fuel.charge(2).unwrap();
+                        scope.close();
+                        HostWorkOutcome::Pending(input)
+                    },
+                    &scope,
+                )
+                .unwrap();
+            assert_eq!(vm.status(), EffectSessionStatus::Awaiting);
+            assert!(!scope.is_open());
+            let input = vm
+                .with_host_work_in_scope::<_, ()>(input, |_| panic!("closed owner"), &scope)
+                .unwrap_err();
+            assert_eq!(&*input as *const i32, pointer);
+            assert_eq!(vm.fuel_remaining(), before - 2);
+            assert_eq!(
+                vm.status(),
+                EffectSessionStatus::Terminal(EffectSessionEnd::Cancelled)
+            );
+            assert!(!hooks.events.borrow().contains(&Stage::Restore));
+        }
+    }
+}
+
 #[test]
 fn local_reentry_revokes_retained_owners_before_failure_cleanup() {
     for stage in [Stage::Preflight, Stage::Restore, Stage::Project] {
@@ -3188,7 +3784,9 @@ mod final_transfer {
                 self.0.observe_cleanup("unused admission");
             }
         }
-        for phase in 0..7 {
+        for case in 0..14 {
+            let shared_scope = case >= 7;
+            let phase = case % 7;
             host!(hooks, domains, host);
             let node = call(1, integer(0));
             let (saved, dispatch) = suspend(&node, &host, 100);
@@ -3210,17 +3808,32 @@ mod final_transfer {
             }
             let unused = Unused(hooks.clone());
             hooks.events.borrow_mut().clear();
-            let result = LocalRestoredSession::restore_pending_final(
-                scope,
-                saved.identity,
-                saved.declaration,
-                saved.fuel,
-                limits,
-                move |_, _, _| -> Result<(), PrivateError> {
+            let admit =
+                move |_: &Identity, _: &NativeDomain<'_>, _: &Fuel| -> Result<(), PrivateError> {
                     drop(unused);
                     panic!("invalid policy cannot enter admission")
-                },
-            );
+                };
+            let result = if shared_scope {
+                RestoredSession::restore_pending_final_in_scope(
+                    saved.identity,
+                    saved.declaration,
+                    saved.fuel,
+                    limits,
+                    admit,
+                    &scope,
+                )
+                .map(|_| ())
+            } else {
+                LocalRestoredSession::restore_pending_final(
+                    scope,
+                    saved.identity,
+                    saved.declaration,
+                    saved.fuel,
+                    limits,
+                    admit,
+                )
+                .map(|_| ())
+            };
             if phase == 6 {
                 assert!(matches!(
                     result,
@@ -3292,6 +3905,71 @@ mod final_transfer {
             }
             assert_eq!(calls.get(), 1);
             assert!(!lease.is_open());
+            assert_eq!(hooks.key_drops.get(), 1);
+            assert!(
+                hooks
+                    .cleanup_liveness
+                    .borrow()
+                    .iter()
+                    .all(|(_, closed)| *closed)
+            );
+            PRIVATE_ERROR_DROPS.with(|drops| assert_eq!(drops.get(), usize::from(phase != 1)));
+        }
+    }
+
+    #[test]
+    fn final_shared_scope_refusal_unwind_and_callback_revocation_close_before_cleanup() {
+        for phase in 0..4 {
+            host!(hooks, domains, host);
+            let node = call(1, integer(0));
+            let (saved, dispatch) = suspend(&node, &host, 100);
+            drop(dispatch);
+            let scope = LocalExecutionScope::new();
+            let sibling = LocalExecutionScope::new();
+            let lease = scope.lease();
+            hooks.lease.replace(Some(lease.clone()));
+            hooks.key_drop_panic.set(phase == 2);
+            PRIVATE_ERROR_DROPS.with(|drops| drops.set(0));
+            let calls = Cell::new(0);
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                RestoredSession::restore_pending_final_in_scope(
+                    saved.identity,
+                    saved.declaration,
+                    saved.fuel,
+                    saved.limits,
+                    |_, _, _| -> Result<(), PrivateError> {
+                        calls.set(calls.get() + 1);
+                        if phase == 1 {
+                            panic!("shared final admission unwind");
+                        }
+                        if phase == 3 {
+                            scope.close();
+                        }
+                        Err(PrivateError("private final credentials"))
+                    },
+                    &scope,
+                )
+            }));
+            if phase == 1 || phase == 2 {
+                assert!(result.is_err());
+            } else {
+                let error = result.unwrap().unwrap_err();
+                assert!(!format!("{error:?} {error}").contains("private"));
+                if phase == 3 {
+                    assert!(matches!(error, StackedSessionRestoreError::ScopeClosed));
+                } else {
+                    assert!(matches!(
+                        error,
+                        StackedSessionRestoreError::Native(PrivateError(
+                            "private final credentials"
+                        ))
+                    ));
+                }
+            }
+            assert_eq!(calls.get(), 1);
+            assert!(!scope.is_open());
+            assert!(!lease.is_open());
+            assert!(sibling.is_open());
             assert_eq!(hooks.key_drops.get(), 1);
             assert!(
                 hooks

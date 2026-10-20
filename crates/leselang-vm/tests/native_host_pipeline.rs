@@ -2447,32 +2447,55 @@ mod mixed {
             let remaining = vm.fuel_remaining();
             let serial = runtime.host.serial.get();
             let invoked = runtime.host.invoked.borrow().len();
-            let mut pending = vm.try_into_pending_binding().unwrap();
-            assert_eq!(pending.limits, STACK);
-            assert!(pending.identity == plan.id());
-            assert!(std::ptr::eq(pending.declaration, plan));
-            let mut frames: Vec<_> = pending
-                .continuation
-                .into_frames()
-                .into_iter()
-                .map(|frame| {
-                    let (name, body, capture) = frame.into_parts();
-                    SavedEffectReturnFrame {
-                        name,
-                        body,
-                        capture,
+            let (mut identity, mut declaration, mut frames, fuel, limits, final_request) =
+                match vm.try_into_pending_binding() {
+                    Ok(pending) => {
+                        let frames = pending
+                            .continuation
+                            .into_frames()
+                            .into_iter()
+                            .map(|frame| {
+                                let (name, body, capture) = frame.into_parts();
+                                SavedEffectReturnFrame {
+                                    name,
+                                    body,
+                                    capture,
+                                }
+                            })
+                            .collect();
+                        (
+                            pending.identity,
+                            pending.declaration,
+                            frames,
+                            pending.fuel,
+                            pending.limits,
+                            false,
+                        )
                     }
-                })
-                .collect();
+                    Err(vm) => {
+                        let pending = vm.try_into_pending_final().unwrap();
+                        (
+                            pending.identity,
+                            pending.declaration,
+                            Vec::new(),
+                            pending.fuel,
+                            pending.limits,
+                            true,
+                        )
+                    }
+                };
+            assert_eq!(limits, STACK);
+            assert!(identity == plan.id());
+            assert!(std::ptr::eq(declaration, plan));
             let original = fingerprint(&frames);
             match fault {
                 Fault::Closed => {
                     scope.close();
                 }
                 Fault::Revoked => runtime.host.granted.set(false),
-                Fault::Stale => pending.identity.revision += 1,
+                Fault::Stale => identity.revision += 1,
                 Fault::WrongRoot => {
-                    pending.declaration = runtime
+                    declaration = runtime
                         .plans
                         .iter()
                         .find(|candidate| !std::ptr::eq(*candidate, plan))
@@ -2488,56 +2511,72 @@ mod mixed {
                 }
             }
             let admissions = Cell::new(0);
-            let restored = Vm::restore_pending_in_scope(
-                pending.identity,
-                pending.declaration,
-                frames,
-                pending.fuel,
-                pending.limits,
-                |identity, declaration, frames, fuel| {
-                    admissions.set(admissions.get() + 1);
-                    let admitted = (|| {
-                        runtime.authorize(identity)?;
-                        if *identity != plan.id()
-                            || !std::ptr::eq(declaration, plan)
-                            || fuel.remaining() != remaining
-                            || fingerprint(frames) != original
-                        {
-                            return Err(Refusal);
-                        }
-                        for frame in frames {
-                            for (_, value) in &frame.capture {
-                                match value {
-                                    PureValue::Result(View::Atom(id, value)) => {
-                                        runtime.authorize(id)?;
-                                        P::validate(value)?;
-                                    }
-                                    PureValue::Result(View::Group(id, group)) => {
-                                        runtime.authorize(id)?;
-                                        let source = runtime
-                                            .plans
-                                            .iter()
-                                            .find(|p| p.identity.borrow().as_ref() == Some(id))
-                                            .ok_or(Refusal)?;
-                                        source.validate_rows(group.members())?;
-                                        for row in group.members() {
-                                            runtime.authorize(row.as_parts().2)?;
-                                        }
-                                    }
-                                    PureValue::Scalar(_) => {}
+            let admit = |identity: &Identity,
+                         declaration: &Plan<'ir, P>,
+                         frames: &[Frame<'ir, P>],
+                         fuel: &Fuel| {
+                admissions.set(admissions.get() + 1);
+                let admitted = (|| {
+                    runtime.authorize(identity)?;
+                    if *identity != plan.id()
+                        || !std::ptr::eq(declaration, plan)
+                        || fuel.remaining() != remaining
+                        || fingerprint(frames) != original
+                    {
+                        return Err(Refusal);
+                    }
+                    for frame in frames {
+                        for (_, value) in &frame.capture {
+                            match value {
+                                PureValue::Result(View::Atom(id, value)) => {
+                                    runtime.authorize(id)?;
+                                    P::validate(value)?;
                                 }
+                                PureValue::Result(View::Group(id, group)) => {
+                                    runtime.authorize(id)?;
+                                    let source = runtime
+                                        .plans
+                                        .iter()
+                                        .find(|p| p.identity.borrow().as_ref() == Some(id))
+                                        .ok_or(Refusal)?;
+                                    source.validate_rows(group.members())?;
+                                    for row in group.members() {
+                                        runtime.authorize(row.as_parts().2)?;
+                                    }
+                                }
+                                PureValue::Scalar(_) => {}
                             }
                         }
-                        Ok(())
-                    })();
-                    assert!(
-                        !matches!(fault, Fault::Unwind),
-                        "injected native admission unwind"
-                    );
-                    admitted
-                },
-                scope,
-            );
+                    }
+                    Ok(())
+                })();
+                assert!(
+                    !matches!(fault, Fault::Unwind),
+                    "injected native admission unwind"
+                );
+                admitted
+            };
+            let restored = if final_request {
+                assert!(frames.is_empty());
+                Vm::restore_pending_final_in_scope(
+                    identity,
+                    declaration,
+                    fuel,
+                    limits,
+                    |identity, declaration, fuel| admit(identity, declaration, &[], fuel),
+                    scope,
+                )
+            } else {
+                Vm::restore_pending_in_scope(
+                    identity,
+                    declaration,
+                    frames,
+                    fuel,
+                    limits,
+                    admit,
+                    scope,
+                )
+            };
             assert_eq!(
                 admissions.get(),
                 usize::from(!matches!(fault, Fault::Closed | Fault::Shape))
@@ -2550,7 +2589,7 @@ mod mixed {
                 }
             };
             assert!(matches!(
-                restored.poll(runtime).unwrap(),
+                restored.poll_in_scope(runtime, scope).unwrap(),
                 EffectSessionPoll::Awaiting
             ));
             assert_eq!(restored.fuel_remaining(), remaining);
@@ -2582,7 +2621,8 @@ mod mixed {
                 let mut remaining = budget;
                 let mut result = None;
                 for phase in 0..=4 {
-                    let polled = owner.value_mut().as_mut().unwrap().poll(&runtime);
+                    let (scope, slot) = owner.as_parts_mut();
+                    let polled = slot.as_mut().unwrap().poll_in_scope(&runtime, scope);
                     remaining = owner.value().as_ref().unwrap().fuel_remaining();
                     match polled {
                         Ok(EffectSessionPoll::Request(active)) => {
@@ -2652,12 +2692,13 @@ mod mixed {
                                         assert_eq!(host.invoked.borrow().len(), invocations);
                                         assert_eq!(host.serial.get(), requests);
                                     }
-                                    if let Some(vm) = owner.value_mut().as_mut() {
+                                    let (scope, slot) = owner.as_parts_mut();
+                                    if let Some(vm) = slot.as_mut() {
                                         // Revocation does not pretend to cancel or destroy
                                         // the restored parent. Reconcile it explicitly.
                                         assert_eq!(vm.status(), EffectSessionStatus::Awaiting);
                                         assert_eq!(vm.fuel_remaining(), remaining);
-                                        assert!(vm.cancel());
+                                        assert!(vm.cancel_in_scope(scope));
                                     }
                                     refused = true;
                                     break;
@@ -2667,12 +2708,18 @@ mod mixed {
                             let identity = reply.identity.clone();
                             let mut stale = identity.clone();
                             stale.serial = 0;
-                            let vm = owner.value_mut().as_mut().unwrap();
-                            let reply = vm.try_accept(&stale, reply, &runtime).unwrap_err().reply;
+                            let (scope, slot) = owner.as_parts_mut();
+                            let vm = slot.as_mut().unwrap();
+                            let reply = vm
+                                .try_accept_in_scope(&stale, reply, &runtime, scope)
+                                .unwrap_err()
+                                .reply;
                             assert_eq!(&*reply.buffer as *const u8, pointer);
                             assert_eq!(vm.status(), EffectSessionStatus::Awaiting);
                             assert_eq!(vm.fuel_remaining(), remaining);
-                            vm.try_accept(&identity, reply, &runtime).unwrap();
+                            assert!(scope.is_open());
+                            vm.try_accept_in_scope(&identity, reply, &runtime, scope)
+                                .unwrap();
                         }
                         Ok(EffectSessionPoll::Value(PureValue::Scalar(value))) => {
                             assert_eq!(phase, 4);
@@ -2694,15 +2741,16 @@ mod mixed {
                         _ => panic!("unexpected coupled pipeline state"),
                     }
                 }
-                owner.close();
+                assert!(!owner.is_open());
                 let invocations = host.invoked.borrow().clone();
                 assert_eq!(invocations, P::inputs(first)[..invocations.len()]);
                 let requests = host.serial.get();
-                if let Some(vm) = owner.value_mut().as_mut() {
+                let (scope, slot) = owner.as_parts_mut();
+                if let Some(vm) = slot.as_mut() {
                     let status = vm.status();
-                    assert!(!vm.cancel());
+                    assert!(!vm.cancel_in_scope(scope));
                     assert!(matches!(
-                        vm.poll(&runtime).unwrap(),
+                        vm.poll_in_scope(&runtime, scope).unwrap(),
                         EffectSessionPoll::Terminal(_)
                     ));
                     assert_eq!(vm.status(), status);
@@ -2724,6 +2772,384 @@ mod mixed {
                 ));
             });
             output.unwrap()
+        }
+
+        #[derive(Clone, Copy, Debug, PartialEq)]
+        enum CancelFinal {
+            Pending,
+            Collected,
+            Accepted,
+        }
+        #[derive(Debug, PartialEq)]
+        struct FinalOutcome {
+            rows: Option<Vec<ScalarValue>>,
+            remaining: u64,
+            invocations: Vec<ScalarValue>,
+            requests: u64,
+            end: EffectSessionStatus,
+        }
+
+        fn final_program<P: Profile>(kind: &str, prefix: bool) -> String {
+            let argument = match P::ARGUMENT {
+                ScalarType::Integer => "1",
+                ScalarType::String => "\"leaf\"",
+                _ => unreachable!(),
+            };
+            let group = if kind == "repeat" {
+                "repeat(times: 3, body: step())".to_string()
+            } else {
+                format!("{kind}(first: step(), second: step(), third: step())")
+            };
+            let main = if prefix {
+                "bind(seed: step(), body: batch())"
+            } else {
+                "batch()"
+            };
+            format!(
+                "fn step() = {}({}: {argument})\nfn batch() = {group}\nfn main() = {main}",
+                P::OPERATION,
+                P::PARAMETER,
+            )
+        }
+
+        fn run_final<P: Profile>(
+            kind: &str,
+            prefix: bool,
+            budget: u64,
+            transfer: bool,
+            fault: Option<(usize, Fault)>,
+            cancel: Option<CancelFinal>,
+        ) -> (FinalOutcome, Cuts, bool) {
+            let mut output = None;
+            fixture::<P>(|host, scope| {
+                let sibling = LocalExecutionScope::new();
+                let node = compile(&final_program::<P>(kind, prefix), &host).unwrap();
+                let plans = plans(&node, &host);
+                let runtime = Runtime {
+                    host: &host,
+                    plans: &plans,
+                };
+                let mut owner =
+                    scope.bind(Some(Vm::new(&node, Vec::new(), Fuel::new(budget), STACK)));
+                let mut cuts = Cuts::default();
+                let mut refused = false;
+                let mut rows = None;
+                let mut remaining = budget;
+                for phase in 0..=usize::from(prefix) + 1 {
+                    let (scope, slot) = owner.as_parts_mut();
+                    let polled = slot.as_mut().unwrap().poll_in_scope(&runtime, scope);
+                    remaining = owner.value().as_ref().unwrap().fuel_remaining();
+                    match polled {
+                        Ok(EffectSessionPoll::Request(active)) => {
+                            let final_request = matches!(active.plan.node, Node::Group { .. });
+                            assert_eq!(final_request, phase == usize::from(prefix));
+                            if final_request {
+                                let vm = owner.value_mut().take().unwrap();
+                                // A final group has no invented binding continuation.
+                                *owner.value_mut() =
+                                    Some(vm.try_into_pending_binding().unwrap_err());
+                            }
+                            if final_request && cancel == Some(CancelFinal::Pending) {
+                                if transfer {
+                                    let (scope, slot) = owner.as_parts_mut();
+                                    handoff(slot, scope, &runtime, active.plan, Fault::None)
+                                        .unwrap();
+                                }
+                                let (scope, slot) = owner.as_parts_mut();
+                                assert!(slot.as_mut().unwrap().cancel_in_scope(scope));
+                                drop(active);
+                                break;
+                            }
+                            let plan = active.plan;
+                            let (scope, slot) = owner.as_parts_mut();
+                            let mut child_failed = false;
+                            let mut failure_counts = None;
+                            let collected = catch_unwind(AssertUnwindSafe(|| {
+                                runtime.collect_with_checkpoint(
+                                    active,
+                                    transfer,
+                                    Some(scope),
+                                    |phase| {
+                                        if !transfer {
+                                            return Ok(());
+                                        }
+                                        let child = phase == TransferPhase::ChildAdmission;
+                                        let cut = if child {
+                                            &mut cuts.child
+                                        } else {
+                                            &mut cuts.parent
+                                        };
+                                        let injected = fault
+                                            .filter(|(at, f)| *at == *cut && f.is_child() == child)
+                                            .map_or(Fault::None, |(_, f)| f);
+                                        *cut += 1;
+                                        if !matches!(injected, Fault::None) {
+                                            failure_counts = Some((
+                                                host.invoked.borrow().len(),
+                                                host.serial.get(),
+                                            ));
+                                        }
+                                        if child {
+                                            assert_eq!(
+                                                slot.as_ref().unwrap().status(),
+                                                EffectSessionStatus::Awaiting
+                                            );
+                                            child_failed = injected.is_child();
+                                            match injected {
+                                                Fault::ChildRefused => return Err(Refusal),
+                                                Fault::ChildRevoked => {
+                                                    scope.close();
+                                                }
+                                                Fault::ChildUnwind => {
+                                                    panic!("final collector admission unwind")
+                                                }
+                                                Fault::None => {}
+                                                _ => unreachable!(),
+                                            }
+                                            return Ok(());
+                                        }
+                                        handoff(slot, scope, &runtime, plan, injected)?;
+                                        handoff(slot, scope, &runtime, plan, Fault::None)
+                                    },
+                                )
+                            }));
+                            let reply = match collected {
+                                Ok(Ok(reply)) => reply,
+                                Ok(Err(_)) | Err(_) => {
+                                    assert!(!owner.is_open());
+                                    assert_eq!(owner.value().is_some(), child_failed);
+                                    assert!(runtime.authorize(&plan.id()).is_err());
+                                    let (invocations, requests) = failure_counts.unwrap();
+                                    assert_eq!(host.invoked.borrow().len(), invocations);
+                                    assert_eq!(host.serial.get(), requests);
+                                    let (scope, slot) = owner.as_parts_mut();
+                                    if let Some(vm) = slot.as_mut() {
+                                        assert_eq!(vm.status(), EffectSessionStatus::Awaiting);
+                                        assert_eq!(vm.fuel_remaining(), remaining);
+                                        assert!(vm.cancel_in_scope(scope));
+                                    }
+                                    refused = true;
+                                    break;
+                                }
+                            };
+                            if final_request && cancel == Some(CancelFinal::Collected) {
+                                let (scope, slot) = owner.as_parts_mut();
+                                assert!(slot.as_mut().unwrap().cancel_in_scope(scope));
+                                drop(reply);
+                                break;
+                            }
+                            let identity = reply.identity.clone();
+                            let pointer = &*reply.buffer as *const u8;
+                            let mut stale = identity.clone();
+                            stale.serial = 0;
+                            let (scope, slot) = owner.as_parts_mut();
+                            let vm = slot.as_mut().unwrap();
+                            let reply = vm
+                                .try_accept_in_scope(&stale, reply, &runtime, scope)
+                                .unwrap_err()
+                                .reply;
+                            assert_eq!(&*reply.buffer as *const u8, pointer);
+                            assert_eq!(vm.status(), EffectSessionStatus::Awaiting);
+                            assert_eq!(vm.fuel_remaining(), remaining);
+                            let reply = if final_request {
+                                let mut reply = reply;
+                                let Response::Group(rows) = &mut reply.response else {
+                                    panic!("final group receipt")
+                                };
+                                rows.swap(0, 1);
+                                let mut reply = vm
+                                    .try_accept_in_scope(&identity, reply, &runtime, scope)
+                                    .unwrap_err()
+                                    .reply;
+                                assert_eq!(&*reply.buffer as *const u8, pointer);
+                                assert_eq!(vm.status(), EffectSessionStatus::Awaiting);
+                                assert_eq!(vm.fuel_remaining(), remaining);
+                                let Response::Group(rows) = &mut reply.response else {
+                                    unreachable!()
+                                };
+                                rows.swap(0, 1);
+                                reply
+                            } else {
+                                reply
+                            };
+                            assert!(scope.is_open());
+                            vm.try_accept_in_scope(&identity, reply, &runtime, scope)
+                                .unwrap();
+                            assert_eq!(vm.status(), EffectSessionStatus::Ready);
+                            assert_eq!(vm.fuel_remaining(), remaining);
+                            if final_request && cancel == Some(CancelFinal::Accepted) {
+                                assert!(vm.cancel_in_scope(scope));
+                                break;
+                            }
+                        }
+                        Ok(EffectSessionPoll::Value(PureValue::Result(View::Group(_, group)))) => {
+                            assert_eq!(phase, usize::from(prefix) + 1);
+                            assert_eq!(group.members().len(), 3);
+                            let mut values = Vec::new();
+                            for row in group.members() {
+                                values.push(match P::bind(row.as_parts().4.value.clone()) {
+                                    PureValue::Scalar(value) => value,
+                                    PureValue::Result(value) => P::field(&value, "text").unwrap(),
+                                });
+                            }
+                            rows = Some(values);
+                            break;
+                        }
+                        Err(_) => {
+                            assert_eq!(
+                                owner.value().as_ref().unwrap().status(),
+                                EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+                            );
+                            break;
+                        }
+                        _ => panic!("unexpected final-group state"),
+                    }
+                }
+                assert!(!owner.is_open());
+                let (scope, slot) = owner.as_parts_mut();
+                let end = if let Some(vm) = slot.as_mut() {
+                    let status = vm.status();
+                    assert!(!vm.cancel_in_scope(scope));
+                    assert!(matches!(
+                        vm.poll_in_scope(&runtime, scope).unwrap(),
+                        EffectSessionPoll::Terminal(_)
+                    ));
+                    assert_eq!(vm.status(), status);
+                    assert_eq!(vm.fuel_remaining(), remaining);
+                    status
+                } else {
+                    assert!(refused);
+                    EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+                };
+                assert!(!host.lease.is_open());
+                assert!(sibling.is_open());
+                output = Some((
+                    FinalOutcome {
+                        rows,
+                        remaining,
+                        invocations: host.invoked.borrow().clone(),
+                        requests: host.serial.get(),
+                        end,
+                    },
+                    cuts,
+                    refused,
+                ));
+            });
+            output.unwrap()
+        }
+
+        #[test]
+        fn two_hosts_restore_final_seq_all_repeat_with_original_collectors_at_every_fuel_cutoff() {
+            fn check<P: Profile>() {
+                for kind in ["seq", "all", "repeat"] {
+                    for prefix in [false, true] {
+                        let (baseline, _, _) =
+                            run_final::<P>(kind, prefix, 10_000, false, None, None);
+                        assert!(baseline.rows.is_some());
+                        assert_eq!(baseline.invocations.len(), 3 + usize::from(prefix));
+                        assert_eq!(baseline.requests, 4 + u64::from(prefix));
+                        let (moved, cuts, refused) =
+                            run_final::<P>(kind, prefix, 10_000, true, None, None);
+                        assert_eq!(moved, baseline);
+                        assert!(!refused);
+                        assert!(cuts.parent > 5 && cuts.child > 3);
+                        for budget in 0..=10_001 - baseline.remaining {
+                            assert_eq!(
+                                run_final::<P>(kind, prefix, budget, true, None, None).0,
+                                run_final::<P>(kind, prefix, budget, false, None, None).0,
+                                "{kind} prefix={prefix} budget={budget}",
+                            );
+                        }
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+
+        #[test]
+        fn final_parent_and_child_restore_refusal_close_the_same_owner_at_every_frontier() {
+            fn check<P: Profile>() {
+                for kind in ["seq", "all", "repeat"] {
+                    for prefix in [false, true] {
+                        let (_, cuts, _) = run_final::<P>(kind, prefix, 10_000, true, None, None);
+                        for fault in [
+                            Fault::Closed,
+                            Fault::Revoked,
+                            Fault::Stale,
+                            Fault::WrongRoot,
+                            Fault::Unwind,
+                            Fault::ChildRefused,
+                            Fault::ChildRevoked,
+                            Fault::ChildUnwind,
+                        ] {
+                            let count = if fault.is_child() {
+                                cuts.child
+                            } else {
+                                cuts.parent
+                            };
+                            for cut in 0..count {
+                                let (outcome, seen, refused) = run_final::<P>(
+                                    kind,
+                                    prefix,
+                                    10_000,
+                                    true,
+                                    Some((cut, fault)),
+                                    None,
+                                );
+                                assert!(refused, "{kind} prefix={prefix} {cut} {fault:?}");
+                                assert!(outcome.rows.is_none());
+                                assert_eq!(
+                                    if fault.is_child() {
+                                        seen.child
+                                    } else {
+                                        seen.parent
+                                    },
+                                    cut + 1
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+
+        #[test]
+        fn restored_final_groups_cancel_pending_collected_and_accepted_results_without_projection()
+        {
+            fn check<P: Profile>() {
+                for kind in ["seq", "all", "repeat"] {
+                    for prefix in [false, true] {
+                        for point in [
+                            CancelFinal::Pending,
+                            CancelFinal::Collected,
+                            CancelFinal::Accepted,
+                        ] {
+                            let (actual, _, refused) =
+                                run_final::<P>(kind, prefix, 10_000, true, None, Some(point));
+                            assert_eq!(
+                                actual,
+                                run_final::<P>(kind, prefix, 10_000, false, None, Some(point)).0
+                            );
+                            assert!(!refused);
+                            assert!(actual.rows.is_none());
+                            assert_eq!(
+                                actual.end,
+                                EffectSessionStatus::Terminal(EffectSessionEnd::Cancelled)
+                            );
+                            assert_eq!(
+                                actual.invocations.len(),
+                                usize::from(prefix)
+                                    + if point == CancelFinal::Pending { 0 } else { 3 }
+                            );
+                        }
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
         }
 
         #[test]
@@ -2822,6 +3248,377 @@ mod mixed {
             }
             check::<Counter>();
             check::<Panel>();
+        }
+
+        mod guarded_work {
+            use super::*;
+            use leselang_vm::native::HostWorkOutcome;
+
+            #[derive(Clone, Copy, Debug)]
+            enum Program {
+                Mixed(&'static str, &'static str),
+                Final(&'static str, bool),
+            }
+            fn programs() -> Vec<Program> {
+                let mut programs = Vec::new();
+                for first in ["seq", "all", "repeat"] {
+                    for last in ["seq", "all"] {
+                        programs.push(Program::Mixed(first, last));
+                    }
+                    for prefix in [false, true] {
+                        programs.push(Program::Final(first, prefix));
+                    }
+                }
+                programs
+            }
+            #[derive(Clone, Copy, Debug, PartialEq)]
+            enum WorkFault {
+                Refused,
+                Revoked,
+                Cancelled,
+                Unwind,
+            }
+            #[derive(Default, Debug, PartialEq)]
+            struct WorkTrace {
+                boundaries: usize,
+                children: usize,
+                charges: u64,
+                entered: usize,
+                stopped: Option<(usize, u64)>,
+                injected: Option<WorkFault>,
+            }
+
+            fn baseline<P: MixedProfile>(program: Program, budget: u64) -> FinalOutcome {
+                match program {
+                    Program::Mixed(first, last) => {
+                        let result = run_with_transfer::<P>(first, last, budget, false);
+                        FinalOutcome {
+                            end: EffectSessionStatus::Terminal(if result.value.is_some() {
+                                EffectSessionEnd::Completed
+                            } else {
+                                EffectSessionEnd::Failed
+                            }),
+                            rows: result.value.map(|value| vec![value]),
+                            remaining: result.remaining,
+                            invocations: result.invocations,
+                            requests: result.requests,
+                        }
+                    }
+                    Program::Final(kind, prefix) => {
+                        run_final::<P>(kind, prefix, budget, false, None, None).0
+                    }
+                }
+            }
+
+            // The parent moves only while quiescent. Once native work borrows the
+            // VM and its meter, only child collectors may checkpoint inside it.
+            fn run<P: MixedProfile>(
+                program: Program,
+                budget: u64,
+                restore_parent: bool,
+                meter_work: bool,
+                fault: Option<(usize, WorkFault)>,
+            ) -> (FinalOutcome, WorkTrace) {
+                let mut output = None;
+                fixture::<P>(|host, scope| {
+                    let sibling = LocalExecutionScope::new();
+                    let source = match program {
+                        Program::Mixed(first, last) => P::program(first, last),
+                        Program::Final(kind, prefix) => final_program::<P>(kind, prefix),
+                    };
+                    let node = compile(&source, &host).unwrap();
+                    let plans = plans(&node, &host);
+                    let runtime = Runtime {
+                        host: &host,
+                        plans: &plans,
+                    };
+                    let mut owner =
+                        scope.bind(Some(Vm::new(&node, Vec::new(), Fuel::new(budget), STACK)));
+                    let mut trace = WorkTrace::default();
+                    let mut values = None;
+                    for _ in 0..=4 {
+                        let (scope, slot) = owner.as_parts_mut();
+                        let polled = slot.as_mut().unwrap().poll_in_scope(&runtime, scope);
+                        match polled {
+                            Ok(EffectSessionPoll::Request(active)) => {
+                                let identity = active.plan.id();
+                                if restore_parent {
+                                    handoff(slot, scope, &runtime, active.plan, Fault::None)
+                                        .unwrap();
+                                }
+                                let vm = slot.as_mut().unwrap();
+                                let collected = catch_unwind(AssertUnwindSafe(|| {
+                                    vm.with_metered_host_outcome_in_scope(
+                                        active,
+                                        |active, fuel| {
+                                            trace.entered += 1;
+                                            let result = runtime.collect_with_checkpoint(
+                                                active,
+                                                true,
+                                                Some(scope),
+                                                |phase| {
+                                                    let cut = trace.boundaries;
+                                                    trace.boundaries += 1;
+                                                    trace.children += usize::from(
+                                                        phase == TransferPhase::ChildAdmission,
+                                                    );
+                                                    let stopped = (
+                                                        host.invoked.borrow().len(),
+                                                        host.serial.get(),
+                                                    );
+                                                    if meter_work {
+                                                        if fuel.charge(1).is_err() {
+                                                            trace.stopped = Some(stopped);
+                                                            return Err(Refusal);
+                                                        }
+                                                        trace.charges += 1;
+                                                    }
+                                                    if let Some((at, injected)) = fault
+                                                        && at == cut
+                                                    {
+                                                        trace.stopped = Some(stopped);
+                                                        trace.injected = Some(injected);
+                                                        match injected {
+                                                            WorkFault::Revoked => {
+                                                                scope.close();
+                                                            }
+                                                            WorkFault::Unwind => {
+                                                                panic!("native collection unwind")
+                                                            }
+                                                            WorkFault::Refused
+                                                            | WorkFault::Cancelled => {}
+                                                        }
+                                                        return Err(Refusal);
+                                                    }
+                                                    Ok(())
+                                                },
+                                            );
+                                            match result {
+                                                Ok(reply) => HostWorkOutcome::Pending(Ok(reply)),
+                                                Err(error) => {
+                                                    if trace.injected == Some(WorkFault::Cancelled)
+                                                    {
+                                                        HostWorkOutcome::Cancelled(Err(error))
+                                                    } else {
+                                                        HostWorkOutcome::Failed(Err(error))
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        scope,
+                                    )
+                                }));
+                                let reply = match collected {
+                                    Ok(Ok(Ok(reply))) => reply,
+                                    Ok(Ok(Err(_))) | Err(_) => {
+                                        let end = match trace.injected {
+                                            Some(WorkFault::Unwind) => {
+                                                EffectSessionEnd::HostUncertain
+                                            }
+                                            Some(WorkFault::Cancelled) => {
+                                                EffectSessionEnd::Cancelled
+                                            }
+                                            _ => EffectSessionEnd::Failed,
+                                        };
+                                        assert_eq!(vm.status(), EffectSessionStatus::Terminal(end));
+                                        assert!(!scope.is_open());
+                                        assert!(runtime.authorize(&identity).is_err());
+                                        assert_eq!(
+                                            trace.stopped,
+                                            Some((host.invoked.borrow().len(), host.serial.get()))
+                                        );
+                                        break;
+                                    }
+                                    Ok(Err(_)) => panic!("pending work was not entered"),
+                                };
+                                assert!(scope.is_open());
+                                assert_eq!(vm.status(), EffectSessionStatus::Awaiting);
+                                let remaining = vm.fuel_remaining();
+                                let address = &*reply.buffer as *const u8;
+                                let mut stale = identity.clone();
+                                stale.serial = 0;
+                                let reply = vm
+                                    .try_accept_in_scope(&stale, reply, &runtime, scope)
+                                    .unwrap_err()
+                                    .reply;
+                                assert_eq!(&*reply.buffer as *const u8, address);
+                                assert_eq!(vm.fuel_remaining(), remaining);
+                                assert!(scope.is_open());
+                                vm.try_accept_in_scope(&identity, reply, &runtime, scope)
+                                    .unwrap();
+                                assert_eq!(vm.status(), EffectSessionStatus::Ready);
+                                assert_eq!(vm.fuel_remaining(), remaining);
+                            }
+                            Ok(EffectSessionPoll::Value(PureValue::Scalar(value))) => {
+                                assert!(matches!(program, Program::Mixed(_, _)));
+                                values = Some(vec![value]);
+                                break;
+                            }
+                            Ok(EffectSessionPoll::Value(PureValue::Result(View::Group(
+                                _,
+                                group,
+                            )))) => {
+                                assert!(matches!(program, Program::Final(_, _)));
+                                values = Some(
+                                    group
+                                        .members()
+                                        .iter()
+                                        .map(|row| match P::bind(row.as_parts().4.value.clone()) {
+                                            PureValue::Scalar(value) => value,
+                                            PureValue::Result(value) => {
+                                                P::field(&value, "text").unwrap()
+                                            }
+                                        })
+                                        .collect(),
+                                );
+                                break;
+                            }
+                            Err(_) => {
+                                assert_eq!(
+                                    slot.as_ref().unwrap().status(),
+                                    EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+                                );
+                                break;
+                            }
+                            _ => panic!("unexpected guarded pipeline state"),
+                        }
+                    }
+                    assert!(!owner.is_open());
+                    assert!(sibling.is_open());
+                    let invocations = host.invoked.borrow().clone();
+                    let requests = host.serial.get();
+                    let (scope, slot) = owner.as_parts_mut();
+                    let vm = slot.as_mut().unwrap();
+                    let end = vm.status();
+                    let remaining = vm.fuel_remaining();
+                    // Verify the retained parent is already sealed, without a
+                    // coordinator close/cancel call repairing its lifecycle.
+                    let input = Box::new(19);
+                    let address = &*input as *const i32;
+                    let input = vm
+                        .with_host_work_in_scope::<_, ()>(
+                            input,
+                            |_| panic!("terminal work must not replay"),
+                            scope,
+                        )
+                        .unwrap_err();
+                    assert_eq!(&*input as *const i32, address);
+                    assert!(matches!(
+                        vm.poll_in_scope(&runtime, scope).unwrap(),
+                        EffectSessionPoll::Terminal(_)
+                    ));
+                    assert_eq!(vm.status(), end);
+                    assert_eq!(vm.fuel_remaining(), remaining);
+                    assert_eq!(*host.invoked.borrow(), invocations);
+                    assert_eq!(host.serial.get(), requests);
+                    output = Some((
+                        FinalOutcome {
+                            rows: values,
+                            remaining,
+                            invocations,
+                            requests,
+                            end,
+                        },
+                        trace,
+                    ));
+                });
+                output.unwrap()
+            }
+
+            #[test]
+            fn restored_guarded_work_matches_original_source_pipelines_at_every_fuel_cutoff() {
+                fn check<P: MixedProfile>() {
+                    for program in programs() {
+                        let expected = baseline::<P>(program, 10_000);
+                        let (actual, trace) = run::<P>(program, 10_000, true, false, None);
+                        assert_eq!(actual, expected);
+                        assert!(trace.children > 0);
+                        assert!(trace.entered > 0);
+                        assert_eq!(trace.charges, 0);
+                        for budget in 0..=10_001 - expected.remaining {
+                            assert_eq!(
+                                run::<P>(program, budget, true, false, None).0,
+                                baseline::<P>(program, budget),
+                                "{program:?} fuel={budget}",
+                            );
+                        }
+                    }
+                }
+                check::<Counter>();
+                check::<Panel>();
+            }
+
+            #[test]
+            fn restored_guarded_native_work_and_reentry_share_every_meter_cutoff() {
+                fn check<P: MixedProfile>() {
+                    for program in programs() {
+                        let unmetered = baseline::<P>(program, 10_000);
+                        let (baseline, trace) = run::<P>(program, 10_000, false, true, None);
+                        assert_eq!(baseline.rows, unmetered.rows);
+                        assert_eq!(baseline.invocations, unmetered.invocations);
+                        assert_eq!(baseline.requests, unmetered.requests);
+                        assert_eq!(baseline.remaining + trace.charges, unmetered.remaining);
+                        assert_eq!(trace.charges, trace.boundaries as u64);
+                        let needed = 10_000 - baseline.remaining;
+                        assert_eq!(
+                            run::<P>(program, 10_000, true, true, None),
+                            (baseline, trace)
+                        );
+                        for budget in 0..=needed + 1 {
+                            assert_eq!(
+                                run::<P>(program, budget, true, true, None),
+                                run::<P>(program, budget, false, true, None),
+                                "{program:?} fuel={budget}",
+                            );
+                        }
+                    }
+                }
+                check::<Counter>();
+                check::<Panel>();
+            }
+
+            #[test]
+            fn every_native_work_fault_seals_restored_parents_without_manual_cancellation() {
+                fn check<P: MixedProfile>() {
+                    for program in programs() {
+                        for metered in [false, true] {
+                            let (_, trace) = run::<P>(program, 10_000, true, metered, None);
+                            for cut in 0..trace.boundaries {
+                                for fault in [
+                                    WorkFault::Refused,
+                                    WorkFault::Revoked,
+                                    WorkFault::Cancelled,
+                                    WorkFault::Unwind,
+                                ] {
+                                    let (result, observed) = run::<P>(
+                                        program,
+                                        10_000,
+                                        true,
+                                        metered,
+                                        Some((cut, fault)),
+                                    );
+                                    assert!(result.rows.is_none());
+                                    assert_eq!(observed.boundaries, cut + 1);
+                                    assert_eq!(observed.injected, Some(fault));
+                                    assert_eq!(
+                                        (result, observed),
+                                        run::<P>(
+                                            program,
+                                            10_000,
+                                            false,
+                                            metered,
+                                            Some((cut, fault)),
+                                        ),
+                                        "{program:?} cut={cut} {fault:?} metered={metered}",
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                check::<Counter>();
+                check::<Panel>();
+            }
         }
     }
 

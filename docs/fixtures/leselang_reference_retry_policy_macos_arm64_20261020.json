@@ -1,0 +1,111 @@
+{
+  "kind": "leselang-reference-product-retry-policy",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "reference_execution_contract": "1.108.0",
+  "native_embedding_contract": "0.171.0",
+  "planning_comparisons": 60480,
+  "metadata_comparisons": 3156,
+  "wire_comparisons": 164,
+  "direct_adapter_tests": 5,
+  "frozen_vm_tests": 3,
+  "released_types_and_defaults_preserved": true,
+  "shared_numeric_kernel_retained": true,
+  "terminal_replay_precedes_policy": true,
+  "permanent_errors_skip_retry_policy": true,
+  "exact_fault_and_byte_parity": true,
+  "memory_and_sqlite_retry_tests_passed": true,
+  "adapter_has_no_vm_or_sqlite_dependency": true,
+  "isolated_consumer_passed": true,
+  "proposal_grants_dispatch": false,
+  "wire_or_journal_schema_changed": false,
+  "new_meter_or_scheduler": false,
+  "new_native_api": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "The product adapter owns RetryPolicy, EffectErrorClass, EffectError, released policy constants, metadata validation and semantic retry planning. Released VM paths are exact reexports; the shared runtime-core numeric planner is unchanged. The VM retains ingress clock/deadline checks, authoritative terminal replay, LSV2201/LSV2202/LSV2203 fault mapping, terminal steps, journal fencing and publication. Frozen comparisons preserve metadata-before-classification, permanent-error policy bypass, transient policy-before-clock/budget and full-width overflow/exhaustion behavior. Wire comparisons preserve exact bytes/diagnostics including accepted unknown metadata fields; decoding is not semantic admission. Planning borrows native payloads and does not grant dispatch, consume fuel, reset deadlines or persist anything. Existing memory/SQLite retry integration directly accepts adapter types and verifies restart, saved grants, lease redelivery versus semantic retries, stale acknowledgements and terminal replay before invalid late input. The isolated native source package remains product-free; this migration is not complete native durable recovery or repository extraction.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/retry_policy.rs",
+      "sha256": "434a46218c5e729aafd5eec22a9ded4c5df2deb3846f16a0037659a5f7601625"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "b293d3e4eecf2428731bbee2413ecea3acefa753db23f677d70b97f5010bf504"
+    },
+    {
+      "path": "crates/leselang-command/tests/retry_policy.rs",
+      "sha256": "cd5f1bdd53659791fe42137b54b64349b5f11e039d6e30e6b3ad73d613c35dcb"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "48b0a23d07c4a3fecb23b779db0a7dc366d6c771330ca3f105569d307d7f966d"
+    },
+    {
+      "path": "crates/leselang-vm/src/retry_policy_adapter_tests.rs",
+      "sha256": "99d258a4ec74434bb59720be0830086c42bfa0c7b72094386301a9882edaf6c9"
+    },
+    {
+      "path": "crates/leselang-vm/tests/retry_backoff.rs",
+      "sha256": "3f9404068f7b89e8fdf5c2deed26ee4116fb1c323a5b37c4d616fe34893cae4c"
+    }
+  ],
+  "verification": [
+    {
+      "name": "default-command-vm-and-observe",
+      "path": "/private/tmp/leselang-retry-policy-runtime.log",
+      "passed": 1046,
+      "sha256": "357afc3e3202847f9a5d403032bd00db162138a963cbb074ac1426b47429f4ec"
+    },
+    {
+      "name": "no-sqlite-reference-ephemeral-and-audit",
+      "path": "/private/tmp/leselang-retry-policy-memory.log",
+      "passed": 102,
+      "sha256": "e371181cb3ec233d31811fe0b111e67b0a176caeaeecd2f40d83f17aab0e18b3"
+    },
+    {
+      "name": "command-vm-observe-strict-clippy",
+      "path": "/private/tmp/leselang-retry-policy-clippy.log",
+      "passed": true,
+      "sha256": "62019067514fc8412cc80274b44a184640c9883c596658f6906d9b39cdaab7be"
+    },
+    {
+      "name": "isolated-source-tests-and-strict-clippy",
+      "path": "/private/tmp/leselang-retry-policy-export.log",
+      "passed": 2564,
+      "sha256": "db1ff552a9d5b5bb069bd0d752c94313ae6a82572cfe436f474b3abda9e7eb4f"
+    },
+    {
+      "name": "native-dependency-tree",
+      "path": "/private/tmp/leselang-retry-policy-tree.log",
+      "passed": true,
+      "sha256": "d134f104a12fe48ce60f665b0e9ef113902239ab59add7bea12a01b441c6a52c"
+    },
+    {
+      "name": "adapter-dependency-tree",
+      "path": "/private/tmp/leselang-retry-policy-adapter-tree.log",
+      "passed": true,
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "name": "root-guard-strict-clippy",
+      "path": "/private/tmp/leselang-retry-policy-guard-clippy.log",
+      "passed": true,
+      "sha256": "5ebaaf8f616a294a766c92dcba3cfbf9c9e39b3cc58aeb7392d1ff5cc54a8084"
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-retry-policy-2.4.0",
+    "manifest_sha256": "38667700c703537892dc55f29894ca6512e8268c7a1f7c47f3b39a8e30f82617",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2017,
+    "consumer_tests": 547,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}

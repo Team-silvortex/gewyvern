@@ -1238,6 +1238,46 @@ fn scoped_collector_restore_reuses_original_cores_and_fences_retained_cleanup() 
 }
 
 #[test]
+fn final_shared_owner_restoration_delegates_without_inventing_frames_or_a_meter() {
+    let session =
+        fs::read_to_string(root().join("crates/leselang-hir/src/effect_stack_session.rs")).unwrap();
+    let entry = session
+        .split("pub fn restore_pending_final_in_scope<")
+        .nth(1)
+        .unwrap()
+        .split("pub(crate) fn restore_pending_final_with_scope<")
+        .next()
+        .unwrap();
+    assert!(entry.contains("Self::restore_pending_final_with_scope("));
+    assert!(entry.contains("Some(scope)"));
+    for forbidden in [
+        "Fuel::new",
+        ".clone()",
+        "dispatch(",
+        "SavedEffectReturnFrame",
+        "LocalExecutionScope::new",
+    ] {
+        assert!(!entry.contains(forbidden), "unexpected {forbidden}");
+    }
+    let pipeline =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/native_host_pipeline.rs"))
+            .unwrap();
+    for required in [
+        "Vm::restore_pending_final_in_scope(",
+        "vm.try_into_pending_final()",
+        "two_hosts_restore_final_seq_all_repeat_with_original_collectors_at_every_fuel_cutoff",
+        "final_parent_and_child_restore_refusal_close_the_same_owner_at_every_frontier",
+        "restored_final_groups_cancel_pending_collected_and_accepted_results_without_projection",
+        "rows.swap(0, 1)",
+    ] {
+        assert!(pipeline.contains(required), "missing {required}");
+    }
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Shared-Owner Final Group Restoration"));
+    assert!(docs.contains("in-memory final-group composition, not a durable codec"));
+}
+
+#[test]
 fn shared_owner_restoration_lends_one_fence_without_another_lifecycle() {
     let owner =
         fs::read_to_string(root().join("crates/leselang-runtime-core/src/local_execution.rs"))
@@ -1368,7 +1408,9 @@ fn metered_owned_recovery_joins_existing_byte_codecs_collectors_and_session_core
         "with_metered_host_outcome(collector",
         "assemble_group_reply(",
         "collector.cancel(&env, &lease)",
-        ".try_accept::<Group<'_, T>, _>",
+        ".try_accept(&999, reply, &active)",
+        "Self::Owned(vm) => vm.try_accept(identity, reply, authority)",
+        "vm.try_accept_in_scope(identity, reply, authority, scope)",
         "session.poll(&env)",
         "owned_checkpoint_uses_one_meter_from_collectors_through_both_capture_returns",
         "owned_checkpoint_all_fuel_cutoffs_match_the_original_manual_reentry",
@@ -1484,7 +1526,11 @@ fn semantic_retry_planning_reuses_numeric_kernels_and_stays_outside_host_storage
     }
     let profile =
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
-    assert!(profile.contains("plan_retry_schedule("));
+    assert!(profile.contains("leselang_command::retry_policy::plan_effect_retry("));
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/retry_policy.rs")).unwrap();
+    assert!(adapter.contains("plan_retry_schedule("));
+    assert!(!adapter.contains("fn retry_delay("));
     assert!(!profile.contains("fn retry_delay("));
     let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
     assert_eq!(
@@ -1635,6 +1681,245 @@ fn dispatch_data_is_host_owned_and_reference_types_are_not_mirrored() {
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     assert!(docs.contains("### Host-Owned Dispatch Data"));
     assert!(docs.contains("data\nownership extraction, not a generic scheduler"));
+}
+
+#[test]
+fn borrowed_vm_lifecycle_reuses_local_owner_fences_after_restore() {
+    let session =
+        fs::read_to_string(root().join("crates/leselang-hir/src/effect_stack_session.rs")).unwrap();
+    for required in [
+        "pub fn cancel_in_scope(",
+        "pub fn try_accept_in_scope<",
+        "pub fn poll_in_scope<",
+        "pub(crate) fn call_in_scope<",
+        ".try_accept_with_scope(identity, reply, authority, Some(scope))",
+        "session.poll_with_scope(environment, Some(scope))",
+    ] {
+        assert!(session.contains(required), "missing {required}");
+    }
+    let local =
+        fs::read_to_string(root().join("crates/leselang-hir/src/local_effect_session.rs")).unwrap();
+    for required in [
+        "self.session.cancel_in_scope(&self.scope)",
+        ".with_host_outcome_in_scope(input, work, &self.scope)",
+        ".try_accept_in_scope(identity, reply, authority, &self.scope)",
+        "self.session.poll_in_scope(environment, &self.scope)",
+    ] {
+        assert!(
+            local.contains(required),
+            "missing shared delegation {required}"
+        );
+    }
+    assert!(!local.contains("pub fn try_into_pending"));
+    let pipeline =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/native_host_pipeline.rs"))
+            .unwrap();
+    let coupled = pipeline
+        .split("mod coupled_transfer {")
+        .nth(1)
+        .unwrap()
+        .split("#[test]")
+        .next()
+        .unwrap();
+    for forbidden in [".poll(", ".try_accept(", ".cancel()", "owner.close()"] {
+        assert!(
+            !coupled.contains(forbidden),
+            "unfenced coordinator {forbidden}"
+        );
+    }
+    for required in [
+        ".poll_in_scope(",
+        ".try_accept_in_scope(",
+        ".cancel_in_scope(",
+    ] {
+        assert!(coupled.contains(required), "missing {required}");
+    }
+    let tests =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/effect_session.rs")).unwrap();
+    for proof in [
+        "restored_scoped_acceptance_unwind_revokes_before_retained_cleanup",
+        "restored_closed_scope_cancels_before_poll_or_reply_validation",
+        "restored_scoped_rejection_retries_original_reply_then_completion_closes",
+        "restored_scoped_reentry_refusal_and_unwind_keep_terminal_reason",
+        "restored_scoped_cancel_revokes_before_pending_or_accepted_cleanup_unwind",
+        "restored_raw_vm_borrows_owner_and_bound_drop_revokes_first",
+    ] {
+        assert!(tests.contains(proof), "missing {proof}");
+    }
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Borrowed-Scope VM Lifecycle"));
+    assert!(docs.contains("the raw VM does not remember or authenticate its owner"));
+}
+
+#[test]
+fn borrowed_host_work_uses_the_same_core_meter_and_dual_owner_checkpoint_fixture() {
+    let session =
+        fs::read_to_string(root().join("crates/leselang-hir/src/effect_stack_session.rs")).unwrap();
+    for required in [
+        "pub fn with_host_work_in_scope<",
+        "pub fn with_host_outcome_in_scope<",
+        "pub fn with_metered_host_outcome_in_scope<",
+        "session.core.with_host_work(input, |input|",
+        "session.core.with_metered_host_work(input, |input, fuel|",
+    ] {
+        assert!(session.contains(required), "missing {required}");
+    }
+    let local =
+        fs::read_to_string(root().join("crates/leselang-hir/src/local_effect_session.rs")).unwrap();
+    for required in [
+        ".with_host_work_in_scope(input, work, &self.scope)",
+        ".with_host_outcome_in_scope(input, work, &self.scope)",
+        ".with_metered_host_outcome_in_scope(input, work, &self.scope)",
+    ] {
+        assert!(
+            local.contains(required),
+            "missing shared delegation {required}"
+        );
+    }
+    assert!(!local.contains("CallFence"));
+    assert!(!local.contains("fn call<"));
+    let tests =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/effect_session.rs")).unwrap();
+    for proof in [
+        "restored_scoped_host_work_preserves_move_only_input_and_original_meter",
+        "restored_scoped_host_work_refuses_every_nonawaiting_state_without_entering",
+        "restored_scoped_host_outcomes_and_unwind_revoke_before_retained_cleanup",
+        "restored_scoped_host_work_cannot_reenter_after_callback_revokes_owner",
+    ] {
+        assert!(tests.contains(proof), "missing {proof}");
+    }
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/saved_group.rs")).unwrap();
+    let model = source
+        .split("mod owned {")
+        .nth(1)
+        .unwrap()
+        .split("\n                fn cases(")
+        .next()
+        .unwrap();
+    for required in [
+        "Borrowed(ScopedLocalExecution<RawSession",
+        "RawSession::restore_pending_in_scope(",
+        "scope.bind(vm)",
+        "vm.with_host_outcome_in_scope(input, work, scope)",
+        "vm.with_metered_host_outcome_in_scope(input, work, scope)",
+        "Collector::restore(saved, &env)",
+        "assemble_group_reply(",
+    ] {
+        assert!(model.contains(required), "missing {required}");
+    }
+    let original_checkpoint = model.split("mod successor {").next().unwrap();
+    assert_eq!(
+        original_checkpoint
+            .matches("for borrowed in [false, true]")
+            .count(),
+        4
+    );
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Borrowed-Scope Host Work And Metering"));
+    assert!(docs.contains("normal native Err is not an automatic terminal failure"));
+}
+
+#[test]
+fn guarded_restored_source_pipeline_composes_existing_owners_without_repair_cancellation() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/native_host_pipeline.rs"))
+            .unwrap();
+    let pipeline = source
+        .split("mod guarded_work {")
+        .nth(1)
+        .unwrap()
+        .split("mod saved_mixed {")
+        .next()
+        .unwrap();
+    for required in [
+        "compile(&source, &host)",
+        "scope.bind(Some(Vm::new(",
+        "handoff(slot, scope, &runtime, active.plan, Fault::None)",
+        "vm.with_metered_host_outcome_in_scope(",
+        "runtime.collect_with_checkpoint(",
+        "HostWorkOutcome::Pending(Ok(reply))",
+        "HostWorkOutcome::Cancelled(Err(error))",
+        "HostWorkOutcome::Failed(Err(error))",
+        "EffectSessionEnd::HostUncertain",
+        "vm.try_accept_in_scope(&identity, reply, &runtime, scope)",
+        "vm.poll_in_scope(&runtime, scope)",
+        "baseline.remaining + trace.charges",
+        "restored_guarded_work_matches_original_source_pipelines_at_every_fuel_cutoff",
+        "restored_guarded_native_work_and_reentry_share_every_meter_cutoff",
+        "every_native_work_fault_seals_restored_parents_without_manual_cancellation",
+    ] {
+        assert!(pipeline.contains(required), "missing {required}");
+    }
+    assert_eq!(pipeline.matches("Fuel::new(").count(), 1);
+    for forbidden in [
+        "owner.close()",
+        ".cancel(",
+        ".cancel_in_scope(",
+        "evaluate_stacked",
+        "restore_pending_with_scope(",
+        "leserpent_domain",
+        "rusqlite",
+    ] {
+        assert!(!pipeline.contains(forbidden), "unexpected {forbidden}");
+    }
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Guarded Restored Source Pipelines"));
+    assert!(docs.contains("No public API or native contract version changes"));
+}
+
+#[test]
+fn decoded_source_checkpoints_resume_native_effects_without_a_second_evaluator() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/saved_group.rs")).unwrap();
+    let successor = source
+        .split("mod successor {")
+        .nth(1)
+        .unwrap()
+        .split("\n                fn cases(")
+        .next()
+        .unwrap();
+    let compact: String = successor.split_whitespace().collect();
+    for required in [
+        "source::compile_model_with_result",
+        "initial_tree::<T>(",
+        "decode::<T>(&bytes, &bytes)",
+        "Session::restore_pending(",
+        "Collector::restore(saved, &current)",
+        "self.next.prepare_effect(node, scope, fuel)",
+        "CorrelatedEffectRequest",
+        "std::ptr::eq(node, self.domain.node)",
+        "session.with_metered_host_outcome(",
+        "session.try_accept(&hosts[3].key(90)",
+        "session.poll(&env)",
+        "Rc::as_ptr(&refused.reply)",
+        "Stop::BeforeReentry",
+        "Stop::AfterRequest",
+        "HostWorkOutcome::Cancelled",
+        "assert_eq!(&counts[..2], &[(0, 0), (0, 0)])",
+        "decoded_source_frames_continue_to_a_distinct_host_without_replaying_settled_groups",
+        "decoded_successors_share_the_checkpoint_meter_at_every_cutoff",
+        "decoded_successor_revocation_and_cancellation_stop_before_new_dispatch",
+    ] {
+        assert!(
+            compact.contains(&required.split_whitespace().collect::<String>()),
+            "missing {required}"
+        );
+    }
+    assert_eq!(successor.matches("Fuel::new(").count(), 1);
+    for forbidden in [
+        "evaluate_stacked",
+        "resume_accepted",
+        ".cancel(",
+        "scope.close(",
+        "leserpent_domain",
+        "rusqlite",
+    ] {
+        assert!(!successor.contains(forbidden), "unexpected {forbidden}");
+    }
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Decoded Checkpoint Successor Effects"));
+    assert!(docs.contains("does not establish cross-process exactly-once effects"));
 }
 
 #[test]

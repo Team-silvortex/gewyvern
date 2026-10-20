@@ -649,12 +649,13 @@ fn run_with_request_admission(
     }
 }
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, serde::Serialize)]
 struct AtomicRequest {
     effect_id: String,
+    #[serde(rename = "required_capability")]
     required: String,
     operation: leselang_command::EffectOperation,
+    #[serde(rename = "continuation")]
     frame: leselang_runtime_core::ContinuationFrame<
         u64,
         leselang_host_contract::Revision,
@@ -663,6 +664,19 @@ struct AtomicRequest {
         ResultBinding,
     >,
     budget: leselang_runtime_core::ResourceBudget,
+}
+
+impl<'de> serde::Deserialize<'de> for AtomicRequest {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let decoded = leselang_command::decode_effect_request(deserializer)?;
+        Ok(Self {
+            effect_id: decoded.effect_id,
+            required: decoded.required_capability,
+            operation: decoded.operation,
+            frame: decoded.continuation,
+            budget: decoded.budget,
+        })
+    }
 }
 
 impl AtomicRequest {

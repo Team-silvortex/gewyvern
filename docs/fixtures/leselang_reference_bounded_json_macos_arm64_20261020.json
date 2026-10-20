@@ -1,0 +1,105 @@
+{
+  "kind": "leselang-reference-product-bounded-json",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "reference_execution_contract": "1.110.0",
+  "native_embedding_contract": "0.171.0",
+  "wire_boundary_comparisons": 9800,
+  "plan_comparisons": 200,
+  "native_serializer_error_comparisons": 30,
+  "direct_adapter_tests": 5,
+  "frozen_vm_tests": 3,
+  "production_vm_and_plan_share_codec": true,
+  "count_only_has_no_output_buffer": true,
+  "exact_released_fault_and_byte_parity": true,
+  "sticky_overflow_refusal": true,
+  "semantic_admission_and_journal_retained": true,
+  "adapter_has_no_vm_or_sqlite_dependency": true,
+  "isolated_consumer_passed": true,
+  "serialization_grants_authority": false,
+  "wire_or_journal_schema_changed": false,
+  "new_native_api": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "The product adapter owns one bounded compact-JSON writer shared by command-plan encoding and the reference VM continuation, request, merge and journal encoding/measurement wrappers. Frozen tests compare exact encoded bytes and exact faults at 9,800 boundaries across all 70 released operations, with both encoding and measurement per case; 200 plan cases retain attempted-size errors and validation-first order across all five command origins. Native serializer errors preserve VM labels and fault precedence. Borrowed non-Send custom serializers run once per operation without Clone or Deserialize. Overflow is intentionally sticky: a custom serializer catching a failed write can no longer report a successful truncated buffer or successful size check. This hardening is distinct from unchanged released derived DTO behavior. Counting keeps no output buffer; limits bound output length, not allocator capacity, recursion, CPU, arbitrary serializer allocations or side effects. Callers retain recursive and semantic admission, operation authority, all budget defaults, durable transactions and saved fuel. Measurement does not authorize a later stateful encoding. No native API, reference wire schema, journal format or full native durable recovery is introduced.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/bounded_json.rs",
+      "sha256": "4c99e2374748b3b8f0d5920bbb813c88ba0237d31fe1f0a3c3b895829dad70b8"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "e59ea7bdf49952a5c50cd52fbe7c3fc4af1d1453d1201bc0b5111a416a16c483"
+    },
+    {
+      "path": "crates/leselang-command/tests/bounded_json.rs",
+      "sha256": "993730c9ec63d6f45838d9887654685075bb3a0c3c852eae9ca9073f177dbe13"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "38aad0f70f700a24ae8a937c6486c82d203ec31dcd47b50a35a48f64a69b52c4"
+    },
+    {
+      "path": "crates/leselang-vm/src/bounded_json_tests.rs",
+      "sha256": "2d2ab1631598f5188f7dcc9ce631c551bf966e695b09828b3a6e3c810fbe47eb"
+    }
+  ],
+  "verification": [
+    {
+      "name": "default-command-vm-and-observe",
+      "path": "/private/tmp/leselang-bounded-json-runtime.log",
+      "passed": 1061,
+      "sha256": "3d6d61d5b25239acd93b3fc826998a1517fc70777ff6cd1ef30113e0e47ccb21"
+    },
+    {
+      "name": "no-sqlite-reference-ephemeral-and-audit",
+      "path": "/private/tmp/leselang-bounded-json-memory.log",
+      "passed": 107,
+      "sha256": "51f131203ba740ac550d64c5e6d87823742ce0f44f340eb089d1fc1f5146fdca"
+    },
+    {
+      "name": "command-vm-observe-strict-clippy",
+      "path": "/private/tmp/leselang-bounded-json-clippy.log",
+      "passed": true,
+      "sha256": "7046291a0ea73d148c77b850ac01363251e401483e6448edfca54c410c0d2cfb"
+    },
+    {
+      "name": "isolated-source-tests-and-strict-clippy",
+      "path": "/private/tmp/leselang-bounded-json-export.log",
+      "passed": 2564,
+      "sha256": "2edb9ae5d548992a0bc57dc4bd36d71ed72f599549563c1d74040dc804bab59c"
+    },
+    {
+      "name": "native-dependency-tree",
+      "path": "/private/tmp/leselang-bounded-json-tree.log",
+      "passed": true,
+      "sha256": "c7b9a92f2bebeb0295800679632be8bd91876d9eeaa01cfff8d7624887e3adbd"
+    },
+    {
+      "name": "adapter-dependency-tree",
+      "path": "/private/tmp/leselang-bounded-json-adapter-tree.log",
+      "passed": true,
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "name": "root-guard-strict-clippy",
+      "path": "/private/tmp/leselang-bounded-json-guard-clippy.log",
+      "passed": true,
+      "sha256": "319d47d5df1293b8bf283f3e85258a10e4142e9fb17f07f3e7e2be589e73f8da"
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-bounded-json-2.4.0",
+    "manifest_sha256": "38667700c703537892dc55f29894ca6512e8268c7a1f7c47f3b39a8e30f82617",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2017,
+    "consumer_tests": 547,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}

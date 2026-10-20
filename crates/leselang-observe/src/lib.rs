@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use leselang_command::CommandPlan;
+use leselang_command::{CommandPlan, DebuggerAuditContext, DebuggerCancelResult};
 use leselang_hir::Effect;
 use leselang_host_contract::{Confirmation, Revision, RuntimeId};
 use leselang_ui::{
@@ -10,8 +10,7 @@ use leselang_ui::{
     runtime_log_document,
 };
 use leselang_vm::{
-    ContinuationImage, DebuggerAuditContext, DebuggerCancelResult, EffectRequest, Fault, Vm,
-    encode_continuation, validate_effect_request,
+    ContinuationImage, EffectRequest, Fault, Vm, encode_continuation, validate_effect_request,
 };
 use leserpent_domain::{
     Command, CommandPlanError, MAX_RUNTIME_LOG_MESSAGE_BYTES, PlannedOperation, RuntimeLogLevel,

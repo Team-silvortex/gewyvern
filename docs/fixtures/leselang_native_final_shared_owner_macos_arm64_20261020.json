@@ -1,0 +1,99 @@
+{
+  "kind": "leselang-native-final-shared-owner-restoration",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "native_embedding_contract": "0.169.0",
+  "reference_execution_contract": "1.105.0",
+  "hosts": 2,
+  "host_program_combinations": 12,
+  "original_final_restore_core": true,
+  "parent_and_collectors_share_owner": true,
+  "every_fuel_cutoff": true,
+  "every_parent_and_child_restore_boundary": true,
+  "stale_and_reordered_receipts_preserve_ownership": true,
+  "pending_collected_accepted_cancellation": true,
+  "move_only_cleanup_and_revocation_precedence": true,
+  "isolated_consumer_passed": true,
+  "synthesized_return_frames": false,
+  "new_meter_or_evaluator": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "process_crash_recovery": false,
+  "production_durable_codec": false,
+  "automatic_external_cancellation": false,
+  "wire_or_journal_schema_changed": false,
+  "scope": "Raw Vm::restore_pending_final_in_scope borrows the coordinator scope and delegates to the existing final restoration core. Two numeric/text hosts run direct and atomic-prefix final Seq/All/repeat through the original compiler, VM and prepared collectors. Actual pending ownership moves repeatedly across every transfer boundary without new return frames, dispatch, projection or meter resets. Every fuel cutoff matches uninterrupted execution. Stale root receipts and reordered rows retain retryable ownership. Structural limits and closed scopes precede native admission; parent/child refusal, revocation and unwind close one scope before retained cleanup. A retained parent is cancelled explicitly and siblings stay open. Pending, collected and accepted final requests cancel without projection. Move-only identity/error cleanup and callback-revocation precedence run in the same exported tests. Callback-internal cleanup, later live authorization, lifecycle closure and external cancellation remain host-owned. This is in-memory final-group composition, not a durable codec, process-crash settlement, complete language parity or full extraction.",
+  "sources": [
+    {
+      "path": "crates/leselang-hir/src/effect_stack_session.rs",
+      "sha256": "b419a2322e2b60aea4d7e2a5aa497a558c69ac4ddaf6d00833f6dd804970839f"
+    },
+    {
+      "path": "crates/leselang-hir/src/local_effect_session.rs",
+      "sha256": "7653bf04e3943ef8a5f531aa0b8e69a31a76b252cb10df5d23984cafac9e15d5"
+    },
+    {
+      "path": "crates/leselang-hir/src/local_scope.rs",
+      "sha256": "ba1167180650079329a1a8b9f62d4428776ca97b430966206e371ffc74932c9b"
+    },
+    {
+      "path": "crates/leselang-hir/src/prepared_sequence.rs",
+      "sha256": "cef0c19ef2b2530314a24b9c8100b3519853f011a0959f0c960b0a6874160a2d"
+    },
+    {
+      "path": "crates/leselang-hir/src/prepared_parallel.rs",
+      "sha256": "e03943042c23cdc2aabf66c6a8518827d70f6abb19e5c6715ba551714f346da0"
+    },
+    {
+      "path": "crates/leselang-hir/tests/effect_session.rs",
+      "sha256": "d906ef6cedd7b0cf4d5285aca44bca5d35f5c26d76daea5308bc72ac098f8aa1"
+    },
+    {
+      "path": "crates/leselang-vm/src/native.rs",
+      "sha256": "3b086d68e9d301a183371e390f8c5fe60bbcda24fd824642ad3c120fcf1d95d2"
+    },
+    {
+      "path": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "c129b6c3ce7f7ab0390bc1eeb23a1b0a139fd5ba95adc06aafcc6bda7f1c28fe"
+    }
+  ],
+  "verification": [
+    {
+      "name": "default-feature-runtime-hir-vm",
+      "path": "/private/tmp/leselang-final-owner-runtime.log",
+      "sha256": "aea8edfef9eb7c4342fda40e5dd372952c94f8c4fcab4527352a4287f240eb42",
+      "passed": 3105
+    },
+    {
+      "name": "isolated-source-tests-and-strict-clippy",
+      "path": "/private/tmp/leselang-final-owner-export.log",
+      "sha256": "592eac604c74bac1bc887b64bd2e951631f209402815336aa4ea619e2cc786c9",
+      "passed": 2531
+    },
+    {
+      "name": "default-feature-strict-clippy",
+      "path": "/private/tmp/leselang-final-owner-clippy.log",
+      "sha256": "1dd6c4915ae96908abc91ee57a7afff25463ca5d6e8fed0273ab0a5564781266",
+      "passed": true
+    },
+    {
+      "name": "native-dependency-tree",
+      "path": "/private/tmp/leselang-final-owner-tree.log",
+      "sha256": "52e575049f744a5415bf711498d00e9b70da58e441838026e9a5dfa8b2494455",
+      "passed": true
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-final-owner-2.4.0",
+    "manifest_sha256": "9d3418e3fd53a53e2da31d9d0f476b94cd10eefa0fee26b11a42bfc69ce5b155",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2000,
+    "consumer_tests": 531,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}

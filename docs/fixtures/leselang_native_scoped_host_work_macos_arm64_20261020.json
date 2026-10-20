@@ -1,0 +1,104 @@
+{
+  "kind": "leselang-native-borrowed-scope-host-work",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "native_embedding_contract": "0.171.0",
+  "reference_execution_contract": "1.105.0",
+  "hosts": 2,
+  "ownership_modes": 2,
+  "host_work_tests_added": 4,
+  "frontier_combinations_per_owner": 440,
+  "cancellation_cases_per_owner": 1760,
+  "live_policy_cases_per_owner": 660,
+  "shared_host_work_core_and_meter": true,
+  "original_input_preserved_on_refusal": true,
+  "terminal_outcomes_revoke_before_cleanup": true,
+  "debits_survive_outcomes_and_unwind": true,
+  "callback_revocation_blocks_later_work": true,
+  "dual_owner_checkpoint_pipeline": true,
+  "every_fuel_cutoff": true,
+  "meter_borrow_cannot_escape": true,
+  "isolated_consumer_passed": true,
+  "automatic_native_error_classification": false,
+  "new_meter_or_evaluator": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "process_crash_recovery": false,
+  "production_durable_codec": false,
+  "automatic_external_cancellation": false,
+  "wire_or_journal_schema_changed": false,
+  "scope": "Raw Vm host-work/outcome methods borrow the original coordinator scope and delegate to the original pending-state core and session-owned Fuel. LocalVm delegates to these exact methods without a second lifecycle fence implementation. Nonawaiting or closed calls return original inputs without entering callbacks; ordinary native errors remain Pending unless the adapter explicitly classifies a terminal outcome. Cancellation/failure/uncertainty revoke before retained pending cleanup, escaping unwind preserves HostUncertain, and already consumed fuel is never reset or refunded. Callback revocation remains closed and prevents later scoped work. Four move-only binding/final regressions cover input identity, state refusal, meter continuity, callback/cleanup unwind and revocation. The existing two-capture source checkpoint fixture routes identical saved graphs and prepared Seq/All collectors through LocalVm and scope-bound raw Vm, comparing both against original manual re-entry at every fuel cutoff, cancellation frontier and live-policy refusal. Native callbacks, correct Fuel use, callback-local cleanup, dispatch authority, output handling and external cancellation remain trusted host duties. No input authentication, replay fence, new interpreter, replacement meter, LocalVm transfer escape, production durable codec or complete extraction is claimed.",
+  "sources": [
+    {
+      "path": "crates/leselang-hir/src/effect_stack_session.rs",
+      "sha256": "f2237f795c64696b8fdbda5e21ae8035ba6ca8fda89520713c235330aca52ae7"
+    },
+    {
+      "path": "crates/leselang-hir/src/local_effect_session.rs",
+      "sha256": "0d33c0282caa5521ecec531184685952dd84d80cff6b9c38bfae347ae32e16dc"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_session.rs",
+      "sha256": "dc61d54cf4f0b3cf9314bb7f7236f37820569e690a972524dc417ecbb881b069"
+    },
+    {
+      "path": "crates/leselang-hir/src/local_scope.rs",
+      "sha256": "ba1167180650079329a1a8b9f62d4428776ca97b430966206e371ffc74932c9b"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/local_execution.rs",
+      "sha256": "5b87372ca61605b4452c69c0541604fdfd4371a64ad4f24c8afc83b09b70508a"
+    },
+    {
+      "path": "crates/leselang-hir/tests/effect_session.rs",
+      "sha256": "04e69d18f629da3170735b6240dd01ef2d391391642b570c17e42fbcb16acce9"
+    },
+    {
+      "path": "crates/leselang-hir/tests/saved_group.rs",
+      "sha256": "bcf893d6db623976c4ee55613fbcfc4be7c70825887e7676053b784e00466e6f"
+    },
+    {
+      "path": "crates/leselang-vm/src/native.rs",
+      "sha256": "d895cfcdff7fb4e23eafb1ea2a691138dfd9d489c39777384793cc21b83c8dfa"
+    }
+  ],
+  "verification": [
+    {
+      "name": "default-feature-runtime-hir-vm",
+      "path": "/private/tmp/leselang-scoped-host-work-runtime.log",
+      "sha256": "1123d38aa8af8f96062c280565e47ec853369d3e5107e114e7f4d52b4db96f32",
+      "passed": 3116
+    },
+    {
+      "name": "isolated-source-tests-and-strict-clippy",
+      "path": "/private/tmp/leselang-scoped-host-work-export.log",
+      "sha256": "5b5c2ee4ad384fece60f472aa0b47b0e7f192d5f57aaa4bd54e5c7e20721f82d",
+      "passed": 2552
+    },
+    {
+      "name": "default-feature-strict-clippy",
+      "path": "/private/tmp/leselang-scoped-host-work-clippy.log",
+      "sha256": "f6c7b0fedc9ffc9cfe49a3f12a0d86eca91a677235630b61e22f152decf314d3",
+      "passed": true
+    },
+    {
+      "name": "native-dependency-tree",
+      "path": "/private/tmp/leselang-scoped-host-work-tree.log",
+      "sha256": "6625d4afc8ebc67538395a8587f641e87b435cff86f58b9dfbdfd31a32724bdc",
+      "passed": true
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-scoped-host-work-2.4.0",
+    "manifest_sha256": "df1c75009d3b69fef53135036e4d7bdd35ef7e466d4fa0238b2302df9d3b720e",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2011,
+    "consumer_tests": 541,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}

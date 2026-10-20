@@ -1,0 +1,121 @@
+{
+  "kind": "leselang-reference-product-debugger-audit",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "reference_execution_contract": "1.107.0",
+  "native_embedding_contract": "0.171.0",
+  "valid_wire_comparisons": 270,
+  "malformed_wire_comparisons": 5670,
+  "identity_validation_comparisons": 3945,
+  "direct_adapter_tests": 5,
+  "frozen_vm_tests": 3,
+  "persisted_origin_labels": 5,
+  "corrupt_origin_recovery_refusals": 15,
+  "released_types_are_exact_reexports": true,
+  "observe_uses_adapter_types": true,
+  "journal_uses_adapter_metadata": true,
+  "cancellation_and_replay_checks_retained": true,
+  "exact_fault_and_byte_parity": true,
+  "sqlite_reopen_and_conflict_tests_passed": true,
+  "sql_origin_constraint_retained": true,
+  "isolated_consumer_passed": true,
+  "metadata_grants_authority": false,
+  "metadata_match_grants_replay": false,
+  "wire_or_journal_schema_changed": false,
+  "new_native_api": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "The product command adapter now owns debugger audit context/record types, metadata identity validation, attribution projection/matching and exact origin labels. Released VM paths are exact reexports. The observer imports product DTOs directly from the adapter; both original journal backends use the adapter without changing cancellation admission, continuation/key identity checks, conflict policy, retention or transactional recovery. Frozen tests compare canonical bytes and exact decode/validation errors; direct adapter consumers require no VM. Projection is deliberately untrusted and not evidence of commit. Attribution matching excludes the original timestamp and cannot prove idempotency or continuation identity, so it never grants replay. The original SQLite CHECK constraint refuses invalid origins; only disposable test fixtures bypass it to verify all fifteen corrupted-label reopen refusals, unchanged audit/terminal bytes and recovery after fixture repair. Default, memory-only, observer and standalone native source verification pass. This product migration introduces no native evaluator, schema change, authorization grant or complete independent durable runtime.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/debugger_audit.rs",
+      "sha256": "2ddd641209cd550ce164664fabc727779eae00ff8e3904995e83eb52bc358f72"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "8b8ba3575e8ad2ece4ce9a03bd7dcc0cd44c1a936377fd154a2271f19f77a755"
+    },
+    {
+      "path": "crates/leselang-command/tests/debugger_audit.rs",
+      "sha256": "1c597dd0bd528a98dca8c9cdb52c490bc982538a0c68c2dfa2efe47b651bb007"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "a80f8cd09900e21c6fdce3512061bd69a20ea9c086a42ed0431180907041c838"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "fe01bff4e738aa6f9af2067c8942e97d67c1454e6f077696292292c0c6159a70"
+    },
+    {
+      "path": "crates/leselang-vm/src/debugger_audit_adapter_tests.rs",
+      "sha256": "26a95922261f5884c1c6a23bbd429f3bf76f7c5dc432886c9936708a84c91b07"
+    },
+    {
+      "path": "crates/leselang-vm/tests/debugger_audit_durable.rs",
+      "sha256": "bff10093cbd042c25273415128de12d5e0afb3f4ead816681dab4593022e2db5"
+    },
+    {
+      "path": "crates/leselang-observe/src/lib.rs",
+      "sha256": "25f7069c25a593c93483508501c71f0d8819cf3fe87a81afbcfe958d47dfaf7d"
+    }
+  ],
+  "verification": [
+    {
+      "name": "default-command-vm-and-observe",
+      "path": "/private/tmp/leselang-debugger-audit-verified-runtime.log",
+      "passed": 1038,
+      "sha256": "d61c9f4efa2d9ced770d28d116a2d70eaa8ba5628a0c597892feb2b02fd3b95c"
+    },
+    {
+      "name": "no-sqlite-reference-and-audit",
+      "path": "/private/tmp/leselang-debugger-audit-memory.log",
+      "passed": 87,
+      "sha256": "7c16af598cff15fa6cd441bbe4582bb92c2d0dad000bbbebbd3bf24c69e6c50f"
+    },
+    {
+      "name": "sqlite-audit-reopen-conflict-and-origin-corruption",
+      "path": "/private/tmp/leselang-debugger-audit-durable.log",
+      "passed": 15,
+      "sha256": "ad6fc9c0eeef205a85f17b799c711065e85f9bf0a33fddb5b09b7a55b6198d06"
+    },
+    {
+      "name": "command-vm-observe-strict-clippy",
+      "path": "/private/tmp/leselang-debugger-audit-verified-clippy.log",
+      "passed": true,
+      "sha256": "05502a39ddb27e465a69fb54bfe5dcb944560be42cb94113c30d4667b9f3c0ad"
+    },
+    {
+      "name": "isolated-source-tests-and-strict-clippy",
+      "path": "/private/tmp/leselang-debugger-audit-export.log",
+      "passed": 2564,
+      "sha256": "e5bf08481c76de07b65bda341bc263bfdbc45db37798aa89232cc0da1b28e875"
+    },
+    {
+      "name": "native-dependency-tree",
+      "path": "/private/tmp/leselang-debugger-audit-tree.log",
+      "passed": true,
+      "sha256": "02e78b6fa6faa50538b7c371374c354aaea354669f7837513560a91d7c17c88a"
+    },
+    {
+      "name": "root-guard-strict-clippy",
+      "path": "/private/tmp/leselang-debugger-audit-guard-clippy.log",
+      "passed": true,
+      "sha256": "9ce947c1383d1cffe63ffa60615ef5d7fdd5ac5bddd6c4f2c15e7028677f6223"
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-debugger-audit-2.4.0",
+    "manifest_sha256": "38667700c703537892dc55f29894ca6512e8268c7a1f7c47f3b39a8e30f82617",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2017,
+    "consumer_tests": 547,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}

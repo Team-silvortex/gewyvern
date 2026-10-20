@@ -4,6 +4,389 @@ fn root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
 }
 
+#[test]
+fn product_retention_policy_is_shared_and_memory_compaction_preflights_before_mutation() {
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    assert!(vm.contains("pub use leselang_command::{CompactionReport, RetentionPolicy}"));
+    assert!(!vm.contains("pub struct RetentionPolicy"));
+    assert!(!vm.contains("pub struct CompactionReport"));
+    assert!(vm.contains("leselang_command::retention_policy::validate_retention_policy("));
+    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    assert_eq!(
+        journal
+            .matches("policy.removal_count(completed_count)")
+            .count(),
+        2
+    );
+    let compact = journal
+        .split_once("impl EphemeralJournal {")
+        .unwrap()
+        .1
+        .split_once("    fn compact_completed(")
+        .unwrap()
+        .1
+        .split_once("\n}\n")
+        .unwrap()
+        .0;
+    let preflight = compact
+        .split_once("for unit in units.iter().take(remove_count)")
+        .unwrap()
+        .1
+        .split_once("for unit in units.into_iter().take(remove_count)")
+        .unwrap()
+        .0;
+    assert_eq!(preflight.matches("measure_json_capped(").count(), 5);
+    for absent in [".remove(", ".retain(", ".get_mut(", "encode_json_capped("] {
+        assert!(!preflight.contains(absent), "{absent}");
+    }
+    assert!(compact.contains("self.debugger_audits"));
+    let policy =
+        fs::read_to_string(root().join("crates/leselang-command/src/retention_policy.rs")).unwrap();
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "ContinuationToken",
+        "LSV",
+        "Fuel::",
+    ] {
+        assert!(!policy.contains(absent), "{absent}");
+    }
+    let tests =
+        fs::read_to_string(root().join("crates/leselang-vm/src/journal/retention_tests.rs"))
+            .unwrap();
+    let frozen = tests.split_once("fn frozen_compact(").unwrap().1;
+    assert!(!frozen.contains("measure_json_capped("));
+    assert!(!frozen.contains("removal_count("));
+    assert!(frozen.contains("saturating_sub(policy.max_completed_records)"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Product Retention Policy Ownership"));
+}
+
+#[test]
+fn product_bounded_json_is_shared_without_moving_admission_or_journal_ownership() {
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    for absent in [
+        "struct CappedWriter",
+        "struct CappedCounter",
+        "serde_json::to_writer(",
+    ] {
+        assert!(!vm.contains(absent), "{absent}");
+    }
+    for required in [
+        "leselang_command::bounded_json::encode(value, limit)",
+        "leselang_command::bounded_json::measure(value, limit)",
+        "binding.validate_structure()?",
+        "validate_restorable_image(image)?",
+        "\"LSV3001\"",
+        "\"LSV3002\"",
+    ] {
+        assert!(vm.contains(required), "{required}");
+    }
+    let plan = fs::read_to_string(root().join("crates/leselang-command/src/lib.rs")).unwrap();
+    let plan = plan
+        .split_once("pub fn encode_plan(")
+        .unwrap()
+        .1
+        .split_once("pub fn decode_plan(")
+        .unwrap()
+        .0;
+    assert!(
+        plan.find("validate_plan(plan)?").unwrap() < plan.find("bounded_json::encode(").unwrap()
+    );
+    assert!(!plan.contains("CommandPlanWriter"));
+    let codec =
+        fs::read_to_string(root().join("crates/leselang-command/src/bounded_json.rs")).unwrap();
+    for required in [
+        "pub fn encode<",
+        "pub fn measure<",
+        "self.bytes.checked_add(buffer.len())",
+        "if let Some(attempted) = writer.overflow",
+        "Option<&mut Vec<u8>>",
+    ] {
+        assert!(codec.contains(required), "{required}");
+    }
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "Fuel::",
+        "LSV",
+        "ContinuationImage",
+    ] {
+        assert!(!codec.contains(absent), "{absent}");
+    }
+    assert!(
+        codec
+            .find("if let Some(attempted) = writer.overflow")
+            .unwrap()
+            < codec.find("result.map_err(").unwrap()
+    );
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Product Bounded JSON Ownership"));
+}
+
+#[test]
+fn product_merge_completion_moves_ordering_without_moving_vm_finalization() {
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    let merge = vm
+        .split_once("fn merge_declared_inner(")
+        .unwrap()
+        .1
+        .split_once("struct ReferenceMergeCompletionHost;")
+        .unwrap()
+        .0;
+    let mut offset = 0;
+    for ordered in [
+        "validate_merge_plan(plan)?",
+        "leselang_command::merge_completion::merge_preflighted_completions(",
+        "validate_value(value, 1)?",
+        "encode_json_capped(&step, MAX_JOURNAL_ENTRY_BYTES",
+        "binding.finish(value)",
+    ] {
+        offset += merge[offset..].find(ordered).unwrap() + ordered.len();
+    }
+    assert!(!merge.contains("by_branch"));
+    assert!(!merge.contains("saturating_add"));
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/merge_completion.rs")).unwrap();
+    for required in [
+        "pub trait MergeCompletionHost",
+        "pub fn merge_preflighted_completions",
+        "completions.len() != plan.branches.len()",
+        "by_branch.contains_key(&branch)",
+        "output_items.saturating_add",
+        "host.validate_member(",
+        "for branch in &plan.branches",
+        "Callers must first bound and validate the plan",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "Fuel::new",
+        "ContinuationToken",
+        "LSV",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    let frozen =
+        fs::read_to_string(root().join("crates/leselang-vm/src/merge_completion_tests.rs"))
+            .unwrap();
+    assert!(frozen.contains("9_720"));
+    let frozen = frozen.split_once("fn frozen_merge(").unwrap().1;
+    assert!(!frozen.contains("merge_preflighted_completions"));
+    assert!(frozen.contains("by_branch.contains_key"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Product Merge Completion Ownership"));
+}
+
+#[test]
+fn product_retry_policy_is_adapter_owned_but_replay_and_journal_fencing_stay_in_vm() {
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    for removed in [
+        "pub struct RetryPolicy",
+        "pub enum EffectErrorClass",
+        "pub struct EffectError",
+        "fn validate_retry_policy(",
+        "plan_retry_schedule(",
+    ] {
+        assert!(!vm.contains(removed), "{removed}");
+    }
+    assert!(vm.contains("pub use leselang_command::{EffectError, EffectErrorClass, RetryPolicy}"));
+    assert!(vm.contains("leselang_command::retry_policy::validate_effect_error(error)"));
+    let reporting = vm
+        .split_once("pub fn report_effect_error(")
+        .unwrap()
+        .1
+        .split_once("pub fn cancel_effect(")
+        .unwrap()
+        .0;
+    let mut offset = 0;
+    for ordered in [
+        "validate_scheduler_time(now_ms)?",
+        "self.expire_due(now_ms)?",
+        "self.replay_completed(",
+        "leselang_command::retry_policy::plan_effect_retry(",
+        "RetryDisposition::Terminal(Step::Failed(",
+        "self.journal.report_error(",
+    ] {
+        offset += reporting[offset..].find(ordered).unwrap() + ordered.len();
+    }
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/retry_policy.rs")).unwrap();
+    let planning = adapter.split_once("pub fn plan_effect_retry(").unwrap().1;
+    let mut offset = 0;
+    for ordered in [
+        "validate_effect_error(error)?",
+        "EffectErrorClass::Permanent",
+        "validate_retry_policy(policy)?",
+        "plan_retry_schedule(",
+    ] {
+        offset += planning[offset..].find(ordered).unwrap() + ordered.len();
+    }
+    for absent in ["leselang_vm", "rusqlite", "Fuel::new", "LSV", ".clone()"] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    assert!(adapter.contains("A proposal is not dispatch authority"));
+    let integration =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/retry_backoff.rs")).unwrap();
+    assert!(
+        integration.contains("use leselang_command::{EffectError, EffectErrorClass, RetryPolicy}")
+    );
+    assert!(integration.contains("terminal_replay_precedes_late_invalid_error_and_policy"));
+    let frozen =
+        fs::read_to_string(root().join("crates/leselang-vm/src/retry_policy_adapter_tests.rs"))
+            .unwrap();
+    assert!(frozen.contains("60_480"));
+    assert!(
+        !frozen
+            .split_once("mod frozen {")
+            .unwrap()
+            .1
+            .contains("leselang_command")
+    );
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Product Semantic Retry Ownership"));
+}
+
+#[test]
+fn product_debugger_audit_metadata_is_adapter_owned_without_moving_commit_authority() {
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/debugger_audit.rs")).unwrap();
+    let observe = fs::read_to_string(root().join("crates/leselang-observe/src/lib.rs")).unwrap();
+    for removed in [
+        "pub struct DebuggerAuditContext",
+        "pub struct DebuggerAuditRecord",
+        "let valid_session =",
+    ] {
+        assert!(!vm.contains(removed), "{removed}");
+    }
+    assert!(vm.contains("leselang_command::debugger_audit::validate_debugger_audit(audit)"));
+    assert!(journal.contains("use leselang_command::debugger_audit::command_origin_label"));
+    assert!(journal.contains("use leselang_command::debugger_audit::{"));
+    assert!(!journal.contains("fn debugger_audit_record("));
+    assert!(!journal.contains("fn audit_matches_record("));
+    assert!(journal.contains("leselang_command::debugger_audit::parse_command_origin(value)"));
+    assert!(observe.contains(
+        "use leselang_command::{CommandPlan, DebuggerAuditContext, DebuggerCancelResult}"
+    ));
+    assert_eq!(adapter.matches("#[serde(deny_unknown_fields)]").count(), 2);
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "ContinuationToken",
+        "Fuel",
+        "LSV",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    assert!(adapter.contains("A match is not replay permission"));
+    assert!(adapter.contains("A returned record is not evidence"));
+    let cancel = vm
+        .split_once("pub fn cancel_effect_audited(")
+        .unwrap()
+        .1
+        .split_once("pub fn debugger_audit(")
+        .unwrap()
+        .0;
+    let mut offset = 0;
+    for ordered in [
+        "validate_debugger_audit(audit)?",
+        "validate_scheduler_time(now_ms)?",
+        "self.expire_due(now_ms)?",
+        "self.reconcile_completed(&image.token)?",
+        "self.journal.cancel_audited(image, &step, audit, now_ms)?",
+    ] {
+        offset += cancel[offset..].find(ordered).unwrap() + ordered.len();
+    }
+    for still_owned in [
+        "existing.token == image.token",
+        "existing.idempotency_key == audit.idempotency_key.as_str()",
+        "audit_matches_record(audit, &existing.record)",
+        "completed effect has no matching debugger audit",
+        "crate::validate_debugger_audit(&context)",
+    ] {
+        assert!(journal.contains(still_owned), "{still_owned}");
+    }
+    let frozen =
+        fs::read_to_string(root().join("crates/leselang-vm/src/debugger_audit_adapter_tests.rs"))
+            .unwrap();
+    let frozen = frozen.split_once("mod frozen {").unwrap().1;
+    assert!(!frozen.contains("leselang_command"));
+    assert!(frozen.contains("let valid_session ="));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Product Debugger Audit Ownership"));
+}
+
+#[test]
+fn product_request_codec_is_adapter_owned_and_vm_admission_stays_mandatory() {
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    let decode = vm
+        .split("impl<'de> Deserialize<'de> for EffectRequest")
+        .nth(1)
+        .unwrap()
+        .split("pub type DispatchLease")
+        .next()
+        .unwrap();
+    let parsed = decode
+        .find("leselang_command::decode_effect_request(deserializer)?")
+        .unwrap();
+    let admitted = decode.find("validate_effect_request(&request)").unwrap();
+    let returned = decode.find("Ok(request)").unwrap();
+    assert!(parsed < admitted && admitted < returned);
+    for removed in [
+        "struct CurrentEffectRequestWire",
+        "struct LegacyQueryEffectRequestWire",
+        "enum EffectRequestWire",
+    ] {
+        assert!(!vm.contains(removed), "{removed}");
+    }
+    let codec =
+        fs::read_to_string(root().join("crates/leselang-command/src/request_codec.rs")).unwrap();
+    for required in [
+        "pub struct DecodedEffectRequest<Continuation>",
+        "pub fn decode_effect_request<'de, D, Continuation>",
+        "Continuation: Deserialize<'de>",
+        "enum EffectRequestWire<Continuation>",
+        "operation: EffectOperation::Query(query)",
+        "Callers must bound ingress",
+    ] {
+        assert!(codec.contains(required), "{required}");
+    }
+    assert_eq!(codec.matches("#[serde(deny_unknown_fields)]").count(), 2);
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "Fuel::new",
+        ".clone()",
+        "ContinuationToken",
+        "validate_effect_request(",
+    ] {
+        assert!(!codec.contains(absent), "{absent}");
+    }
+    let source =
+        fs::read_to_string(root().join("crates/leselang-command/tests/captured_execution.rs"))
+            .unwrap();
+    assert!(source.contains("leselang_command::decode_effect_request(deserializer)?"));
+    assert!(source.contains("validate_effect_request("));
+    let frozen =
+        fs::read_to_string(root().join("crates/leselang-vm/src/request_codec_tests.rs")).unwrap();
+    assert!(frozen.contains("EffectRequestWire::deserialize(deserializer)?"));
+    assert!(!frozen.contains("decode_effect_request("));
+    assert!(frozen.contains("74 * 18"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Product Request Codec Ownership"));
+    assert!(docs.contains("Decoded data is deliberately untrusted"));
+}
+
 fn assert_complete_checkpoint_finalization_order() {
     let core =
         fs::read_to_string(root().join("crates/leselang-runtime-core/src/checkpoint.rs")).unwrap();
@@ -2112,7 +2495,7 @@ fn control_plane_reply_identity_rules_are_adapter_owned_but_context_fences_stay_
         .split_once("fn atomic_step_from_effect_result(")
         .unwrap()
         .1
-        .split_once("struct CappedWriter")
+        .split_once("fn fault(code:")
         .unwrap()
         .0;
     for absent in [
@@ -2302,7 +2685,7 @@ fn control_plane_value_conversion_follows_vm_gates_without_owning_execution_poli
         .split_once("fn atomic_step_from_effect_result(")
         .unwrap()
         .1
-        .split_once("struct CappedWriter")
+        .split_once("fn fault(code:")
         .unwrap()
         .0;
     for absent in [
@@ -2379,7 +2762,7 @@ fn complete_effect_value_conversion_is_adapter_owned_with_explicit_original_cont
         .split_once("fn atomic_step_from_effect_result(")
         .unwrap()
         .1
-        .split_once("struct CappedWriter")
+        .split_once("fn fault(code:")
         .unwrap()
         .0;
     for required in [

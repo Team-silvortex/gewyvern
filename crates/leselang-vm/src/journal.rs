@@ -5,6 +5,9 @@ use std::{fs, path::Path, time::Duration};
 
 #[cfg(feature = "sqlite-journal")]
 use crate::validate_image;
+#[cfg(feature = "sqlite-journal")]
+use leselang_command::debugger_audit::command_origin_label;
+use leselang_command::debugger_audit::{audit_matches_record, debugger_audit_record};
 #[cfg(all(test, feature = "sqlite-journal"))]
 use leselang_runtime_core::validate_group_receipt;
 #[cfg(feature = "sqlite-journal")]
@@ -29,12 +32,14 @@ use crate::{
     DispatchClaim, DispatchLease, EffectError, EffectRequest, ExecutionOrder, Fault,
     MAX_CONTINUATION_BYTES, MAX_DISPATCH_ATTEMPTS, MAX_DISPATCH_LEASE_MS, MAX_SEMANTIC_RETRIES,
     MergePlan, RetentionPolicy, RetryDisposition, SchedulerLimits, SchedulerPressure, Step,
-    continuation_age_order, encode_json_capped, valid_continuation_token,
+    continuation_age_order, encode_json_capped, measure_json_capped, valid_continuation_token,
     validate_continuation_encoding_size, validate_effect_error, validate_effect_request,
     validate_merge_plan, validate_value,
 };
 
 mod group_binding;
+#[cfg(test)]
+mod retention_tests;
 mod successor;
 
 pub const JOURNAL_SCHEMA_VERSION: u32 = 10;
@@ -985,61 +990,64 @@ impl EphemeralJournal {
         }
         units.sort_by(|left, right| continuation_age_order(left.age_token(), right.age_token()));
         let completed_count = units.len();
-        let remove_count = completed_count
-            .saturating_sub(policy.max_completed_records)
-            .min(policy.max_delete_per_run);
+        let remove_count = policy.removal_count(completed_count);
         let mut reclaimed_logical_bytes = 0usize;
         let mut removed_tokens = Vec::with_capacity(remove_count);
-        for unit in units.into_iter().take(remove_count) {
+        // Preflight every selected unit before mutating any map. Counting shares
+        // the wire encoder's bounds without materializing disposable JSON buffers.
+        for unit in units.iter().take(remove_count) {
             let tokens = match unit {
-                EphemeralCompactionUnit::Effect(token) => vec![token],
+                EphemeralCompactionUnit::Effect(token) => std::slice::from_ref(token),
                 EphemeralCompactionUnit::Merge { group_token, .. } => {
-                    let group = self.merge_groups.remove(&group_token).ok_or_else(|| {
+                    let group = self.merge_groups.get(group_token).ok_or_else(|| {
                         journal_fault("LSV4033", "selected merge group disappeared")
                     })?;
                     let terminal_step = group.terminal_step.as_ref().ok_or_else(|| {
                         journal_fault("LSV4007", "selected merge group is not completed")
                     })?;
                     reclaimed_logical_bytes = reclaimed_logical_bytes
-                        .saturating_add(
-                            encode_json_capped(&group.plan, MAX_CONTINUATION_BYTES, "merge plan")?
-                                .len(),
-                        )
-                        .saturating_add(
-                            encode_json_capped(
-                                terminal_step,
-                                MAX_JOURNAL_ENTRY_BYTES,
-                                "merge result",
-                            )?
-                            .len(),
-                        );
-                    group.branch_tokens
+                        .saturating_add(measure_json_capped(
+                            &group.plan,
+                            MAX_CONTINUATION_BYTES,
+                            "merge plan",
+                        )?)
+                        .saturating_add(measure_json_capped(
+                            terminal_step,
+                            MAX_JOURNAL_ENTRY_BYTES,
+                            "merge result",
+                        )?);
+                    group.branch_tokens.as_slice()
                 }
             };
             for token in tokens {
-                if let Some((_, step)) = local_completed.iter().find(|(local, _)| local == &token) {
+                if let Some((_, step)) = local_completed.iter().find(|(local, _)| local == token) {
                     reclaimed_logical_bytes = reclaimed_logical_bytes.saturating_add(
-                        encode_json_capped(step, MAX_JOURNAL_ENTRY_BYTES, "completed step")?.len(),
+                        measure_json_capped(step, MAX_JOURNAL_ENTRY_BYTES, "completed step")?,
                     );
                 }
-                if let Some(dispatch) = self.dispatches.remove(&token) {
-                    reclaimed_logical_bytes = reclaimed_logical_bytes.saturating_add(
-                        encode_json_capped(
+                if let Some(dispatch) = self.dispatches.get(token) {
+                    reclaimed_logical_bytes =
+                        reclaimed_logical_bytes.saturating_add(measure_json_capped(
                             &dispatch.request,
                             MAX_JOURNAL_ENTRY_BYTES,
                             "effect request",
-                        )?
-                        .len(),
-                    );
+                        )?);
                     if let Some(error) = &dispatch.last_error {
                         reclaimed_logical_bytes = reclaimed_logical_bytes.saturating_add(
-                            encode_json_capped(error, MAX_JOURNAL_ENTRY_BYTES, "effect error")?
-                                .len(),
+                            measure_json_capped(error, MAX_JOURNAL_ENTRY_BYTES, "effect error")?,
                         );
                     }
                 }
-                removed_tokens.push(token);
+                removed_tokens.push(token.clone());
             }
+        }
+        for unit in units.into_iter().take(remove_count) {
+            if let EphemeralCompactionUnit::Merge { group_token, .. } = unit {
+                self.merge_groups.remove(&group_token);
+            }
+        }
+        for token in &removed_tokens {
+            self.dispatches.remove(token);
         }
         if !removed_tokens.is_empty() {
             // Match SQLite's audit cascade once per batch, retaining live group members.
@@ -2498,9 +2506,7 @@ impl SqliteJournal {
             })?;
         let completed_count = usize::try_from(completed_count)
             .map_err(|_| journal_fault("LSV4007", "completed journal count is invalid"))?;
-        let remove_count = completed_count
-            .saturating_sub(policy.max_completed_records)
-            .min(policy.max_delete_per_run);
+        let remove_count = policy.removal_count(completed_count);
         if remove_count == 0 {
             let pruned_tokens = stale_local_completed(&transaction, local_completed)?;
             transaction.commit().map_err(|error| {
@@ -2955,46 +2961,10 @@ fn complete_terminal_record(
     Ok(())
 }
 
-fn debugger_audit_record(audit: &DebuggerAuditContext, observed_at_ms: u64) -> DebuggerAuditRecord {
-    DebuggerAuditRecord {
-        command_id: audit.command_id.clone(),
-        principal_id: audit.principal.id.clone(),
-        origin: audit.origin,
-        session_id: audit.session_id.clone(),
-        expected_revision: audit.expected_revision,
-        observed_at_ms,
-    }
-}
-
-fn audit_matches_record(audit: &DebuggerAuditContext, record: &DebuggerAuditRecord) -> bool {
-    record.command_id == audit.command_id
-        && record.principal_id == audit.principal.id
-        && record.origin == audit.origin
-        && record.session_id == audit.session_id
-        && record.expected_revision == audit.expected_revision
-}
-
 #[cfg(feature = "sqlite-journal")]
-fn command_origin_label(origin: crate::CommandOrigin) -> &'static str {
-    match origin {
-        crate::CommandOrigin::Gui => "gui",
-        crate::CommandOrigin::Cli => "cli",
-        crate::CommandOrigin::Leselang => "leselang",
-        crate::CommandOrigin::Model => "model",
-        crate::CommandOrigin::CompatibilityAdapter => "compatibility_adapter",
-    }
-}
-
-#[cfg(feature = "sqlite-journal")]
-fn parse_command_origin(value: &str) -> rusqlite::Result<crate::CommandOrigin> {
-    match value {
-        "gui" => Ok(crate::CommandOrigin::Gui),
-        "cli" => Ok(crate::CommandOrigin::Cli),
-        "leselang" => Ok(crate::CommandOrigin::Leselang),
-        "model" => Ok(crate::CommandOrigin::Model),
-        "compatibility_adapter" => Ok(crate::CommandOrigin::CompatibilityAdapter),
-        _ => Err(rusqlite::Error::InvalidQuery),
-    }
+fn parse_command_origin(value: &str) -> rusqlite::Result<leselang_host_contract::CommandOrigin> {
+    leselang_command::debugger_audit::parse_command_origin(value)
+        .ok_or(rusqlite::Error::InvalidQuery)
 }
 
 #[cfg(feature = "sqlite-journal")]

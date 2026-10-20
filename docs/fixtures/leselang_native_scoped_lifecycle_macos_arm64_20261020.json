@@ -1,0 +1,100 @@
+{
+  "kind": "leselang-native-borrowed-scope-lifecycle",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "native_embedding_contract": "0.170.0",
+  "reference_execution_contract": "1.105.0",
+  "hosts": 2,
+  "lifecycle_tests_added": 6,
+  "shared_local_and_raw_call_fence": true,
+  "restored_binding_and_final_lifecycle": true,
+  "closed_scope_precedes_native_callbacks": true,
+  "retry_preserves_original_reply_and_fuel": true,
+  "terminal_cleanup_and_unwind_revoke": true,
+  "raw_and_bound_drop_distinguished": true,
+  "coupled_pipeline_without_manual_completion_closure": true,
+  "every_fuel_cutoff": true,
+  "isolated_consumer_passed": true,
+  "scope_identity_authenticated_by_vm": false,
+  "new_meter_or_evaluator": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "process_crash_recovery": false,
+  "production_durable_codec": false,
+  "automatic_external_cancellation": false,
+  "wire_or_journal_schema_changed": false,
+  "scope": "Raw Vm scoped acceptance, polling and cancellation share the original LocalVm call fence and inner session fences. Both binding and final restored sessions cancel closed scopes before native callbacks, return ordinary rejected receipts intact without spending fuel, revoke retained owners on terminal failure or escaping unwind, and preserve terminal reasons through cleanup unwind. Successful completion closes the same scope, while sibling scopes remain open. The raw session does not retain or authenticate the borrowed owner: adapters must consistently lend the original scope and bind session storage for owner-first Drop. Unscoped methods remain unscoped. Actual coupled Seq/All/repeat parent and collector pipelines use scoped lifecycle operations at every fuel cutoff and restore frontier without manual completion closure. Native callback-internal cleanup, arbitrary host work, live dispatch authorization, external cancellation and durable settlement remain trusted host responsibilities. This does not add an evaluator, meter, LocalVm transfer escape, durable codec, crash recovery or complete extraction.",
+  "sources": [
+    {
+      "path": "crates/leselang-hir/src/effect_stack_session.rs",
+      "sha256": "b1fbff1986920726d321312235af02434732256ec3e63685c51b6077610bbee0"
+    },
+    {
+      "path": "crates/leselang-hir/src/local_effect_session.rs",
+      "sha256": "59bf6e2989247af6439fd1b44ff3845376a3fac576aafadf763f6293acbe0d10"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_session.rs",
+      "sha256": "dc61d54cf4f0b3cf9314bb7f7236f37820569e690a972524dc417ecbb881b069"
+    },
+    {
+      "path": "crates/leselang-hir/src/local_scope.rs",
+      "sha256": "ba1167180650079329a1a8b9f62d4428776ca97b430966206e371ffc74932c9b"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/local_execution.rs",
+      "sha256": "5b87372ca61605b4452c69c0541604fdfd4371a64ad4f24c8afc83b09b70508a"
+    },
+    {
+      "path": "crates/leselang-hir/tests/effect_session.rs",
+      "sha256": "a7c5468b9407b8a11eac76390667c896cde596ea204475a237789a423f48fed3"
+    },
+    {
+      "path": "crates/leselang-vm/src/native.rs",
+      "sha256": "0507c0e6c09952ee63cbb832db800e11f6382014c95795ae1a6c78cf0dd9cf34"
+    },
+    {
+      "path": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "72680293a9cf8bfaa321b256402230346ae856b44bb685ff891cf17488f17c2f"
+    }
+  ],
+  "verification": [
+    {
+      "name": "default-feature-runtime-hir-vm",
+      "path": "/private/tmp/leselang-scoped-lifecycle-runtime.log",
+      "sha256": "386e0812c04a9799a73a9efe444c8461b8c0cd39a97da882783c91d6a5d2880e",
+      "passed": 3111
+    },
+    {
+      "name": "isolated-source-tests-and-strict-clippy",
+      "path": "/private/tmp/leselang-scoped-lifecycle-export.log",
+      "sha256": "1f84181c68f42aa36a57b2288b249e8f4191a0852193171c3c6d48e26a72d50a",
+      "passed": 2543
+    },
+    {
+      "name": "default-feature-strict-clippy",
+      "path": "/private/tmp/leselang-scoped-lifecycle-clippy.log",
+      "sha256": "7e1588e3a771d94bdd2a4483f47b1aa2d7df5cd9bd0de7aea12cefa8d896af88",
+      "passed": true
+    },
+    {
+      "name": "native-dependency-tree",
+      "path": "/private/tmp/leselang-scoped-lifecycle-tree.log",
+      "sha256": "423f4a228897010b26cba0ece043fa5bce62424039f361db655a3c102f196da9",
+      "passed": true
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-scoped-lifecycle-2.4.0",
+    "manifest_sha256": "424b6c5b3ddf01c8821d2290c81fc2f610c44fe77ee098c997ccea2e80f0e9f0",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2006,
+    "consumer_tests": 537,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}

@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod bounded_json;
 mod capture_replay;
 mod capture_scope;
 mod continuation_admission;
@@ -7,6 +8,7 @@ pub mod continuation_schema;
 mod control_plane_reply;
 mod control_plane_request;
 mod control_plane_value;
+pub mod debugger_audit;
 mod effect_preparation;
 mod effect_value;
 mod execution_environment;
@@ -16,6 +18,7 @@ mod group_plan;
 mod group_requests;
 mod host_protocol;
 mod merge_admission;
+pub mod merge_completion;
 mod merge_plan;
 mod operation_lowering;
 mod operation_request;
@@ -27,10 +30,13 @@ mod projected_group;
 mod projected_result;
 mod projection_access;
 mod request_admission;
+mod request_codec;
 mod request_correspondence;
 mod result_binding;
 mod result_domain;
 mod result_view;
+pub mod retention_policy;
+pub mod retry_policy;
 mod scalar_projection;
 mod structured_value;
 mod successor_admission;
@@ -48,6 +54,7 @@ pub use continuation_admission::{
     ContinuationAdmissionError, ContinuationAdmissionLimits, validate_continuation_frame,
 };
 pub use control_plane_request::{command_matches_effect, query_matches_effect};
+pub use debugger_audit::{DebuggerAuditContext, DebuggerAuditRecord};
 pub use effect_preparation::{EffectPreparationError, prepare_preflighted_effect_in_scope};
 pub use effect_value::{EffectValueContext, EffectValueError};
 pub use execution_environment::{
@@ -79,6 +86,7 @@ pub use projected_group::{
 pub use projected_result::{InvalidProjectedResult, ProjectedField, ProjectedResult};
 pub use projection_access::validate_captured_projection_accesses;
 pub use request_admission::{RequestAdmissionError, validate_effect_request};
+pub use request_codec::{DecodedEffectRequest, decode_effect_request};
 pub use request_correspondence::{
     EffectRequestView, RequestCorrespondenceError, validate_preflighted_effect_request,
 };
@@ -87,6 +95,8 @@ pub use result_binding::{
 };
 pub use result_domain::{ResultValueDomain, ResultValueError, ResultValueHost};
 pub use result_view::{ResultView, ResultViewError};
+pub use retention_policy::{CompactionReport, RetentionPolicy};
+pub use retry_policy::{EffectError, EffectErrorClass, RetryPolicy};
 pub use structured_value::{ValueBoundsError, ValueValidationLimits, validate_value_items};
 pub use successor_admission::{
     SuccessorAdmissionError, SuccessorAdmissionHost, validate_successor_pair,
@@ -95,8 +105,6 @@ pub use successor_correspondence::{
     SuccessorCorrespondenceError, validate_preflighted_successor_pair,
 };
 pub use value::{StructuredField, Value};
-
-use std::io::{self, Write};
 
 use leselang_hir::Effect;
 use leselang_host_contract::{
@@ -142,53 +150,15 @@ pub enum PlanCodecError {
 
 pub fn encode_plan(plan: &CommandPlan) -> Result<Vec<u8>, PlanCodecError> {
     validate_plan(plan)?;
-    let mut writer = CommandPlanWriter::new();
-    if let Err(error) = serde_json::to_writer(&mut writer, plan) {
-        return if writer.overflowed {
-            Err(PlanCodecError::Oversized {
-                size: writer.attempted_size,
-                limit: MAX_COMMAND_PLAN_BYTES,
-            })
-        } else {
-            Err(PlanCodecError::InvalidJson(error.to_string()))
-        };
-    }
-    Ok(writer.output)
-}
-
-struct CommandPlanWriter {
-    output: Vec<u8>,
-    attempted_size: usize,
-    overflowed: bool,
-}
-
-impl CommandPlanWriter {
-    fn new() -> Self {
-        Self {
-            output: Vec::with_capacity(MAX_COMMAND_PLAN_BYTES.min(4 * 1024)),
-            attempted_size: 0,
-            overflowed: false,
+    bounded_json::encode(plan, MAX_COMMAND_PLAN_BYTES).map_err(|error| match error {
+        bounded_json::BoundedJsonError::Limit { attempted, limit } => PlanCodecError::Oversized {
+            size: attempted,
+            limit,
+        },
+        bounded_json::BoundedJsonError::Serialize(error) => {
+            PlanCodecError::InvalidJson(error.to_string())
         }
-    }
-}
-
-impl Write for CommandPlanWriter {
-    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        self.attempted_size = self.output.len().saturating_add(buffer.len());
-        if self.attempted_size > MAX_COMMAND_PLAN_BYTES {
-            self.overflowed = true;
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("command plan exceeds {MAX_COMMAND_PLAN_BYTES} encoded bytes"),
-            ));
-        }
-        self.output.extend_from_slice(buffer);
-        Ok(buffer.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
+    })
 }
 
 pub fn decode_plan(bytes: &[u8]) -> Result<CommandPlan, PlanCodecError> {

@@ -1,0 +1,107 @@
+{
+  "kind": "leselang-reference-product-request-codec",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "reference_execution_contract": "1.106.0",
+  "native_embedding_contract": "0.171.0",
+  "operation_shapes": 70,
+  "legacy_query_shapes": 4,
+  "valid_wire_comparisons": 74,
+  "malformed_wire_comparisons": 1332,
+  "semantic_refusal_comparisons": 592,
+  "direct_adapter_tests": 6,
+  "frozen_vm_tests": 3,
+  "production_vm_uses_adapter_codec": true,
+  "vm_free_source_pipeline_uses_adapter_codec": true,
+  "full_admission_remains_after_decode": true,
+  "legacy_query_normalization_unchanged": true,
+  "exact_fault_and_byte_parity": true,
+  "move_only_and_borrowed_continuations": true,
+  "streaming_end_check_is_caller_owned": true,
+  "isolated_consumer_passed": true,
+  "decode_grants_authority": false,
+  "wire_or_journal_schema_changed": false,
+  "new_meter_or_evaluator": false,
+  "new_native_api": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "process_crash_recovery": false,
+  "scope": "The released EffectRequest decoder delegates closed current-operation and legacy-query envelopes to leselang-command. The VM keeps its public fields, serialization, original ContinuationImage and complete post-decode validation. The VM-free captured source/successor fixture now uses the same canonical envelope codec with numeric-token frames before unchanged native admission. A frozen original decoder compares 74 valid current/legacy forms, 1332 malformed/duplicate/mixed/missing/nested/trailing/truncated inputs and 592 semantic admission failures with identical canonical bytes or exact error strings. Direct adapter tests retain move-only native continuations, borrowed JSON lifetimes and absent deadline behavior without adding Clone/Debug/Serialize requirements. Decoded data intentionally does not certify identity, semantic budgets, source/frame provenance, live authority or replay permission. Input bounds and stream framing/end checks remain with ingress owners; the released VM still refuses trailing input through its normal whole-input serde entry. Memory-only and default SQLite/reference suites pass. The native export remains product-free and does not include this product codec. No language, evaluator, meter, wire/journal schema or extraction-completion change is claimed.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/request_codec.rs",
+      "sha256": "47fddc17db405cc89ef1b05e242776880c903addf5cef37c17209e1f05d1206d"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "299c6f741b45ff4d0a9b95fb9a7b415ac5ec71be68ac0bb96975293cc54396c8"
+    },
+    {
+      "path": "crates/leselang-command/tests/request_codec.rs",
+      "sha256": "0d2a2c8bb698ca92c3896ac389a09f714f9177b919f30b02cb7506bb6a871bb6"
+    },
+    {
+      "path": "crates/leselang-command/tests/captured_execution.rs",
+      "sha256": "0cbfa54100860348a626fb6217d441168f221eba5e566c89d8693aac9f3621a9"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "bf0b9e20694bb5c478605d08c84a4eecd4bc1d0fc60e7dded5d455a9d21553da"
+    },
+    {
+      "path": "crates/leselang-vm/src/request_codec_tests.rs",
+      "sha256": "c7a9e209a30247e5d30114015192109cde985d4173781a911a408b147a5a5ddd"
+    }
+  ],
+  "verification": [
+    {
+      "name": "default-command-and-vm",
+      "path": "/private/tmp/leselang-request-codec-runtime.log",
+      "passed": 1018,
+      "sha256": "6b670a274b66bef5f2ece62e7e97606261c1fbcfe3236fddd494e12e8577a950"
+    },
+    {
+      "name": "direct-adapter-codec",
+      "path": "/private/tmp/leselang-request-codec-direct.log",
+      "passed": 6,
+      "sha256": "476d655a7823d21f4193d510c1a9fd112aafa2ffff7b887b5a3f45dd4f2168f1"
+    },
+    {
+      "name": "no-sqlite-reference-codec",
+      "path": "/private/tmp/leselang-request-codec-memory.log",
+      "passed": 3,
+      "sha256": "c7f03269f9070f6c4eab8efd40653e972bd330cc09665ee2eb9e8626588983f4"
+    },
+    {
+      "name": "command-and-vm-strict-clippy",
+      "path": "/private/tmp/leselang-request-codec-clippy.log",
+      "passed": true,
+      "sha256": "bd4fb914aef602227a309d8d5bdbf353efed4b5eb77e198f02142a040ca6dd17"
+    },
+    {
+      "name": "isolated-source-tests-and-strict-clippy",
+      "path": "/private/tmp/leselang-request-codec-export.log",
+      "passed": 2564,
+      "sha256": "f3cd004d48489631e2f9f513e110b5bfe8744095bd0c9883b552f847c7da2a61"
+    },
+    {
+      "name": "native-dependency-tree",
+      "path": "/private/tmp/leselang-request-codec-tree.log",
+      "passed": true,
+      "sha256": "755475e46502d297bafe5d91710a07494208abb6084f7372c8ce78705daaee53"
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-request-codec-2.4.0",
+    "manifest_sha256": "38667700c703537892dc55f29894ca6512e8268c7a1f7c47f3b39a8e30f82617",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2017,
+    "consumer_tests": 547,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}
