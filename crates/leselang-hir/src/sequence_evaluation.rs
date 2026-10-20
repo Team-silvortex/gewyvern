@@ -1,5 +1,8 @@
 //! Borrowed, in-memory sequential request/reply ownership, not durable dispatch.
 
+#[cfg(test)]
+mod transfer_tests;
+
 use std::{borrow::Borrow, collections::VecDeque, convert::Infallible, fmt};
 
 use leselang_runtime_core::{
@@ -284,6 +287,7 @@ impl<Identity, Declaration: ?Sized, Request, Reply> fmt::Debug
 }
 
 pub enum SequenceRestoreError<Native> {
+    ScopeClosed,
     Sequence(SequenceEvaluationError<Native>),
     Count,
     Row { index: usize },
@@ -294,6 +298,7 @@ pub enum SequenceRestoreError<Native> {
 impl<Native> fmt::Display for SequenceRestoreError<Native> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
+            Self::ScopeClosed => "sequence restoration scope is closed",
             Self::Sequence(_) => "saved sequence shape rejected",
             Self::Count => "saved sequence rows must cover the complete group",
             Self::Row { .. } => "saved sequence row differs from original declaration order",
@@ -644,6 +649,82 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
 
     #[expect(
         clippy::type_complexity,
+        reason = "refusal returns all original core, queued request and accepted prefix owners"
+    )]
+    pub(crate) fn try_into_saved<Request, Reply>(
+        mut self,
+        prepared: VecDeque<PreparedSequenceMember<'expression, Identity, Declaration, Request>>,
+        accepted: Vec<SequenceAccepted<'expression, Node, IrResult, Identity, Declaration, Reply>>,
+    ) -> Result<
+        Vec<SavedSequenceMember<'expression, Identity, Declaration, Request, Reply>>,
+        (
+            Self,
+            VecDeque<PreparedSequenceMember<'expression, Identity, Declaration, Request>>,
+            Vec<SequenceAccepted<'expression, Node, IrResult, Identity, Declaration, Reply>>,
+        ),
+    > {
+        if self.next > self.branches.len()
+            || accepted.len() != self.next
+            || accepted.iter().enumerate().any(|(index, row)| {
+                row.index != index || !std::ptr::eq(row.branch, &self.branches[index])
+            })
+        {
+            return Err((self, prepared, accepted));
+        }
+        let awaiting = match &self.state {
+            State::Ready if self.next < self.branches.len() => false,
+            State::Awaiting(_) if self.next < self.branches.len() => true,
+            State::Terminal(SequenceEnd::Completed) if self.next == self.branches.len() => false,
+            _ => return Err((self, prepared, accepted)),
+        };
+        if prepared.len() != self.branches.len() - self.next - usize::from(awaiting) {
+            return Err((self, prepared, accepted));
+        }
+        let mut rows = Vec::with_capacity(self.branches.len());
+        let waiting =
+            match std::mem::replace(&mut self.state, State::Terminal(SequenceEnd::HostUncertain)) {
+                State::Awaiting(pending) => match pending.try_into_parts() {
+                    Ok((identity, (), declaration)) => Some((identity, declaration)),
+                    Err(pending) => {
+                        self.state = State::Awaiting(pending);
+                        return Err((self, prepared, accepted));
+                    }
+                },
+                state => {
+                    self.state = state;
+                    None
+                }
+            };
+        for row in accepted {
+            rows.push(SavedSequenceMember {
+                index: row.index,
+                name: &row.branch.name,
+                reply: SavedSequenceReply::Accepted(row.accepted),
+            });
+        }
+        if let Some((identity, declaration)) = waiting {
+            rows.push(SavedSequenceMember {
+                index: self.next,
+                name: &self.branches[self.next].name,
+                reply: SavedSequenceReply::Awaiting {
+                    identity,
+                    declaration,
+                },
+            });
+        }
+        for member in prepared {
+            let index = rows.len();
+            rows.push(SavedSequenceMember {
+                index,
+                name: &self.branches[index].name,
+                reply: SavedSequenceReply::Prepared(member),
+            });
+        }
+        Ok(rows)
+    }
+
+    #[expect(
+        clippy::type_complexity,
         reason = "restore moves the original core, unpublished requests and accepted prefix separately"
     )]
     pub(crate) fn restore<Request, Reply, Error>(
@@ -652,6 +733,7 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
         admit: impl FnOnce(
             &[SavedSequenceMember<'expression, Identity, Declaration, Request, Reply>],
         ) -> Result<(), Error>,
+        scope: Option<&LocalExecutionScope>,
     ) -> Result<
         (
             Self,
@@ -663,33 +745,65 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
     where
         Identity: PartialEq,
     {
-        if rows.len() != branches.len() {
-            return Err(SequenceRestoreError::Count);
-        }
-        for (index, row) in rows.iter().enumerate() {
-            if row.index != index || row.name != branches[index].name {
-                return Err(SequenceRestoreError::Row { index });
+        let fence = CallFence::new(scope);
+        let preflight = (|| {
+            if scope.is_some_and(|scope| !scope.is_open()) {
+                return Err(SequenceRestoreError::ScopeClosed);
             }
-        }
-        let next = rows
-            .iter()
-            .take_while(|row| matches!(row.reply, SavedSequenceReply::Accepted(_)))
-            .count();
-        for (index, row) in rows.iter().enumerate().skip(next) {
-            if matches!(row.reply, SavedSequenceReply::Accepted(_))
-                || (index != next && matches!(row.reply, SavedSequenceReply::Awaiting { .. }))
-            {
-                return Err(SequenceRestoreError::Frontier { index });
+            if rows.len() != branches.len() {
+                return Err(SequenceRestoreError::Count);
             }
-        }
-        for (index, row) in rows.iter().enumerate() {
-            for (previous, earlier) in rows[..index].iter().enumerate() {
-                if row.reply.identity() == earlier.reply.identity() {
-                    return Err(SequenceRestoreError::DuplicateIdentity { index, previous });
+            for (index, row) in rows.iter().enumerate() {
+                if row.index != index || row.name != branches[index].name {
+                    return Err(SequenceRestoreError::Row { index });
                 }
             }
+            let next = rows
+                .iter()
+                .take_while(|row| matches!(row.reply, SavedSequenceReply::Accepted(_)))
+                .count();
+            for (index, row) in rows.iter().enumerate().skip(next) {
+                if matches!(row.reply, SavedSequenceReply::Accepted(_))
+                    || (index != next && matches!(row.reply, SavedSequenceReply::Awaiting { .. }))
+                {
+                    return Err(SequenceRestoreError::Frontier { index });
+                }
+            }
+            for (index, row) in rows.iter().enumerate() {
+                for (previous, earlier) in rows[..index].iter().enumerate() {
+                    let duplicate = row.reply.identity() == earlier.reply.identity();
+                    if scope.is_some_and(|scope| !scope.is_open()) {
+                        return Err(SequenceRestoreError::ScopeClosed);
+                    }
+                    if duplicate {
+                        return Err(SequenceRestoreError::DuplicateIdentity { index, previous });
+                    }
+                }
+            }
+            Ok(next)
+        })();
+        let next = match preflight {
+            Ok(next) => next,
+            Err(error) => {
+                fence.close();
+                drop((admit, rows));
+                fence.finish();
+                return Err(error);
+            }
+        };
+        let admitted = admit(&rows);
+        let admitted = if scope.is_some_and(|scope| !scope.is_open()) {
+            drop(admitted);
+            Err(SequenceRestoreError::ScopeClosed)
+        } else {
+            admitted.map_err(SequenceRestoreError::Native)
+        };
+        if let Err(error) = admitted {
+            fence.close();
+            drop(rows);
+            fence.finish();
+            return Err(error);
         }
-        admit(&rows).map_err(SequenceRestoreError::Native)?;
         let mut prepared = VecDeque::new();
         let mut accepted = Vec::with_capacity(next);
         let mut state = if next == branches.len() {
@@ -711,7 +825,7 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
                 }
             }
         }
-        Ok((
+        let output = Ok((
             Self {
                 branches,
                 next,
@@ -719,7 +833,9 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized>
             },
             prepared,
             accepted,
-        ))
+        ));
+        fence.finish();
+        output
     }
 
     pub(crate) fn status(&self) -> SequenceStatus {

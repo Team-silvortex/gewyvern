@@ -131,6 +131,11 @@ non-Clone, non-Debug and non-Send. `close()` retains it for reconciliation;
 `into_inner()` revokes before returning the original value without cloning it.
 `value_mut()` does not revoke automatically: the host must close first if it
 explicitly replaces or drops native state through that mutable access.
+`as_parts_mut()` lends `(&LocalExecutionScope, &mut Value)` together so a native
+coordinator can restore its parent and children under the original fence. It
+does not extract or duplicate the scope, allocate, close on borrow, or fence an
+arbitrary host closure. Use scope-aware operations for failure/unwind fencing;
+both borrows remain bounded by the unique wrapper's lifetime.
 
 This wrapper does not inspect session status or replace the HIR/VM lifecycle.
 Hosts close it on completion/failure and still deliver cancellation to external
@@ -425,9 +430,20 @@ publish the snapshot; a successful commit followed by unwind is uncertain, not
 permission to replay effects. Native comparison, callbacks, callback-internal
 cleanup and Drop remain trusted; no preemption or automatic rollback is supplied.
 
-The real reference SQLite loader uses this boundary inside its original immediate
-transaction, retaining bounded decoding, row/schema/deadline checks, dispatch,
-merge and audit validation, watermark repair, fault codes and frozen wire.
+`finish_recovery()` adds the complete ordered finalization pipeline through
+`CheckpointFinalizer`: dispatch checks, graph checks, audit checks, watermark
+reconciliation, then atomic commit. It combines the original row and graph
+sequence maxima without incrementing/clamping them. No hook receives the staged
+maps. Native commit metadata moves unchanged only after successful commit and
+host cleanup; failed-commit metadata is dropped while its original error remains
+local, even when metadata cleanup unwinds. Closed staging calls no hook.
+
+The real reference SQLite loader uses this entry inside its original immediate
+transaction. Bounded decoding, row/schema/deadline checks, concrete dispatch/graph
+proofs, product audit identity/receipt policy, watermark storage and SQL commit
+remain in the adapter with original fault codes and frozen wire. In particular,
+product account/command-origin types do not move into the independent runtime.
+The old `finish()` remains available for explicit host-specific commit policies.
 Two unrelated consumer-owned byte formats prove saved budgets and completed-row
 partitioning without product crates or SQLite. Consumer serialization/version and
 live authority remain explicit host policy. These are storage protocol proofs,
@@ -457,6 +473,28 @@ The real SQLite loading loop uses this entry while retaining SQL/codec bounds,
 frame/authority and original owner/successor proofs. Checkpoint staging, global
 graphs/reservations and atomic commit remain mandatory before publication.
 This is stored-record admission, not a new codec, execution grant or durable VM.
+
+## Shared Dispatch Recovery
+
+`inspect_dispatch_recovery()` and `DispatchRecoveryHost` cover the complete
+per-dispatch recovery pass: bounded request admission, original identity/image
+proofs, metadata reads, delivery-attempt limits, retry counters/history, lazy
+original retry-error admission, then acknowledged/completed state agreement.
+`DispatchRecoveryLimits` uses inclusive ceilings; zero permits stored zero
+counters, not a new attempt. Negative values and over-limit counters are refused,
+never reset or clamped. A missing error is not decoded; inconsistent history
+stops before handing a present error to its native decoder. Earlier faults retain
+precedence over later state mismatches.
+
+Original requests/retry payloads/errors need no Clone, Debug, serialization,
+equality or thread traits. Native errors move unchanged under redacted stage-only
+diagnostics; borrowed unsized hosts are supported. Refusal/unwind stops without
+retry, and native callback/destructor side effects remain trusted host work.
+The real SQLite loader uses this pass inside its existing checkpoint finalizer.
+SQL row/header order, bounded codecs, schema/lease checks, authentic requests,
+clock domains, global graph/audit proofs, and atomic commit stay adapter-owned.
+Success publishes neither a request nor replay authority. No schema, wire,
+evaluator, fuel, dispatch or complete native durable VM is introduced.
 
 ## Shared Flat Group Graph Inspection
 
@@ -1255,6 +1293,11 @@ and value in order. Normal rejection returns the original input and keeps the
 frame; success closes the handle before moving it into `AcceptedReply`. There is
 no implicit retry, copy, execution or fuel charge. Frames, replies and native
 errors require no Clone, Debug, serialization or Send implementation.
+
+`try_into_parts` consumes only a still-waiting handle and moves its exact identity,
+frame and borrowed declaration out, without callbacks, allocation or acceptance.
+Terminal handles return unchanged. This supports native VM ownership transfer,
+not a durable checkpoint, authentic receipt or permission to replay an effect.
 
 Native callback unwind closes as HostUncertain and releases the frame. Cancellation
 closes before cleanup and preserves terminal reasons, even if cleanup unwinds.

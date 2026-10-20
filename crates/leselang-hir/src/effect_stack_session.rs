@@ -8,12 +8,13 @@ use crate::effect_evaluation::ControlOutcome;
 use crate::effect_reentry::RestoredEffectBindings;
 use crate::effect_session::{
     EffectSessionAcceptance, EffectSessionEnvironment, EffectSessionPoll, EffectSessionStatus,
-    HostWorkOutcome, SessionCore,
+    HostWorkOutcome, PendingSessionParts, SessionCore,
 };
 use crate::effect_stack::{
     EffectReturnStack, EffectStackFailure, EffectStackLimits, SavedEffectReturnFrame,
-    evaluate_stacked_effects_in_scope, preflight_saved_return_frames,
-    resume_accepted_stacked_effects_with_scope, return_stack_from_admitted_frames, stack_failure,
+    evaluate_stacked_effects_in_scope, preflight_final_return_limits,
+    preflight_saved_return_frames, resume_accepted_stacked_effects_with_scope,
+    return_stack_from_admitted_frames, stack_failure,
 };
 use crate::ir::Computation;
 use crate::local_scope::CallFence;
@@ -39,6 +40,80 @@ impl<Native> fmt::Debug for StackedSessionRestoreError<Native> {
     }
 }
 impl<Native> std::error::Error for StackedSessionRestoreError<Native> {}
+
+/// Original pending binding state moved out of a session, not a durable image.
+/// Convert the original continuation frames into host-owned saved frames and
+/// use `StackedControlSession::restore_pending` with native admission to resume.
+/// The original meter and limits are retained; fields are not authenticated.
+/// Hosts own codecs, storage, settlement, live policy and cancellation delivery.
+/// Dropping this value releases native owners, but does not cancel external work.
+///
+/// ```compile_fail
+/// use leselang_hir::effect_stack_session::PendingStackedBinding;
+/// fn duplicate(saved: PendingStackedBinding<'_, '_, (), (), u8, ()>) {
+///     let copy = saved.clone();
+/// }
+/// ```
+///
+/// ```compile_fail
+/// use leselang_hir::effect_stack_session::PendingStackedBinding;
+/// fn wire(saved: PendingStackedBinding<'_, '_, (), (), u8, ()>) {
+///     let encoded = serde_json::to_string(&saved);
+/// }
+/// ```
+#[must_use = "persist, restore or explicitly dispose of the original pending state"]
+pub struct PendingStackedBinding<
+    'expression,
+    'schema,
+    Node: ?Sized,
+    Capture,
+    Identity,
+    Declaration: ?Sized,
+> {
+    pub identity: Identity,
+    pub continuation: EffectReturnStack<'expression, Node, Capture>,
+    pub declaration: &'schema Declaration,
+    pub fuel: Fuel,
+    pub limits: EffectStackLimits,
+}
+
+impl<Node: ?Sized, Capture, Identity, Declaration: ?Sized> fmt::Debug
+    for PendingStackedBinding<'_, '_, Node, Capture, Identity, Declaration>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("PendingStackedBinding")
+    }
+}
+
+/// Original final-request ownership, with no binding return stack or receipt.
+/// Fields move without cloning and remain unauthenticated host data. Restoring
+/// requires native admission of the original request, domain, budget and live
+/// nonterminal settlement. This is not a codec or a permission to redispatch.
+///
+/// ```compile_fail
+/// use leselang_hir::effect_stack_session::PendingStackedFinal;
+/// fn duplicate(saved: PendingStackedFinal<'_, u8, ()>) { let copy = saved.clone(); }
+/// ```
+///
+/// ```compile_fail
+/// use leselang_hir::effect_stack_session::PendingStackedFinal;
+/// fn wire(saved: PendingStackedFinal<'_, u8, ()>) {
+///     let encoded = serde_json::to_string(&saved);
+/// }
+/// ```
+#[must_use = "restore or explicitly dispose of the original final-request ownership"]
+pub struct PendingStackedFinal<'schema, Identity, Declaration: ?Sized> {
+    pub identity: Identity,
+    pub declaration: &'schema Declaration,
+    pub fuel: Fuel,
+    pub limits: EffectStackLimits,
+}
+
+impl<Identity, Declaration: ?Sized> fmt::Debug for PendingStackedFinal<'_, Identity, Declaration> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("PendingStackedFinal")
+    }
+}
 
 /// One immutable-policy, owned-fuel execution with bounded nested return frames.
 /// Uses the same acceptance, terminal fencing and once-only handoff state machine
@@ -141,6 +216,121 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
     }
     pub fn cancel(&mut self) -> bool {
         self.core.cancel()
+    }
+
+    /// Consume only a waiting binding session and move its original owners,
+    /// remaining meter and immutable policy out without executing native code.
+    /// Initial, final-request, accepted and terminal sessions return unchanged.
+    /// There is no live session left after success, no accepted receipt and no
+    /// fuel refill. This is an in-memory handoff, not commit, replay permission
+    /// or external cancellation. `LocalStackedControlSession` deliberately has
+    /// no such escape: its local scope must remain owned until closure.
+    pub fn try_into_pending_binding(
+        self,
+    ) -> Result<
+        PendingStackedBinding<'expression, 'schema, Node, Capture, Identity, Declaration>,
+        Self,
+    > {
+        let Self { core, limits } = self;
+        match core.try_into_pending_binding() {
+            Ok(PendingSessionParts {
+                identity,
+                continuation,
+                declaration,
+                fuel,
+            }) => Ok(PendingStackedBinding {
+                identity,
+                continuation,
+                declaration,
+                fuel,
+                limits,
+            }),
+            Err(core) => Err(Self { core, limits }),
+        }
+    }
+
+    /// Consume only a waiting final request, preserving its exact owners and
+    /// accounting without accepting a reply, executing code or allocating.
+    /// Binding, initial, accepted and terminal sessions return unchanged.
+    /// External cancellation, authentic storage and settlement remain host-owned.
+    pub fn try_into_pending_final(
+        self,
+    ) -> Result<PendingStackedFinal<'schema, Identity, Declaration>, Self> {
+        let Self { core, limits } = self;
+        match core.try_into_pending_final() {
+            Ok(PendingSessionParts {
+                identity,
+                declaration,
+                fuel,
+                continuation: (),
+            }) => Ok(PendingStackedFinal {
+                identity,
+                declaration,
+                fuel,
+                limits,
+            }),
+            Err(core) => Err(Self { core, limits }),
+        }
+    }
+
+    /// Restore a final request through the original acceptance/projection path.
+    /// Policy ceilings precede mandatory native admission; zero return frames and
+    /// zero remaining fuel are allowed, never repaired. The host must prove the
+    /// original final-request/domain/budget correspondence, current authority and
+    /// nonterminal settlement. There is no saved body to execute or redispatch.
+    /// Success starts Awaiting; acceptance only marks Ready and explicit poll
+    /// projects the reply once using the original meter and host policy.
+    pub fn restore_pending_final<Error>(
+        identity: Identity,
+        declaration: &'schema Declaration,
+        fuel: Fuel,
+        limits: EffectStackLimits,
+        admit: impl FnOnce(&Identity, &'schema Declaration, &Fuel) -> Result<(), Error>,
+    ) -> Result<Self, StackedSessionRestoreError<Error>> {
+        Self::restore_pending_final_with_scope(identity, declaration, fuel, limits, admit, None)
+    }
+
+    pub(crate) fn restore_pending_final_with_scope<Error>(
+        identity: Identity,
+        declaration: &'schema Declaration,
+        fuel: Fuel,
+        limits: EffectStackLimits,
+        admit: impl FnOnce(&Identity, &'schema Declaration, &Fuel) -> Result<(), Error>,
+        execution_scope: Option<&LocalExecutionScope>,
+    ) -> Result<Self, StackedSessionRestoreError<Error>> {
+        let fence = CallFence::new(execution_scope);
+        let preflight = if execution_scope.is_some_and(|scope| !scope.is_open()) {
+            Err(StackedSessionRestoreError::ScopeClosed)
+        } else {
+            preflight_final_return_limits(limits).map_err(StackedSessionRestoreError::Structure)
+        };
+        if let Err(error) = preflight {
+            fence.close();
+            let output = Err(error);
+            drop((admit, identity, fuel));
+            fence.finish();
+            return output;
+        }
+        let admitted = admit(&identity, declaration, &fuel);
+        let admitted = if execution_scope.is_some_and(|scope| !scope.is_open()) {
+            drop(admitted);
+            Err(StackedSessionRestoreError::ScopeClosed)
+        } else {
+            admitted.map_err(StackedSessionRestoreError::Native)
+        };
+        if let Err(error) = admitted {
+            fence.close();
+            let output = Err(error);
+            drop((identity, fuel));
+            fence.finish();
+            return output;
+        }
+        let output = Ok(Self {
+            core: SessionCore::from_pending_final(identity, declaration, fuel),
+            limits,
+        });
+        fence.finish();
+        output
     }
 
     pub(crate) fn with_host_work<Input, Output>(
@@ -266,6 +456,48 @@ impl<
         ) -> Result<(), Error>,
     ) -> Result<Self, StackedSessionRestoreError<Error>> {
         Self::restore_pending_with_scope(identity, declaration, frames, fuel, limits, admit, None)
+    }
+
+    /// Restore a raw pending VM under a coordinator's existing local fence.
+    ///
+    /// This borrows, but does not retain or replace, the unique scope. Structural
+    /// refusal, native refusal, revocation or unwind closes it before retained
+    /// inputs are released. Success preserves the original meter and frames.
+    /// Native admission and callback-internal cleanup remain trusted. The caller
+    /// still owns later lifecycle closure, dispatch checks and cancellation.
+    pub fn restore_pending_in_scope<Error>(
+        identity: Identity,
+        declaration: &'schema Declaration,
+        frames: Vec<
+            SavedEffectReturnFrame<
+                'expression,
+                Computation<Field, Operation, HostEffect, IrResult>,
+                Capture,
+            >,
+        >,
+        fuel: Fuel,
+        limits: EffectStackLimits,
+        admit: impl FnOnce(
+            &Identity,
+            &'schema Declaration,
+            &[SavedEffectReturnFrame<
+                'expression,
+                Computation<Field, Operation, HostEffect, IrResult>,
+                Capture,
+            >],
+            &Fuel,
+        ) -> Result<(), Error>,
+        scope: &LocalExecutionScope,
+    ) -> Result<Self, StackedSessionRestoreError<Error>> {
+        Self::restore_pending_with_scope(
+            identity,
+            declaration,
+            frames,
+            fuel,
+            limits,
+            admit,
+            Some(scope),
+        )
     }
 
     pub(crate) fn restore_pending_with_scope<Error>(

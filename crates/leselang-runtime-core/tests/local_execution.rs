@@ -156,3 +156,55 @@ fn closed_scope_binding_and_repeated_queries_cannot_grant_or_execute_work() {
     }
     assert_eq!(format!("{lease:?}"), "LocalExecutionLease { open: false }");
 }
+
+#[test]
+fn borrowed_parts_reuse_original_scope_and_retain_move_only_native_owner() {
+    let drops = Cell::new(0);
+    let scope = LocalExecutionScope::new();
+    let lease = scope.lease();
+    let sibling = LocalExecutionScope::new();
+    let mut owner = scope.bind(Native {
+        lease: lease.clone(),
+        drops: &drops,
+        panic_on_drop: false,
+        value: Rc::new(Cell::new(7)),
+    });
+    let pointer = Rc::as_ptr(&owner.value().value);
+    {
+        let (borrowed, native) = owner.as_parts_mut();
+        assert!(borrowed.lease().same_scope(&lease));
+        assert_eq!(Rc::as_ptr(&native.value), pointer);
+        native.value.set(11);
+        assert!(borrowed.close());
+        assert!(!lease.is_open());
+        assert_eq!(drops.get(), 0);
+    }
+    assert!(!owner.is_open());
+    assert_eq!(owner.value().value.get(), 11);
+    assert!(sibling.is_open());
+    drop(owner);
+    assert_eq!(drops.get(), 1);
+}
+
+#[test]
+fn borrowing_parts_does_not_implicitly_close_or_claim_to_fence_host_unwind() {
+    let mut owner = LocalExecutionScope::new().bind(Box::new(3));
+    let pointer = &**owner.value() as *const i32;
+    let lease = owner.lease();
+    assert!(
+        catch_unwind(AssertUnwindSafe(|| {
+            let (scope, value) = owner.as_parts_mut();
+            assert!(scope.is_open());
+            assert_eq!(&**value as *const i32, pointer);
+            **value = 9;
+            panic!("host must reconcile arbitrary native mutation");
+        }))
+        .is_err()
+    );
+    assert!(lease.is_open());
+    assert_eq!(**owner.value(), 9);
+    owner.close();
+    let (scope, value) = owner.as_parts_mut();
+    assert!(!scope.is_open());
+    assert_eq!(&**value as *const i32, pointer);
+}

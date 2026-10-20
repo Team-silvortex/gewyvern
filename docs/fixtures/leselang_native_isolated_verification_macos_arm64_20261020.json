@@ -1,0 +1,103 @@
+{
+  "kind": "leselang-native-isolated-source-verification",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "native_embedding_contract": "0.168.0",
+  "reference_execution_contract": "1.105.0",
+  "verified_source_checkpoint": true,
+  "original_bytes_revalidated": true,
+  "private_target_cleaned_before_publish": true,
+  "isolated_cargo_tests_and_clippy": true,
+  "overlapping_targets_isolated": true,
+  "unwind_cleanup_tested": true,
+  "cleanup_failure_blocks_publication": true,
+  "repository_target_reused": false,
+  "new_public_runtime_api": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "process_crash_recovery": false,
+  "production_durable_codec": false,
+  "wire_or_journal_schema_changed": false,
+  "scope": "The Rust source exporter now verifies in a newly created private Cargo target directory rather than the monorepo target. The standalone four-crate workspace and separate consumer share only that invocation-owned temporary cache. Verification and cleanup errors are preserved; cache cleanup failure blocks source publication. Stage and cache owners attempt cleanup on unwind without following symlinks into unrelated directories. Overlapping exports retain distinct targets. The real locked/offline --verify path passes native workspace and consumer tests plus both strict Clippy phases, checks exact source inventory, removes the cache, and publishes verified=true. The native/runtime public contracts and product version are unchanged. This validates source portability and packaging lifecycle, not complete native durable recovery, product compatibility or physical repository extraction. Abrupt process termination may still leave temporary directories.",
+  "sources": [
+    {
+      "path": "crates/gewyvern-dev/src/leselang.rs",
+      "sha256": "88fd3b26085f9f0360471c38c1fb762d2bdf6397bf7d1729b0d885db9ab9508e"
+    },
+    {
+      "path": "tests/leselang_native_profile_tdd.rs",
+      "sha256": "39bd705b4242538d5d9d380be6e9a353f8a77d9ca7ec85892690b13ad718d566"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "6a661f9a07f493a588a4c0cce563afdd2f3229426c0826c72c1440a563a79414"
+    }
+  ],
+  "verification": [
+    {
+      "name": "unit",
+      "path": "/private/tmp/leselang-isolated-verification-unit.log",
+      "sha256": "6517bc27f1b7cedbbf3b199aee395f7b1cbaa4e64100491aad6c50a929ffdf3f",
+      "passed": 21
+    },
+    {
+      "name": "tooling",
+      "path": "/private/tmp/leselang-isolated-verification-tooling.log",
+      "sha256": "0be7721ae3167cd6a27bbdb02701f2d8d3b1e7b5b7b83b3a69e5c91626b397f5",
+      "passed": 42
+    },
+    {
+      "name": "tooling-clippy",
+      "path": "/private/tmp/leselang-isolated-verification-tooling-clippy.log",
+      "sha256": "938b0264f9976b3ce61a4b0549c611968414e6904355cb55ea8be7289663b1f3",
+      "passed": true
+    },
+    {
+      "name": "full",
+      "path": "/private/tmp/leselang-isolated-verification-full.log",
+      "sha256": "ceda7e3c0b9c87857884e22859ce897fd3de626282144951906b1dd47719f1a3",
+      "passed": 2523
+    },
+    {
+      "name": "tree",
+      "path": "/private/tmp/leselang-isolated-verification-tree.log",
+      "sha256": "19a5d8f844394d3aa645ff6a7409d99b992364c8a1a9bcb420a21cbd009f5668",
+      "passed": true
+    },
+    {
+      "name": "guards",
+      "path": "/private/tmp/leselang-isolated-verification-guards.log",
+      "sha256": "bc2da924a5aadcc1d2f814ab053a6ed5bc20dc7630073fab24a1d571a395f9a0",
+      "passed": 465
+    },
+    {
+      "name": "guard-clippy",
+      "path": "/private/tmp/leselang-isolated-verification-guard-clippy.log",
+      "sha256": "c1d719db9ebccf5f1eed0f07bb37968b66878627e4c15dc651fec8bbd0738e44",
+      "passed": true
+    },
+    {
+      "name": "fmt",
+      "path": "/private/tmp/leselang-isolated-verification-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-isolated-verify-source",
+    "manifest_sha256": "aab525c8cc5666f400bee7ba260234c4bda3282684d4389294025d7b82d5da05",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests_passed": 1996,
+    "consumer_tests_passed": 527,
+    "workspace_strict_clippy_passed": true,
+    "consumer_strict_clippy_passed": true,
+    "product_free_dependency_tree": true,
+    "verification_target": "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-8532-1792481917180750000-2",
+    "verification_target_removed": true,
+    "source_stage_removed": true,
+    "private_directory_mode": "0700"
+  }
+}

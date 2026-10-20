@@ -1,0 +1,133 @@
+{
+  "kind": "leselang-native-pending-binding-transfer",
+  "validated_on": "2026-10-18",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "native_embedding_contract": "0.163.0",
+  "reference_execution_contract": "1.105.0",
+  "hosts": 2,
+  "actual_vm_state": true,
+  "original_budget_parity": true,
+  "terminal_transfer_refused": true,
+  "local_scope_escape_refused": true,
+  "isolated_consumer_passed": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "process_crash_recovery": false,
+  "final_effect_transfer": false,
+  "wire_or_journal_schema_changed": false,
+  "scope": "Consume only a waiting binding VM; move its actual identity, native return stack, borrowed declaration, remaining meter and limits without callbacks, allocation, cloning, acceptance or dispatch. Initial/final-request/accepted/terminal sessions return unchanged. LocalVm exposes no scope escape. Counter and structured-widget hosts restore after either or both effects; every budget cutoff preserves output, exact invocation/request count and remaining fuel while stale replies and live-policy revocation remain rejected. Existing restoration cleanup/unwind tests now source frames from actual VM polling. This is in-memory ownership transfer, not durable provenance, external-effect cancellation, process-crash settlement or complete graph recovery.",
+  "sources": [
+    {
+      "path": "crates/leselang-runtime-core/src/reply.rs",
+      "sha256": "a876ee1347215b4d75d5c4f943a67684e3c1b7ceca26c6386f4e6afb8df2d0b9"
+    },
+    {
+      "path": "crates/leselang-runtime-core/tests/reply.rs",
+      "sha256": "74da7d0765461fb136b47851dd92967a4409b67b504f0b4c3966f309b8989b52"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_session.rs",
+      "sha256": "f1b3e50dbde883e09ce2e1dbbdc65b6cbee6b8efb4618b03e0992bc19a9b0240"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_stack_session.rs",
+      "sha256": "04ebc3f8a0fbe3c2471f2d81682a217f02373fb38a378a90ebf6a87cdef2d399"
+    },
+    {
+      "path": "crates/leselang-hir/src/local_effect_session.rs",
+      "sha256": "d8b1b9aa4b28ffc1b648077d16c29d1407214afa9743d1038ce43af51cd58aa5"
+    },
+    {
+      "path": "crates/leselang-hir/tests/effect_session.rs",
+      "sha256": "5e274e2473d12a7fda6a491251cc1124d5e67f3a454d021d2d4e77523cfd8c7d"
+    },
+    {
+      "path": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "50455391b58ef0ba70d4124827fb2e1ff3d2d88c5352162c685543fb2f0a8bd2"
+    }
+  ],
+  "verification": [
+    {
+      "name": "native",
+      "path": "/private/tmp/leselang-pending-transfer-native.log",
+      "sha256": "2f2b0e53cef928fd19fc2e9cfdc9ff9b9c61fa1bca77cbab3bf2329352e6272d",
+      "passed": 33
+    },
+    {
+      "name": "consumer",
+      "path": "/private/tmp/leselang-pending-transfer-consumer.log",
+      "sha256": "46de8c6fb621733fe34573aefc28169740ab0bd2e4e5e91ae54ae9bdc54e1b6b",
+      "passed": 82
+    },
+    {
+      "name": "exported-core",
+      "path": "/private/tmp/leselang-pending-transfer-exported-core.log",
+      "sha256": "4033b0f3e2ba750f395e40e61e4f2c8139981508ba6400f89ede8eac9f4bea74",
+      "passed": 19
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-pending-transfer-clippy.log",
+      "sha256": "e990a94afd46334b5af124b88adb22cd87e8d3880bbfecbfd0336e1dd311f837",
+      "passed": true
+    },
+    {
+      "name": "consumer-clippy",
+      "path": "/private/tmp/leselang-pending-transfer-consumer-clippy.log",
+      "sha256": "f37030ad5a8b719145ae1eac38bcf8d0a8d859bc2325f1146c23a601c653cec1",
+      "passed": true
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-pending-transfer-runtime.log",
+      "sha256": "858dbc62c7cebe6d142c837beb8f11fd58a3dbced7e449c8116dd5e008834e96",
+      "passed": 3241
+    },
+    {
+      "name": "final-guards",
+      "path": "/private/tmp/leselang-pending-transfer-final-guards.log",
+      "sha256": "dd5ec2df1fe7560d9eec31a31d6a4a635a4c1b87d57eaa7e052a46f2e74dc9d4",
+      "passed": 451
+    },
+    {
+      "name": "native-full",
+      "path": "/private/tmp/leselang-pending-transfer-native-full.log",
+      "sha256": "5330ad62dcc6ebbe7be0d5d2392194f045c295cf6cd368e75d9c1a3d8cb6ca50",
+      "passed": 52
+    },
+    {
+      "name": "native-doc",
+      "path": "/private/tmp/leselang-pending-transfer-native-doc.log",
+      "sha256": "542c5909f80b3269e39aed7aa2ca1b6a12a7bb29ec2bda2527996bb5766cc336",
+      "passed": 62
+    },
+    {
+      "name": "native-clippy",
+      "path": "/private/tmp/leselang-pending-transfer-native-clippy.log",
+      "sha256": "e73b5279d5c14bb771ac790c43dc3a8ca9ee682efdbd6b949db04024edb14ad8",
+      "passed": true
+    },
+    {
+      "name": "exporter-tests",
+      "path": "/private/tmp/leselang-pending-transfer-exporter-tests.log",
+      "sha256": "5226c5f93713442dd6a297ca895d9aca14eda1ca89a8e3b1ffe634ad1cad5f61",
+      "passed": 16
+    },
+    {
+      "name": "guard-clippy",
+      "path": "/private/tmp/leselang-pending-transfer-guard-clippy.log",
+      "sha256": "680790846b7ae5a797b99a182dcaf4f65118adc78a70e924573459181a1c1686",
+      "passed": true
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-pending-transfer-source",
+    "manifest_sha256": "d49c5c9b13d7546ffa488a0e8d272a9c078427a7cc65d6e08141b385a00fbf19",
+    "files": 277,
+    "source_copies_byte_matched": 267,
+    "full_export_verified": false,
+    "product_free_dependency_tree": true,
+    "temporary_build_artifacts_pruned": true
+  }
+}

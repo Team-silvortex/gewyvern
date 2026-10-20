@@ -195,6 +195,13 @@ pub(crate) struct SessionCore<
     fuel: Fuel,
 }
 
+pub(crate) struct PendingSessionParts<'schema, Continuation, Identity, Declaration: ?Sized> {
+    pub identity: Identity,
+    pub continuation: Continuation,
+    pub declaration: &'schema Declaration,
+    pub fuel: Fuel,
+}
+
 /// One borrowed control execution with owned fuel and reply/capture state.
 /// No native Clone/Debug/serde/Send/Sync bound is imposed; result views retain the
 /// pure evaluator's explicit Clone contract only when execution uses local reads.
@@ -357,8 +364,61 @@ impl<'expression, 'schema, Node: ?Sized, Value, Continuation, Identity, Declarat
             fuel,
         }
     }
+
+    pub(crate) fn from_pending_final(
+        identity: Identity,
+        declaration: &'schema Declaration,
+        fuel: Fuel,
+    ) -> Self {
+        Self {
+            state: State::AwaitingFinal(PendingReply::new(identity, (), declaration)),
+            fuel,
+        }
+    }
     pub(crate) const fn fuel_remaining(&self) -> u64 {
         self.fuel.remaining()
+    }
+
+    pub(crate) fn try_into_pending_binding(
+        self,
+    ) -> Result<PendingSessionParts<'schema, Continuation, Identity, Declaration>, Self> {
+        let Self { state, fuel } = self;
+        match state {
+            State::AwaitingBinding(pending) => match pending.try_into_parts() {
+                Ok((identity, continuation, declaration)) => Ok(PendingSessionParts {
+                    identity,
+                    continuation,
+                    declaration,
+                    fuel,
+                }),
+                Err(pending) => Err(Self {
+                    state: State::AwaitingBinding(pending),
+                    fuel,
+                }),
+            },
+            state => Err(Self { state, fuel }),
+        }
+    }
+
+    pub(crate) fn try_into_pending_final(
+        self,
+    ) -> Result<PendingSessionParts<'schema, (), Identity, Declaration>, Self> {
+        let Self { state, fuel } = self;
+        match state {
+            State::AwaitingFinal(pending) => match pending.try_into_parts() {
+                Ok((identity, (), declaration)) => Ok(PendingSessionParts {
+                    identity,
+                    continuation: (),
+                    declaration,
+                    fuel,
+                }),
+                Err(pending) => Err(Self {
+                    state: State::AwaitingFinal(pending),
+                    fuel,
+                }),
+            },
+            state => Err(Self { state, fuel }),
+        }
     }
 
     /// Close before pending/accepted/initial native payload cleanup. Repeated
@@ -762,6 +822,81 @@ impl<
             self.state = State::Terminal(EffectSessionEnd::Failed);
         }
         result
+    }
+}
+
+#[cfg(test)]
+mod final_restore_revocation {
+    use super::*;
+    use crate::{
+        effect_stack::EffectStackLimits,
+        effect_stack_session::{StackedControlSession, StackedSessionRestoreError},
+        pure_evaluation::PureEvaluationLimits,
+    };
+    use std::{
+        cell::Cell,
+        panic::{AssertUnwindSafe, catch_unwind},
+    };
+
+    struct Owner<'a>(&'a LocalExecutionScope, &'a Cell<usize>, bool);
+    impl Drop for Owner<'_> {
+        fn drop(&mut self) {
+            assert!(!self.0.is_open());
+            self.1.set(self.1.get() + 1);
+            assert!(!self.2, "native error cleanup unwind");
+        }
+    }
+    type Session<'a> = StackedControlSession<'static, 'static, (), (), (), Owner<'a>, (), ()>;
+
+    #[test]
+    fn final_restore_callback_revocation_wins_before_owned_cleanup_and_handoff() {
+        for phase in 0..3 {
+            let scope = LocalExecutionScope::new();
+            let keys = Cell::new(0);
+            let errors = Cell::new(0);
+            let calls = Cell::new(0);
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                Session::restore_pending_final_with_scope(
+                    Owner(&scope, &keys, false),
+                    &(),
+                    Fuel::new(0),
+                    EffectStackLimits {
+                        effects: EffectEvaluationLimits {
+                            pure: PureEvaluationLimits {
+                                max_nodes: 0,
+                                max_depth: 0,
+                                max_bindings: 0,
+                            },
+                            max_arguments: 0,
+                            max_branches: 0,
+                        },
+                        max_frames: 0,
+                    },
+                    |_, _, fuel| {
+                        calls.set(calls.get() + 1);
+                        assert_eq!(fuel.remaining(), 0);
+                        scope.close();
+                        if phase == 0 {
+                            Ok(())
+                        } else {
+                            Err(Owner(&scope, &errors, phase == 2))
+                        }
+                    },
+                    Some(&scope),
+                )
+            }));
+            if phase == 2 {
+                assert!(result.is_err());
+            } else {
+                assert!(matches!(
+                    result.unwrap(),
+                    Err(StackedSessionRestoreError::ScopeClosed)
+                ));
+            }
+            assert_eq!(calls.get(), 1);
+            assert_eq!(keys.get(), 1);
+            assert_eq!(errors.get(), usize::from(phase != 0));
+        }
     }
 }
 

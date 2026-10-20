@@ -11,6 +11,259 @@ use leselang_runtime_core::{
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
+mod finalization {
+    use super::*;
+    use leselang_runtime_core::{CheckpointFinalizationError as Error, CheckpointFinalizer};
+
+    struct Host {
+        owner: Native,
+        events: Rc<RefCell<Vec<usize>>>,
+        committed: Rc<Cell<Option<u64>>>,
+        proposed: u64,
+        graph: u64,
+        fail: usize,
+        unwind: usize,
+        poison_metadata: bool,
+        unwind_after_commit: bool,
+    }
+    impl Host {
+        fn new(drops: &Rc<RefCell<Vec<usize>>>) -> Self {
+            Self {
+                owner: native(3, drops),
+                events: Rc::default(),
+                committed: Rc::new(Cell::new(None)),
+                proposed: 0,
+                graph: 7,
+                fail: 0,
+                unwind: 0,
+                poison_metadata: false,
+                unwind_after_commit: false,
+            }
+        }
+        fn check(&mut self, stage: usize) -> Result<(), Native> {
+            self.events.borrow_mut().push(stage);
+            assert_ne!(self.unwind, stage, "native finalization unwind");
+            if self.fail == stage {
+                Err(native(99, &self.owner.drops))
+            } else {
+                Ok(())
+            }
+        }
+    }
+    impl CheckpointFinalizer for Host {
+        type Commit = Native;
+        type Error = Native;
+        fn validate_dispatches(&mut self) -> Result<(), Native> {
+            self.check(1)
+        }
+        fn validate_graphs(&mut self) -> Result<u64, Native> {
+            self.check(2)?;
+            Ok(self.graph)
+        }
+        fn validate_audits(&mut self) -> Result<(), Native> {
+            self.check(3)
+        }
+        fn advance_watermark(&mut self, highest: u64) -> Result<Native, Native> {
+            self.check(4)?;
+            self.proposed = highest;
+            let mut metadata = native(4, &self.owner.drops);
+            metadata.poison = self.poison_metadata;
+            Ok(metadata)
+        }
+        fn commit(&mut self) -> Result<(), Native> {
+            self.check(5)?;
+            self.committed.set(Some(self.proposed));
+            assert!(!self.unwind_after_commit, "commit already happened");
+            Ok(())
+        }
+    }
+    fn recovery(drops: &Rc<RefCell<Vec<usize>>>) -> CheckpointRecovery<usize, Native, Native> {
+        let mut recovery = CheckpointRecovery::new(2, 100);
+        recovery.push(pending(1, 1, native(1, drops))).unwrap();
+        recovery
+            .push(RecoveryRecord {
+                key: 2,
+                sequence: 2,
+                payload: RecoveryPayload::Completed(native(2, drops)),
+            })
+            .unwrap();
+        recovery
+    }
+    fn sorted(drops: &Rc<RefCell<Vec<usize>>>) -> Vec<usize> {
+        let mut result = drops.borrow().clone();
+        result.sort();
+        result
+    }
+    fn stage(error: &Error<Native>) -> usize {
+        match error {
+            Error::Dispatch(_) => 1,
+            Error::Graph(_) => 2,
+            Error::Audit(_) => 3,
+            Error::Watermark(_) => 4,
+            Error::Commit(_) => 5,
+        }
+    }
+
+    #[test]
+    fn ordered_finalization_joins_original_maxima_without_clamping_or_early_handoff() {
+        for row in [0, 1, 7, u64::MAX - 1] {
+            for graph in [0, 1, 7, u64::MAX - 1, u64::MAX] {
+                let drops = Rc::default();
+                let mut recovery =
+                    CheckpointRecovery::<usize, Native, Native>::new(1, u64::MAX - 1);
+                if row != 0 {
+                    recovery.push(pending(1, row, native(1, &drops))).unwrap();
+                }
+                let mut host = Host::new(&drops);
+                host.graph = graph;
+                let events = host.events.clone();
+                let committed = host.committed.clone();
+                let (snapshot, metadata) = recovery.finish_recovery(host).unwrap();
+                assert_eq!(&*events.borrow(), &[1, 2, 3, 4, 5]);
+                assert_eq!(&*drops.borrow(), &[3]);
+                assert_eq!(snapshot.highest_sequence(), row);
+                assert_eq!(committed.get(), Some(row.max(graph)));
+                assert_eq!(metadata.id, 4);
+                drop((snapshot, metadata));
+                assert_eq!(
+                    sorted(&drops),
+                    if row == 0 { vec![3, 4] } else { vec![1, 3, 4] }
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn ordered_finalization_keeps_native_error_ownership_and_exact_refusal_prefix() {
+        for fail in 1..=5 {
+            let drops = Rc::default();
+            let recovery = recovery(&drops);
+            let mut host = Host::new(&drops);
+            host.fail = fail;
+            let events = host.events.clone();
+            let committed = host.committed.clone();
+            let Err(CheckpointCommitError::Host(error)) = recovery.finish_recovery(host) else {
+                panic!()
+            };
+            assert_eq!(stage(&error), fail);
+            assert_eq!(*events.borrow(), (1..=fail).collect::<Vec<_>>());
+            assert_eq!(committed.get(), None);
+            assert_eq!(format!("{error:?}"), error.to_string());
+            assert!(std::error::Error::source(&error).is_none());
+            assert_eq!(
+                sorted(&drops),
+                if fail == 5 {
+                    vec![1, 2, 3, 4]
+                } else {
+                    vec![1, 2, 3]
+                }
+            );
+            let original = match error {
+                Error::Dispatch(e)
+                | Error::Graph(e)
+                | Error::Audit(e)
+                | Error::Watermark(e)
+                | Error::Commit(e) => e,
+            };
+            assert_eq!(original.id, 99);
+            drop(original);
+            assert_eq!(
+                sorted(&drops),
+                if fail == 5 {
+                    vec![1, 2, 3, 4, 99]
+                } else {
+                    vec![1, 2, 3, 99]
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn ordered_finalization_each_hook_unwind_discards_staging_without_retry() {
+        for unwind in 1..=5 {
+            let drops = Rc::default();
+            let recovery = recovery(&drops);
+            let mut host = Host::new(&drops);
+            host.unwind = unwind;
+            let events = host.events.clone();
+            let committed = host.committed.clone();
+            assert!(catch_unwind(AssertUnwindSafe(|| recovery.finish_recovery(host))).is_err());
+            assert_eq!(*events.borrow(), (1..=unwind).collect::<Vec<_>>());
+            assert_eq!(committed.get(), None);
+            assert_eq!(
+                sorted(&drops),
+                if unwind == 5 {
+                    vec![1, 2, 3, 4]
+                } else {
+                    vec![1, 2, 3]
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn ordered_finalization_cleanup_unwind_keeps_snapshot_metadata_and_error_local() {
+        for mode in 0..4 {
+            let drops = Rc::default();
+            let mut recovery = CheckpointRecovery::<usize, Native, Native>::new(1, 10);
+            let mut value = native(1, &drops);
+            value.poison = mode == 3;
+            recovery.push(pending(1, 1, value)).unwrap();
+            let mut host = Host::new(&drops);
+            host.owner.poison = mode < 2;
+            host.fail = match mode {
+                1 | 3 => 4,
+                2 => 5,
+                _ => 0,
+            };
+            host.poison_metadata = mode == 2;
+            let committed = host.committed.clone();
+            assert!(catch_unwind(AssertUnwindSafe(|| recovery.finish_recovery(host))).is_err());
+            assert_eq!(committed.get().is_some(), mode == 0);
+            assert_eq!(
+                sorted(&drops),
+                match mode {
+                    0 => vec![1, 3, 4],
+                    2 => vec![1, 3, 4, 99],
+                    _ => vec![1, 3, 99],
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn ordered_finalization_commit_then_unwind_is_uncertain_not_replay_permission() {
+        let drops = Rc::default();
+        let recovery = recovery(&drops);
+        let mut host = Host::new(&drops);
+        host.unwind_after_commit = true;
+        let committed = host.committed.clone();
+        let events = host.events.clone();
+        assert!(catch_unwind(AssertUnwindSafe(|| recovery.finish_recovery(host))).is_err());
+        assert_eq!(committed.get(), Some(7));
+        assert_eq!(&*events.borrow(), &[1, 2, 3, 4, 5]);
+        assert_eq!(sorted(&drops), [1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn ordered_finalization_of_closed_staging_releases_host_without_any_hook() {
+        let drops = Rc::default();
+        let mut recovery = recovery(&drops);
+        assert_eq!(
+            recovery.push(pending(3, 3, native(5, &drops))),
+            Err(CheckpointError::RecordLimit)
+        );
+        let host = Host::new(&drops);
+        let events = host.events.clone();
+        assert!(matches!(
+            recovery.finish_recovery(host),
+            Err(CheckpointCommitError::Closed)
+        ));
+        assert!(events.borrow().is_empty());
+        assert_eq!(sorted(&drops), [1, 2, 3, 5]);
+    }
+}
+
 mod record_pipeline {
     use super::*;
     use leselang_runtime_core::{

@@ -28,6 +28,7 @@ mod dispatch_capacity;
 mod dispatch_data;
 mod dispatch_lease;
 mod dispatch_plan;
+mod dispatch_recovery;
 mod fold;
 mod fuel;
 mod group_graph;
@@ -85,8 +86,8 @@ pub use catalog::{
     OperationCatalog, OperationCatalogError, OperationCatalogLimits, OperationSchema,
 };
 pub use checkpoint::{
-    CheckpointCommitError, CheckpointCommitResult, CheckpointError, CheckpointRecovery,
-    RecoveredCheckpoint, RecoveryPayload, RecoveryRecord,
+    CheckpointCommitError, CheckpointCommitResult, CheckpointError, CheckpointFinalizationError,
+    CheckpointFinalizer, CheckpointRecovery, RecoveredCheckpoint, RecoveryPayload, RecoveryRecord,
 };
 pub use clock::{ClockError, MAX_CLOCK_MS, checked_clock_add};
 pub use collection::StringListBuilder;
@@ -108,6 +109,10 @@ pub use dispatch_lease::{
 };
 pub use dispatch_plan::{
     DispatchAttemptError, DispatchLeasePlanError, next_dispatch_attempt, plan_dispatch_lease,
+};
+pub use dispatch_recovery::{
+    DispatchRecoveryError, DispatchRecoveryHost, DispatchRecoveryLimits, StoredDispatchMetadata,
+    inspect_dispatch_recovery,
 };
 pub use fold::{FoldCursor, FoldError};
 pub use fuel::{Fuel, FuelExhausted};

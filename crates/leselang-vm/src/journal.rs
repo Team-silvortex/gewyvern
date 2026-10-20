@@ -122,6 +122,14 @@ mod group_recovery_contract_tests;
 #[path = "journal/record_recovery_contract_tests.rs"]
 mod record_recovery_contract_tests;
 
+#[cfg(all(test, feature = "sqlite-journal"))]
+#[path = "journal/dispatch_recovery_contract_tests.rs"]
+mod dispatch_recovery_contract_tests;
+
+#[cfg(all(test, feature = "sqlite-journal"))]
+#[path = "journal/finalization_contract_tests.rs"]
+mod finalization_contract_tests;
+
 #[derive(Default)]
 pub(crate) struct EphemeralJournal {
     dispatches: BTreeMap<ContinuationToken, EphemeralDispatch>,
@@ -1464,26 +1472,20 @@ impl SqliteJournal {
         drop(rows);
         drop(statement);
         let (snapshot, next_sequence) = recovery
-            .finish(Some(transaction), |transaction, snapshot| {
-                let connection = transaction.as_ref().ok_or_else(|| {
-                    journal_fault("LSV4005", "journal load transaction is closed")
-                })?;
-                validate_dispatch_records(connection)?;
-                let highest_sequence = snapshot
-                    .highest_sequence()
-                    .max(validate_merge_graph_records(connection)?);
-                validate_debugger_audit_records(connection)?;
-                let next_sequence = advance_sequence_watermark(connection, highest_sequence)?;
-                let transaction = transaction.take().ok_or_else(|| {
-                    journal_fault("LSV4005", "journal load transaction is closed")
-                })?;
-                transaction.commit().map_err(|error| {
-                    journal_error("LSV4005", "failed to commit journal load", error)
-                })?;
-                Ok(next_sequence)
+            .finish_recovery(SqliteRecoveryFinalizer {
+                transaction: Some(transaction),
             })
             .map_err(|error| match error {
-                CheckpointCommitError::Host(error) => error,
+                CheckpointCommitError::Host(error) => {
+                    use leselang_runtime_core::CheckpointFinalizationError;
+                    match error {
+                        CheckpointFinalizationError::Dispatch(error)
+                        | CheckpointFinalizationError::Graph(error)
+                        | CheckpointFinalizationError::Audit(error)
+                        | CheckpointFinalizationError::Watermark(error)
+                        | CheckpointFinalizationError::Commit(error) => error,
+                    }
+                }
                 CheckpointCommitError::Closed => checkpoint_fault(CheckpointError::Closed),
             })?;
         let (pending, completed) = snapshot.into_parts();
@@ -3475,21 +3477,78 @@ fn validate_dispatch_records(connection: &Connection) -> Result<(), Fault> {
         .next()
         .map_err(|error| journal_error("LSV4005", "failed to read dispatch record", error))?
     {
-        let token: String = row
-            .get(0)
-            .map_err(|error| journal_error("LSV4005", "invalid dispatch token", error))?;
-        let bytes: Vec<u8> = row
+        recover_dispatch_record(row)?;
+    }
+    Ok(())
+}
+
+#[cfg(feature = "sqlite-journal")]
+fn recover_dispatch_record(row: &rusqlite::Row<'_>) -> Result<(), Fault> {
+    use leselang_runtime_core::{
+        DispatchRecoveryError, DispatchRecoveryLimits, inspect_dispatch_recovery,
+    };
+    let token: String = row
+        .get(0)
+        .map_err(|error| journal_error("LSV4005", "invalid dispatch token", error))?;
+    inspect_dispatch_recovery(
+        &mut SqliteRecoveryDispatch { row, token },
+        DispatchRecoveryLimits {
+            max_attempts: MAX_DISPATCH_ATTEMPTS,
+            max_retries: MAX_SEMANTIC_RETRIES,
+        },
+    )
+    .map_err(|error| match error {
+        DispatchRecoveryError::Request(error)
+        | DispatchRecoveryError::Identity(error)
+        | DispatchRecoveryError::Image(error)
+        | DispatchRecoveryError::Metadata(error)
+        | DispatchRecoveryError::RetryError(error) => error,
+        DispatchRecoveryError::Attempt => journal_fault("LSV4007", "dispatch attempt is invalid"),
+        DispatchRecoveryError::RetryState => {
+            journal_fault("LSV4007", "dispatch retry state is invalid")
+        }
+        DispatchRecoveryError::RetryHistory => {
+            journal_fault("LSV4007", "dispatch retry history is inconsistent")
+        }
+        DispatchRecoveryError::CompletionState => journal_fault(
+            "LSV4007",
+            "dispatch and continuation states are inconsistent",
+        ),
+    })
+}
+
+#[cfg(feature = "sqlite-journal")]
+struct SqliteRecoveryDispatch<'a, 'row> {
+    row: &'a rusqlite::Row<'row>,
+    token: String,
+}
+
+#[cfg(feature = "sqlite-journal")]
+impl leselang_runtime_core::DispatchRecoveryHost for SqliteRecoveryDispatch<'_, '_> {
+    type Request = EffectRequest;
+    type Retry = Vec<u8>;
+    type Error = Fault;
+
+    fn admit_request(&mut self) -> Result<EffectRequest, Fault> {
+        let bytes: Vec<u8> = self
+            .row
             .get(1)
             .map_err(|error| journal_error("LSV4005", "invalid dispatch request", error))?;
         let request: EffectRequest = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
         validate_effect_request(&request)?;
-        if request.continuation.token.as_str() != token {
+        Ok(request)
+    }
+    fn validate_identity(&mut self, request: &EffectRequest) -> Result<(), Fault> {
+        if request.continuation.token.as_str() != self.token {
             return Err(journal_fault(
                 "LSV4007",
                 "dispatch token does not match effect request",
             ));
         }
-        let effect_image: Vec<u8> = row.get(9).map_err(|error| {
+        Ok(())
+    }
+    fn validate_image(&mut self, request: &EffectRequest) -> Result<(), Fault> {
+        let effect_image: Vec<u8> = self.row.get(9).map_err(|error| {
             journal_error("LSV4005", "invalid dispatch continuation image", error)
         })?;
         let request_image = encode_json_capped(
@@ -3503,48 +3562,90 @@ fn validate_dispatch_records(connection: &Connection) -> Result<(), Fault> {
                 "dispatch request conflicts with continuation state",
             ));
         }
-        let state: String = row
+        Ok(())
+    }
+    fn read_metadata(
+        &mut self,
+    ) -> Result<leselang_runtime_core::StoredDispatchMetadata<Vec<u8>>, Fault> {
+        let state: String = self
+            .row
             .get(2)
             .map_err(|error| journal_error("LSV4005", "invalid dispatch state", error))?;
-        let attempt: i64 = row
+        let attempt: i64 = self
+            .row
             .get(3)
             .map_err(|error| journal_error("LSV4005", "invalid dispatch attempt", error))?;
-        let effect_state: String = row
+        let effect_state: String = self
+            .row
             .get(8)
             .map_err(|error| journal_error("LSV4005", "invalid dispatch effect state", error))?;
-        let ready_at: i64 = row
+        let ready_at: i64 = self
+            .row
             .get(5)
             .map_err(|error| journal_error("LSV4005", "invalid dispatch ready clock", error))?;
-        let retry_count: i64 = row
+        let retry_count: i64 = self
+            .row
             .get(6)
             .map_err(|error| journal_error("LSV4005", "invalid dispatch retry count", error))?;
-        let last_error: Option<Vec<u8>> = row
+        let last_error: Option<Vec<u8>> = self
+            .row
             .get(7)
             .map_err(|error| journal_error("LSV4005", "invalid dispatch retry error", error))?;
-        if attempt < 0 || attempt > i64::from(MAX_DISPATCH_ATTEMPTS) {
-            return Err(journal_fault("LSV4007", "dispatch attempt is invalid"));
-        }
-        if ready_at < 0 || retry_count < 0 || retry_count > i64::from(MAX_SEMANTIC_RETRIES) {
-            return Err(journal_fault("LSV4007", "dispatch retry state is invalid"));
-        }
-        if (retry_count == 0) != last_error.is_none() {
-            return Err(journal_fault(
-                "LSV4007",
-                "dispatch retry history is inconsistent",
-            ));
-        }
-        if let Some(bytes) = last_error {
-            let error: EffectError = decode_bounded(&bytes, 2_048)?;
-            validate_effect_error(&error)?;
-        }
-        if (state == "acknowledged") != (effect_state == "completed") {
-            return Err(journal_fault(
-                "LSV4007",
-                "dispatch and continuation states are inconsistent",
-            ));
-        }
+        Ok(leselang_runtime_core::StoredDispatchMetadata {
+            attempt,
+            ready_at_ms: ready_at,
+            retry_count,
+            last_error,
+            acknowledged: state == "acknowledged",
+            effect_completed: effect_state == "completed",
+        })
     }
-    Ok(())
+    fn validate_retry_error(&mut self, bytes: Vec<u8>) -> Result<(), Fault> {
+        let error: EffectError = decode_bounded(&bytes, 2_048)?;
+        validate_effect_error(&error)
+    }
+}
+
+#[cfg(feature = "sqlite-journal")]
+struct SqliteRecoveryFinalizer<'connection> {
+    transaction: Option<rusqlite::Transaction<'connection>>,
+}
+
+#[cfg(feature = "sqlite-journal")]
+impl SqliteRecoveryFinalizer<'_> {
+    fn connection(&self) -> Result<&Connection, Fault> {
+        self.transaction
+            .as_deref()
+            .ok_or_else(|| journal_fault("LSV4005", "journal load transaction is closed"))
+    }
+}
+
+#[cfg(feature = "sqlite-journal")]
+impl leselang_runtime_core::CheckpointFinalizer for SqliteRecoveryFinalizer<'_> {
+    type Commit = u64;
+    type Error = Fault;
+
+    fn validate_dispatches(&mut self) -> Result<(), Fault> {
+        validate_dispatch_records(self.connection()?)
+    }
+    fn validate_graphs(&mut self) -> Result<u64, Fault> {
+        validate_merge_graph_records(self.connection()?)
+    }
+    fn validate_audits(&mut self) -> Result<(), Fault> {
+        validate_debugger_audit_records(self.connection()?)
+    }
+    fn advance_watermark(&mut self, highest_sequence: u64) -> Result<u64, Fault> {
+        advance_sequence_watermark(self.connection()?, highest_sequence)
+    }
+    fn commit(&mut self) -> Result<(), Fault> {
+        let transaction = self
+            .transaction
+            .take()
+            .ok_or_else(|| journal_fault("LSV4005", "journal load transaction is closed"))?;
+        transaction
+            .commit()
+            .map_err(|error| journal_error("LSV4005", "failed to commit journal load", error))
+    }
 }
 
 #[cfg(feature = "sqlite-journal")]

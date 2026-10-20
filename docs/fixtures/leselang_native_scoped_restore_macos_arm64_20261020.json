@@ -1,0 +1,107 @@
+{
+  "kind": "leselang-native-scoped-collector-restoration",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "native_embedding_contract": "0.167.0",
+  "reference_execution_contract": "1.105.0",
+  "hosts": 2,
+  "original_reply_cores": true,
+  "close_before_retained_cleanup": true,
+  "revocation_stops_later_hooks": true,
+  "original_error_ownership": true,
+  "unchanged_unscoped_restore": true,
+  "isolated_consumer_passed": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "process_crash_recovery": false,
+  "production_durable_codec": false,
+  "automatic_external_cancellation": false,
+  "wire_or_journal_schema_changed": false,
+  "scope": "Prepared Seq/All restore_in_scope entries borrow an existing LocalExecutionScope and delegate to the original reply cores. Closed scope precedes shape/equality/admission. Structural or native refusal and escaping equality/admission unwind close before retained rows and unused-hook cleanup. Equality/admission revocation wins over duplicate/success/error and stops later hooks; superseded errors drop after closure, while ordinary native errors retain their original owner. Actual live snapshots cover all seven Seq frontiers and eight All masks on numeric/text hosts. Eight new integration tests verify exact original request/reply pointers, unchanged fuel, original native errors, callback/refusal/cleanup unwind and observed once-only retained cleanup after revocation. Legacy unscoped restoration remains unchanged. Successful collectors do not store the scope; later operations and external cancellation remain host responsibilities. Callback-internal native cleanup is not fenced retroactively. No production codec, transaction, crash settlement or complete extraction claim is added.",
+  "sources": [
+    {
+      "path": "crates/leselang-hir/src/prepared_sequence.rs",
+      "sha256": "cef0c19ef2b2530314a24b9c8100b3519853f011a0959f0c960b0a6874160a2d"
+    },
+    {
+      "path": "crates/leselang-hir/src/prepared_parallel.rs",
+      "sha256": "e03943042c23cdc2aabf66c6a8518827d70f6abb19e5c6715ba551714f346da0"
+    },
+    {
+      "path": "crates/leselang-hir/src/sequence_evaluation.rs",
+      "sha256": "973c663831e91e2b83ac3cf2d88f3821ba76df51954eb28b47e05aed868f32a7"
+    },
+    {
+      "path": "crates/leselang-hir/src/parallel_evaluation.rs",
+      "sha256": "3d4c3cbeab06841394c7f535dd31ce80d31475a3c6f008e26e04abc177ade903"
+    },
+    {
+      "path": "crates/leselang-hir/tests/saved_sequence.rs",
+      "sha256": "2aeb7ec1e37444fa7a4cf7f4c29d4d1db12e502eef98c3e51048fd53646985be"
+    },
+    {
+      "path": "crates/leselang-hir/tests/saved_parallel.rs",
+      "sha256": "177959c11fc246dce34d6c4c0c06bb7881d20463c73b1c753a3369aa09628d6e"
+    }
+  ],
+  "verification": [
+    {
+      "name": "focused",
+      "path": "/private/tmp/leselang-scoped-restore-focused.log",
+      "sha256": "97f705cfd2cf91547925851b1bf94bde9ae4a28d0c58d0c54938bc5ad4b59aa1",
+      "passed": 34
+    },
+    {
+      "name": "consumer",
+      "path": "/private/tmp/leselang-scoped-restore-consumer.log",
+      "sha256": "28c59b4fa84c6865d35dc086a336e3be2eafd9a10b02ca761fd6b0f4c2c9db77",
+      "passed": 517
+    },
+    {
+      "name": "consumer-clippy",
+      "path": "/private/tmp/leselang-scoped-restore-consumer-clippy.log",
+      "sha256": "ba667e2e7d7fc829750ce7376a2f282a093f3e40a06861ae9f636288b37a5b21",
+      "passed": true
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-scoped-restore-clippy.log",
+      "sha256": "f14f2119331277f1f3116d28efe4dd8904d3f143ac5f3a9cd847cac49fdb7c45",
+      "passed": true
+    },
+    {
+      "name": "fmt",
+      "path": "/private/tmp/leselang-scoped-restore-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-scoped-restore-runtime-final.log",
+      "sha256": "0bdc71a5dfb501f468b2999c0248fe42b7318c397dee5328fd61279f30984858",
+      "passed": 3279
+    },
+    {
+      "name": "guards",
+      "path": "/private/tmp/leselang-scoped-restore-guards.log",
+      "sha256": "0172f210ac31ddf3f08ecde88444550d5aedac059526627d93cbc9d2cce95970",
+      "passed": 461
+    },
+    {
+      "name": "guard-clippy",
+      "path": "/private/tmp/leselang-scoped-restore-guard-clippy.log",
+      "sha256": "a1caf995490cc6bb38eacb24182afe572d945c7e1c2cdf09cba69f376f130b4e",
+      "passed": true
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-scoped-restore-consumer-source",
+    "manifest_sha256": "ae53f00b1236be79dc82861c2e26c422df39e289022c55a424520c2d4871da59",
+    "files": 279,
+    "source_copies_byte_matched": 269,
+    "full_export_verified": false,
+    "product_free_dependency_tree": true,
+    "temporary_build_artifacts_pruned": true
+  }
+}

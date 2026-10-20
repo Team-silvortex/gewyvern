@@ -1,0 +1,137 @@
+{
+  "kind": "leselang-native-parallel-collector-transfer",
+  "validated_on": "2026-10-18",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "native_embedding_contract": "0.165.0",
+  "reference_execution_contract": "1.105.0",
+  "hosts": 2,
+  "actual_collector_state": true,
+  "original_reply_ownership": true,
+  "original_budget_parity": true,
+  "terminal_transfer_refused": true,
+  "isolated_consumer_passed": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "process_crash_recovery": false,
+  "production_durable_codec": false,
+  "wire_or_journal_schema_changed": false,
+  "scope": "Awaiting and ready-results prepared All collectors move original ordered identities, domains and accepted replies through the shared reply core without native callbacks, equality, cloning, projection, dispatch or fuel changes. The bounded row vector allocates. Terminal states refuse unchanged; inconsistent private slots return converted prefix owners. Mandatory native restoration admission remains authoritative. Two-host original VM pipelines transfer before dispatch and after each out-of-order reply, including ready-results, and compare exact values, remaining fuel, request counts and invocation logs at every budget cutoff. Mixed saved-helper proofs no longer copy accepted replies; bounded host-owned byte-checkpoint models encode actual transferred payloads. Repeated masks, maximum width, unsized domains, exact buffer ownership, native refusal/unwind and destructor failures are covered. Enclosing scope, original meter, cancellation delivery, authentic storage and settlement remain host-owned. No persistent codec or complete durable VM is added.",
+  "sources": [
+    {
+      "path": "crates/leselang-hir/src/parallel_evaluation.rs",
+      "sha256": "51d8975cdd0d4886865b7a4057cb51990f76b7a35ffba92e751569adc7428f92"
+    },
+    {
+      "path": "crates/leselang-hir/src/parallel_evaluation/transfer_tests.rs",
+      "sha256": "9af0e18cd6c87851dd2ecba5dafa882bf1e2f4f4bf8b8347068155ead705ec6b"
+    },
+    {
+      "path": "crates/leselang-hir/src/prepared_parallel.rs",
+      "sha256": "e84389bee2a328c12ec5d9bb6b2a043a34bcea69fe6aa83ad4895ad18e82bf28"
+    },
+    {
+      "path": "crates/leselang-hir/tests/saved_parallel.rs",
+      "sha256": "f85a38d280016e574c6b5ae7a07ccbdc5a337fa3309bfcd2f26a39bd7a9a7be4"
+    },
+    {
+      "path": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "77f0b9908a9375237f24259abcb309fe7bfcf594568f470185928b0ada3fd7c7"
+    }
+  ],
+  "verification": [
+    {
+      "name": "hir",
+      "path": "/private/tmp/leselang-parallel-transfer-hir.log",
+      "sha256": "448fc8ae466fa89ef87fbd920d2e933d25ecc362affcbd13caf27f7ec99fe32b",
+      "passed": 35
+    },
+    {
+      "name": "pipeline",
+      "path": "/private/tmp/leselang-parallel-transfer-pipeline.log",
+      "sha256": "de5ac5678e6fcec0a49103f15a91bbdd60822302c84529b74555483e4364bf03",
+      "passed": 36
+    },
+    {
+      "name": "consumer",
+      "path": "/private/tmp/leselang-parallel-transfer-consumer.log",
+      "sha256": "948c84bb53b0d25fc7e1677a6dc4d105033dc6ef00ce6a613ad855dd1d01eaf0",
+      "passed": 48
+    },
+    {
+      "name": "exported-unit",
+      "path": "/private/tmp/leselang-parallel-transfer-exported-unit.log",
+      "sha256": "2e76e2bc3a0c954236cae293a4f683aeec8709dbb4487cc57d05c7fba0b5f425",
+      "passed": 23
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-parallel-transfer-clippy.log",
+      "sha256": "395eb6c7b6de87a4cb326b4aeb2f8764c144a30082752b63d4f2d3215e62eed0",
+      "passed": true
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-parallel-transfer-runtime.log",
+      "sha256": "c414e7022fb5e0139f1a7420df22f5210d43681e07010a18f3f3a93b29869dac",
+      "passed": 3260
+    },
+    {
+      "name": "guards",
+      "path": "/private/tmp/leselang-parallel-transfer-guards.log",
+      "sha256": "338ecb537fe9d93ef75bbde916be0c32fd420e64f284828eb3006f7cd7199691",
+      "passed": 455
+    },
+    {
+      "name": "native-full",
+      "path": "/private/tmp/leselang-parallel-transfer-native-full.log",
+      "sha256": "6dbb4afa2d8ffab991f19c2d9c0906f7436c1d958bc2ee1347f05c5c83305f80",
+      "passed": 55
+    },
+    {
+      "name": "exported-doc",
+      "path": "/private/tmp/leselang-parallel-transfer-exported-doc.log",
+      "sha256": "0b897875afcecbf237ea48f67c5a4e6326c3b70e430dd446d308a7210e24a179",
+      "passed": 65
+    },
+    {
+      "name": "consumer-clippy",
+      "path": "/private/tmp/leselang-parallel-transfer-consumer-clippy.log",
+      "sha256": "1b682d81611f9d8ea8503d2ef6ea1e132524c7d5d5a13485b756fdf1b091f20f",
+      "passed": true
+    },
+    {
+      "name": "exported-clippy",
+      "path": "/private/tmp/leselang-parallel-transfer-exported-clippy.log",
+      "sha256": "2ca05a22edb8231fb9168827865ca792f549bc45bc258fcd84d1ac60c7b56c1a",
+      "passed": true
+    },
+    {
+      "name": "guard-clippy",
+      "path": "/private/tmp/leselang-parallel-transfer-guard-clippy.log",
+      "sha256": "c6d9aff2897f944a5ba86511c656f35aab42743a16d7b80a05dcc93690836379",
+      "passed": true
+    },
+    {
+      "name": "exporter-tests",
+      "path": "/private/tmp/leselang-parallel-transfer-exporter-tests.log",
+      "sha256": "da4c07edb47102a5e201ecd19e21ea2fde08a12b6ca4d8db809a8812ea070e49",
+      "passed": 16
+    },
+    {
+      "name": "fmt",
+      "path": "/private/tmp/leselang-parallel-transfer-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-parallel-transfer-source-v2",
+    "manifest_sha256": "e98388dcb7add74317ead188122791e179f0df363d27d77a84858b267bfc5cd7",
+    "files": 278,
+    "source_copies_byte_matched": 268,
+    "full_export_verified": false,
+    "product_free_dependency_tree": true,
+    "temporary_build_artifacts_pruned": true
+  }
+}

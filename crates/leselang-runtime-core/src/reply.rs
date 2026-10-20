@@ -225,6 +225,17 @@ impl<'schema, Identity, Frame, Declaration: ?Sized>
         }
     }
 
+    /// Consume a still-waiting handle without accepting or dispatching a reply.
+    /// Terminal handles are returned unchanged. Original identity/frame/domain
+    /// ownership moves without cloning, callbacks or allocation. This supplies
+    /// no receipt, persistence, live authority or permission to replay work.
+    pub fn try_into_parts(self) -> Result<(Identity, Frame, &'schema Declaration), Self> {
+        match self.state {
+            State::Waiting(waiting) => Ok((waiting.identity, waiting.frame, waiting.declaration)),
+            state => Err(Self { state }),
+        }
+    }
+
     /// Close before native frame/identity destructors run. Repeated cancellation
     /// does not change an existing terminal reason or invoke native callbacks.
     pub fn cancel(&mut self) -> bool {

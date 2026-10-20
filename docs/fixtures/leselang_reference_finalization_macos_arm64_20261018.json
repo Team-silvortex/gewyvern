@@ -1,0 +1,237 @@
+{
+  "kind": "leselang-reference-ordered-checkpoint-finalization",
+  "validated_on": "2026-10-18",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "reference_execution_contract": "1.105.0",
+  "native_embedding_contract": "0.162.0",
+  "real_sqlite_states": 28,
+  "flow_forms": 9,
+  "frozen_comparisons": 420,
+  "baseline_passed": true,
+  "post_migration_parity_passed": true,
+  "snapshot_fault_and_table_parity": true,
+  "actual_commit_failure_rollback_passed": true,
+  "opaque_local_ownership_passed": true,
+  "native_unwind_prefixes_passed": true,
+  "standalone_core_package_passed": true,
+  "wire_or_journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "scope": "CheckpointRecovery::finish_recovery composes dispatch validation, graph validation, original row/graph sequence max, audit validation, watermark reconciliation and atomic commit through CheckpointFinalizer. The real SQLite loader delegates with its original immediate transaction. All concrete identity/authority, schema, graph/receipt, audit-origin, SQL and codec policy remains native; product audit types are not imported into the independent core. Closed staging calls no hook, and staged maps are not passed to the finalizer. Original metadata and native errors stay owned through framework cleanup, including failed-commit metadata Drop unwind; committed-then-unwind is uncertain without retry or snapshot handoff. The core does not supply arbitrary native rollback, authentication, replay permission or complete durable execution. Frozen full-load comparisons cover 28 database states from nine flow forms, including a real audited cancellation, conflicting faults, watermark refusal and actual deferred-foreign-key COMMIT failure. Returned snapshots, native faults, original metadata/effect/dispatch/group/branch/audit tables, rollback and released transactions match the old pipeline. Independent consumers cover full-width sequence maxima, exact stage prefixes, opaque local owners and native destructor/hook failures.",
+  "sources": [
+    {
+      "path": "crates/leselang-runtime-core/src/checkpoint.rs",
+      "sha256": "b8dc86af662995e89f9ebf9978946566685d4bac0cb9818d23fcfc3ecc2d7a3f"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/lib.rs",
+      "sha256": "f82ab635dae723aa692c335907574ae0ce46f280259689df84859baecaf68cdf"
+    },
+    {
+      "path": "crates/leselang-runtime-core/tests/checkpoint.rs",
+      "sha256": "70919297d1a831a43496cad7dec0c50199039eb7e6e55c503bf1d2471ce09bfd"
+    },
+    {
+      "path": "crates/leselang-runtime-core/README.md",
+      "sha256": "cc9972eb633e8d4dff2e41ecfd68c6ac3e88f7427354a77b34495e2a13e4c7c5"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "f57d2dc4874530247a9e8a305833c50d0af06d7fff60b7a1deaa27de4bdc2943"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/finalization_contract_tests.rs",
+      "sha256": "d02328b5a416d912fdf3669e30db9250ba2325069613f5c0d0c645e80be097ce"
+    },
+    {
+      "path": "crates/gewyvern-dev/src/leselang.rs",
+      "sha256": "49a6c3fa6948021d86d657fab0396b29b7ee27c39eca02a576e77750b4830647"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "5c6c22fc34213e901bc1cce64e10106311d98d993014bae1b0a8bbbd2f89f0c3"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "70bd78ba8be88d413cebff409477f49f87ebadb908086ab2207db5d86aff35e8"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "f454632bbb7ca2d07866cb28f3b0dba9ecf926f0e83cd7e6c167d6d357e1aa96"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "353140d7c54da2dbea2a822eca6451e269612cc3fc46a012d14f6784b041939e"
+    }
+  ],
+  "verification": [
+    {
+      "name": "baseline",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/baseline.log",
+      "sha256": "2d47dbe9286af1e5017b8ac263dbd5ab59936177712b4ad1d343aeba6fa2aced",
+      "passed": 1
+    },
+    {
+      "name": "parity",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/parity.log",
+      "sha256": "4c2f293b21e8fb83f200eb5e5bb5befa144dd798d152e2da9754f827fd2f7d2f",
+      "passed": 1
+    },
+    {
+      "name": "consumer",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/consumer.log",
+      "sha256": "94c15bba74df473e3346f14d490d3e7d5241409ab6ce497e99a7cb2f7e187eda",
+      "passed": 23
+    },
+    {
+      "name": "standalone",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/standalone.log",
+      "sha256": "1a955cf34680032108bf931dc06941dd1fe019a4dc6adfd1de5e215e4a8d08aa",
+      "passed": 593
+    },
+    {
+      "name": "profiles",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/profiles.log",
+      "sha256": "f6488172ed134727b6fc03a6615f42b43e0a237516d9abf1fe2501de995a6197",
+      "passed": 86
+    },
+    {
+      "name": "exporter",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/exporter.log",
+      "sha256": "517d2a2d65d8df062551663184cff3640f03c3a518a504985af6ed8b00ab65d2",
+      "passed": 16
+    },
+    {
+      "name": "native",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/native.log",
+      "sha256": "360498d18e65e6be34ec3ce40c2bda9ca304e7ad388c4c3307b0d38fb8da01e4",
+      "passed": 50
+    },
+    {
+      "name": "memory",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/memory.log",
+      "sha256": "c99298ecbe2db6319efc8a0b77a645b8e74ad7bff60cd8d1a1b7622b148cba11",
+      "passed": 72
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/clippy.log",
+      "sha256": "5ef6831fa233c074c0dd2f80ebaced66bdf0cb870cf4d32d10c857261e8ce900",
+      "passed": true,
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "package",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/package.log",
+      "sha256": "1233c5fd4f7a8df5e7881e81ed14baf31a5bf424f6cfdc1b5242e92d42b671e6",
+      "passed": true,
+      "warnings": [
+        "Pre-existing manifest metadata: no documentation, homepage or repository."
+      ]
+    },
+    {
+      "name": "source-export",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/source-export.log",
+      "sha256": "68d9ece1bb769120239e3fe5771e06d340f72a1694ad63294a7f1051d60e7624",
+      "passed": true
+    },
+    {
+      "name": "exported-consumer",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/exported-consumer.log",
+      "sha256": "d06360873900181c718ad95333a1f521c0b24879b34ecc9f35095e0d116aab19",
+      "passed": 34
+    },
+    {
+      "name": "exported-consumer-clippy",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/exported-consumer-clippy.log",
+      "sha256": "92212e5478d801b2933f093f191f2abc3f15599b75546fd8077deee0f0c053fa",
+      "passed": true,
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "exported-consumer-tree",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/exported-consumer-tree.log",
+      "sha256": "2f8af0e3d7988a7afe478e91d56eee31dedf9b2345821d54039243cc1a8ac9d0",
+      "passed": true
+    },
+    {
+      "name": "standalone-tree",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/standalone-tree.log",
+      "sha256": "d4f1be4021d0f032d1ad5dc6324e7cf594b8bd60ff2533e1217c0b5d38b65b33",
+      "passed": true
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/runtime.log",
+      "sha256": "3ad9c7f7ec7e4aee5e4f785d90bd3b02a2fecc113bd5145896557f8152856999",
+      "passed": 3232
+    },
+    {
+      "name": "root",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/root.log",
+      "sha256": "7da6d6c4b30274fcfe2ddbee4adf2208639bd0bfdd16b82a7bad524d2f49fd2d",
+      "passed": 363
+    },
+    {
+      "name": "native-clippy",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/native-clippy.log",
+      "sha256": "a8d96b91cf4fa2db295727c901c4dc6b95d84d53c810eb50913680aabda9064a",
+      "passed": true,
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "memory-clippy",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/memory-clippy.log",
+      "sha256": "1f1cb8d8266553c574b3f7aa7c5002c4f69ef7f946705361fd9b36caec979392",
+      "passed": true,
+      "warnings_as_errors_passed": true
+    },
+    {
+      "name": "fmt",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true
+    },
+    {
+      "name": "profile-fmt",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/profile-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true
+    },
+    {
+      "name": "diff-check",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/diff-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true
+    },
+    {
+      "name": "standalone-clean",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/standalone-clean.log",
+      "sha256": "4d48cc9fffd3c5ab55e84ee29b899942c9ed00c906b9a31c324d84c378eca0f7",
+      "passed": true
+    },
+    {
+      "name": "standalone-prune",
+      "path": "/private/tmp/leselang-finalization-ZER5hF/standalone-prune.log",
+      "sha256": "847830c557e112d62a62c04e4afdc4ba403f165fb302716c356842d0c4cc6c95",
+      "passed": true
+    }
+  ],
+  "package_archive": {
+    "path": "target/package/leselang-runtime-core-2.3.0.crate",
+    "sha256": "2a82bca64f143b0f86258b8f33bb3104c3bb13f5ddb60ace80ebb758b5948262",
+    "normalized_sources_and_consumer_match": true
+  },
+  "source_export": {
+    "path": "/private/tmp/leselang-finalization-ZER5hF/source",
+    "manifest_sha256": "a29be52dd302d80cdccff34a9fa53ba6aa6065e37870259efd0a760bd37cd461",
+    "inventory_files": 277,
+    "original_inventory_bytes_match": true,
+    "focused_consumer_tests_passed": 34,
+    "focused_consumer_strict_clippy_passed": true,
+    "full_export_verification": false
+  },
+  "standalone_forced_rebuild": true,
+  "standalone_artifacts_pruned_after_verification": true
+}

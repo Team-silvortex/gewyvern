@@ -156,6 +156,70 @@ impl Fixture {
 }
 
 #[test]
+fn pending_extraction_moves_original_owners_without_native_callbacks() {
+    let f = Fixture::new();
+    let domain: &dyn HostResultDomain<Body, Error = PrivateError> = &f.declaration;
+    let mut key = f.key(4);
+    key.unwind = true;
+    let pending = PendingReply::new(key, f.frame(), domain);
+    let (mut key, frame, original) = pending.try_into_parts().unwrap();
+    assert!(Rc::ptr_eq(&key.owner, &f.owner));
+    assert!(Rc::ptr_eq(&frame.drops, &f.drops));
+    assert!(std::ptr::eq(original, domain));
+    assert!(f.events.borrow().is_empty());
+    assert_eq!(f.drops.get(), 0);
+    key.unwind = false;
+    let mut pending = PendingReply::new(key, frame, original);
+    let accepted = pending
+        .try_accept(&f.key(4), f.input(7, "original"), &f.authority)
+        .unwrap();
+    drop(accepted);
+    assert_eq!(f.drops.get(), 1);
+}
+
+#[test]
+fn extraction_cannot_rearm_any_terminal_reply_handle() {
+    for end in [
+        ReplyEnd::Accepted,
+        ReplyEnd::Cancelled,
+        ReplyEnd::HostUncertain,
+    ] {
+        let f = Fixture::new();
+        let mut pending = PendingReply::new(f.key(4), f.frame(), &f.declaration);
+        match end {
+            ReplyEnd::Accepted => drop(
+                pending
+                    .try_accept(&f.key(4), f.input(7, "ok"), &f.authority)
+                    .unwrap(),
+            ),
+            ReplyEnd::Cancelled => {
+                assert!(pending.cancel());
+            }
+            ReplyEnd::HostUncertain => {
+                f.authority.unwind.set(true);
+                assert!(
+                    catch_unwind(AssertUnwindSafe(|| {
+                        let _ = pending.try_accept(&f.key(4), f.input(7, "ok"), &f.authority);
+                    }))
+                    .is_err()
+                );
+            }
+        }
+        f.events.borrow_mut().clear();
+        for _ in 0..2 {
+            pending = match pending.try_into_parts() {
+                Ok(_) => panic!("terminal state escaped as pending"),
+                Err(original) => original,
+            };
+            assert_eq!(pending.status(), ReplyStatus::Terminal(end));
+            assert!(!pending.cancel());
+        }
+        assert!(f.events.borrow().is_empty());
+        assert_eq!(f.drops.get(), 1);
+    }
+}
+
+#[test]
 fn successful_acceptance_moves_original_frame_reply_and_declaration_once() {
     let f = Fixture::new();
     let mut pending = PendingReply::new(f.key(4), f.frame(), &f.declaration);

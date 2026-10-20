@@ -161,10 +161,89 @@ impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration:
     where
         Identity: PartialEq,
     {
-        let branches =
-            admit_sequence_shape(group, limits).map_err(SequenceRestoreError::Sequence)?;
-        let (core, prepared, accepted) = SequenceReplyCore::restore(branches, rows, admit)?;
-        Ok((Self { core, prepared }, accepted))
+        Self::restore_with_scope(group, rows, limits, admit, None)
+    }
+
+    /// Restore with explicit local liveness, retaining no scope in the collector.
+    /// A closed scope refuses before structural/native checks. Shape, equality
+    /// or native refusal/unwind revokes before retained rows and unused-hook
+    /// cleanup. Revocation inside equality/admission wins over ordinary results
+    /// and stops later hooks. Success retains original prefix/request owners and
+    /// leaves the scope open. Later publication and acceptance must use the same
+    /// scope. No dispatch, meter, external cancellation or durable replay is
+    /// supplied; callback-internal cleanup and native Drop remain trusted work.
+    #[expect(
+        clippy::type_complexity,
+        reason = "restored session and prefix preserve distinct native request and reply owners"
+    )]
+    pub fn restore_in_scope<Reply, Error>(
+        group: &'expression Computation<Field, Operation, HostEffect, IrResult>,
+        rows: Vec<SavedSequenceMember<'expression, Identity, Declaration, Request, Reply>>,
+        limits: SequenceEvaluationLimits,
+        admit: impl FnOnce(
+            &[SavedSequenceMember<'expression, Identity, Declaration, Request, Reply>],
+        ) -> Result<(), Error>,
+        scope: &LocalExecutionScope,
+    ) -> RestoredPreparedSequence<
+        'expression,
+        Computation<Field, Operation, HostEffect, IrResult>,
+        IrResult,
+        Identity,
+        Declaration,
+        Request,
+        Reply,
+        Error,
+    >
+    where
+        Identity: PartialEq,
+    {
+        Self::restore_with_scope(group, rows, limits, admit, Some(scope))
+    }
+
+    #[expect(
+        clippy::type_complexity,
+        reason = "shared restoration returns the original session and separate accepted prefix"
+    )]
+    fn restore_with_scope<Reply, Error>(
+        group: &'expression Computation<Field, Operation, HostEffect, IrResult>,
+        rows: Vec<SavedSequenceMember<'expression, Identity, Declaration, Request, Reply>>,
+        limits: SequenceEvaluationLimits,
+        admit: impl FnOnce(
+            &[SavedSequenceMember<'expression, Identity, Declaration, Request, Reply>],
+        ) -> Result<(), Error>,
+        scope: Option<&LocalExecutionScope>,
+    ) -> RestoredPreparedSequence<
+        'expression,
+        Computation<Field, Operation, HostEffect, IrResult>,
+        IrResult,
+        Identity,
+        Declaration,
+        Request,
+        Reply,
+        Error,
+    >
+    where
+        Identity: PartialEq,
+    {
+        let fence = CallFence::new(scope);
+        let shape = if scope.is_some_and(|scope| !scope.is_open()) {
+            Err(SequenceRestoreError::ScopeClosed)
+        } else {
+            admit_sequence_shape(group, limits).map_err(SequenceRestoreError::Sequence)
+        };
+        let branches = match shape {
+            Ok(branches) => branches,
+            Err(error) => {
+                fence.close();
+                drop((admit, rows));
+                fence.finish();
+                return Err(error);
+            }
+        };
+        let output = SequenceReplyCore::restore(branches, rows, admit, scope)
+            .map(|(core, prepared, accepted)| (Self { core, prepared }, accepted));
+        fence.finish();
+        output
     }
 
     #[expect(
@@ -260,6 +339,38 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Request>
 {
     pub fn status(&self) -> SequenceStatus {
         self.core.status()
+    }
+
+    /// Move the original accepted prefix, pending identity/domain and unpublished
+    /// requests into ordered saved rows. Prefix length, original row pointers and
+    /// indices must match the current frontier; refusal returns both owners intact.
+    /// No native equality, admission, cloning, dispatch or fuel change occurs.
+    /// The bounded row vector allocates. A completed queue with its full prefix
+    /// yields all-accepted rows, which restore as Completed, never runnable work.
+    /// Cancelled/failed/uncertain queues refuse even with a well-formed prefix.
+    ///
+    /// Original IR correspondence is not receipt provenance: the host must prove
+    /// the prefix belongs to this execution, current authority, original domains,
+    /// request inventory, budget and nonterminal settlement during restore.
+    /// Scope, meter, published requests and cancellation delivery stay host-owned.
+    /// This is not a codec, durable commit, replay grant or external cancellation.
+    #[expect(
+        clippy::type_complexity,
+        reason = "failed transfer returns the original queue and separate native accepted prefix"
+    )]
+    pub fn try_into_saved<Reply>(
+        self,
+        accepted: Vec<SequenceAccepted<'expression, Node, IrResult, Identity, Declaration, Reply>>,
+    ) -> Result<
+        Vec<SavedSequenceMember<'expression, Identity, Declaration, Request, Reply>>,
+        (
+            Self,
+            Vec<SequenceAccepted<'expression, Node, IrResult, Identity, Declaration, Reply>>,
+        ),
+    > {
+        self.core
+            .try_into_saved(self.prepared, accepted)
+            .map_err(|(core, prepared, accepted)| (Self { core, prepared }, accepted))
     }
 
     /// Fresh publication policy runs only for the next ready original member.

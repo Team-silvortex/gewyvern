@@ -718,6 +718,10 @@ fn prepare(root: &Path) -> Result<(Plan, String), String> {
             "crates/leselang-runtime-core/tests/owned_scope.rs",
         ),
         (
+            "local_execution",
+            "crates/leselang-runtime-core/tests/local_execution.rs",
+        ),
+        (
             "control_session",
             "crates/leselang-hir/tests/effect_session.rs",
         ),
@@ -806,6 +810,63 @@ pub(crate) fn export(root: &Path, options: &Options) -> Result<PathBuf, String> 
     export_with_verifier(root, options, verify)
 }
 
+struct ExportDirectory {
+    path: PathBuf,
+    active: bool,
+}
+
+impl ExportDirectory {
+    fn create(path: PathBuf) -> Result<Self, String> {
+        let mut builder = fs::DirBuilder::new();
+        builder.recursive(false);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        builder
+            .create(&path)
+            .map_err(|e| format!("create private export directory {}: {e}", path.display()))?;
+        Ok(Self { path, active: true })
+    }
+
+    fn cleanup(&mut self) -> Result<(), String> {
+        if !self.active {
+            return Ok(());
+        }
+        match fs::remove_dir_all(&self.path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "remove private export directory {}: {error}",
+                    self.path.display()
+                ));
+            }
+        }
+        self.active = false;
+        Ok(())
+    }
+}
+
+impl Drop for ExportDirectory {
+    fn drop(&mut self) {
+        // Normal exits report cleanup errors; unwinding still attempts owned cleanup.
+        let _ = self.cleanup();
+    }
+}
+
+fn finish_export_cleanup(
+    result: Result<(), String>,
+    cleanup: Result<(), String>,
+) -> Result<(), String> {
+    match (result, cleanup) {
+        (Err(error), Err(cleanup)) => Err(format!("{error}; {cleanup}")),
+        (Err(error), Ok(())) | (Ok(()), Err(error)) => Err(error),
+        (Ok(()), Ok(())) => Ok(()),
+    }
+}
+
 fn export_with_verifier(
     root: &Path,
     options: &Options,
@@ -824,11 +885,12 @@ fn export_with_verifier(
         );
         return Ok(output);
     }
-    let stage = output.with_file_name(format!(".leselang-source-{}.partial", unique_suffix()?));
-    fs::create_dir(&stage).map_err(|e| format!("create private source stage: {e}"))?;
+    let mut stage = ExportDirectory::create(
+        output.with_file_name(format!(".leselang-source-{}.partial", unique_suffix()?)),
+    )?;
     let result = (|| {
         for (relative, entry) in &plan.entries {
-            let path = stage.join(relative);
+            let path = stage.path.join(relative);
             fs::create_dir_all(path.parent().ok_or("planned file has no parent")?)
                 .map_err(|e| e.to_string())?;
             let mut file = OpenOptions::new()
@@ -839,21 +901,25 @@ fn export_with_verifier(
             file.write_all(&entry.bytes).map_err(|e| e.to_string())?;
         }
         if options.verify {
-            verifier(&stage, &root.join("target"))?;
+            let mut target = ExportDirectory::create(
+                std::env::temp_dir().join(format!("leselang-source-build-{}", unique_suffix()?)),
+            )?;
+            println!(
+                "Leselang isolated verification target: {}",
+                target.path.display()
+            );
+            let result = verifier(&stage.path, &target.path);
+            // A verified export is published only after its disposable cache is gone.
+            finish_export_cleanup(result, target.cleanup())?;
         }
-        check_inventory(&stage, &plan)?;
+        check_inventory(&stage.path, &plan)?;
         let metadata = serde_json::to_vec_pretty(&plan.inventory(&version, options.verify)?)
             .map_err(|e| e.to_string())?;
-        fs::write(stage.join("export-manifest.json"), metadata).map_err(|e| e.to_string())?;
-        publish(&stage, &output)?;
+        fs::write(stage.path.join("export-manifest.json"), metadata).map_err(|e| e.to_string())?;
+        publish(&stage.path, &output)?;
         Ok(())
     })();
-    if let Err(error) = result {
-        if let Err(cleanup) = fs::remove_dir_all(&stage) {
-            return Err(format!("{error}; source stage cleanup failed: {cleanup}"));
-        }
-        return Err(error);
-    }
+    finish_export_cleanup(result, stage.cleanup())?;
     println!(
         "Leselang native source checkpoint: files={}, bytes={}, verified={}",
         plan.entries.len(),
@@ -1072,7 +1138,7 @@ fn verify(directory: &Path, target: &Path) -> Result<(), String> {
     )
 }
 
-const README: &str = "# Leselang Native Source Checkpoint\n\nThis self-contained MIT source workspace contains the production syntax, runtime\nfoundation, host-defined HIR/in-memory sessions and native VM facade, plus their\nunchanged native tests. Production Rust files are copied byte-for-byte, not independently reimplemented.\nCrate manifests own explicit metadata and pin the original locked registry closure.\nNo Gewyvern/Leserpent product crate, account service, generated asset or SQLite is\nrequired. The reference profile is not an enableable Cargo feature here; all-features\nbuilds stay native. Product-only tests and reference implementation files stay in\nthe original repository. Mixed tests retain their original unreachable cfg guards.\n\nThe exported leselang-vm package exposes native::{syntax, hir, core, Vm, LocalVm}; Vm is\nthe exact shared StackedControlSession. Default and all-features builds here stay\nnative. LocalVm adds opt-in local lifetime ownership. Its with_host_work boundary\nprotects adapter work while Awaiting: normal native refusals stay verbatim, escaping\nunwind seals HostUncertain and revokes before retained pending cleanup. Hosts still\ncheck live authority and own work limits, cancellation and rollback.\nLocalVm reply acceptance uses shared PendingReply::try_accept_in_scope to revoke\nbefore core-owned identity/frame/reply cleanup on validation unwind. Ordinary\nrejection with an open scope retains original input and liveness; callbacks remain trusted.\nSynchronous callback revocation stops later reply checks and seals Cancelled before\nsuperseded-error/frame cleanup. A normal cancelled rejection never rearms the shared\nsession; interrupted cleanup keeps the enclosing session HostUncertain and closed.\nLegacy/prepared Seq and All expose explicit try_accept_in_scope entries through\noriginal group reply cores. Revocation discards unpublished suffix/results; normal\nrefusal preserves input and state. Parent-session and external dispatch cancellation\nremain host-owned; the collector does not gain LocalVm's private scope.\nExplicit poll_in_scope gates publication and ordered All result handoff, including\nReadyResults after all receipts arrived. Revocation stops preparation/identity hooks\nand seals before retained cleanup. Failure keeps native errors and spent fuel;\ncallback unwind stays HostUncertain. Start/correlation and dispatch remain host-owned.\nLocalVm polling also protects retained re-entry owners, restored-prefix rejection\nand successor-correlation failure. Language-recovered scalar faults stay live with\noriginal fuel; consumed native inputs and deeper temporaries remain host-owned.\nUse with_host_outcome and HostWorkOutcome to classify normal returns as Pending,\nCancelled, Failed or Uncertain without panic or error-code inference. Both entries share the\noriginal pending state and preserve native outputs; terminal classification\nrevokes before retained cleanup. Cancelled(output) hands host collectors back after\nrevocation for explicit cleanup; partial native effects are not rolled back. Upstream product-profile documentation describes the omitted reference\nspecialization, not an enableable feature of this checkpoint. The independent\nconsumer runs its original two-host source/capture/reply/cancel/fuel tests unchanged.\n\nUse Rust 1.98.0 with Clippy. From this directory run:\n\n```text\ncargo test --workspace --all-features --locked --offline --profile lean\ncargo clippy --workspace --all-features --all-targets --locked --offline --profile lean -- -D warnings\ncargo test --manifest-path consumer/Cargo.toml --locked --offline --profile lean\ncargo clippy --manifest-path consumer/Cargo.toml --all-targets --locked --offline --profile lean -- -D warnings\n```\n\nOffline builds require the locked registry dependencies to be cached first. The\nstandalone CI fetches that closure, then uses locked/offline verification. The\nconsumer is a separate workspace and exercises owned cleanup, accepted reply\nsessions, nested returns and a headless GUI adapter without monorepo source paths.\nThe continuous native_host_pipeline matrix also runs unchanged: distinct scalar and\nstructured replies traverse bounded control, helpers, two effects, capture, every\nfuel cutoff, live-policy refusal, stale receipts and isolated cancellation. The mixed matrix also\ntraverses atomic calls, seq/all/repeat, captured successors and a second group\nthrough original prepared collectors and one meter. Twelve host/program cases\ncover reverse replies, group provenance/order/count, cancelled prefixes and shared-IR\nisolation. Sixteen conditional host/program paths additionally select group-returning\nhelpers from an earlier receipt, alias the group and either return early or capture\none more effect. Direct Field(Member) compilation keeps original bounds and cold\nexport checks; unselected arithmetic is not evaluated. Every fuel cutoff and\nearly-return authority revocation run through the same native implementation.\nSeventy-two selected-data paths join atomic/group helpers and pure fallbacks\nfor all six data types before another captured effect. Sixty empty/absent/maximum\noptional/list payload paths retain values through re-entry; computed overflow\nprevents the caller tail. Cold types, unused argument laziness, revoked accepted\nreceipts, original reply ownership and exact fuel use the existing implementation.\nFull language parity, durable recovery and reference compatibility remain open.\nCounter and GUI prepared-repeat programs run unchanged in this separate consumer,\nincluding explicit-Seq fuel parity, original reply ownership and revocation fences.\nSaved-frame and parsed durable-control consumer models recover original budgets,\ncheckpoint watermarks and settled success/refusal receipts through the native\ncompiler and walker. Host-admitted saved helper return stacks now pass bounded frame/name/whole-forest\nchecks before reusing PendingReply and the original stacked re-entry walker. Two\nnative byte-codec hosts restore three saved frames and continue three effects\nwithout recompilation, budget reset or settled-receipt replay. Forged frame order\nand live revocation fail closed. Storage authenticity, group-graph recovery and\nexternal-effect crash atomicity remain separate host contracts.\nThe shared saved-body HIR entry also drives real reference\nVM reentry; restoration hooks cannot replace its saved body or evaluator.\nThe shared flat-group kernel also checks complete original member order and\nidentities before native checkpoint commit; real VM admission and SQLite recovery\nuse it while native authority, reservations and dispatch/terminal state stay host-owned.\nShared recovery fences reject duplicate numeric reservations, check the original\nallocation watermark before imported-identity repair, and gate completion receipts\nbefore native admission. Exact numeric and GUI-local proofs run unchanged in the\nconsumer; real SQLite recovery uses the same fences before watermark repair/commit.\nShared numeric watermark requirements preserve inclusive ceilings, existing gaps\nand exact write decisions. Live allocation/restore and SQLite allocation/repair\nkeep native identities, original reservation proof and commit-before-publish.\nShared inherited context agreement keeps native authority/revision observations\nand exact deadline/output equality. Atomic successor, group-prefix and tail paths\nretain their original fuel/schema/token checks around this phase.\nShared borrowed capture extension retains original named bindings and the current\nresult while allowing data aliases. Live successor admission and SQLite recovery\nkeep native authority, schema/budget succession and original projection policy.\nShared borrowed capture correspondence keeps group-first, capture-major original\nscans, including late native errors after an earlier true match. Live capture\nadvancement and SQLite recovery keep original projection and authority policy.\nShared ordered outcome summaries keep native first-stop and aggregate-output\nprecedence, with fail-closed ownership and no settlement or receipt authority.\nLive sequence inspection and SQLite bound recovery use the same production core.\nShared sequential-frontier inspection checks contiguous completion before native\nprefix admission and blocked-dispatch evidence, excluding the active pending row.\nReal SQLite preserves original phase/fault order and refuses without storage repair.\nShared adjacent-chain inspection retains original row order and move-only frames,\nbounded before hooks and released before handoff. SQLite keeps native pair policy\nand frozen result-decode-before-next-request fault order; no saved body is evaluated.\nReceipt authenticity, raw-result correspondence, settlement and replay remain native.\nThey do not provide a production storage backend, crash-atomic\nexternal-effect transaction or generic saved-graph interpreter.\nSaved flat-All partial barriers also restore through PreparedParallelSession::restore\nusing the same ParallelReplyCore, with complete row/identity and mandatory fresh\nhost admission. Numeric/text models cover all eight three-member completion masks,\nserialized missing-reply recovery, original fuel and settled replay without extra\npreparation/dispatch. Full mixed-group recovery and process-crash acceptance\nremain open. The identical saved_parallel proof runs in both workspaces.\nSaved flat-Seq frontiers restore through PreparedSequenceSession::restore and\nthe original SequenceReplyCore, deriving the cursor from an accepted prefix,\noptional awaiting member and unpublished suffix. Fresh snapshot and per-request\npublication checks remain mandatory; original requests/prefix move without copies.\nNumeric/text serialized models cover all seven valid frontiers with original fuel,\nwhile twenty invalid arrangements reject before native admission. Mixed helper/group\ncontinuation and process-crash recovery remain open. The same saved_sequence proof\nis copied unchanged into the independent consumer.\nComposed mixed recovery now runs 252 two-host frontier combinations unchanged\nthrough the native pipeline: atomic, seq/all/repeat, captured successor and a\nsecond group under three or more helper frames. Replaced controllers retain\noriginal request inventory, identities and fuel; stale/revoked/closed hosts and\nredirected suffix handles reject before tail work. Every fuel cutoff and exact\ncontinuous-run fuel parity use the original walker. This is an in-memory\ncomposition proof, not portable mixed snapshots or production crash recovery.\nIR, captures, native inventory, bounded snapshot copies and settlement remain\nhost-owned; full extraction stays open.\nSaved native operands now rebuild through PreparedCall::restore with complete\nrow/name/position/scalar bounds before mandatory host admission and original\ndomain checking. Names rebind to fresh schemas and scalar buffers move without\nreevaluation, preparation, identity allocation or a new meter. The unchanged\nsaved_call consumer proof drops old request/schema/IR objects, then restores all\nseven Seq frontiers for numeric and text hosts from its own bytes: three original\npreparations and dispatches, preserved fuel and fresh publication authority. This\nis a queued-operand codec model, not complete mixed snapshots or process-crash\nacceptance; provenance, publication and settlement stay host-owned.\nAlready-assembled flat group values restore through restore_group_reply using\nshared cold shape/row checks and mandatory whole-group native admission. Saved\nSeq/All collectors rebind accepted rows to fresh IR; assembly is not charged\nagain. The unchanged saved_group proof covers two numeric/text byte-codec hosts,\nboth group kinds and three saved-budget boundaries including zero, after every\noriginal graph/schema/receipt/meter object has been dropped. Original assembly\ncompletion and budget require host authentication; ordinary completed receipts\nstill use charged assembly. Lookup rechecks live policy. This is not portable\nmixed captures, a production backend or process-crash acceptance.\nThe saved_group consumer also composes byte-backed captures through the original\nsnapshot, group, stack and accepted-reply APIs. A host-provided scalar/result/group\nscope and group alias suspend under two typed-IR return frames; fresh objects\nresume after every original runtime/schema/IR/view/meter is dropped. Numeric/text\nhosts and Seq/All groups keep uninterrupted result/fuel parity at every cutoff.\nOne rebuilt group is shared by aliases, but both returns and projections recheck\npolicy. Outer cold refusal blocks all capture materialization; wrong pending\nidentity preserves input for explicit retry. This fixed completed-capture model\ndoes not combine partial groups, unpublished queues, production storage or crash\ntransactions. Full portable mixed-checkpoint and extraction gates remain open.\nThe saved-group consumer also joins byte-backed captures to an unfinished Seq at all seven frontiers for numeric/text hosts and captured Seq/All groups (28 combinations). Real call operands read the captured group before suspension, then only unpublished operands are restored from bytes. Old graphs, views, schemas, requests and meters are dropped. Accepted/awaiting work is not republished; exact original assembly/return fuel and fresh policy remain enforced. This sequential model is not source-compiled mixed recovery, a production journal or crash settlement; the parallel extension below separately covers partial All.\n\nThe captured partial-All extension reuses the same preparation, assembly and stacked returns across eight completion masks and six receipt orders for two native payload schemas and captured Seq/All groups (192 combinations). All original objects are dropped before byte restoration. The restored barrier creates no requests, restores no calls and dispatches nothing; wrong/duplicate receipts preserve input and ordered once-only output. Every assembly/return fuel cutoff matches live execution. Cancellation and scope closure discard partial or ready results without capture materialization or parent re-entry; parent/external cancellation remain host-owned. This is not concurrent race acceptance, source-compiled mixed recovery or process-crash settlement.\n\nThe source-compiled saved-group extension parses numeric/text source with an explicit type-only host prefix through compile_catalog_prepared_group_source, then runs its owned IR directly through the same adapters. It covers 220 Seq/All frontier/order combinations, both captured group kinds, two return frames and every assembly/return fuel cutoff. Bad source names/types, stale catalogs and unauthorized cold calls reject before runtime work; restoration rechecks current authority. Only the unpublished Seq suffix can dispatch, while restored All dispatches nothing. This is a bounded source-expression checkpoint model with a host-supplied captured graph, not helper-origin whole-program recovery, repeat/multiple captured graphs, production process-crash settlement or full extraction.\n\nThe helper-origin whole-program extension starts from an empty scope and uses compile_catalog_prepared_group_helper_program without an external prefix. Its source helper executes the first Seq/All, then the authenticated reply re-enters the original walker to construct scalar/atomic/group-alias captures before the second group. Eight program variants cover 220 checkpoint frontier/order combinations and every pending assembly/return fuel cutoff through shared checkpoint writers and restore adapters. Wrong initial ownership, revoked policy and denied original result domains retain the input and cannot start later work. Restore neither recompiles nor replays the helper; only unpublished Seq work dispatches, while restored All dispatches nothing. This is one bounded two-group program family, not arbitrary program checkpoints, repeat/multiple captured graphs, production persistence, cancellation/crash settlement or full extraction.\n\nThe bounded-repeat extension compiles repeat and seq with a repeat tail through the same empty-scope whole-program path. Twenty-four numeric/text program variants cover 332 additional frontier/order combinations and every pending assembly/return fuel cutoff. Expanded names and operation tags survive original-IR checkpoints; operation identity is distinct from per-member receipt identity and result domain. Same-operation wrong-member, foreign-domain and duplicate receipts preserve inputs and queue state, followed by successful original receipt recovery. Compilation bounds, current/cold authority and exact committed-byte admission remain checked. This is compile-time expansion into existing Sequence IR, not a new runtime loop or general durable VM. Multiple captured graphs, production persistence, cancellation/crash settlement and full extraction remain open.\n\nThe two-capture extension executes two source helpers before a third Seq/All pauses. Its bounded host-owned table retains two distinct completed graphs, two aliases per graph, scalar/atomic captures and two original return frames. Sixteen numeric/text program variants cover 440 frontier/order combinations and every pending assembly/return fuel cutoff using the same checkpoint writers and prepared collectors. Equal graph shapes do not merge native owners. Each graph rebuilds once, while cached aliases recheck live authority and domains; either captured domain can still be denied between return frames. Completed preparation and helper dispatches never replay. Bounded table checks reject cross-graph references, owners and budgets independently of exact committed bytes. This is a two-capture, three-group source fixture, not arbitrary graph storage, portable codecs, production persistence, cancellation/crash settlement or full extraction.\n\nThe pending-session restoration entry now installs host-decoded binding return frames into the original Vm or LocalVm lifecycle. Whole-forest structure precedes mandatory native admission of original identity, graph/sites/captures, current policy, saved fuel and nonterminal settlement. Success starts Awaiting without preparation, dispatch or meter charge; acceptance only makes Ready, and explicit polling resumes original returns on the same meter. Local restoration rejects closed scopes and revokes before retained cleanup on refusal/unwind; cancel and owner Drop reuse existing terminal fencing. Eight unchanged consumer regressions exercise real suspensions, successor handoff, receipt rejection, exact fuel and native cleanup/unwind. Native callbacks/Drop remain trusted. This is not a codec, cancellation journal, process-crash settlement or a complete durable owning VM, and external collectors still require explicit host cancellation.\n\nThe owned-recovery extension joins existing two-capture byte checkpoints to LocalVm::restore_pending and with_metered_host_outcome. Original Seq/All collectors assemble their result on the same owned Fuel used by later capture returns. Seven added regressions cover 440 numeric/text frontier/order combinations, every assembly/return fuel cutoff, 1760 cancellation/Drop cases, 660 live-policy refusals and metered state/cleanup boundaries; a compile-fail proof prevents the meter borrow escaping. Debits survive failure, cancellation and unwind without automatic refunds. Native callbacks are trusted and must not replace/refill Fuel or omit charges. Cancellation explicitly hands external collectors back after revocation, then the host cancels/disposes them. The bounded post-checkpoint bodies are pure; unexpected successors refuse rather than invent a declaration. This is not a production durable owner, general checkpoint codec, replay fence, external-effect rollback or crash settlement.\n\nThe shared dispatch-lease fence checks exact current attempt/retry/readiness/expiry observations before elapsed time, without allocation or storage. Reference in-memory and SQLite acknowledgement, retry and successor paths delegate to it. Expiry-time completion stays inclusive only for the current attempt; re-leasing fences old receipts. Both journals now reject completion before semantic retry readiness. Five unchanged consumer tests include a 1296-case matrix, full-width comparisons and opaque GUI-local identity observations. Request provenance, clock/counter policy, current authority, authoritative terminal replay and atomic settlement remain host-owned. This pure check is not a durable lease, replay registry or restoration journal.\n\nThe shared semantic retry planner reuses capped backoff and portable clock arithmetic to propose an exact next retry count and future ready time without payloads, timers or state. Exhaustion never refills the counter; permanent-error classification, policy ceilings and execution deadlines remain native. Both reference journals share proposed-schedule checks, closing the in-memory clock/count-ceiling gap and refusing counter overflow before mutation. Eight unchanged consumer tests cover 20720 planning and 1512 commit-check cases plus full-width and observation boundaries. Reference terminal replay still precedes malformed late metadata, and SQLite reopen preserves original leases and saved fuel. A proposal is not authenticated policy, a current lease, a retry registry or durable settlement.\n\nShared dispatch capacity distinguishes oversized batches from transient pressure with overflow-safe arithmetic and reuses the same active-slot predicate in both reference journals. Six unchanged consumer tests cover 729 admission and 49 slot combinations, full-width/zero boundaries and the original synchronous Admission lifecycle. Product policy ceilings, diagnostics, eligibility, clock expiry and transaction ownership remain native. SQLite keeps its bounded count, lowered limits do not revoke existing leases, and delayed work stays idle until ready. A successful observation is not a reservation, queue or atomic admission owner.\n\nShared dispatch issuance planning now reuses portable clock arithmetic with explicit positive-duration ceilings and exact overflow-safe delivery attempts. Six unchanged consumer tests cover 294 timing and 17161 counter combinations and original fencing. Both reference journals preserve fault codes, eligibility/backpressure order and native transaction ownership. A red/green regression fixes maximum-clock successor completion by separating existing-lease settlement from fictitious future-lease validation; replay, cancellation and saved fuel survive reopen. Attempt exhaustion does not revoke a current lease at its inclusive expiry. Numeric plans provide neither reservations nor execution authority or durable settlement.\n\nThese are protocol tests, not actual GUI windows or native callback sandboxing.\n\n`export-manifest.json` records relative paths, exact SHA-256 and source provenance.\n`verified` is true only after isolated workspace/consumer tests and strict lints\npass and original inventory bytes remain unchanged. It is not a signature.\n\nThis is a source checkpoint, NOT the complete independent durable VM or full\nrepository extraction gate. Durable recovery, reference-adapter/wire/auth/GUI parity\nand release publication remain separate gates in the original repository. Packages\nare deliberately marked publish=false. FFI and an OS shell remain deferred.\n";
+const README: &str = "# Leselang Native Source Checkpoint\n\nThis self-contained MIT source workspace contains the production syntax, runtime\nfoundation, host-defined HIR/in-memory sessions and native VM facade, plus their\nunchanged native tests. Production Rust files are copied byte-for-byte, not independently reimplemented.\nCrate manifests own explicit metadata and pin the original locked registry closure.\nNo Gewyvern/Leserpent product crate, account service, generated asset or SQLite is\nrequired. The reference profile is not an enableable Cargo feature here; all-features\nbuilds stay native. Product-only tests and reference implementation files stay in\nthe original repository. Mixed tests retain their original unreachable cfg guards.\n\nThe exported leselang-vm package exposes native::{syntax, hir, core, Vm, LocalVm}; Vm is\nthe exact shared StackedControlSession. Default and all-features builds here stay\nnative. LocalVm adds opt-in local lifetime ownership. Its with_host_work boundary\nprotects adapter work while Awaiting: normal native refusals stay verbatim, escaping\nunwind seals HostUncertain and revokes before retained pending cleanup. Hosts still\ncheck live authority and own work limits, cancellation and rollback.\nLocalVm reply acceptance uses shared PendingReply::try_accept_in_scope to revoke\nbefore core-owned identity/frame/reply cleanup on validation unwind. Ordinary\nrejection with an open scope retains original input and liveness; callbacks remain trusted.\nSynchronous callback revocation stops later reply checks and seals Cancelled before\nsuperseded-error/frame cleanup. A normal cancelled rejection never rearms the shared\nsession; interrupted cleanup keeps the enclosing session HostUncertain and closed.\nLegacy/prepared Seq and All expose explicit try_accept_in_scope entries through\noriginal group reply cores. Revocation discards unpublished suffix/results; normal\nrefusal preserves input and state. Parent-session and external dispatch cancellation\nremain host-owned; the collector does not gain LocalVm's private scope.\nExplicit poll_in_scope gates publication and ordered All result handoff, including\nReadyResults after all receipts arrived. Revocation stops preparation/identity hooks\nand seals before retained cleanup. Failure keeps native errors and spent fuel;\ncallback unwind stays HostUncertain. Start/correlation and dispatch remain host-owned.\nLocalVm polling also protects retained re-entry owners, restored-prefix rejection\nand successor-correlation failure. Language-recovered scalar faults stay live with\noriginal fuel; consumed native inputs and deeper temporaries remain host-owned.\nUse with_host_outcome and HostWorkOutcome to classify normal returns as Pending,\nCancelled, Failed or Uncertain without panic or error-code inference. Both entries share the\noriginal pending state and preserve native outputs; terminal classification\nrevokes before retained cleanup. Cancelled(output) hands host collectors back after\nrevocation for explicit cleanup; partial native effects are not rolled back. Upstream product-profile documentation describes the omitted reference\nspecialization, not an enableable feature of this checkpoint. The independent\nconsumer runs its original two-host source/capture/reply/cancel/fuel tests unchanged.\n\nUse Rust 1.98.0 with Clippy. From this directory run:\n\n```text\ncargo test --workspace --all-features --locked --offline --profile lean\ncargo clippy --workspace --all-features --all-targets --locked --offline --profile lean -- -D warnings\ncargo test --manifest-path consumer/Cargo.toml --locked --offline --profile lean\ncargo clippy --manifest-path consumer/Cargo.toml --all-targets --locked --offline --profile lean -- -D warnings\n```\n\nOffline builds require the locked registry dependencies to be cached first. The\nstandalone CI fetches that closure, then uses locked/offline verification. The\nconsumer is a separate workspace and exercises owned cleanup, accepted reply\nsessions, nested returns and a headless GUI adapter without monorepo source paths.\nThe continuous native_host_pipeline matrix also runs unchanged: distinct scalar and\nstructured replies traverse bounded control, helpers, two effects, capture, every\nfuel cutoff, live-policy refusal, stale receipts and isolated cancellation. The mixed matrix also\ntraverses atomic calls, seq/all/repeat, captured successors and a second group\nthrough original prepared collectors and one meter. Twelve host/program cases\ncover reverse replies, group provenance/order/count, cancelled prefixes and shared-IR\nisolation. Sixteen conditional host/program paths additionally select group-returning\nhelpers from an earlier receipt, alias the group and either return early or capture\none more effect. Direct Field(Member) compilation keeps original bounds and cold\nexport checks; unselected arithmetic is not evaluated. Every fuel cutoff and\nearly-return authority revocation run through the same native implementation.\nSeventy-two selected-data paths join atomic/group helpers and pure fallbacks\nfor all six data types before another captured effect. Sixty empty/absent/maximum\noptional/list payload paths retain values through re-entry; computed overflow\nprevents the caller tail. Cold types, unused argument laziness, revoked accepted\nreceipts, original reply ownership and exact fuel use the existing implementation.\nFull language parity, durable recovery and reference compatibility remain open.\nCounter and GUI prepared-repeat programs run unchanged in this separate consumer,\nincluding explicit-Seq fuel parity, original reply ownership and revocation fences.\nSaved-frame and parsed durable-control consumer models recover original budgets,\ncheckpoint watermarks and settled success/refusal receipts through the native\ncompiler and walker. Host-admitted saved helper return stacks now pass bounded frame/name/whole-forest\nchecks before reusing PendingReply and the original stacked re-entry walker. Two\nnative byte-codec hosts restore three saved frames and continue three effects\nwithout recompilation, budget reset or settled-receipt replay. Forged frame order\nand live revocation fail closed. Storage authenticity, group-graph recovery and\nexternal-effect crash atomicity remain separate host contracts.\nThe shared saved-body HIR entry also drives real reference\nVM reentry; restoration hooks cannot replace its saved body or evaluator.\nThe shared flat-group kernel also checks complete original member order and\nidentities before native checkpoint commit; real VM admission and SQLite recovery\nuse it while native authority, reservations and dispatch/terminal state stay host-owned.\nShared recovery fences reject duplicate numeric reservations, check the original\nallocation watermark before imported-identity repair, and gate completion receipts\nbefore native admission. Exact numeric and GUI-local proofs run unchanged in the\nconsumer; real SQLite recovery uses the same fences before watermark repair/commit.\nShared numeric watermark requirements preserve inclusive ceilings, existing gaps\nand exact write decisions. Live allocation/restore and SQLite allocation/repair\nkeep native identities, original reservation proof and commit-before-publish.\nShared inherited context agreement keeps native authority/revision observations\nand exact deadline/output equality. Atomic successor, group-prefix and tail paths\nretain their original fuel/schema/token checks around this phase.\nShared borrowed capture extension retains original named bindings and the current\nresult while allowing data aliases. Live successor admission and SQLite recovery\nkeep native authority, schema/budget succession and original projection policy.\nShared borrowed capture correspondence keeps group-first, capture-major original\nscans, including late native errors after an earlier true match. Live capture\nadvancement and SQLite recovery keep original projection and authority policy.\nShared ordered outcome summaries keep native first-stop and aggregate-output\nprecedence, with fail-closed ownership and no settlement or receipt authority.\nLive sequence inspection and SQLite bound recovery use the same production core.\nShared sequential-frontier inspection checks contiguous completion before native\nprefix admission and blocked-dispatch evidence, excluding the active pending row.\nReal SQLite preserves original phase/fault order and refuses without storage repair.\nShared adjacent-chain inspection retains original row order and move-only frames,\nbounded before hooks and released before handoff. SQLite keeps native pair policy\nand frozen result-decode-before-next-request fault order; no saved body is evaluated.\nReceipt authenticity, raw-result correspondence, settlement and replay remain native.\nThey do not provide a production storage backend, crash-atomic\nexternal-effect transaction or generic saved-graph interpreter.\nSaved flat-All partial barriers also restore through PreparedParallelSession::restore\nusing the same ParallelReplyCore, with complete row/identity and mandatory fresh\nhost admission. Numeric/text models cover all eight three-member completion masks,\nserialized missing-reply recovery, original fuel and settled replay without extra\npreparation/dispatch. Full mixed-group recovery and process-crash acceptance\nremain open. The identical saved_parallel proof runs in both workspaces.\nSaved flat-Seq frontiers restore through PreparedSequenceSession::restore and\nthe original SequenceReplyCore, deriving the cursor from an accepted prefix,\noptional awaiting member and unpublished suffix. Fresh snapshot and per-request\npublication checks remain mandatory; original requests/prefix move without copies.\nNumeric/text serialized models cover all seven valid frontiers with original fuel,\nwhile twenty invalid arrangements reject before native admission. Mixed helper/group\ncontinuation and process-crash recovery remain open. The same saved_sequence proof\nis copied unchanged into the independent consumer.\nComposed mixed recovery now runs 252 two-host frontier combinations unchanged\nthrough the native pipeline: atomic, seq/all/repeat, captured successor and a\nsecond group under three or more helper frames. Replaced controllers retain\noriginal request inventory, identities and fuel; stale/revoked/closed hosts and\nredirected suffix handles reject before tail work. Every fuel cutoff and exact\ncontinuous-run fuel parity use the original walker. This is an in-memory\ncomposition proof, not portable mixed snapshots or production crash recovery.\nIR, captures, native inventory, bounded snapshot copies and settlement remain\nhost-owned; full extraction stays open.\nSaved native operands now rebuild through PreparedCall::restore with complete\nrow/name/position/scalar bounds before mandatory host admission and original\ndomain checking. Names rebind to fresh schemas and scalar buffers move without\nreevaluation, preparation, identity allocation or a new meter. The unchanged\nsaved_call consumer proof drops old request/schema/IR objects, then restores all\nseven Seq frontiers for numeric and text hosts from its own bytes: three original\npreparations and dispatches, preserved fuel and fresh publication authority. This\nis a queued-operand codec model, not complete mixed snapshots or process-crash\nacceptance; provenance, publication and settlement stay host-owned.\nAlready-assembled flat group values restore through restore_group_reply using\nshared cold shape/row checks and mandatory whole-group native admission. Saved\nSeq/All collectors rebind accepted rows to fresh IR; assembly is not charged\nagain. The unchanged saved_group proof covers two numeric/text byte-codec hosts,\nboth group kinds and three saved-budget boundaries including zero, after every\noriginal graph/schema/receipt/meter object has been dropped. Original assembly\ncompletion and budget require host authentication; ordinary completed receipts\nstill use charged assembly. Lookup rechecks live policy. This is not portable\nmixed captures, a production backend or process-crash acceptance.\nThe saved_group consumer also composes byte-backed captures through the original\nsnapshot, group, stack and accepted-reply APIs. A host-provided scalar/result/group\nscope and group alias suspend under two typed-IR return frames; fresh objects\nresume after every original runtime/schema/IR/view/meter is dropped. Numeric/text\nhosts and Seq/All groups keep uninterrupted result/fuel parity at every cutoff.\nOne rebuilt group is shared by aliases, but both returns and projections recheck\npolicy. Outer cold refusal blocks all capture materialization; wrong pending\nidentity preserves input for explicit retry. This fixed completed-capture model\ndoes not combine partial groups, unpublished queues, production storage or crash\ntransactions. Full portable mixed-checkpoint and extraction gates remain open.\nThe saved-group consumer also joins byte-backed captures to an unfinished Seq at all seven frontiers for numeric/text hosts and captured Seq/All groups (28 combinations). Real call operands read the captured group before suspension, then only unpublished operands are restored from bytes. Old graphs, views, schemas, requests and meters are dropped. Accepted/awaiting work is not republished; exact original assembly/return fuel and fresh policy remain enforced. This sequential model is not source-compiled mixed recovery, a production journal or crash settlement; the parallel extension below separately covers partial All.\n\nThe captured partial-All extension reuses the same preparation, assembly and stacked returns across eight completion masks and six receipt orders for two native payload schemas and captured Seq/All groups (192 combinations). All original objects are dropped before byte restoration. The restored barrier creates no requests, restores no calls and dispatches nothing; wrong/duplicate receipts preserve input and ordered once-only output. Every assembly/return fuel cutoff matches live execution. Cancellation and scope closure discard partial or ready results without capture materialization or parent re-entry; parent/external cancellation remain host-owned. This is not concurrent race acceptance, source-compiled mixed recovery or process-crash settlement.\n\nThe source-compiled saved-group extension parses numeric/text source with an explicit type-only host prefix through compile_catalog_prepared_group_source, then runs its owned IR directly through the same adapters. It covers 220 Seq/All frontier/order combinations, both captured group kinds, two return frames and every assembly/return fuel cutoff. Bad source names/types, stale catalogs and unauthorized cold calls reject before runtime work; restoration rechecks current authority. Only the unpublished Seq suffix can dispatch, while restored All dispatches nothing. This is a bounded source-expression checkpoint model with a host-supplied captured graph, not helper-origin whole-program recovery, repeat/multiple captured graphs, production process-crash settlement or full extraction.\n\nThe helper-origin whole-program extension starts from an empty scope and uses compile_catalog_prepared_group_helper_program without an external prefix. Its source helper executes the first Seq/All, then the authenticated reply re-enters the original walker to construct scalar/atomic/group-alias captures before the second group. Eight program variants cover 220 checkpoint frontier/order combinations and every pending assembly/return fuel cutoff through shared checkpoint writers and restore adapters. Wrong initial ownership, revoked policy and denied original result domains retain the input and cannot start later work. Restore neither recompiles nor replays the helper; only unpublished Seq work dispatches, while restored All dispatches nothing. This is one bounded two-group program family, not arbitrary program checkpoints, repeat/multiple captured graphs, production persistence, cancellation/crash settlement or full extraction.\n\nThe bounded-repeat extension compiles repeat and seq with a repeat tail through the same empty-scope whole-program path. Twenty-four numeric/text program variants cover 332 additional frontier/order combinations and every pending assembly/return fuel cutoff. Expanded names and operation tags survive original-IR checkpoints; operation identity is distinct from per-member receipt identity and result domain. Same-operation wrong-member, foreign-domain and duplicate receipts preserve inputs and queue state, followed by successful original receipt recovery. Compilation bounds, current/cold authority and exact committed-byte admission remain checked. This is compile-time expansion into existing Sequence IR, not a new runtime loop or general durable VM. Multiple captured graphs, production persistence, cancellation/crash settlement and full extraction remain open.\n\nThe two-capture extension executes two source helpers before a third Seq/All pauses. Its bounded host-owned table retains two distinct completed graphs, two aliases per graph, scalar/atomic captures and two original return frames. Sixteen numeric/text program variants cover 440 frontier/order combinations and every pending assembly/return fuel cutoff using the same checkpoint writers and prepared collectors. Equal graph shapes do not merge native owners. Each graph rebuilds once, while cached aliases recheck live authority and domains; either captured domain can still be denied between return frames. Completed preparation and helper dispatches never replay. Bounded table checks reject cross-graph references, owners and budgets independently of exact committed bytes. This is a two-capture, three-group source fixture, not arbitrary graph storage, portable codecs, production persistence, cancellation/crash settlement or full extraction.\n\nThe pending-session restoration entry now installs host-decoded binding return frames into the original Vm or LocalVm lifecycle. Whole-forest structure precedes mandatory native admission of original identity, graph/sites/captures, current policy, saved fuel and nonterminal settlement. Success starts Awaiting without preparation, dispatch or meter charge; acceptance only makes Ready, and explicit polling resumes original returns on the same meter. Local restoration rejects closed scopes and revokes before retained cleanup on refusal/unwind; cancel and owner Drop reuse existing terminal fencing. Eight unchanged consumer regressions exercise real suspensions, successor handoff, receipt rejection, exact fuel and native cleanup/unwind. Native callbacks/Drop remain trusted. This is not a codec, cancellation journal, process-crash settlement or a complete durable owning VM, and external collectors still require explicit host cancellation.\n\nThe owned-recovery extension joins existing two-capture byte checkpoints to LocalVm::restore_pending and with_metered_host_outcome. Original Seq/All collectors assemble their result on the same owned Fuel used by later capture returns. Seven added regressions cover 440 numeric/text frontier/order combinations, every assembly/return fuel cutoff, 1760 cancellation/Drop cases, 660 live-policy refusals and metered state/cleanup boundaries; a compile-fail proof prevents the meter borrow escaping. Debits survive failure, cancellation and unwind without automatic refunds. Native callbacks are trusted and must not replace/refill Fuel or omit charges. Cancellation explicitly hands external collectors back after revocation, then the host cancels/disposes them. The bounded post-checkpoint bodies are pure; unexpected successors refuse rather than invent a declaration. This is not a production durable owner, general checkpoint codec, replay fence, external-effect rollback or crash settlement.\n\nThe shared dispatch-lease fence checks exact current attempt/retry/readiness/expiry observations before elapsed time, without allocation or storage. Reference in-memory and SQLite acknowledgement, retry and successor paths delegate to it. Expiry-time completion stays inclusive only for the current attempt; re-leasing fences old receipts. Both journals now reject completion before semantic retry readiness. Five unchanged consumer tests include a 1296-case matrix, full-width comparisons and opaque GUI-local identity observations. Request provenance, clock/counter policy, current authority, authoritative terminal replay and atomic settlement remain host-owned. This pure check is not a durable lease, replay registry or restoration journal.\n\nThe shared semantic retry planner reuses capped backoff and portable clock arithmetic to propose an exact next retry count and future ready time without payloads, timers or state. Exhaustion never refills the counter; permanent-error classification, policy ceilings and execution deadlines remain native. Both reference journals share proposed-schedule checks, closing the in-memory clock/count-ceiling gap and refusing counter overflow before mutation. Eight unchanged consumer tests cover 20720 planning and 1512 commit-check cases plus full-width and observation boundaries. Reference terminal replay still precedes malformed late metadata, and SQLite reopen preserves original leases and saved fuel. A proposal is not authenticated policy, a current lease, a retry registry or durable settlement.\n\nShared dispatch capacity distinguishes oversized batches from transient pressure with overflow-safe arithmetic and reuses the same active-slot predicate in both reference journals. Six unchanged consumer tests cover 729 admission and 49 slot combinations, full-width/zero boundaries and the original synchronous Admission lifecycle. Product policy ceilings, diagnostics, eligibility, clock expiry and transaction ownership remain native. SQLite keeps its bounded count, lowered limits do not revoke existing leases, and delayed work stays idle until ready. A successful observation is not a reservation, queue or atomic admission owner.\n\nShared dispatch issuance planning now reuses portable clock arithmetic with explicit positive-duration ceilings and exact overflow-safe delivery attempts. Six unchanged consumer tests cover 294 timing and 17161 counter combinations and original fencing. Both reference journals preserve fault codes, eligibility/backpressure order and native transaction ownership. A red/green regression fixes maximum-clock successor completion by separating existing-lease settlement from fictitious future-lease validation; replay, cancellation and saved fuel survive reopen. Attempt exhaustion does not revoke a current lease at its inclusive expiry. Numeric plans provide neither reservations nor execution authority or durable settlement.\n\nShared-owner graph restoration lends the original scope and native value with\nScopedLocalExecution::as_parts_mut. Raw Vm::restore_pending_in_scope and prepared\nSeq/All::restore_in_scope use that same fence and existing restoration cores.\nParent and collector transfers retain original buffers, identities and fuel.\nRefusal or unwind closes before retained restore-input cleanup; a restored parent\nstays owned until explicit host cancellation. The unchanged coupled pipeline\nchecks every child restoration boundary on twelve numeric/text combinations and\nevery fuel cutoff; local owner borrowing tests also run in the separate consumer.\nArbitrary host mutation and callback-internal cleanup remain trusted. No owning\ngraph snapshot, durable codec, external cancellation or full extraction is added.\n\nThese are protocol tests, not actual GUI windows or native callback sandboxing.\n\n`export-manifest.json` records relative paths, exact SHA-256 and source provenance.\n`verified` is true only after isolated workspace/consumer tests and strict lints\npass and original inventory bytes remain unchanged. It is not a signature.\n\nThis is a source checkpoint, NOT the complete independent durable VM or full\nrepository extraction gate. Durable recovery, reference-adapter/wire/auth/GUI parity\nand release publication remain separate gates in the original repository. Packages\nare deliberately marked publish=false. FFI and an OS shell remain deferred.\n";
 
 const CI: &str = "name: Leselang Native Source\non: [push, pull_request, workflow_dispatch]\npermissions:\n  contents: read\njobs:\n  native:\n    runs-on: ubuntu-latest\n    timeout-minutes: 15\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n      - run: rustup toolchain install 1.98.0 --profile minimal --component clippy,rustfmt\n      - run: cargo +1.98.0 fetch --locked\n      - run: cargo +1.98.0 fetch --manifest-path consumer/Cargo.toml --locked\n      - run: cargo +1.98.0 fmt --all -- --check\n      - run: cargo +1.98.0 test --workspace --all-features --locked --offline --profile lean\n      - run: cargo +1.98.0 clippy --workspace --all-features --all-targets --locked --offline --profile lean -- -D warnings\n      - run: cargo +1.98.0 test --manifest-path consumer/Cargo.toml --locked --offline --profile lean\n      - run: cargo +1.98.0 clippy --manifest-path consumer/Cargo.toml --all-targets --locked --offline --profile lean -- -D warnings\n";
 
@@ -1329,8 +1395,11 @@ mod tests {
             "crates/leselang-vm/tests/native_embedding.rs",
             "crates/leselang-vm/tests/native_host_pipeline.rs",
             "crates/leselang-runtime-core/src/owned_scope.rs",
+            "crates/leselang-runtime-core/src/local_execution.rs",
+            "crates/leselang-runtime-core/tests/local_execution.rs",
             "crates/leselang-runtime-core/src/checkpoint.rs",
             "crates/leselang-runtime-core/src/record_recovery.rs",
+            "crates/leselang-runtime-core/src/dispatch_recovery.rs",
             "crates/leselang-runtime-core/src/continuation.rs",
             "crates/leselang-runtime-core/src/continuation_context.rs",
             "crates/leselang-runtime-core/src/group_graph.rs",
@@ -1370,6 +1439,7 @@ mod tests {
             "consumer/tests/saved_call.rs",
             "consumer/tests/saved_group.rs",
             "consumer/tests/captured_reentry.rs",
+            "consumer/tests/local_execution.rs",
             "consumer/tests/prepared_counter_host.rs",
             "consumer/tests/prepared_gui_host.rs",
             "consumer/tests/native_vm_embedding.rs",
@@ -1465,14 +1535,170 @@ mod tests {
             verify: true,
             dry_run: false,
         };
-        let error = export_with_verifier(source_root(), &options, |stage, _| {
+        let mut target_path = None;
+        let error = export_with_verifier(source_root(), &options, |stage, target| {
+            target_path = Some(target.to_owned());
             assert!(stage.join("consumer/Cargo.lock").is_file());
             assert!(!stage.join("export-manifest.json").exists());
+            fs::write(target.join("failed-build"), "partial artifact").unwrap();
             Err("isolated proof refused".into())
         })
         .unwrap_err();
         assert!(error.contains("isolated proof refused"));
         assert_eq!(fs::read_dir(&temp.0).unwrap().count(), 0);
+        assert!(!target_path.unwrap().exists());
+    }
+
+    #[test]
+    fn verified_exports_use_fresh_private_targets_and_remove_them_before_publication() {
+        let temp = Temp::new();
+        let options = Options {
+            output: temp.0.join("export"),
+            verify: true,
+            dry_run: false,
+        };
+        let mut target_path = None;
+        export_with_verifier(source_root(), &options, |stage, target| {
+            target_path = Some(target.to_owned());
+            assert_ne!(target, source_root().join("target"));
+            assert!(!target.starts_with(stage));
+            assert!(!stage.starts_with(target));
+            assert_eq!(fs::read_dir(target).unwrap().count(), 0);
+            assert!(!options.output.exists());
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                for directory in [stage, target] {
+                    assert_eq!(
+                        fs::metadata(directory).unwrap().permissions().mode() & 0o777,
+                        0o700
+                    );
+                }
+            }
+            fs::create_dir(target.join("lean")).unwrap();
+            fs::write(target.join("lean/native-consumer"), "compiled").unwrap();
+            Ok(())
+        })
+        .unwrap();
+        assert!(!target_path.unwrap().exists());
+        assert_eq!(fs::read_dir(&temp.0).unwrap().count(), 1);
+        assert!(!options.output.join("target").exists());
+        let inventory: Value =
+            serde_json::from_slice(&fs::read(options.output.join("export-manifest.json")).unwrap())
+                .unwrap();
+        assert_eq!(inventory["verified"], true);
+        assert_eq!(inventory["complete_vm"], false);
+        assert_eq!(inventory["full_extraction_gate"], false);
+        assert!(!inventory.to_string().contains("leselang-source-build-"));
+    }
+
+    #[test]
+    fn overlapping_exports_never_share_or_remove_each_others_verification_cache() {
+        let temp = Temp::new();
+        let options = Options {
+            output: temp.0.join("first"),
+            verify: true,
+            dry_run: false,
+        };
+        let mut paths = Vec::new();
+        export_with_verifier(source_root(), &options, |_, first| {
+            paths.push(first.to_owned());
+            fs::write(first.join("keep"), "first build").unwrap();
+            let second = Options {
+                output: temp.0.join("second"),
+                verify: true,
+                dry_run: false,
+            };
+            export_with_verifier(source_root(), &second, |_, target| {
+                paths.push(target.to_owned());
+                assert_ne!(first, target);
+                assert_eq!(fs::read_dir(target).unwrap().count(), 0);
+                fs::write(target.join("keep"), "second build").unwrap();
+                Ok(())
+            })?;
+            assert_eq!(
+                fs::read_to_string(first.join("keep")).unwrap(),
+                "first build"
+            );
+            assert!(!paths[1].exists());
+            Ok(())
+        })
+        .unwrap();
+        assert!(paths.iter().all(|path| !path.exists()));
+        assert_eq!(fs::read_dir(&temp.0).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn verifier_unwind_cleans_both_owned_directories_without_publishing() {
+        let temp = Temp::new();
+        let options = Options {
+            output: temp.0.join("export"),
+            verify: true,
+            dry_run: false,
+        };
+        let mut target_path = None;
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            export_with_verifier(source_root(), &options, |stage, target| {
+                target_path = Some(target.to_owned());
+                assert!(stage.join("consumer/Cargo.toml").is_file());
+                fs::write(target.join("partial-build"), "retained").unwrap();
+                panic!("injected verifier unwind");
+            })
+        }));
+        assert!(result.is_err());
+        assert!(!target_path.unwrap().exists());
+        assert_eq!(fs::read_dir(&temp.0).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn failed_cache_cleanup_preserves_verification_error_and_blocks_publication() {
+        for refusal in [false, true] {
+            let temp = Temp::new();
+            let options = Options {
+                output: temp.0.join("export"),
+                verify: true,
+                dry_run: false,
+            };
+            let mut replaced_path = None;
+            let error = export_with_verifier(source_root(), &options, |_, target| {
+                replaced_path = Some(target.to_owned());
+                fs::remove_dir(target).unwrap();
+                fs::write(target, "replacement must not be silently removed").unwrap();
+                if refusal {
+                    Err("native verification refused".into())
+                } else {
+                    Ok(())
+                }
+            })
+            .unwrap_err();
+            assert!(error.contains("remove private export directory"));
+            assert_eq!(error.contains("native verification refused"), refusal);
+            assert_eq!(fs::read_dir(&temp.0).unwrap().count(), 0);
+            let path = replaced_path.unwrap();
+            assert_eq!(
+                fs::read_to_string(&path).unwrap(),
+                "replacement must not be silently removed"
+            );
+            fs::remove_file(path).unwrap();
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn owned_cache_cleanup_does_not_follow_links_into_unrelated_directories() {
+        use std::os::unix::fs::symlink;
+        let temp = Temp::new();
+        let external = temp.0.join("external");
+        fs::create_dir(&external).unwrap();
+        fs::write(external.join("keep"), "unrelated build").unwrap();
+        let mut owned = ExportDirectory::create(temp.0.join("owned")).unwrap();
+        symlink(&external, owned.path.join("external-link")).unwrap();
+        owned.cleanup().unwrap();
+        assert!(!owned.path.exists());
+        assert_eq!(
+            fs::read_to_string(external.join("keep")).unwrap(),
+            "unrelated build"
+        );
     }
 
     #[test]

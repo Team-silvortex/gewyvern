@@ -1,0 +1,99 @@
+{
+  "kind": "leselang-native-coupled-vm-collector-transfer",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "native_embedding_contract": "0.166.0",
+  "reference_execution_contract": "1.105.0",
+  "hosts": 2,
+  "host_program_combinations": 12,
+  "actual_parent_and_collector_state": true,
+  "original_capture_ownership": true,
+  "original_budget_parity": true,
+  "every_checkpoint_refusal": true,
+  "isolated_consumer_passed": true,
+  "new_public_api": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "process_crash_recovery": false,
+  "production_durable_codec": false,
+  "wire_or_journal_schema_changed": false,
+  "scope": "Two unrelated source hosts move the actual waiting parent Vm twice while original Seq/All saved collector rows are parked, then restore via existing native admission. Twelve mixed programs cover atoms, Seq/All/expanded repeat, group captures, successors and a second group. Original lexical buffers, shared group owners, accepted reply buffers and outstanding work are retained; output, fuel, request counts and invocations match uninterrupted LocalVm at every budget cutoff. Stale root receipts return intact. Every checkpoint tests closed scope, revoked grants, stale identity, wrong root and capture-site refusal; injected native admission unwind is tested at first, middle and final boundaries. The fixture explicitly owns and closes ScopedLocalExecution<Option<Vm>>; no new public helper, automatic external cancellation, arbitrary native cleanup fence, durable transaction or complete extraction claim is added.",
+  "sources": [
+    {
+      "path": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "72361e0f9595e6775b9615ef2cfc3f2a31dd633ff096de4a12b5f48b0db8bea5"
+    }
+  ],
+  "verification": [
+    {
+      "name": "pipeline",
+      "path": "/private/tmp/leselang-coupled-transfer-pipeline.log",
+      "sha256": "9d1199eb0ec219932b2ed6fe6db7c3929b05b7608d5ec640db024aed6c1e8cdb",
+      "passed": 40
+    },
+    {
+      "name": "consumer",
+      "path": "/private/tmp/leselang-coupled-transfer-consumer.log",
+      "sha256": "8f223f9c38d4eed82d1db165a90b0ea7fa315dc4aa4d0444197b9282d782c1d0",
+      "passed": 40
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-coupled-transfer-clippy.log",
+      "sha256": "9f78b4498598efb6288b7c9b507d152cf9a09dcb13d49ea9998eb7d633a4d23a",
+      "passed": true
+    },
+    {
+      "name": "native-full",
+      "path": "/private/tmp/leselang-coupled-transfer-native-full.log",
+      "sha256": "ca1eb2e32208fca21255e5ea3660308157d7d15eaf2bd12e622627ce1c7ecf02",
+      "passed": 59
+    },
+    {
+      "name": "vm",
+      "path": "/private/tmp/leselang-coupled-transfer-vm.log",
+      "sha256": "0d84cb12406396845cfdbe9cb745356e8a81798ed140cb30b88caa78a42cc335",
+      "passed": 831
+    },
+    {
+      "name": "consumer-full",
+      "path": "/private/tmp/leselang-coupled-transfer-consumer-full.log",
+      "sha256": "24f3e1cac9f6d7fe12f4dd790e749d1bb4aed45a1be4848976277f1f61fa04cd",
+      "passed": 509
+    },
+    {
+      "name": "consumer-clippy",
+      "path": "/private/tmp/leselang-coupled-transfer-consumer-clippy.log",
+      "sha256": "79da96bd850235e7fd6f7a37511d1102932d1a6eed04742ff9be9163447e3fe4",
+      "passed": true
+    },
+    {
+      "name": "guards",
+      "path": "/private/tmp/leselang-coupled-transfer-guards.log",
+      "sha256": "9acd2bf9c8f811373cffdd935d48e0049bfc4a6acff83308a57c8169edd9b125",
+      "passed": 459
+    },
+    {
+      "name": "guard-clippy",
+      "path": "/private/tmp/leselang-coupled-transfer-guard-clippy.log",
+      "sha256": "357c10ad709360b7065395035aaa75b7fb6e16e51a91f351318d59d11dd36d69",
+      "passed": true
+    },
+    {
+      "name": "fmt",
+      "path": "/private/tmp/leselang-coupled-transfer-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-coupled-transfer-source",
+    "manifest_sha256": "780b0885e73df37d9369a81294b0c1e0448583d8421fc0863c08a72cc74d067a",
+    "files": 279,
+    "source_copies_byte_matched": 269,
+    "full_export_verified": false,
+    "product_free_dependency_tree": true,
+    "temporary_build_artifacts_pruned": true
+  }
+}

@@ -37,6 +37,50 @@ impl<External> fmt::Debug for CheckpointCommitError<External> {
     }
 }
 
+/// Native checks and writes against the same transaction used to stage records.
+/// Each hook bounds its own work and proves original data, never repaired grants.
+/// Hosts without a particular graph/audit format explicitly provide that policy;
+/// this interface does not authenticate storage or implement missing checks.
+pub trait CheckpointFinalizer {
+    type Commit;
+    type Error;
+
+    fn validate_dispatches(&mut self) -> Result<(), Self::Error>;
+    /// Highest original graph/reservation sequence, or zero for no observations.
+    fn validate_graphs(&mut self) -> Result<u64, Self::Error>;
+    fn validate_audits(&mut self) -> Result<(), Self::Error>;
+    /// Reconcile original storage with the exact maximum of row/graph sequences.
+    /// Return owned native metadata; mutations must remain rollbackable until commit.
+    fn advance_watermark(&mut self, highest_sequence: u64) -> Result<Self::Commit, Self::Error>;
+    fn commit(&mut self) -> Result<(), Self::Error>;
+}
+
+/// Native errors move unchanged; diagnostics expose only the failing phase.
+pub enum CheckpointFinalizationError<Native> {
+    Dispatch(Native),
+    Graph(Native),
+    Audit(Native),
+    Watermark(Native),
+    Commit(Native),
+}
+impl<Native> fmt::Display for CheckpointFinalizationError<Native> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Dispatch(_) => "checkpoint dispatch validation failed",
+            Self::Graph(_) => "checkpoint graph validation failed",
+            Self::Audit(_) => "checkpoint audit validation failed",
+            Self::Watermark(_) => "checkpoint watermark reconciliation failed",
+            Self::Commit(_) => "checkpoint storage commit failed",
+        })
+    }
+}
+impl<Native> fmt::Debug for CheckpointFinalizationError<Native> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+impl<Native> std::error::Error for CheckpointFinalizationError<Native> {}
+
 /// A committed, owned data snapshot. This is deliberately not serializable or a
 /// restorable execution handle; callers may inspect or move the original maps.
 pub struct RecoveredCheckpoint<Key, Pending, Completed> {
@@ -140,6 +184,49 @@ impl<Key: Ord, Pending, Completed> CheckpointRecovery<Key, Pending, Completed> {
             drop(staged);
         }
         outcome
+    }
+
+    /// Complete ordered finalization: dispatch, graph, audit, watermark, commit.
+    /// No hook receives the staged maps. Graph observations are combined with
+    /// original row sequences using max, never incremented or clamped here.
+    /// Numeric ceilings, authentic authority and storage atomicity remain native.
+    ///
+    /// A closed pass calls no hook. Refusal/unwind stops without retry; original
+    /// commit metadata is discarded on failed commit, while the native error is
+    /// still locally owned. The existing finish boundary releases host state
+    /// before any snapshot/metadata/error handoff. A committed transaction followed
+    /// by cleanup unwind is uncertain, not permission to replay. Hooks and Drop
+    /// remain trusted; the core cannot roll back arbitrary native side effects.
+    pub fn finish_recovery<Host: CheckpointFinalizer>(
+        self,
+        host: Host,
+    ) -> CheckpointCommitResult<
+        Key,
+        Pending,
+        Completed,
+        Host::Commit,
+        CheckpointFinalizationError<Host::Error>,
+    > {
+        self.finish(host, |host, snapshot| {
+            host.validate_dispatches()
+                .map_err(CheckpointFinalizationError::Dispatch)?;
+            let graph_sequence = host
+                .validate_graphs()
+                .map_err(CheckpointFinalizationError::Graph)?;
+            let highest_sequence = snapshot.highest_sequence().max(graph_sequence);
+            host.validate_audits()
+                .map_err(CheckpointFinalizationError::Audit)?;
+            let metadata = host
+                .advance_watermark(highest_sequence)
+                .map_err(CheckpointFinalizationError::Watermark)?;
+            match host.commit() {
+                Ok(()) => Ok(metadata),
+                Err(error) => {
+                    drop(metadata);
+                    Err(CheckpointFinalizationError::Commit(error))
+                }
+            }
+        })
     }
 
     /// One final read-only graph observation and atomic storage commit. The

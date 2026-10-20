@@ -1,7 +1,7 @@
 //! Saved flat-All consumer model. No filesystem/process-crash or atomic dispatch claim.
 use std::{
     borrow::Borrow,
-    cell::Cell,
+    cell::{Cell, RefCell},
     fmt::Debug,
     panic::{AssertUnwindSafe, catch_unwind},
     rc::Rc,
@@ -40,6 +40,20 @@ struct Control {
     equality_unwind: Cell<bool>,
     authority_unwind: Cell<bool>,
     cleanup_unwind: Cell<bool>,
+    restore_scope: RefCell<Option<Rc<LocalExecutionScope>>>,
+    equality_closes: Cell<bool>,
+    cleanup_open: Cell<usize>,
+    cleanup_observed: Cell<usize>,
+}
+impl Control {
+    fn observe_cleanup(&self) {
+        if let Some(scope) = self.restore_scope.borrow().as_ref() {
+            self.cleanup_observed.set(self.cleanup_observed.get() + 1);
+            if scope.is_open() {
+                self.cleanup_open.set(self.cleanup_open.get() + 1);
+            }
+        }
+    }
 }
 struct Identity {
     id: usize,
@@ -50,12 +64,21 @@ impl PartialEq for Identity {
         self.control
             .equalities
             .set(self.control.equalities.get() + 1);
+        if self.control.equality_closes.get() {
+            self.control
+                .restore_scope
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .close();
+        }
         assert!(!self.control.equality_unwind.get(), "identity unwind");
         self.id == other.id && Rc::ptr_eq(&self.control, &other.control)
     }
 }
 impl Drop for Identity {
     fn drop(&mut self) {
+        self.control.observe_cleanup();
         self.control
             .identities_dropped
             .set(self.control.identities_dropped.get() + 1);
@@ -82,6 +105,7 @@ impl<T> Borrow<T> for Value<T> {
 }
 impl<T> Drop for Value<T> {
     fn drop(&mut self) {
+        self.control.observe_cleanup();
         self.control
             .values_dropped
             .set(self.control.values_dropped.get() + 1);
@@ -475,6 +499,8 @@ fn restored_cancel_scope_and_acceptance_unwind_keep_existing_terminal_fences() {
             ParallelEnd::Cancelled
         };
         assert_eq!(session.status(), ParallelStatus::Terminal(end));
+        session = session.try_into_saved().unwrap_err();
+        assert_eq!(session.status(), ParallelStatus::Terminal(end));
         assert!(matches!(session.poll().unwrap(), ParallelPoll::Terminal(_)));
         assert!(!session.cancel());
         assert_eq!(
@@ -519,6 +545,8 @@ fn maximum_saved_barrier_and_unsized_domains_preserve_native_ownership() {
     let mut session =
         PreparedParallelSession::restore(&node, saved, LIMITS, |_| Ok::<_, ()>(())).unwrap();
     assert_eq!(session.status(), ParallelStatus::ReadyResults);
+    let saved = session.try_into_saved().unwrap();
+    session = PreparedParallelSession::restore(&node, saved, LIMITS, |_| Ok::<_, ()>(())).unwrap();
     assert!(!format!("{session:?}").contains("panel"));
     let ParallelPoll::Results(results) = session.poll().unwrap() else {
         panic!()
@@ -526,6 +554,500 @@ fn maximum_saved_barrier_and_unsized_domains_preserve_native_ownership() {
     assert_eq!(results.len(), 64);
     drop(results);
     assert_eq!(control.values_dropped.get(), 64);
+}
+
+mod transfer {
+    use super::*;
+
+    fn live<'a, T: Data>(
+        node: &'a Node,
+        domains: &'a [Domain],
+        control: &Rc<Control>,
+    ) -> (Session<'a, T>, Fuel) {
+        let mut fuel = Fuel::new(1000);
+        let prepared = prepare_native_group_members(
+            GroupKind::Parallel,
+            branches(node),
+            64,
+            &mut fuel,
+            |row| Ok::<_, ()>(row.name.as_str()),
+            |_| Ok(()),
+            |index, _, fuel| {
+                fuel.charge(1).unwrap();
+                control.preparations.set(control.preparations.get() + 1);
+                Ok(index)
+            },
+        )
+        .unwrap();
+        let (session, requests) = Session::start(
+            node,
+            prepared,
+            &mut fuel,
+            LIMITS,
+            |_, _, _| Ok::<_, ()>(()),
+            |index, _, request, _| {
+                Ok(PreparedParallelMember {
+                    identity: identity(control, index),
+                    declaration: &domains[index],
+                    request,
+                })
+            },
+        )
+        .unwrap();
+        for request in requests {
+            assert_eq!(request.index, request.request);
+            control.dispatches.set(control.dispatches.get() + 1);
+        }
+        (session, fuel)
+    }
+
+    mod scoped {
+        use super::*;
+
+        struct Probe(Rc<Control>, Rc<Cell<usize>>);
+        impl Drop for Probe {
+            fn drop(&mut self) {
+                self.0.observe_cleanup();
+                self.1.set(self.1.get() + 1);
+            }
+        }
+        struct NativeError {
+            marker: Box<u8>,
+            _probe: Probe,
+        }
+        fn watch(c: &Rc<Control>) -> Rc<LocalExecutionScope> {
+            let scope = Rc::new(LocalExecutionScope::new());
+            c.restore_scope.replace(Some(scope.clone()));
+            c.equalities.set(0);
+            c.admissions.set(0);
+            scope
+        }
+        fn saved<'a, T: Data>(
+            node: &'a Node,
+            domains: &'a [Domain],
+            c: &Rc<Control>,
+            mask: usize,
+        ) -> (Vec<Row<'a, T>>, Fuel) {
+            let (mut session, fuel) = live::<T>(node, domains, c);
+            for index in 0..3 {
+                if mask & (1 << index) != 0 {
+                    session
+                        .try_accept::<T, _>(index, &identity(c, index), value::<T>(c, index), &**c)
+                        .unwrap();
+                }
+            }
+            (session.try_into_saved().unwrap(), fuel)
+        }
+
+        #[test]
+        fn scoped_all_preflight_closes_before_rows_and_unused_hook_cleanup() {
+            for fault in 0..5 {
+                let c = Rc::new(Control::default());
+                let node = group(3);
+                let domains = domains(&c, 3);
+                let (mut rows, _) = saved::<u64>(&node, &domains, &c, 1);
+                let mut limits = LIMITS;
+                match fault {
+                    1 => limits.max_branches = 0,
+                    2 => {
+                        rows.pop();
+                    }
+                    3 => rows[0].index = 7,
+                    4 => {
+                        if let SavedParallelReply::Awaiting { identity, .. } = &mut rows[1].reply {
+                            identity.id = 0;
+                        }
+                    }
+                    _ => {}
+                }
+                let scope = watch(&c);
+                if fault == 0 {
+                    scope.close();
+                }
+                let dropped = Rc::new(Cell::new(0));
+                let probe = Probe(c.clone(), dropped.clone());
+                let calls = &c.admissions;
+                let output = Session::restore_in_scope(
+                    &node,
+                    rows,
+                    limits,
+                    move |_| {
+                        let _keep = &probe;
+                        calls.set(calls.get() + 1);
+                        Ok::<_, ()>(())
+                    },
+                    &scope,
+                );
+                assert!(output.is_err());
+                if fault == 0 {
+                    assert!(matches!(output, Err(ParallelRestoreError::ScopeClosed)));
+                }
+                assert!(!scope.is_open());
+                assert_eq!(c.admissions.get(), 0);
+                assert_eq!(c.equalities.get(), usize::from(fault == 4));
+                assert_eq!(dropped.get(), 1);
+                assert_eq!(c.cleanup_observed.get(), if fault == 2 { 4 } else { 5 });
+                assert_eq!(c.cleanup_open.get(), 0);
+            }
+        }
+
+        #[test]
+        fn scoped_all_equality_revocation_and_unwind_stop_before_admission() {
+            for mode in 0..3 {
+                let unwind = mode == 2;
+                let c = Rc::new(Control::default());
+                let node = group(3);
+                let domains = domains(&c, 3);
+                let (mut rows, _) = saved::<u64>(&node, &domains, &c, 1);
+                if mode == 1 {
+                    let SavedParallelReply::Awaiting { identity, .. } = &mut rows[1].reply else {
+                        panic!()
+                    };
+                    identity.id = 0;
+                }
+                let scope = watch(&c);
+                c.equality_closes.set(!unwind);
+                c.equality_unwind.set(unwind);
+                let dropped = Rc::new(Cell::new(0));
+                let probe = Probe(c.clone(), dropped.clone());
+                let calls = &c.admissions;
+                let output = catch_unwind(AssertUnwindSafe(|| {
+                    Session::restore_in_scope(
+                        &node,
+                        rows,
+                        LIMITS,
+                        move |_| {
+                            let _keep = &probe;
+                            calls.set(calls.get() + 1);
+                            Ok::<_, ()>(())
+                        },
+                        &scope,
+                    )
+                }));
+                if unwind {
+                    assert!(output.is_err());
+                } else {
+                    assert!(matches!(
+                        output.unwrap(),
+                        Err(ParallelRestoreError::ScopeClosed)
+                    ));
+                }
+                assert!(!scope.is_open());
+                assert_eq!(c.equalities.get(), 1);
+                assert_eq!(c.admissions.get(), 0);
+                assert_eq!(dropped.get(), 1);
+                assert_eq!(c.cleanup_observed.get(), 5);
+                assert_eq!(c.cleanup_open.get(), 0);
+            }
+        }
+
+        #[test]
+        fn scoped_all_native_refusal_revocation_and_cleanup_unwind_preserve_fencing() {
+            for fault in 0..5 {
+                let c = Rc::new(Control::default());
+                let node = group(3);
+                let domains = domains(&c, 3);
+                let (rows, _) = saved::<u64>(&node, &domains, &c, 1);
+                let scope = watch(&c);
+                let dropped = Rc::new(Cell::new(0));
+                let marker = Box::new(42);
+                let pointer = &*marker as *const u8;
+                let output = catch_unwind(AssertUnwindSafe(|| {
+                    Session::restore_in_scope(
+                        &node,
+                        rows,
+                        LIMITS,
+                        |_| {
+                            c.admissions.set(c.admissions.get() + 1);
+                            if fault == 1 || fault == 2 {
+                                scope.close();
+                            }
+                            assert_ne!(fault, 3, "native admission unwind");
+                            if fault == 1 {
+                                return Ok(());
+                            }
+                            if fault == 4 {
+                                c.cleanup_unwind.set(true);
+                            }
+                            Err(NativeError {
+                                marker,
+                                _probe: Probe(c.clone(), dropped.clone()),
+                            })
+                        },
+                        &scope,
+                    )
+                }));
+                match fault {
+                    0 => {
+                        let Err(ParallelRestoreError::Native(error)) = output.unwrap() else {
+                            panic!()
+                        };
+                        assert_eq!(&*error.marker as *const u8, pointer);
+                        drop(error);
+                    }
+                    1 | 2 => assert!(matches!(
+                        output.unwrap(),
+                        Err(ParallelRestoreError::ScopeClosed)
+                    )),
+                    _ => assert!(output.is_err()),
+                }
+                assert!(!scope.is_open());
+                assert_eq!(c.admissions.get(), 1);
+                assert_eq!(dropped.get(), usize::from(matches!(fault, 0 | 2 | 4)));
+                assert_eq!(c.cleanup_observed.get(), 4 + dropped.get());
+                assert_eq!(c.cleanup_open.get(), 0);
+            }
+        }
+
+        #[test]
+        fn scoped_all_success_preserves_original_reply_masks_without_meter_changes() {
+            fn check<T: Data>() {
+                for mask in 0..8 {
+                    let c = Rc::new(Control::default());
+                    let node = group(3);
+                    let domains = domains(&c, 3);
+                    let (rows, fuel) = saved::<T>(&node, &domains, &c, mask);
+                    let remaining = fuel.remaining();
+                    let pointer = |row: &Row<'_, T>| match &row.reply {
+                        SavedParallelReply::Awaiting { .. } => 0,
+                        SavedParallelReply::Accepted(reply) => {
+                            &*reply.as_parts().3.data as *const T as usize
+                        }
+                    };
+                    let pointers: Vec<_> = rows.iter().map(pointer).collect();
+                    let before = (c.identities_dropped.get(), c.values_dropped.get());
+                    let scope = watch(&c);
+                    let session = Session::restore_in_scope(
+                        &node,
+                        rows,
+                        LIMITS,
+                        |rows| admit(&c, rows),
+                        &scope,
+                    )
+                    .unwrap();
+                    assert_eq!(
+                        session.status(),
+                        if mask == 7 {
+                            ParallelStatus::ReadyResults
+                        } else {
+                            ParallelStatus::Awaiting {
+                                remaining: 3 - mask.count_ones() as usize,
+                            }
+                        }
+                    );
+                    assert!(scope.is_open());
+                    assert_eq!(fuel.remaining(), remaining);
+                    let rows = session.try_into_saved().unwrap();
+                    assert_eq!(rows.iter().map(pointer).collect::<Vec<_>>(), pointers);
+                    assert_eq!((c.identities_dropped.get(), c.values_dropped.get()), before);
+                    scope.close();
+                    drop(rows);
+                    assert_eq!(c.cleanup_open.get(), 0);
+                }
+            }
+            check::<u64>();
+            check::<String>();
+        }
+    }
+
+    #[test]
+    fn actual_parallel_owners_roundtrip_every_mask_without_callbacks_clones_or_meter_changes() {
+        fn check<T: Data>() {
+            for count in [2, 3, 64] {
+                let masks: Vec<u64> = if count == 64 {
+                    vec![0, 1, 1 << 63, u64::MAX]
+                } else {
+                    (0..1 << count).collect()
+                };
+                for mask in masks {
+                    let control = Rc::new(Control::default());
+                    let node = group(count);
+                    let domains = domains(&control, count);
+                    let (mut session, fuel) = live::<T>(&node, &domains, &control);
+                    let remaining = fuel.remaining();
+                    let mut pointers = vec![None; count];
+                    for index in (0..count).filter(|i| mask & (1 << i) != 0) {
+                        let input = value::<T>(&control, index);
+                        pointers[index] = Some(&*input.data as *const T);
+                        session
+                            .try_accept::<T, _>(index, &identity(&control, index), input, &*control)
+                            .unwrap();
+                    }
+                    for _ in 0..3 {
+                        let status = session.status();
+                        let before = (
+                            control.equalities.get(),
+                            control.admissions.get(),
+                            control.identities_dropped.get(),
+                            control.values_dropped.get(),
+                        );
+                        control.equality_unwind.set(true);
+                        control.authority_unwind.set(true);
+                        let saved = session.try_into_saved().unwrap();
+                        assert_eq!(
+                            (
+                                control.equalities.get(),
+                                control.admissions.get(),
+                                control.identities_dropped.get(),
+                                control.values_dropped.get()
+                            ),
+                            before
+                        );
+                        control.equality_unwind.set(false);
+                        control.authority_unwind.set(false);
+                        for (index, row) in saved.iter().enumerate() {
+                            assert_eq!(row.index, index);
+                            assert!(std::ptr::eq(row.name, branches(&node)[index].name.as_str()));
+                            assert_eq!(row.reply.identity().id, index);
+                            match &row.reply {
+                                SavedParallelReply::Awaiting { declaration, .. } => {
+                                    assert_eq!(mask & (1 << index), 0);
+                                    assert!(std::ptr::eq(*declaration, &domains[index]));
+                                }
+                                SavedParallelReply::Accepted(reply) => {
+                                    let (_, (), domain, input) = reply.as_parts();
+                                    assert_ne!(mask & (1 << index), 0);
+                                    assert!(std::ptr::eq(domain, &domains[index]));
+                                    assert_eq!(Some(&*input.data as *const T), pointers[index]);
+                                }
+                            }
+                        }
+                        session =
+                            Session::restore(&node, saved, LIMITS, |rows| admit(&control, rows))
+                                .unwrap();
+                        assert_eq!(session.status(), status);
+                        assert_eq!(fuel.remaining(), remaining);
+                    }
+                    for index in (0..count).rev() {
+                        let input = value::<T>(&control, index);
+                        let ptr = &*input.data as *const T;
+                        let rejected = session
+                            .try_accept::<T, _>(
+                                index,
+                                &identity(&control, index + count),
+                                input,
+                                &*control,
+                            )
+                            .unwrap_err();
+                        assert_eq!(&*rejected.reply.data as *const T, ptr);
+                        if mask & (1 << index) == 0 {
+                            pointers[index] = Some(ptr);
+                            session
+                                .try_accept::<T, _>(
+                                    index,
+                                    &identity(&control, index),
+                                    rejected.reply,
+                                    &*control,
+                                )
+                                .unwrap();
+                        }
+                    }
+                    assert_eq!(session.status(), ParallelStatus::ReadyResults);
+                    let saved = session.try_into_saved().unwrap();
+                    session = Session::restore(&node, saved, LIMITS, |rows| admit(&control, rows))
+                        .unwrap();
+                    let ParallelPoll::Results(rows) = session.poll().unwrap() else {
+                        panic!()
+                    };
+                    for (index, row) in rows.into_iter().enumerate() {
+                        let (_, original, _, domain, input) = row.into_parts();
+                        assert!(std::ptr::eq(original, &branches(&node)[index]));
+                        assert!(std::ptr::eq(domain, &domains[index]));
+                        assert_eq!(Some(&*input.data as *const T), pointers[index]);
+                    }
+                    session = session.try_into_saved().unwrap_err();
+                    assert_eq!(
+                        session.status(),
+                        ParallelStatus::Terminal(ParallelEnd::Completed)
+                    );
+                    assert_eq!(
+                        control.values_dropped.get(),
+                        count + mask.count_ones() as usize
+                    );
+                    assert_eq!(control.preparations.get(), count);
+                    assert_eq!(control.dispatches.get(), count);
+                    assert_eq!(fuel.remaining(), remaining);
+                }
+            }
+        }
+        check::<u64>();
+        check::<String>();
+    }
+
+    #[test]
+    fn transferred_parallel_admission_rejects_revocation_without_recreating_accepted_data() {
+        for mask in 0..8 {
+            for unwind in [false, true] {
+                let control = Rc::new(Control::default());
+                let node = group(3);
+                let domains = domains(&control, 3);
+                let (mut session, fuel) = live::<String>(&node, &domains, &control);
+                for i in (0..3).filter(|i| mask & (1 << i) != 0) {
+                    session
+                        .try_accept::<String, _>(
+                            i,
+                            &identity(&control, i),
+                            value::<String>(&control, i),
+                            &*control,
+                        )
+                        .unwrap();
+                }
+                let remaining = fuel.remaining();
+                let saved = session.try_into_saved().unwrap();
+                let drops = control.identities_dropped.get();
+                control.denied.set(!unwind);
+                control.authority_unwind.set(unwind);
+                let outcome = catch_unwind(AssertUnwindSafe(|| {
+                    Session::restore(&node, saved, LIMITS, |rows| admit(&control, rows))
+                }));
+                if unwind {
+                    assert!(outcome.is_err());
+                } else {
+                    assert!(outcome.unwrap().is_err());
+                }
+                assert_eq!(control.identities_dropped.get(), drops + 3);
+                assert_eq!(
+                    control.values_dropped.get(),
+                    (mask as u32).count_ones() as usize
+                );
+                assert_eq!(control.dispatches.get(), 3);
+                assert_eq!(fuel.remaining(), remaining);
+            }
+        }
+    }
+
+    #[test]
+    fn dropping_transferred_parallel_rows_releases_each_owner_once_without_external_cancellation() {
+        for mask in 0..8 {
+            for unwind in [false, true] {
+                let control = Rc::new(Control::default());
+                let node = group(3);
+                let domains = domains(&control, 3);
+                let (mut session, _) = live::<u64>(&node, &domains, &control);
+                for i in (0..3).filter(|i| mask & (1 << i) != 0) {
+                    session
+                        .try_accept::<u64, _>(
+                            i,
+                            &identity(&control, i),
+                            value::<u64>(&control, i),
+                            &*control,
+                        )
+                        .unwrap();
+                }
+                let saved = session.try_into_saved().unwrap();
+                let drops = control.identities_dropped.get();
+                control.cleanup_unwind.set(unwind);
+                let outcome = catch_unwind(AssertUnwindSafe(|| drop(saved)));
+                assert_eq!(outcome.is_err(), unwind);
+                assert_eq!(control.identities_dropped.get(), drops + 3);
+                assert_eq!(
+                    control.values_dropped.get(),
+                    (mask as u32).count_ones() as usize
+                );
+                assert_eq!(control.dispatches.get(), 3);
+            }
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -584,12 +1106,11 @@ fn publish<T: Data>(control: &Rc<Control>, mask: u64) -> Journal {
     )
     .unwrap();
     assert_eq!(fuel.remaining(), 3);
-    let mut saved = Vec::new();
     for request in requests {
         control.dispatches.set(control.dispatches.get() + 1);
         let index = request.index;
         assert_eq!(request.request, index);
-        let accepted = if mask & (1 << index) != 0 {
+        if mask & (1 << index) != 0 {
             session
                 .try_accept::<T, _>(
                     index,
@@ -598,22 +1119,32 @@ fn publish<T: Data>(control: &Rc<Control>, mask: u64) -> Journal {
                     &**control,
                 )
                 .unwrap();
-            Some(T::sample(index))
-        } else {
-            None
-        };
-        saved.push(WireRow {
-            index,
-            name: branches(&node)[index].name.clone(),
-            identity: index,
-            accepted,
-        });
+        }
     }
-    drop(session);
+    let saved = session.try_into_saved().unwrap();
+    let rows = saved
+        .iter()
+        .map(|row| WireRow {
+            index: row.index,
+            name: row.name.to_owned(),
+            identity: row.reply.identity().id,
+            accepted: match &row.reply {
+                SavedParallelReply::Awaiting { .. } => None,
+                SavedParallelReply::Accepted(reply) => Some(reply.as_parts().3.data.as_ref()),
+            },
+        })
+        .collect();
+    #[derive(Serialize)]
+    struct ImageView<'a, T> {
+        node: &'a Node,
+        rows: Vec<WireRow<&'a T>>,
+        fuel: u64,
+        revision: u64,
+    }
     Journal {
-        pending: serde_json::to_vec(&Image {
-            node,
-            rows: saved,
+        pending: serde_json::to_vec(&ImageView {
+            node: &node,
+            rows,
             fuel: fuel.remaining(),
             revision: 7,
         })

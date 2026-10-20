@@ -1,5 +1,8 @@
 //! Bounded, borrowed parallel batch ownership with an all-success reply barrier.
 
+#[cfg(test)]
+mod transfer_tests;
+
 use std::{borrow::Borrow, convert::Infallible, fmt};
 
 use leselang_runtime_core::{
@@ -200,6 +203,7 @@ impl<Identity, Declaration: ?Sized, Reply> fmt::Debug
 }
 
 pub enum ParallelRestoreError<Native> {
+    ScopeClosed,
     Parallel(ParallelEvaluationError<Native>),
     Count,
     Row { index: usize },
@@ -208,6 +212,7 @@ pub enum ParallelRestoreError<Native> {
 impl<Native> fmt::Display for ParallelRestoreError<Native> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
+            Self::ScopeClosed => "parallel restoration scope is closed",
             Self::Parallel(_) => "saved parallel shape or identity rejected",
             Self::Count => "saved parallel rows must cover the complete group",
             Self::Row { .. } => "saved parallel row differs from original declaration order",
@@ -226,6 +231,33 @@ enum Member<'schema, Identity, Declaration: ?Sized, Reply> {
     Pending(PendingReply<'schema, Identity, (), Declaration>),
     Accepted(AcceptedReply<'schema, Identity, (), Declaration, Reply>),
     Moving,
+}
+impl<'schema, Identity, Declaration: ?Sized, Reply> Member<'schema, Identity, Declaration, Reply> {
+    fn from_saved(reply: SavedParallelReply<'schema, Identity, Declaration, Reply>) -> Self {
+        match reply {
+            SavedParallelReply::Awaiting {
+                identity,
+                declaration,
+            } => Self::Pending(PendingReply::new(identity, (), declaration)),
+            SavedParallelReply::Accepted(reply) => Self::Accepted(reply),
+        }
+    }
+
+    fn try_into_saved(
+        self,
+    ) -> Result<SavedParallelReply<'schema, Identity, Declaration, Reply>, Self> {
+        match self {
+            Self::Pending(pending) => pending
+                .try_into_parts()
+                .map(|(identity, (), declaration)| SavedParallelReply::Awaiting {
+                    identity,
+                    declaration,
+                })
+                .map_err(Self::Pending),
+            Self::Accepted(reply) => Ok(SavedParallelReply::Accepted(reply)),
+            Self::Moving => Err(Self::Moving),
+        }
+    }
 }
 enum State<'schema, Identity, Declaration: ?Sized, Reply> {
     Ready,
@@ -601,56 +633,116 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
         self.branches.len()
     }
 
+    pub(crate) fn try_into_saved(
+        mut self,
+    ) -> Result<Vec<SavedParallelMember<'expression, Identity, Declaration, Reply>>, Self> {
+        let members = match &mut self.state {
+            State::Awaiting { members, .. } | State::ReadyResults(members) => members,
+            _ => return Err(self),
+        };
+        if members.len() != self.branches.len() {
+            return Err(self);
+        }
+        let mut rows = Vec::with_capacity(members.len());
+        for index in 0..members.len() {
+            let member = std::mem::replace(&mut members[index], Member::Moving);
+            match member.try_into_saved() {
+                Ok(reply) => rows.push(SavedParallelMember {
+                    index,
+                    name: &self.branches[index].name,
+                    reply,
+                }),
+                Err(member) => {
+                    // An inconsistent private slot must not lose an earlier owner.
+                    members[index] = member;
+                    for row in rows {
+                        members[row.index] = Member::from_saved(row.reply);
+                    }
+                    return Err(self);
+                }
+            }
+        }
+        Ok(rows)
+    }
+
     pub(crate) fn restore<Error>(
         branches: &'expression [ComputedBranch<Node, IrResult>],
         rows: Vec<SavedParallelMember<'expression, Identity, Declaration, Reply>>,
         admit: impl FnOnce(
             &[SavedParallelMember<'expression, Identity, Declaration, Reply>],
         ) -> Result<(), Error>,
+        scope: Option<&LocalExecutionScope>,
     ) -> Result<Self, ParallelRestoreError<Error>>
     where
         Identity: PartialEq,
     {
-        if rows.len() != branches.len() {
-            return Err(ParallelRestoreError::Count);
-        }
-        for (index, row) in rows.iter().enumerate() {
-            if row.index != index || row.name != branches[index].name {
-                return Err(ParallelRestoreError::Row { index });
+        let fence = CallFence::new(scope);
+        let preflight = (|| {
+            if scope.is_some_and(|scope| !scope.is_open()) {
+                return Err(ParallelRestoreError::ScopeClosed);
             }
-        }
-        for (index, row) in rows.iter().enumerate() {
-            for (previous, other) in rows[..index].iter().enumerate() {
-                if row.reply.identity() == other.reply.identity() {
-                    return Err(ParallelRestoreError::Parallel(
-                        ParallelEvaluationError::DuplicateIdentity { index, previous },
-                    ));
+            if rows.len() != branches.len() {
+                return Err(ParallelRestoreError::Count);
+            }
+            for (index, row) in rows.iter().enumerate() {
+                if row.index != index || row.name != branches[index].name {
+                    return Err(ParallelRestoreError::Row { index });
                 }
             }
+            for (index, row) in rows.iter().enumerate() {
+                for (previous, other) in rows[..index].iter().enumerate() {
+                    let duplicate = row.reply.identity() == other.reply.identity();
+                    if scope.is_some_and(|scope| !scope.is_open()) {
+                        return Err(ParallelRestoreError::ScopeClosed);
+                    }
+                    if duplicate {
+                        return Err(ParallelRestoreError::Parallel(
+                            ParallelEvaluationError::DuplicateIdentity { index, previous },
+                        ));
+                    }
+                }
+            }
+            Ok(())
+        })();
+        if let Err(error) = preflight {
+            fence.close();
+            drop((admit, rows));
+            fence.finish();
+            return Err(error);
         }
-        admit(&rows).map_err(ParallelRestoreError::Native)?;
+        let admitted = admit(&rows);
+        let admitted = if scope.is_some_and(|scope| !scope.is_open()) {
+            drop(admitted);
+            Err(ParallelRestoreError::ScopeClosed)
+        } else {
+            admitted.map_err(ParallelRestoreError::Native)
+        };
+        if let Err(error) = admitted {
+            fence.close();
+            drop(rows);
+            fence.finish();
+            return Err(error);
+        }
         let mut remaining = 0;
         let members = rows
             .into_iter()
-            .map(|row| match row.reply {
-                SavedParallelReply::Awaiting {
-                    identity,
-                    declaration,
-                } => {
+            .map(|row| {
+                if matches!(row.reply, SavedParallelReply::Awaiting { .. }) {
                     remaining += 1;
-                    Member::Pending(PendingReply::new(identity, (), declaration))
                 }
-                SavedParallelReply::Accepted(accepted) => Member::Accepted(accepted),
+                Member::from_saved(row.reply)
             })
             .collect();
-        Ok(Self {
+        let output = Ok(Self {
             branches,
             state: if remaining == 0 {
                 State::ReadyResults(members)
             } else {
                 State::Awaiting { members, remaining }
             },
-        })
+        });
+        fence.finish();
+        output
     }
 
     #[expect(

@@ -329,6 +329,14 @@ fn limits<Native>(limits: EffectStackLimits) -> Result<(), EffectStackFailure<Na
     }
 }
 
+pub(crate) fn preflight_final_return_limits(
+    policy: EffectStackLimits,
+) -> Result<(), EffectStackFailure<Infallible>> {
+    limits(policy)?;
+    let mut empty = Vec::<(&str, PureValue<()>)>::new();
+    preflight_scope(&ScopeFrame::new(&mut empty), policy.effects).map_err(stack_failure)
+}
+
 /// Evaluate with explicit nested binding returns, never dispatching prepared work.
 /// Shared complete cold preflight, lexical execution, native preparation/capture
 /// and fuel rules are unchanged. A frame quota refusal precedes that frame's capture

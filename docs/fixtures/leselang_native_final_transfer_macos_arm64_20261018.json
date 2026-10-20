@@ -1,0 +1,125 @@
+{
+  "kind": "leselang-native-final-request-transfer",
+  "validated_on": "2026-10-18",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "native_embedding_contract": "0.164.0",
+  "reference_execution_contract": "1.105.0",
+  "hosts": 2,
+  "actual_vm_state": true,
+  "original_budget_parity": true,
+  "post_dispatch_transfer_without_redispatch": true,
+  "binding_transfer_separation": true,
+  "local_scope_escape_refused": true,
+  "isolated_consumer_passed": true,
+  "final_effect_transfer": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "process_crash_recovery": false,
+  "durable_final_checkpoint": false,
+  "wire_or_journal_schema_changed": false,
+  "scope": "A final-request-only consuming transfer preserves original identity, domain, remaining Fuel and limits without a synthetic binding frame, callback, clone or dispatch. Initial/binding/accepted/terminal states refuse unchanged. Final restore validates policy ceilings before native admission and reuses SessionCore AwaitingFinal/AcceptedFinal and explicit final projection. The host validates original request correspondence, budget, current authority and nonterminal settlement. Local restoration revokes before retained identity/error/unused-hook cleanup on refusal or unwind; callback revocation wins. Reply cleanup inside native projection remains trusted and may precede the outer fence. Two hosts cover direct and captured-helper final calls, transfer before and after actual dispatch, every fuel cutoff, stale/invalid owned replies, revocation, cancellation and once-only final output. No production durable codec, crash settlement or complete graph recovery is claimed.",
+  "sources": [
+    {
+      "path": "crates/leselang-hir/src/effect_session.rs",
+      "sha256": "dc61d54cf4f0b3cf9314bb7f7236f37820569e690a972524dc417ecbb881b069"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_stack.rs",
+      "sha256": "8209b4fd051e9ab8436931eb27514db7bcb0b7f574a90e34cd849eb59cefe10d"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_stack_session.rs",
+      "sha256": "90e1b25bec193c1624f2440b67b00c1e40ff81c723ee1749b4ee48a34236c4bd"
+    },
+    {
+      "path": "crates/leselang-hir/src/local_effect_session.rs",
+      "sha256": "7653bf04e3943ef8a5f531aa0b8e69a31a76b252cb10df5d23984cafac9e15d5"
+    },
+    {
+      "path": "crates/leselang-hir/tests/effect_session.rs",
+      "sha256": "9e8e404405148d4e56475b9156b69894ec5afef94cc9f1439581e6367e52d0e6"
+    },
+    {
+      "path": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "c622e719d96308a6fcc7fb19b5a70ab2a3a5ffd8337240c9eb8e637bc616711d"
+    }
+  ],
+  "verification": [
+    {
+      "name": "consumer",
+      "path": "/private/tmp/leselang-final-transfer-consumer.log",
+      "sha256": "352de46000e9803e5a6c2619dee54d2850e3e3f464d67e2c82ffd543647f935c",
+      "passed": 90
+    },
+    {
+      "name": "exported-hir",
+      "path": "/private/tmp/leselang-final-transfer-exported-hir.log",
+      "sha256": "ae182ce84578d17a1f15672a8b671653caeb20e75607d5ed17cbe69a786f6f88",
+      "passed": 20
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-final-transfer-clippy.log",
+      "sha256": "1cfed1967fb2affad8d7fa63d8de65d9e49c2747c5ec5c06d27331b1f2bb44cd",
+      "passed": true
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-final-transfer-runtime.log",
+      "sha256": "20c73dd200e1d5615d505551a7333aaf92d64935fab3fea134ba01684e5d54db",
+      "passed": 3253
+    },
+    {
+      "name": "guards",
+      "path": "/private/tmp/leselang-final-transfer-guards.log",
+      "sha256": "d53f5c09f7763f2bd70de5e03e4f3dc50e2e99aa40633addaaca0eee650dca0a",
+      "passed": 453
+    },
+    {
+      "name": "native-full",
+      "path": "/private/tmp/leselang-final-transfer-native-full.log",
+      "sha256": "a27885b5f41ed6f7faea1a542806636f81bd1d740440af3ca8e37b8e28478588",
+      "passed": 54
+    },
+    {
+      "name": "exported-doc",
+      "path": "/private/tmp/leselang-final-transfer-exported-doc.log",
+      "sha256": "9e05a61a943ec0a177f3fddd51a513390fbb5f8b3ca06527327b6d9e57dcff72",
+      "passed": 65
+    },
+    {
+      "name": "consumer-clippy",
+      "path": "/private/tmp/leselang-final-transfer-consumer-clippy.log",
+      "sha256": "f59e26c4dd3bf857f7216eb4e334badb4d27486de4f0d80448e1d41ddeb71f09",
+      "passed": true
+    },
+    {
+      "name": "guard-clippy",
+      "path": "/private/tmp/leselang-final-transfer-guard-clippy.log",
+      "sha256": "c60efd1a62a460c5cfdbd348e238edcf0fea8ca02a31516e51e2d977e37ae4f6",
+      "passed": true
+    },
+    {
+      "name": "exporter-tests",
+      "path": "/private/tmp/leselang-final-transfer-exporter-tests.log",
+      "sha256": "ad4ef875ddc26b2761f65bbd81f7b083d4894119417fb4afbe68f728e96bf0fb",
+      "passed": 16
+    },
+    {
+      "name": "fmt",
+      "path": "/private/tmp/leselang-final-transfer-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-final-transfer-source",
+    "manifest_sha256": "c339d019751b1828243ca3b0fdfdb3eba52eed38ef1a7a3fb18074ee8b5e2ee5",
+    "files": 277,
+    "source_copies_byte_matched": 267,
+    "full_export_verified": false,
+    "product_free_dependency_tree": true,
+    "temporary_build_artifacts_pruned": true
+  }
+}

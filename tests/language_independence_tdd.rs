@@ -8299,7 +8299,26 @@ fn stacked_control_sessions_delegate_owned_fuel_and_all_lifecycle_transitions_to
         std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_session.rs")).unwrap();
     assert_eq!(shared.matches("enum State<").count(), 1);
     assert_eq!(shared.matches("fn poll_with<").count(), 1);
-    assert_eq!(shared.matches("fuel: Fuel,\n}").count(), 1);
+    let active_core = shared
+        .split("pub(crate) struct SessionCore<")
+        .nth(1)
+        .unwrap()
+        .split("\n}")
+        .next()
+        .unwrap();
+    assert_eq!(active_core.matches("fuel: Fuel").count(), 1);
+    let transfer = shared
+        .split("pub(crate) fn try_into_pending_binding(")
+        .nth(1)
+        .unwrap()
+        .split("pub(crate) fn cancel(")
+        .next()
+        .unwrap();
+    assert!(transfer.contains("let Self { state, fuel } = self;"));
+    assert!(transfer.contains("Ok(PendingSessionParts {"));
+    assert!(transfer.contains("state => Err(Self { state, fuel })"));
+    assert!(!transfer.contains("Fuel::new"));
+    assert!(!transfer.contains(".clone()"));
     let proofs =
         std::fs::read_to_string(root.join("crates/leselang-hir/tests/effect_session.rs")).unwrap();
     for proof in [

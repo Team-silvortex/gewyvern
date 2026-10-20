@@ -5,6 +5,7 @@ use std::{borrow::Borrow, convert::Infallible, fmt};
 use leselang_runtime_core::{Fuel, HostResultDomain, LocalExecutionScope, ReplyAuthority};
 
 use crate::ir::{Computation, ComputedBranch, GroupKind};
+use crate::local_scope::CallFence;
 use crate::native_group_preparation::PreparedNativeGroup;
 use crate::parallel_evaluation::{
     ParallelAcceptance, ParallelEvaluationError, ParallelEvaluationLimits, ParallelEvaluationPoll,
@@ -130,11 +131,63 @@ impl<'expression, Field, Operation, HostEffect, IrResult, Identity, Declaration:
     where
         Identity: PartialEq,
     {
-        let branches =
-            admit_parallel_shape(group, limits).map_err(ParallelRestoreError::Parallel)?;
-        Ok(Self {
-            core: ParallelReplyCore::restore(branches, rows, admit)?,
-        })
+        Self::restore_with_scope(group, rows, limits, admit, None)
+    }
+
+    /// Restore under an existing local lifetime without taking its ownership.
+    /// Closed scopes refuse before shape/equality/admission. Failure or unwind
+    /// revokes before retained saved rows and unused-hook cleanup. Revocation
+    /// inside native equality or admission stops later hooks and wins over its
+    /// ordinary result. Success leaves the scope open; use it on later poll and
+    /// acceptance too. No dispatch, fuel, durable settlement or external work
+    /// cancellation is added. Callback-internal cleanup remains trusted native
+    /// work, and a second panic during cleanup may abort.
+    pub fn restore_in_scope<Error>(
+        group: &'expression Computation<Field, Operation, HostEffect, IrResult>,
+        rows: Vec<SavedParallelMember<'expression, Identity, Declaration, Reply>>,
+        limits: ParallelEvaluationLimits,
+        admit: impl FnOnce(
+            &[SavedParallelMember<'expression, Identity, Declaration, Reply>],
+        ) -> Result<(), Error>,
+        scope: &LocalExecutionScope,
+    ) -> Result<Self, ParallelRestoreError<Error>>
+    where
+        Identity: PartialEq,
+    {
+        Self::restore_with_scope(group, rows, limits, admit, Some(scope))
+    }
+
+    fn restore_with_scope<Error>(
+        group: &'expression Computation<Field, Operation, HostEffect, IrResult>,
+        rows: Vec<SavedParallelMember<'expression, Identity, Declaration, Reply>>,
+        limits: ParallelEvaluationLimits,
+        admit: impl FnOnce(
+            &[SavedParallelMember<'expression, Identity, Declaration, Reply>],
+        ) -> Result<(), Error>,
+        scope: Option<&LocalExecutionScope>,
+    ) -> Result<Self, ParallelRestoreError<Error>>
+    where
+        Identity: PartialEq,
+    {
+        let fence = CallFence::new(scope);
+        let shape = if scope.is_some_and(|scope| !scope.is_open()) {
+            Err(ParallelRestoreError::ScopeClosed)
+        } else {
+            admit_parallel_shape(group, limits).map_err(ParallelRestoreError::Parallel)
+        };
+        let branches = match shape {
+            Ok(branches) => branches,
+            Err(error) => {
+                fence.close();
+                drop((admit, rows));
+                fence.finish();
+                return Err(error);
+            }
+        };
+        let output =
+            ParallelReplyCore::restore(branches, rows, admit, scope).map(|core| Self { core });
+        fence.finish();
+        output
     }
 
     /// Consume all original prepared operands before returning any native request.
@@ -242,6 +295,22 @@ impl<'expression, Node, IrResult, Identity, Declaration: ?Sized, Reply>
 {
     pub fn status(&self) -> ParallelStatus {
         self.core.status()
+    }
+    /// Consume an awaiting or ready-results barrier into original ordered rows.
+    /// Waiting identities/domains and accepted replies move without native
+    /// callbacks, equality, cloning, projection, dispatch or fuel changes. The
+    /// bounded row vector allocates, but no native owner is discarded on success.
+    /// Terminal barriers return unchanged, including after once-only handoff.
+    ///
+    /// Rows are unauthenticated host data, not a durable snapshot or permission
+    /// to replay. Restore requires fresh whole-batch admission, original policy
+    /// and authentic nonterminal settlement. Published requests, the enclosing
+    /// meter and execution scope remain host-owned; dropping rows does not cancel
+    /// external work. Hosts must reject cancelled/revoked owners before restoring.
+    pub fn try_into_saved(
+        self,
+    ) -> Result<Vec<SavedParallelMember<'expression, Identity, Declaration, Reply>>, Self> {
+        self.core.try_into_saved().map_err(|core| Self { core })
     }
     /// Waiting and terminal polls do no native work; complete results move once.
     pub fn poll(

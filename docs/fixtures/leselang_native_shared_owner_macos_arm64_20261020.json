@@ -1,0 +1,133 @@
+{
+  "kind": "leselang-native-shared-owner-restoration",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "native_embedding_contract": "0.168.0",
+  "reference_execution_contract": "1.105.0",
+  "hosts": 2,
+  "host_program_combinations": 12,
+  "original_unique_owner": true,
+  "original_pending_restore_core": true,
+  "parent_restored_before_child_failure": true,
+  "every_child_restore_boundary": true,
+  "unchanged_fuel_and_dispatch_counts": true,
+  "retained_parent_explicitly_cancelled": true,
+  "sibling_scope_unaffected": true,
+  "borrow_does_not_fence_arbitrary_native_code": true,
+  "isolated_consumer_passed": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "process_crash_recovery": false,
+  "production_durable_codec": false,
+  "automatic_external_cancellation": false,
+  "wire_or_journal_schema_changed": false,
+  "scope": "ScopedLocalExecution::as_parts_mut lends the original scope alongside mutable native state without extracting or cloning the unique owner. Raw Vm::restore_pending_in_scope delegates to the existing scoped restoration core. The coupled source pipeline restores parent binding frames and actual Seq/All rows under the same borrowed fence, without manual restoration-error closure. Parent structural/native refusal and unwind fail closed. After a successful parent restoration, every child admission frontier exercises refusal, revocation and unwind on twelve numeric/text Seq/All/repeat combinations. The original parent stays owned and Awaiting after child failure, then is explicitly cancelled; it is not automatically destroyed or declared settled. Original captures, result buffers, request identities, fuel and dispatch counts are preserved, and sibling scopes stay live. Every fuel cutoff matches uninterrupted LocalVm execution. Separate tests cover move-only borrowed owner state, explicit closure, unfenced arbitrary host unwind and borrow-lifetime compile failure. Callback-internal cleanup remains trusted. No LocalVm transfer escape, final-effect scoped API, durable codec, crash settlement or full extraction is introduced.",
+  "sources": [
+    {
+      "path": "crates/leselang-runtime-core/src/local_execution.rs",
+      "sha256": "5b87372ca61605b4452c69c0541604fdfd4371a64ad4f24c8afc83b09b70508a"
+    },
+    {
+      "path": "crates/leselang-runtime-core/tests/local_execution.rs",
+      "sha256": "c8ce25d82fe0a86e3a02f62cdccfce85af416da668a485d0c68799434a296d3a"
+    },
+    {
+      "path": "crates/leselang-hir/src/effect_stack_session.rs",
+      "sha256": "7b0946918b4d4dc690645991bc0c4e742f6f6aa2f6432f53c440794625315fa4"
+    },
+    {
+      "path": "crates/leselang-hir/src/prepared_sequence.rs",
+      "sha256": "cef0c19ef2b2530314a24b9c8100b3519853f011a0959f0c960b0a6874160a2d"
+    },
+    {
+      "path": "crates/leselang-hir/src/prepared_parallel.rs",
+      "sha256": "e03943042c23cdc2aabf66c6a8518827d70f6abb19e5c6715ba551714f346da0"
+    },
+    {
+      "path": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "4dbeafc20816c350e4a8d6f26e9fcfa3f20807c3a0c5e5a2829dcea4b93115a4"
+    },
+    {
+      "path": "crates/gewyvern-dev/src/leselang.rs",
+      "sha256": "1b7f011a208449e4f603a6f1ead73d1224b2aeaf8ff281ceb885a5456e49a09a"
+    }
+  ],
+  "verification": [
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-shared-owner-runtime.log",
+      "sha256": "07ae612fbf043a95f7fca8091ff853725ac9b7028b270ae3a192a605dd0429df",
+      "passed": 3283
+    },
+    {
+      "name": "focused",
+      "path": "/private/tmp/leselang-shared-owner-focused.log",
+      "sha256": "cc759c1c446801d4390d8c56729e52eef60034efbeb92a6bd684c82d88ad2656",
+      "passed": 4
+    },
+    {
+      "name": "consumer",
+      "path": "/private/tmp/leselang-shared-owner-consumer.log",
+      "sha256": "f7fca940ff97f1384253244714d5493b129c17976319e6f3f2b198239cb252a2",
+      "passed": 527
+    },
+    {
+      "name": "export-tests",
+      "path": "/private/tmp/leselang-shared-owner-export-tests.log",
+      "sha256": "3cfe61c37f7680edbea02810188317d561f116a12a11edfc64ec5df7ce2f6cae",
+      "passed": 16
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-shared-owner-clippy.log",
+      "sha256": "1887acd99ac30dca1fe74fb0580719b97b800755ecae11a02dc931ada1d73be9",
+      "passed": true
+    },
+    {
+      "name": "consumer-clippy",
+      "path": "/private/tmp/leselang-shared-owner-consumer-clippy.log",
+      "sha256": "cba44c59a95a0fdfbeca2c9c7090c320312c578cb4f1cae5936acb9fc3821c8a",
+      "passed": true
+    },
+    {
+      "name": "guards",
+      "path": "/private/tmp/leselang-shared-owner-guards.log",
+      "sha256": "fd3c2cf0a73a907f050d75a1f99bd1163ba3da2d0f290eafd8bc01ea6229fd7c",
+      "passed": 463
+    },
+    {
+      "name": "guard-clippy",
+      "path": "/private/tmp/leselang-shared-owner-guard-clippy.log",
+      "sha256": "bb0221fa5d3a25f8aec9296e1bec2833b69fbb5cb22499d6676ffa86f674c386",
+      "passed": true
+    },
+    {
+      "name": "fmt",
+      "path": "/private/tmp/leselang-shared-owner-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true
+    },
+    {
+      "name": "tree",
+      "path": "/private/tmp/leselang-shared-owner-tree.log",
+      "sha256": "f42e8518036e136404e117a5082d6f34a4a54317a9541b4817b043fea82c5b2d",
+      "passed": true
+    },
+    {
+      "name": "clean",
+      "path": "/private/tmp/leselang-shared-owner-clean.log",
+      "sha256": "e4658c6ce18be96f24c70de9ad9e089547e40c3af097d39970871b4d529402d9",
+      "passed": true
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-shared-owner-consumer-source",
+    "manifest_sha256": "1aa5014ad9d3febecdc9fdd558887e3679ff51582f4ee450827a35a6314bb05a",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "full_export_verified": false,
+    "product_free_dependency_tree": true,
+    "temporary_build_artifacts_pruned": true
+  }
+}

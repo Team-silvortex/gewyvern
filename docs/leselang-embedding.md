@@ -6627,6 +6627,248 @@ not yet combine their collector inventory and meter into one durable owning VM.
 Native embedding stays Developing/Draft at completion 10, with complete VM and
 full extraction gates false.
 
+### Moving Actual Pending VM State
+
+`native::Vm::try_into_pending_binding(self)` supplies the outbound half of
+`restore_pending`: it consumes a waiting binding VM and returns
+`PendingStackedBinding` with the original identity, declaration, return stack,
+remaining `Fuel` and limits. No native callback, payload clone, allocation,
+acceptance, dispatch or budget reconstruction occurs during transfer. There is
+no old VM left to accept the same reply. Initial sessions, final-effect requests,
+accepted receipts and every terminal state return the original VM unchanged.
+The underlying `PendingReply::try_into_parts` similarly refuses terminal handles.
+
+The host can move each `EffectContinuation::into_parts` into a
+`SavedEffectReturnFrame`, then call `restore_pending` with mandatory native
+admission. Returned fields remain ordinary host-owned data, not an authenticated
+image. Hosts must preserve original accounting and policy, validate provenance,
+bound encoding/storage and reconcile settlement before reusing saved state.
+Dropping transferred owners releases them but does not cancel external work.
+`LocalVm` intentionally exposes no transfer escape: its scope remains owned until
+closure. Hosts using the unwrapped VM retain responsibility for their own scope.
+
+The two-host native pipeline now moves actual VM suspensions after either or both
+effects, then restores and completes with exact original output, requests,
+invocations and remaining fuel at every cutoff. It rejects stale predecessor
+receipts and rechecks live policy after transfer. Existing restoration/unwind
+tests now obtain their frames from real VM polling rather than a lower-level
+walker. The [pending-transfer proof](fixtures/leselang_native_pending_transfer_macos_arm64_20261018.json)
+records the isolated-consumer checks at native contract `0.163.0`.
+Portable codecs, complete durable graph ownership and process-crash settlement remain open;
+`complete_vm` and `full_extraction_gate` remain false.
+
+### Final-Request Ownership And Restoration
+
+`native::Vm::try_into_pending_final(self)` now moves a waiting final request into
+`PendingStackedFinal`: original identity, borrowed result declaration, remaining
+fuel and limits, with no return stack. Binding waiters return unchanged rather
+than losing their captures; initial, accepted and terminal states also refuse.
+The binding-only transfer API still rejects final requests. Neither transfer
+clones native owners, dispatches work, creates receipts or refills accounting.
+
+`native::Vm::restore_pending_final` and `native::LocalVm::restore_pending_final`
+adopt this state through the existing `SessionCore` final-reply path. Policy
+ceilings are checked before mandatory native admission; the host must prove exact
+original request/domain/budget correspondence, current authority and nonterminal
+settlement. Zero remaining fuel and zero return-frame allowance are preserved.
+Successful restoration starts Awaiting without preparing, dispatching or projecting.
+Acceptance retains the original identity/authority/domain checks and only marks
+Ready. Explicit poll projects the final reply once with the same meter; it never
+invents a return frame or re-evaluates the original call.
+
+Local restoration closes on refusal/unwind before retained identity or unused-hook
+cleanup, and callback revocation takes precedence over its ordinary result. Cancel,
+owner Drop and acceptance/projection failures retain the existing terminal fences.
+Native callback-internal cleanup remains trusted: a reply consumed by a projection
+hook can be destroyed before its unwind reaches the framework fence. LocalVm has
+no transfer escape, including for final requests.
+
+The [final-request proof](fixtures/leselang_native_final_transfer_macos_arm64_20261018.json)
+covers counter and structured-widget hosts, direct final calls and captured-helper
+tails, transfer both before and after external dispatch, every original fuel cutoff,
+stale/invalid replies, live revocation and cancellation. These are actual native VM
+round trips, not synthesized saved stacks. Native contract `0.164.0` remains
+Developing/Draft at completion 10. This closes in-memory final-request ownership,
+not a persistent codec, committed receipt or crash-atomic external-effect protocol;
+complete durable graph recovery and physical extraction remain separate gates.
+
+### Moving Actual Parallel Collector State
+
+`PreparedParallelSession::try_into_saved(self)` consumes an awaiting or
+ready-results All collector into original ordered `SavedParallelMember` rows.
+Waiting identities/domains and already-accepted replies move through the shared
+`ParallelReplyCore`; no native equality, admission, reply projection, cloning,
+dispatch or fuel charge occurs. The bounded row vector allocates. Terminal
+collectors return unchanged, including after ordered results were handed off.
+An inconsistent private slot refuses without discarding converted prefix owners.
+
+`restore` still requires whole-shape/order/identity checks and mandatory native
+admission of current authority, original domains and nonterminal settlement.
+Transfer is ownership, not permission: saved rows remain mutable host data and
+the host must not rearm cancelled, revoked or already-settled work. The enclosing
+VM meter, execution scope and published requests remain outside the collector.
+Dropping transferred rows releases their owners but does not cancel external work.
+
+The two-host source pipeline now transfers actual All collectors before dispatch,
+after each out-of-order reply and after the final receipt, then completes captured
+successors and later Seq/All groups on the original VM meter. Every original fuel
+cutoff matches uninterrupted execution. The mixed saved-helper proof no longer
+copies accepted payloads or fabricates replacement acceptance handles. Numeric
+and text byte-checkpoint models likewise encode the original transferred replies,
+not newly generated example values; their existing committed-byte correspondence,
+stale-reply and settled-result checks remain host-owned.
+
+Move-only ownership tests cover every three-member mask, repeated round trips,
+the 64-member ceiling, unsized domains, exact buffer pointers, native admission
+refusal/unwind, cancellation, terminal refusal and destructor failures. The
+[parallel-transfer proof](fixtures/leselang_native_parallel_transfer_macos_arm64_20261018.json)
+records isolated-source validation at native contract `0.165.0`. No persistent
+codec, storage transaction or crash-atomic external-effect protocol is added;
+complete durable graph recovery and full extraction remain open.
+
+### Moving Actual Sequential Collector State
+
+`PreparedSequenceSession::try_into_saved(self, accepted_prefix)` combines the
+host-owned original `SequenceAccepted` prefix with the queue's current pending
+identity/domain and unpublished requests. Prefix count, indices and exact original
+IR row pointers must match the existing cursor. Refusal returns the queue and
+prefix unchanged; native equality, admission, cloning, projection, dispatch and
+fuel changes are absent. The bounded saved-row vector allocates. A complete queue
+may move its full prefix into all-accepted rows, which restore as Completed and
+never publish another request. Cancelled, failed and uncertain owners refuse.
+
+This structural check does not prove the prefix belongs to the same execution:
+two executions can share one IR. The required native restore admission still
+validates original receipt ownership, current authority, domains, prepared request
+inventory, budget and settlement. Saved fields are ordinary host data, not an
+authenticated checkpoint. Enclosing VM meter/scope, external work and cancellation
+delivery remain host-owned; dropping saved rows does not undo published effects.
+
+The two-host source VM pipeline now transfers Seq and expanded-repeat queues
+before publication, after publication, after dispatch and after acceptance,
+including the completed frontier. Original accepted buffers and future requests
+move unchanged. Exact output, remaining fuel, correlation count and actual calls
+match uninterrupted execution at every budget cutoff, including failure paths.
+Mixed-helper recovery no longer reconstructs saved Seq rows or acceptance handles;
+the existing numeric/text byte-checkpoint writers encode the original transferred
+replies and prepared requests instead of regenerating example payloads.
+
+Regressions cover all seven three-member frontiers, maximum-width boundary
+frontiers, unsized domains, repeated round trips, wrong-length/reordered/foreign-IR
+prefixes, same-IR foreign-execution admission, malformed private cursors, cancellation,
+native refusal/unwind and exactly-once owner disposal. The
+[sequential-transfer proof](fixtures/leselang_native_sequence_transfer_macos_arm64_20261018.json)
+records native contract `0.166.0` and independent consumer validation. This closes
+another in-memory ownership gap; production durable codecs, complete graph recovery
+and full repository extraction remain open.
+
+### Coupled VM And Collector Transfer
+
+The two-host source pipeline now moves the waiting parent `native::Vm` while its
+actual Seq/All collector rows are temporarily saved, then restores both through
+the existing admission entries. This is a composed consumer proof, not another
+evaluator, public graph snapshot API or storage transaction. Each checkpoint
+replaces the parent twice; no old VM remains to accept the pending root receipt.
+Seq transfers before publication, after publication/dispatch and after acceptance;
+All transfers before dispatch, between dispatches and after reverse-order replies.
+Prepared operands, outstanding replies and accepted prefixes remain original
+host-owned values, rather than reconstructed samples or newly accepted wrappers.
+
+Twelve host/program combinations cover atomic calls, Seq/All/expanded repeat,
+group-result capture, a captured successor and a second group. Original lexical
+buffer pointers, shared group-result owners and member reply buffers survive
+parent transfer. Exact output, requests, invocations and remaining fuel match the
+uninterrupted `LocalVm` path at every fuel cutoff. Stale root receipts are returned
+intact without consuming the correct pending slot or charging extra fuel.
+
+Every checkpoint also exercises closed scope, revoked grants, stale root identity,
+wrong root declaration and altered capture-site refusal. Injected native admission
+unwind is tested before work, mid-graph and at the last boundary. The original
+0.166 fixture owned one `ScopedLocalExecution<Option<Vm>>` and explicitly closed
+it on native refusal/unwind or terminal completion. Shared-owner restoration
+below replaces the manual restoration fencing. This does not add a transfer escape to
+`LocalVm`, automatically cancel external work, or certify arbitrary adapter cleanup.
+The scope, live policy, request inventory and native storage remain host-owned.
+
+The [coupled-transfer proof](fixtures/leselang_native_coupled_transfer_macos_arm64_20261020.json)
+records this unchanged consumer running outside the product workspace. No public
+API changed: native contract `0.166.0`, Developing/Draft completion 10, remains
+unchanged. Complete durable graph ownership, authentic checkpoint codecs,
+crash/settlement reconciliation and full extraction are still separate gates.
+
+### Scoped Collector Restoration
+
+`PreparedSequenceSession::restore_in_scope` and
+`PreparedParallelSession::restore_in_scope` borrow an existing
+`LocalExecutionScope` for the restoration boundary. They reuse the original
+Seq/All reply cores; no second collector or owning scope is created. The existing
+`restore` entries keep their unscoped behavior and original validation order.
+Closed scopes return `ScopeClosed` before shape, native equality or admission.
+Structural or native refusal closes the scope before retained saved rows and
+unused admission-hook owners are released. An escaping native equality/admission
+unwind also closes before core-owned row cleanup. This includes prepared Seq
+requests, accepted replies and pending identities, without new payload trait bounds.
+
+Identity equality and whole-snapshot admission remain native callbacks. If either
+revokes the scope, restoration stops before another native check and returns
+`ScopeClosed`, even if that callback returned a duplicate identity, success or a
+native error. Superseded native errors are disposed only after closure. Ordinary
+native errors with an open scope are returned unchanged, after closing the scope.
+Callback-internal cleanup remains trusted: the core cannot fence a destructor
+executed inside native code before control returns. Cleanup can unwind and a second
+panic can abort; this is cooperative lifetime control, not a native-code sandbox.
+
+Success leaves the scope open and retains original accepted/pending/prepared
+owners. Restored sessions do not store the scope: use that same scope for later
+publication, acceptance and result handoff, and cancel external work explicitly.
+No restoration step creates fuel, dispatches work, duplicates replies, authenticates
+storage or changes settlement policy. An all-accepted Seq remains Completed;
+an all-accepted All remains ReadyResults for its once-only ordered handoff.
+
+The [scoped-restoration proof](fixtures/leselang_native_scoped_restore_macos_arm64_20261020.json)
+covers original live snapshots, all seven Seq frontiers and eight All masks on
+numeric/text hosts, closed/invalid/duplicate snapshots, native equality and admission
+revocation/unwind, original error ownership and cleanup failures. Observer destructors
+assert that retained native cleanup never sees an open scope on refused paths.
+The same tests run in the isolated source consumer. Native contract `0.167.0`
+remains Developing/Draft at completion 10; full durable recovery and extraction
+are not promoted by this local lifetime boundary.
+
+### Shared-Owner Graph Restoration
+
+`ScopedLocalExecution::as_parts_mut()` lends the original
+`(&LocalExecutionScope, &mut Value)` without extracting the unique owner. A native
+coordinator can retain `Option<native::Vm>` in the value and pass that same scope
+to raw `Vm::restore_pending_in_scope` and the existing Seq/All `restore_in_scope`
+entries. There is no cloned owner, extra liveness cell, state machine, scheduler,
+meter or product dependency. Borrows cannot outlive the owning wrapper.
+
+The raw binding-VM entry delegates to the same fenced restoration core already
+used by `LocalVm`. Closed scopes skip native admission; structural/native refusal,
+revocation and escaping unwind close before retained input cleanup. Success
+retains original return frames, captures, identity, declaration, limits and fuel,
+but does not retain the borrowed scope. Legacy unscoped restore is unchanged.
+This adds no transfer escape from `LocalVm` and no new final-effect restore entry.
+
+The coupled source pipeline now restores parent and collectors under that one
+fence. If the parent has already been restored and child admission then refuses,
+revokes or unwinds, all leases are closed while the original parent remains owned
+in Awaiting state. The coordinator explicitly cancels that retained parent; it
+does not mistake revocation for automatic cancellation or successful settlement.
+Tests inject each failure at every child restore boundary across twelve
+numeric/text host and Seq/All/repeat combinations. Requests, invocations and fuel
+do not advance on refused restoration, and sibling owners remain open. Parent
+structural/native refusal and unwind no longer rely on manual scope closure.
+Every fuel cutoff still matches the uninterrupted `LocalVm` path.
+
+The [shared-owner proof](fixtures/leselang_native_shared_owner_macos_arm64_20261020.json)
+records the same coupled tests in a product-free source consumer. Native contract
+`0.168.0` remains Developing/Draft at completion 10. Arbitrary host mutation through
+the borrowed value is not fenced; callback-internal cleanup remains trusted.
+Later dispatch must still check live leases and native authority. Authentic
+durable codecs, crash reconciliation, external cancellation and complete graph
+extraction remain separate gates, not properties of this local borrow.
+
 ### Metered Owned Checkpoint Recovery
 
 `native::LocalVm::with_metered_host_outcome(input, work)` lends the original
@@ -7384,7 +7626,22 @@ The export has its own locked/offline CI and a separate `consumer/` workspace
 whose relative dependencies point only into the exported source. `--verify`
 checks local dependency paths, runs all native tests and strict lints, then runs
 the consumer's checkpoint/saved-frame/group-graph/recovery-fence/captured-reentry/durable-control/scope/session/stack/GUI/native-VM tests and
-strict lints. Reusing a target cache does not provide source or product metadata.
+strict lints. Verification uses a fresh, exclusive Cargo target directory in the
+system temporary area, not the monorepo's `target` or an inherited target cache.
+The exported workspace and consumer share only that invocation's disposable
+build artifacts. Overlapping exports have distinct targets; no repository-wide
+cache eviction or cleanup is performed. This deliberately cold-builds language
+crates for the portability proof; the locked registry download cache may still
+be reused. Ordinary exports without `--verify` do not compile or create a target.
+
+The Rust exporter removes its verification cache before sealing or publishing
+the source inventory. Verification and cleanup errors are both retained; failed
+cleanup blocks publication even when Cargo succeeded. The owned source stage and
+target also attempt cleanup during unwinding. Unix directories are created with
+mode 0700, and recursive cleanup does not follow links into unrelated directories.
+Abrupt process termination can still leave temporary directories; this is not a
+transactional filesystem service or a sandbox for arbitrary verifier code.
+
 `export-manifest.json` records relative file paths, exact SHA-256 and provenance;
 `verified` becomes true only after those checks and exact inventory revalidation.
 It is not a signature or a durable execution/authority certificate.
@@ -7396,6 +7653,11 @@ The retained [macOS arm64 export proof](fixtures/leselang_native_vm_source_expor
 records the four-crate inventory, exact facade/consumer provenance and successful
 workspace/consumer tests and strict lints. It is local source-portability evidence,
 not a claim of fresh Linux validation or the remaining complete-runtime gates.
+The newer [isolated verification proof](fixtures/leselang_native_isolated_verification_macos_arm64_20261020.json)
+reruns the complete locked/offline `--verify` path with a fresh disposable cache,
+including workspace/consumer tests and strict Clippy, byte-identical source
+inventory, and cache removal before publication. It records a verified source
+checkpoint, not completion of host-neutral durable recovery or physical extraction.
 
 This closes the native source portability proof, **not the complete independent
 VM or repository extraction gate**. Product-coupled durable recovery and reference
@@ -8077,9 +8339,49 @@ and 24 SQLite states, including conflicting faults and malformed unused pending
 receipts, with all original tables unchanged. Independent consumers cover both
 states, every reached hook refusal/unwind, original move-only local ownership,
 late cleanup and late-proof/commit failure before checkpoint publication.
-Reference execution advances to `1.103.0`; native embedding remains `0.162.0`,
+That migration advanced reference execution to `1.103.0`; native embedding remains `0.162.0`,
 Developing at completion 10. Global graph proofs, authentic storage and complete
 native durable execution remain separate extraction obligations.
+
+Stored dispatch recovery now uses core `inspect_dispatch_recovery` through
+`DispatchRecoveryHost`. The shared pass admits the original request, proves
+identity/image, reads metadata, checks delivery/retry bounds and history, admits
+the original retry error only when present, then checks completion agreement.
+It preserves rejection order without clamping counters, eagerly decoding unused
+data or reconstructing opaque native payloads. SQL, bounded codecs, schema/lease
+integrity, authentic requests and the checkpoint transaction remain native.
+The [dispatch recovery proof](fixtures/leselang_reference_dispatch_recovery_macos_arm64_20261018.json)
+records 1,176 frozen comparisons across 49 dispatches from eight flow forms and
+24 SQLite states. All original tables remain unchanged; late dispatch refusal
+prevents checkpoint publication and watermark updates. Independent consumers
+cover 10,584 numeric/history/state boundary combinations, move-only local owners,
+unsized hosts, exact native error ownership, every reached hook unwind, cleanup,
+and late-proof/commit failure. The source-export consumer reuses these tests.
+That migration advanced reference execution to `1.104.0`; native embedding stays `0.162.0`,
+Developing at completion 10. This is another migrated recovery pipeline, not a
+complete independent durable evaluator or permission to replay settled effects.
+
+The reference loader now uses `CheckpointRecovery::finish_recovery` and a native
+`CheckpointFinalizer` for the complete commit boundary: dispatch validation,
+graph validation, exact row/graph maximum observation, audit validation, watermark
+reconciliation and atomic commit. No arithmetic repairs or grants are synthesized. Staged maps
+are not passed to these hooks. Metadata and native errors stay locally owned
+through failure and cleanup, and a closed pass invokes no hook. A successful
+commit followed by unwind remains uncertain, not an automatic replay opportunity.
+The [finalization proof](fixtures/leselang_reference_finalization_macos_arm64_20261018.json)
+records 420 full-load comparisons over 28 original SQLite states, including nine
+flow forms, real cancellation audit records, conflicting faults, watermark write
+failure and deferred-foreign-key failure at actual COMMIT. Returned snapshots,
+faults and all original tables match the frozen pipeline; refused transactions
+roll back and release their locks. Independent consumers test the five ordered
+phases, original full-width maxima, move-only metadata/error ownership, every hook
+unwind, destructor failures and commit-then-unwind uncertainty.
+Product audit identities/origins, request authority, concrete graph/receipt proofs,
+SQL/schema policy and storage atomicity stay native rather than coupling the
+language core to Leserpent. Reference execution remains `1.105.0`; native
+embedding is now `0.168.0` after shared-owner graph restoration, still Developing at
+completion 10. This closes the ordered
+finalization boundary, not complete native durable execution or repository extraction.
 
 **The current 2.3.0-and-later phase closes acceptance gates; physical extraction is deferred.**
 It is not an automatic version-triggered move. No replacement extraction version

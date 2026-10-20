@@ -4,6 +4,204 @@ fn root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
 }
 
+fn assert_complete_checkpoint_finalization_order() {
+    let core =
+        fs::read_to_string(root().join("crates/leselang-runtime-core/src/checkpoint.rs")).unwrap();
+    let ordered = core
+        .split_once("pub fn finish_recovery<")
+        .unwrap()
+        .1
+        .split_once("pub fn finish<")
+        .unwrap()
+        .0
+        .split_whitespace()
+        .collect::<String>();
+    let mut offset = 0;
+    for stage in [
+        "self.finish(host,",
+        "host.validate_dispatches()",
+        "host.validate_graphs()",
+        "snapshot.highest_sequence().max(graph_sequence)",
+        "host.validate_audits()",
+        "host.advance_watermark(highest_sequence)",
+        "match host.commit()",
+        "Ok(()) => Ok(metadata)",
+        "Err(error) =>",
+        "drop(metadata)",
+        "Err(CheckpointFinalizationError::Commit(error))",
+    ] {
+        let compact = stage.split_whitespace().collect::<String>();
+        offset += ordered[offset..]
+            .find(&compact)
+            .unwrap_or_else(|| panic!("missing/reordered {stage}"))
+            + compact.len();
+    }
+    for absent in [
+        "rusqlite",
+        "leserpent",
+        "DebuggerAuditContext",
+        "EffectRequest",
+        "unwrap(",
+        "expect(",
+    ] {
+        assert!(!ordered.contains(absent), "{absent}");
+    }
+}
+
+#[test]
+fn complete_checkpoint_finalization_is_shared_without_importing_product_audit_policy() {
+    assert_complete_checkpoint_finalization_order();
+    let code = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    assert!(code.contains(".finish_recovery(SqliteRecoveryFinalizer"));
+    let adapter = code
+        .split_once("impl leselang_runtime_core::CheckpointFinalizer for SqliteRecoveryFinalizer")
+        .unwrap()
+        .1
+        .split_once("fn validate_debugger_audit_records(")
+        .unwrap()
+        .0;
+    let compact_adapter = adapter.split_whitespace().collect::<String>();
+    for boundary in [
+        "validate_dispatch_records(self.connection()?)",
+        "validate_merge_graph_records(self.connection()?)",
+        "validate_debugger_audit_records(self.connection()?)",
+        "advance_sequence_watermark(self.connection()?, highest_sequence)",
+        "self.transaction.take()",
+        "transaction.commit()",
+    ] {
+        assert!(
+            compact_adapter.contains(&boundary.split_whitespace().collect::<String>()),
+            "{boundary}"
+        );
+    }
+    assert!(code.contains("crate::validate_debugger_audit(&context)"));
+    let frozen = fs::read_to_string(
+        root().join("crates/leselang-vm/src/journal/finalization_contract_tests.rs"),
+    )
+    .unwrap();
+    assert!(!frozen.contains("finish_recovery("));
+    for proof in [
+        "assert_eq!(comparisons, 420)",
+        "DEFERRABLE INITIALLY DEFERRED",
+        "all_tables(&actual.connection), before",
+        "original.is_autocommit()",
+    ] {
+        assert!(frozen.contains(proof), "{proof}");
+    }
+    let consumer =
+        fs::read_to_string(root().join("crates/leselang-runtime-core/tests/checkpoint.rs"))
+            .unwrap();
+    for test in [
+        "ordered_finalization_joins_original_maxima_without_clamping_or_early_handoff",
+        "ordered_finalization_keeps_native_error_ownership_and_exact_refusal_prefix",
+        "ordered_finalization_each_hook_unwind_discards_staging_without_retry",
+        "ordered_finalization_cleanup_unwind_keeps_snapshot_metadata_and_error_local",
+        "ordered_finalization_commit_then_unwind_is_uncertain_not_replay_permission",
+        "ordered_finalization_of_closed_staging_releases_host_without_any_hook",
+    ] {
+        assert!(consumer.contains(test), "{test}");
+    }
+    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(exporter.contains("crates/leselang-runtime-core/src/checkpoint.rs"));
+    assert!(exporter.contains("consumer/tests/checkpoint_recovery.rs"));
+}
+
+#[test]
+fn complete_dispatch_recovery_is_shared_before_checkpoint_commit() {
+    let core =
+        fs::read_to_string(root().join("crates/leselang-runtime-core/src/dispatch_recovery.rs"))
+            .unwrap();
+    let body = core
+        .split_once("pub fn inspect_dispatch_recovery<")
+        .unwrap()
+        .1
+        .split_whitespace()
+        .collect::<String>();
+    let mut offset = 0;
+    for stage in [
+        "host.admit_request()",
+        "host.validate_identity(&request)",
+        "host.validate_image(&request)",
+        "host.read_metadata()",
+        "metadata.attempt < 0",
+        "metadata.ready_at_ms < 0",
+        "(metadata.retry_count == 0) != metadata.last_error.is_none()",
+        "if let Some(original) = metadata.last_error",
+        "host.validate_retry_error(original)",
+        "metadata.acknowledged != metadata.effect_completed",
+        "drop(request)",
+        "Ok(())",
+    ] {
+        let compact = stage.split_whitespace().collect::<String>();
+        offset += body[offset..]
+            .find(&compact)
+            .unwrap_or_else(|| panic!("missing/reordered {stage}"))
+            + compact.len();
+    }
+    for absent in [
+        "rusqlite",
+        "leselang_command",
+        "leselang_vm",
+        "EffectRequest",
+        "serde_json",
+        "Fuel::",
+        ".clone()",
+        "unwrap(",
+        "expect(",
+    ] {
+        assert!(!core.contains(absent), "{absent}");
+    }
+    let code = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let pass = code
+        .split_once("fn validate_dispatch_records(")
+        .unwrap()
+        .1
+        .split_once("fn validate_debugger_audit_records(")
+        .unwrap()
+        .0;
+    for boundary in [
+        "recover_dispatch_record(row)?",
+        "inspect_dispatch_recovery(",
+        "impl leselang_runtime_core::DispatchRecoveryHost for SqliteRecoveryDispatch",
+        "MAX_JOURNAL_ENTRY_BYTES",
+        "MAX_CONTINUATION_BYTES",
+        "MAX_DISPATCH_ATTEMPTS",
+        "MAX_SEMANTIC_RETRIES",
+        "decode_bounded(&bytes, 2_048)",
+        "validate_effect_request(&request)?",
+        "request.continuation.token.as_str() != self.token",
+        "request_image != effect_image",
+    ] {
+        assert!(pass.contains(boundary), "{boundary}");
+    }
+    assert!(!pass.contains("if attempt < 0"));
+    let frozen = fs::read_to_string(
+        root().join("crates/leselang-vm/src/journal/dispatch_recovery_contract_tests.rs"),
+    )
+    .unwrap();
+    assert!(!frozen.contains("inspect_dispatch_recovery("));
+    assert!(frozen.contains("assert_eq!(comparisons, 1176)"));
+    assert!(frozen.contains("assert_eq!(snapshot(&tx), before)"));
+    assert!(frozen.contains(
+        "late_dispatch_refusal_blocks_snapshot_and_watermark_until_original_data_is_repaired"
+    ));
+    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(exporter.contains("crates/leselang-runtime-core/src/dispatch_recovery.rs"));
+    assert!(exporter.contains("consumer/tests/dispatch_plan.rs"));
+    let consumer =
+        fs::read_to_string(root().join("crates/leselang-runtime-core/tests/dispatch_plan.rs"))
+            .unwrap();
+    for test in [
+        "dispatch_recovery_numeric_and_history_order_matches_boundary_oracle",
+        "dispatch_recovery_preserves_move_only_local_owners_and_lazy_error_decode",
+        "dispatch_recovery_native_errors_are_owned_redacted_and_stop_at_first_fault",
+        "dispatch_recovery_every_hook_unwind_and_final_cleanup_stop_without_retry",
+        "dispatch_recovery_refusal_or_commit_failure_never_publishes_staged_checkpoint",
+    ] {
+        assert!(consumer.contains(test), "{test}");
+    }
+}
+
 fn assert_complete_record_recovery_order() {
     let core =
         fs::read_to_string(root().join("crates/leselang-runtime-core/src/record_recovery.rs"))
@@ -3995,12 +4193,7 @@ fn actual_sqlite_recovery_uses_host_neutral_staging_without_moving_frame_or_auth
         "CheckpointRecovery::new(MAX_JOURNAL_RECORDS, crate::MAX_EFFECT_SEQUENCE)",
         "TransactionBehavior::Immediate",
         ".push(recover_effect_record(&transaction, row)?)",
-        ".finish(Some(transaction)",
-        "validate_dispatch_records(connection)?",
-        "validate_merge_graph_records(connection)?",
-        "validate_debugger_audit_records(connection)?",
-        "advance_sequence_watermark(connection, highest_sequence)?",
-        "transaction.commit()",
+        ".finish_recovery(SqliteRecoveryFinalizer",
         "snapshot.into_parts()",
     ] {
         assert!(load.contains(boundary), "actual recovery lost {boundary}");
@@ -4031,6 +4224,7 @@ fn actual_sqlite_recovery_uses_host_neutral_staging_without_moving_frame_or_auth
     let cleanup = record.split("fn completed_payload(").nth(1).unwrap();
     assert!(cleanup.find("drop((").unwrap() < cleanup.find("(token, completed)").unwrap());
     assert_complete_record_recovery_order();
+    assert_complete_checkpoint_finalization_order();
     assert!(code.contains("recovery_commit_failure_releases_staging_and_rolls_back_the_watermark"));
     assert!(code.contains("recovery_rejects_a_late_invalid_row_without_exposing_the_valid_prefix"));
     let core =

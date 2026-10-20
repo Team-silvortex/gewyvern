@@ -603,6 +603,249 @@ fn both_hosts_run_continuous_control_helpers_and_two_replies_through_native_vm()
     assert!(complete::<Panel>(10_000).is_ok());
 }
 
+type PipelineVm<'ir, 's, P> = leselang_vm::native::Vm<
+    'ir,
+    's,
+    Node,
+    <P as Profile>::Value,
+    RestoredEffectBindings<'ir, <P as Profile>::Value>,
+    Identity,
+    Domain<P>,
+    Reply<<P as Profile>::Value>,
+>;
+
+// The host retains its scope; this moves real VM state, not a fabricated saved
+// frame or an external-effect durability claim. LocalVm cannot escape its owner.
+fn transfer_pending<'ir, 's, P: Profile>(
+    vm: PipelineVm<'ir, 's, P>,
+    host: &Host<'_, 's, P>,
+) -> PipelineVm<'ir, 's, P> {
+    let remaining = vm.fuel_remaining();
+    let serial = host.serial.get();
+    let invocations = host.invoked.borrow().len();
+    let saved = vm.try_into_pending_binding().unwrap();
+    assert_eq!(format!("{saved:?}"), "PendingStackedBinding");
+    assert_eq!(saved.fuel.remaining(), remaining);
+    assert_eq!(saved.limits, STACK);
+    let declaration = saved.declaration;
+    let frames: Vec<_> = saved
+        .continuation
+        .into_frames()
+        .into_iter()
+        .map(|frame| {
+            let (name, body, capture) = frame.into_parts();
+            effect_stack::SavedEffectReturnFrame {
+                name,
+                body,
+                capture,
+            }
+        })
+        .collect();
+    let originals: Vec<_> = frames
+        .iter()
+        .map(|frame| {
+            (
+                frame.name.as_ptr(),
+                frame.body as *const Node,
+                frame.capture.as_ptr(),
+            )
+        })
+        .collect();
+    let mut restored = PipelineVm::restore_pending(
+        saved.identity,
+        declaration,
+        frames,
+        saved.fuel,
+        saved.limits,
+        |identity, domain, frames, fuel| {
+            host.authorize(identity)?;
+            assert_eq!(identity.serial, serial);
+            assert!(std::ptr::eq(domain, declaration));
+            assert_eq!(fuel.remaining(), remaining);
+            assert_eq!(frames.len(), originals.len());
+            for (frame, original) in frames.iter().zip(&originals) {
+                assert_eq!(
+                    (
+                        frame.name.as_ptr(),
+                        frame.body as *const Node,
+                        frame.capture.as_ptr()
+                    ),
+                    *original
+                );
+            }
+            Ok::<_, Refusal>(())
+        },
+    )
+    .unwrap();
+    assert_eq!(host.serial.get(), serial);
+    assert_eq!(host.invoked.borrow().len(), invocations);
+    assert!(matches!(
+        restored.poll(host).unwrap(),
+        EffectSessionPoll::Awaiting
+    ));
+    assert_eq!(restored.fuel_remaining(), remaining);
+    restored
+}
+
+#[derive(Debug, PartialEq)]
+struct TransferOutcome {
+    value: Option<ScalarValue>,
+    remaining: u64,
+    invocations: Vec<ScalarValue>,
+    requests: u64,
+}
+
+fn transferred_pipeline<P: Profile>(budget: u64, mask: u8) -> TransferOutcome {
+    let mut output = None;
+    fixture::<P>(|host, _scope| {
+        let node = compile(P::PROGRAM, &host).unwrap();
+        let mut vm = PipelineVm::new(&node, Vec::new(), Fuel::new(budget), STACK);
+        vm = vm.try_into_pending_binding().unwrap_err();
+        let mut previous = None;
+        let mut value = None;
+        for index in 0..=2 {
+            match vm.poll(&host) {
+                Ok(EffectSessionPoll::Request(dispatch)) => {
+                    assert!(index < 2);
+                    if mask & (1 << index) != 0 {
+                        vm = transfer_pending(vm, &host);
+                    }
+                    let remaining = vm.fuel_remaining();
+                    if let Some(old) = &previous {
+                        let input = Reply {
+                            value: P::invalid_value(),
+                            buffer: Box::new(91),
+                        };
+                        let address = &*input.buffer as *const u8;
+                        let refused = vm.try_accept(old, input, &host).unwrap_err();
+                        assert!(matches!(
+                            refused.error,
+                            effect_session::EffectSessionReplyError::Reply(
+                                ReplyAcceptanceError::IdentityMismatch
+                            )
+                        ));
+                        assert_eq!(&*refused.reply.buffer as *const u8, address);
+                    }
+                    let identity = dispatch.identity.clone();
+                    vm.try_accept(&identity, host.dispatch(dispatch).unwrap(), &host)
+                        .unwrap();
+                    // An accepted receipt must never escape as an awaiting frame.
+                    vm = vm.try_into_pending_binding().unwrap_err();
+                    assert_eq!(vm.status(), EffectSessionStatus::Ready);
+                    assert_eq!(vm.fuel_remaining(), remaining);
+                    previous = Some(identity);
+                }
+                Ok(EffectSessionPoll::Value(PureValue::Scalar(result))) => {
+                    assert_eq!(result, P::expected());
+                    value = Some(result);
+                    break;
+                }
+                Err(_) => {
+                    assert_eq!(
+                        vm.status(),
+                        EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+                    );
+                    break;
+                }
+                _ => panic!("unexpected native pipeline state"),
+            }
+        }
+        let terminal = if value.is_some() {
+            EffectSessionEnd::Completed
+        } else {
+            EffectSessionEnd::Failed
+        };
+        vm = vm.try_into_pending_binding().unwrap_err();
+        assert_eq!(vm.status(), EffectSessionStatus::Terminal(terminal));
+        assert!(
+            matches!(vm.poll(&host).unwrap(), EffectSessionPoll::Terminal(end) if end == terminal)
+        );
+        output = Some(TransferOutcome {
+            value,
+            remaining: vm.fuel_remaining(),
+            invocations: host.invoked.borrow().clone(),
+            requests: host.serial.get(),
+        });
+    });
+    output.unwrap()
+}
+
+#[test]
+fn both_hosts_move_actual_pending_vm_frames_and_recover_without_budget_reset_or_replay() {
+    fn check<P: Profile>() {
+        let baseline = transferred_pipeline::<P>(10_000, 0);
+        assert!(baseline.value.is_some());
+        assert_eq!(baseline.invocations, P::arguments());
+        let used = 10_000 - baseline.remaining;
+        for budget in 0..=used + 1 {
+            let original = transferred_pipeline::<P>(budget, 0);
+            for mask in 1..=3 {
+                assert_eq!(
+                    transferred_pipeline::<P>(budget, mask),
+                    original,
+                    "budget={budget} mask={mask}"
+                );
+            }
+        }
+    }
+    check::<Counter>();
+    check::<Panel>();
+}
+
+#[test]
+fn both_hosts_recheck_policy_and_keep_cancelled_transferred_sessions_terminal() {
+    fn check<P: Profile>() {
+        for phase in 0..3 {
+            fixture::<P>(|host, scope| {
+                let node = compile(P::PROGRAM, &host).unwrap();
+                let mut vm = PipelineVm::new(&node, Vec::new(), Fuel::new(10_000), STACK);
+                let EffectSessionPoll::Request(dispatch) = vm.poll(&host).unwrap() else {
+                    panic!()
+                };
+                vm = transfer_pending(vm, &host);
+                let identity = dispatch.identity.clone();
+                if phase == 0 {
+                    host.granted.set(false);
+                    assert!(host.dispatch(dispatch).is_err());
+                    assert!(host.invoked.borrow().is_empty());
+                } else {
+                    let reply = host.dispatch(dispatch).unwrap();
+                    if phase == 1 {
+                        host.revision.set(2);
+                        assert!(vm.try_accept(&identity, reply, &host).is_err());
+                        assert_eq!(vm.status(), EffectSessionStatus::Awaiting);
+                    } else {
+                        vm.try_accept(&identity, reply, &host).unwrap();
+                        host.version.set(32);
+                        assert!(vm.poll(&host).is_err());
+                        assert_eq!(
+                            vm.status(),
+                            EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+                        );
+                    }
+                    assert_eq!(host.invoked.borrow().len(), 1);
+                }
+                let end = if phase == 2 {
+                    EffectSessionEnd::Failed
+                } else {
+                    EffectSessionEnd::Cancelled
+                };
+                scope.close();
+                vm.cancel();
+                let remaining = vm.fuel_remaining();
+                vm = vm.try_into_pending_binding().unwrap_err();
+                assert_eq!(vm.status(), EffectSessionStatus::Terminal(end));
+                assert!(
+                    matches!(vm.poll(&host).unwrap(), EffectSessionPoll::Terminal(reason) if reason == end)
+                );
+                assert_eq!(vm.fuel_remaining(), remaining);
+            });
+        }
+    }
+    check::<Counter>();
+    check::<Panel>();
+}
+
 #[test]
 fn pipeline_matrix_covers_atomic_control_nodes_without_claiming_group_or_opaque_host_coverage() {
     fn covered<P: Profile>() -> std::collections::BTreeSet<&'static str> {
@@ -644,6 +887,265 @@ fn pipeline_matrix_covers_atomic_control_nodes_without_claiming_group_or_opaque_
         .into_iter()
         .collect()
     );
+}
+
+mod final_pipeline {
+    use super::*;
+
+    trait FinalProfile: Profile {
+        const DIRECT: &'static str;
+        const CAPTURED: &'static str;
+        fn returned(value: PureValue<Self::Value>) -> ScalarValue;
+        fn expected_final(captured: bool) -> ScalarValue;
+    }
+    impl FinalProfile for Counter {
+        const DIRECT: &'static str = "fn main() = counter.add(amount: 5)";
+        const CAPTURED: &'static str = "fn update(n: integer) = counter.add(amount: n)\nfn main() = bind(first: update(n: 5), body: update(n: add(left: first, right: 1)))";
+        fn returned(value: PureValue<ScalarValue>) -> ScalarValue {
+            let PureValue::Scalar(value) = value else {
+                panic!("scalar final reply")
+            };
+            value
+        }
+        fn expected_final(captured: bool) -> ScalarValue {
+            ScalarValue::Integer(if captured { 11 } else { 5 })
+        }
+    }
+    impl FinalProfile for Panel {
+        const DIRECT: &'static str = "fn main() = panel.set_text(text: \"ready\")";
+        const CAPTURED: &'static str = "fn render(text: string) = panel.set_text(text: text)\nfn main() = bind(first: render(text: \"ready\"), body: render(text: concat(left: field(value: first, name: \"text\"), right: \"!\")))";
+        fn returned(value: PureValue<WidgetAck>) -> ScalarValue {
+            let PureValue::Result(value) = value else {
+                panic!("structured final reply")
+            };
+            assert!(value.visible);
+            ScalarValue::String(value.text)
+        }
+        fn expected_final(captured: bool) -> ScalarValue {
+            ScalarValue::String(if captured { "ready!" } else { "ready" }.into())
+        }
+    }
+
+    fn transfer<'ir, 's, P: Profile>(
+        vm: PipelineVm<'ir, 's, P>,
+        host: &Host<'_, 's, P>,
+    ) -> PipelineVm<'ir, 's, P> {
+        let vm = vm.try_into_pending_binding().unwrap_err();
+        let remaining = vm.fuel_remaining();
+        let saved = vm.try_into_pending_final().unwrap();
+        let declaration = saved.declaration;
+        let serial = host.serial.get();
+        let invoked = host.invoked.borrow().len();
+        let mut restored = PipelineVm::restore_pending_final(
+            saved.identity,
+            saved.declaration,
+            saved.fuel,
+            saved.limits,
+            |identity, domain, fuel| {
+                host.authorize(identity)?;
+                assert!(std::ptr::eq(domain, declaration));
+                assert_eq!(identity.serial, serial);
+                assert_eq!(fuel.remaining(), remaining);
+                Ok::<_, Refusal>(())
+            },
+        )
+        .unwrap();
+        assert!(matches!(
+            restored.poll(host).unwrap(),
+            EffectSessionPoll::Awaiting
+        ));
+        assert_eq!(host.serial.get(), serial);
+        assert_eq!(host.invoked.borrow().len(), invoked);
+        assert_eq!(restored.fuel_remaining(), remaining);
+        restored
+    }
+
+    fn run<P: FinalProfile>(captured: bool, budget: u64, mode: u8) -> TransferOutcome {
+        let mut output = None;
+        fixture::<P>(|host, _scope| {
+            let node = compile(if captured { P::CAPTURED } else { P::DIRECT }, &host).unwrap();
+            let mut vm = PipelineVm::new(&node, Vec::new(), Fuel::new(budget), STACK);
+            let mut value = None;
+            let mut previous = None;
+            let last = usize::from(captured);
+            for index in 0..=last {
+                let dispatch = match vm.poll(&host) {
+                    Ok(EffectSessionPoll::Request(dispatch)) => dispatch,
+                    Err(_) => break,
+                    _ => panic!("expected request"),
+                };
+                let identity = dispatch.identity.clone();
+                let reply = if index != last {
+                    vm = vm.try_into_pending_final().unwrap_err();
+                    if mode != 0 {
+                        vm = transfer_pending(vm, &host);
+                    }
+                    host.dispatch(dispatch).unwrap()
+                } else if mode == 2 {
+                    let reply = host.dispatch(dispatch).unwrap();
+                    vm = transfer(vm, &host);
+                    reply
+                } else {
+                    if mode == 1 {
+                        vm = transfer(vm, &host);
+                    }
+                    host.dispatch(dispatch).unwrap()
+                };
+                let fuel = vm.fuel_remaining();
+                if let Some(stale) = &previous {
+                    let bad = Reply {
+                        value: P::invalid_value(),
+                        buffer: Box::new(9),
+                    };
+                    let error = vm.try_accept(stale, bad, &host).unwrap_err();
+                    assert!(matches!(
+                        error.error,
+                        effect_session::EffectSessionReplyError::Reply(
+                            ReplyAcceptanceError::IdentityMismatch
+                        )
+                    ));
+                }
+                let bad = Reply {
+                    value: P::invalid_value(),
+                    buffer: Box::new(10),
+                };
+                let pointer = &*bad.buffer as *const u8;
+                let bad = vm.try_accept(&identity, bad, &host).unwrap_err();
+                assert_eq!(&*bad.reply.buffer as *const u8, pointer);
+                assert_eq!(vm.fuel_remaining(), fuel);
+                vm.try_accept(&identity, reply, &host).unwrap();
+                vm = vm.try_into_pending_final().unwrap_err();
+                vm = vm.try_into_pending_binding().unwrap_err();
+                assert_eq!(vm.status(), EffectSessionStatus::Ready);
+                assert_eq!(vm.fuel_remaining(), fuel);
+                previous = Some(identity);
+                if index == last {
+                    match vm.poll(&host) {
+                        Ok(EffectSessionPoll::Value(result)) => value = Some(P::returned(result)),
+                        Err(_) => {}
+                        _ => panic!("final request produced a successor"),
+                    }
+                }
+            }
+            let end = if value.is_some() {
+                EffectSessionEnd::Completed
+            } else {
+                EffectSessionEnd::Failed
+            };
+            assert_eq!(vm.status(), EffectSessionStatus::Terminal(end));
+            vm = vm.try_into_pending_final().unwrap_err();
+            assert!(
+                matches!(vm.poll(&host).unwrap(), EffectSessionPoll::Terminal(actual) if actual == end)
+            );
+            output = Some(TransferOutcome {
+                value,
+                remaining: vm.fuel_remaining(),
+                invocations: host.invoked.borrow().clone(),
+                requests: host.serial.get(),
+            });
+        });
+        output.unwrap()
+    }
+
+    #[test]
+    fn two_hosts_restore_direct_and_captured_final_requests_before_or_after_dispatch_at_every_fuel_cutoff()
+     {
+        fn check<P: FinalProfile>() {
+            for captured in [false, true] {
+                let baseline = run::<P>(captured, 10_000, 0);
+                assert_eq!(baseline.value, Some(P::expected_final(captured)));
+                assert_eq!(baseline.requests, 1 + u64::from(captured));
+                assert_eq!(baseline.invocations.len(), 1 + usize::from(captured));
+                for budget in 0..=10_001 - baseline.remaining {
+                    let expected = run::<P>(captured, budget, 0);
+                    for mode in 1..=2 {
+                        assert_eq!(
+                            run::<P>(captured, budget, mode),
+                            expected,
+                            "captured={captured} budget={budget} mode={mode}"
+                        );
+                    }
+                }
+            }
+        }
+        check::<Counter>();
+        check::<Panel>();
+    }
+
+    #[test]
+    fn two_hosts_final_restore_and_local_ownership_preserve_revocation_and_cancellation() {
+        fn check<P: FinalProfile>() {
+            for phase in 0..6 {
+                fixture::<P>(|host, scope| {
+                    let node = compile(P::DIRECT, &host).unwrap();
+                    let mut vm = PipelineVm::new(&node, Vec::new(), Fuel::new(100), STACK);
+                    let EffectSessionPoll::Request(dispatch) = vm.poll(&host).unwrap() else {
+                        panic!()
+                    };
+                    let identity = dispatch.identity.clone();
+                    let saved = vm.try_into_pending_final().unwrap();
+                    let remaining = saved.fuel.remaining();
+                    if phase == 0 {
+                        host.granted.set(false);
+                    }
+                    let restored = LocalVm::restore_pending_final(
+                        scope,
+                        saved.identity,
+                        saved.declaration,
+                        saved.fuel,
+                        saved.limits,
+                        |id, _, _| host.authorize(id),
+                    );
+                    if phase == 0 {
+                        assert!(restored.is_err());
+                        assert!(host.dispatch(dispatch).is_err());
+                        assert!(host.invoked.borrow().is_empty());
+                        return;
+                    }
+                    let mut vm = restored.unwrap();
+                    let lease = vm.lease();
+                    let reply = host.dispatch(dispatch).unwrap();
+                    if phase == 1 {
+                        host.revision.set(2);
+                        assert!(vm.try_accept(&identity, reply, &host).is_err());
+                        assert_eq!(vm.status(), EffectSessionStatus::Awaiting);
+                        vm.cancel();
+                    } else if phase == 3 {
+                        vm.cancel();
+                        assert!(vm.try_accept(&identity, reply, &host).is_err());
+                    } else {
+                        vm.try_accept(&identity, reply, &host).unwrap();
+                        if phase == 2 {
+                            host.granted.set(false);
+                            assert!(vm.poll(&host).is_err());
+                        } else if phase == 4 {
+                            vm.cancel();
+                        } else {
+                            let EffectSessionPoll::Value(value) = vm.poll(&host).unwrap() else {
+                                panic!()
+                            };
+                            assert_eq!(P::returned(value), P::expected_final(false));
+                        }
+                    }
+                    let end = match phase {
+                        2 => EffectSessionEnd::Failed,
+                        5 => EffectSessionEnd::Completed,
+                        _ => EffectSessionEnd::Cancelled,
+                    };
+                    assert_eq!(vm.status(), EffectSessionStatus::Terminal(end));
+                    assert!(
+                        matches!(vm.poll(&host).unwrap(), EffectSessionPoll::Terminal(actual) if actual == end)
+                    );
+                    assert_eq!(vm.fuel_remaining(), remaining);
+                    assert!(!lease.is_open());
+                    assert_eq!(host.invoked.borrow().len(), 1);
+                    assert_eq!(host.serial.get(), 1);
+                });
+            }
+        }
+        check::<Counter>();
+        check::<Panel>();
+    }
 }
 
 fn rejected_reply<P: Profile>() {
@@ -1101,6 +1603,19 @@ mod mixed {
         PreparedSequenceSession<'ir, Node, (), Identity, Domain<P>, Dispatch<'s, P>>;
     type Parallel<'ir, P> =
         PreparedParallelSession<'ir, Node, (), Identity, Domain<P>, Reply<<P as Profile>::Value>>;
+    type SavedSequence<'ir, 's, P> = sequence_evaluation::SavedSequenceMember<
+        'ir,
+        Identity,
+        Domain<P>,
+        Dispatch<'s, P>,
+        Reply<<P as Profile>::Value>,
+    >;
+    type SavedParallel<'ir, P> = parallel_evaluation::SavedParallelMember<
+        'ir,
+        Identity,
+        Domain<P>,
+        Reply<<P as Profile>::Value>,
+    >;
     const BATCH: ParallelEvaluationLimits = ParallelEvaluationLimits {
         max_nodes: 1024,
         max_depth: 64,
@@ -1238,6 +1753,20 @@ mod mixed {
         host: &'r Host<'h, 's, P>,
         plans: &'r [Plan<'ir, P>],
     }
+    #[derive(Clone, Copy, PartialEq)]
+    enum TransferPhase {
+        Parent,
+        ChildAdmission,
+    }
+    struct TransferCheckpoint<'scope, Hook> {
+        scope: Option<&'scope LocalExecutionScope>,
+        hook: Hook,
+    }
+    impl<Hook: FnMut(TransferPhase) -> Result<(), Refusal>> TransferCheckpoint<'_, Hook> {
+        fn run(&mut self, phase: TransferPhase) -> Result<(), Refusal> {
+            (self.hook)(phase)
+        }
+    }
     impl<'r, 'ir, 's, P: Profile> Runtime<'r, 'ir, '_, 's, P> {
         fn plan(&self, node: &Node) -> Result<&'r Plan<'ir, P>, Refusal> {
             self.plans
@@ -1306,14 +1835,187 @@ mod mixed {
                 .map_err(|_| Refusal)
         }
         fn collect(&self, active: Active<'_, 'ir, 's, P>) -> Result<Receipt<'ir, P>, Refusal> {
+            self.collect_with_transfer(active, false)
+        }
+        fn transfer_sequence(
+            &self,
+            queue: Sequence<'ir, 's, P>,
+            prefix: Vec<Accepted<'ir, P>>,
+            plan: &Plan<'ir, P>,
+            checkpoint: &mut TransferCheckpoint<
+                '_,
+                impl FnMut(TransferPhase) -> Result<(), Refusal>,
+            >,
+        ) -> Result<(Sequence<'ir, 's, P>, Vec<Accepted<'ir, P>>), Refusal> {
+            use sequence_evaluation::SavedSequenceReply;
+            let status = queue.status();
+            let invoked = self.host.invoked.borrow().len();
+            let serial = self.host.serial.get();
+            let pointers: Vec<_> = prefix
+                .iter()
+                .map(|row| &*row.as_parts().4.buffer as *const u8)
+                .collect();
+            let saved = queue.try_into_saved(prefix).map_err(|_| Refusal)?;
+            checkpoint.run(TransferPhase::Parent)?;
+            let scope = checkpoint.scope;
+            let admit = |rows: &[SavedSequence<'_, 's, P>]| {
+                checkpoint.run(TransferPhase::ChildAdmission)?;
+                self.authorize(&plan.id())?;
+                let members = plan.members.borrow();
+                for row in rows {
+                    let id = row.reply.identity();
+                    if members.get(row.index) != Some(id) {
+                        return Err(Refusal);
+                    }
+                    self.authorize(id)?;
+                    let domain = match &row.reply {
+                        SavedSequenceReply::Prepared(member) => {
+                            if member.identity != member.request.identity {
+                                return Err(Refusal);
+                            }
+                            self.admit(&member.request.request)?;
+                            if !std::ptr::eq(
+                                member.declaration,
+                                &member.request.request.schema().result,
+                            ) {
+                                return Err(Refusal);
+                            }
+                            member.declaration
+                        }
+                        SavedSequenceReply::Awaiting { declaration, .. } => *declaration,
+                        SavedSequenceReply::Accepted(reply) => {
+                            let (_, (), domain, input) = reply.as_parts();
+                            if !domain.matches_type(&input.value) {
+                                return Err(Refusal);
+                            }
+                            domain.validate_value(&input.value)?;
+                            domain
+                        }
+                    };
+                    if !std::ptr::eq(domain, plan.domain) {
+                        return Err(Refusal);
+                    }
+                }
+                Ok(())
+            };
+            let (queue, prefix) = match scope {
+                Some(scope) => Sequence::restore_in_scope(plan.node, saved, BATCH, admit, scope),
+                None => Sequence::restore(plan.node, saved, BATCH, admit),
+            }
+            .map_err(|_| Refusal)?;
+            assert_eq!(
+                prefix
+                    .iter()
+                    .map(|row| &*row.as_parts().4.buffer as *const u8)
+                    .collect::<Vec<_>>(),
+                pointers
+            );
+            assert_eq!(queue.status(), status);
+            assert_eq!(self.host.serial.get(), serial);
+            assert_eq!(self.host.invoked.borrow().len(), invoked);
+            Ok((queue, prefix))
+        }
+        fn transfer_parallel(
+            &self,
+            barrier: Parallel<'ir, P>,
+            plan: &Plan<'ir, P>,
+            checkpoint: &mut TransferCheckpoint<
+                '_,
+                impl FnMut(TransferPhase) -> Result<(), Refusal>,
+            >,
+        ) -> Result<Parallel<'ir, P>, Refusal> {
+            use parallel_evaluation::SavedParallelReply;
+            let status = barrier.status();
+            let invoked = self.host.invoked.borrow().len();
+            let serial = self.host.serial.get();
+            let rows = barrier.try_into_saved().map_err(|_| Refusal)?;
+            checkpoint.run(TransferPhase::Parent)?;
+            let pointers: Vec<_> = rows
+                .iter()
+                .filter_map(|row| match &row.reply {
+                    SavedParallelReply::Accepted(reply) => {
+                        Some((row.index, &*reply.as_parts().3.buffer as *const u8))
+                    }
+                    _ => None,
+                })
+                .collect();
+            let scope = checkpoint.scope;
+            let admit = |rows: &[SavedParallel<'_, P>]| {
+                checkpoint.run(TransferPhase::ChildAdmission)?;
+                self.authorize(&plan.id())?;
+                let members = plan.members.borrow();
+                for row in rows {
+                    let identity = row.reply.identity();
+                    if members.get(row.index) != Some(identity) {
+                        return Err(Refusal);
+                    }
+                    self.authorize(identity)?;
+                    let domain = match &row.reply {
+                        SavedParallelReply::Awaiting { declaration, .. } => *declaration,
+                        SavedParallelReply::Accepted(accepted) => {
+                            let (_, (), domain, reply) = accepted.as_parts();
+                            if !domain.matches_type(&reply.value) {
+                                return Err(Refusal);
+                            }
+                            domain.validate_value(&reply.value)?;
+                            assert_eq!(
+                                &*reply.buffer as *const u8,
+                                pointers.iter().find(|(i, _)| *i == row.index).unwrap().1
+                            );
+                            domain
+                        }
+                    };
+                    if !std::ptr::eq(domain, plan.domain) {
+                        return Err(Refusal);
+                    }
+                }
+                Ok(())
+            };
+            let barrier = match scope {
+                Some(scope) => Parallel::restore_in_scope(plan.node, rows, BATCH, admit, scope),
+                None => Parallel::restore(plan.node, rows, BATCH, admit),
+            }
+            .map_err(|_| Refusal)?;
+            assert_eq!(barrier.status(), status);
+            assert_eq!(self.host.serial.get(), serial);
+            assert_eq!(self.host.invoked.borrow().len(), invoked);
+            Ok(barrier)
+        }
+        fn collect_with_transfer(
+            &self,
+            active: Active<'_, 'ir, 's, P>,
+            transfer: bool,
+        ) -> Result<Receipt<'ir, P>, Refusal> {
+            self.collect_with_checkpoint(active, transfer, None, |_| Ok(()))
+        }
+        fn collect_with_checkpoint(
+            &self,
+            active: Active<'_, 'ir, 's, P>,
+            transfer: bool,
+            scope: Option<&LocalExecutionScope>,
+            checkpoint: impl FnMut(TransferPhase) -> Result<(), Refusal>,
+        ) -> Result<Receipt<'ir, P>, Refusal> {
+            let mut checkpoint = TransferCheckpoint {
+                scope,
+                hook: checkpoint,
+            };
             self.authorize(&active.plan.id())?;
+            checkpoint.run(TransferPhase::Parent)?;
             let response = match active.work {
-                Work::Atom(request) => Response::Atom(self.host.dispatch(request)?),
+                Work::Atom(request) => {
+                    let reply = self.host.dispatch(request)?;
+                    checkpoint.run(TransferPhase::Parent)?;
+                    Response::Atom(reply)
+                }
                 Work::Sequence(mut sequence) => {
                     let Node::Group { branches, .. } = active.plan.node else {
                         return Err(Refusal);
                     };
                     let mut rows = Vec::new();
+                    if transfer {
+                        (*sequence, rows) =
+                            self.transfer_sequence(*sequence, rows, active.plan, &mut checkpoint)?;
+                    }
                     for expected in 0..branches.len() {
                         let SequencePoll::Request { index, request } =
                             self.publish(&mut sequence)?
@@ -1321,16 +2023,41 @@ mod mixed {
                             return Err(Refusal);
                         };
                         assert_eq!(index, expected);
+                        if transfer {
+                            (*sequence, rows) = self.transfer_sequence(
+                                *sequence,
+                                rows,
+                                active.plan,
+                                &mut checkpoint,
+                            )?;
+                        }
                         assert!(matches!(
                             self.publish(&mut sequence)?,
                             SequencePoll::Awaiting { .. }
                         ));
                         let identity = request.identity.clone();
+                        let reply = self.host.dispatch(request)?;
+                        if transfer {
+                            (*sequence, rows) = self.transfer_sequence(
+                                *sequence,
+                                rows,
+                                active.plan,
+                                &mut checkpoint,
+                            )?;
+                        }
                         rows.push(
                             sequence
-                                .try_accept(&identity, self.host.dispatch(request)?, self.host)
+                                .try_accept(&identity, reply, self.host)
                                 .map_err(|_| Refusal)?,
                         );
+                        if transfer {
+                            (*sequence, rows) = self.transfer_sequence(
+                                *sequence,
+                                rows,
+                                active.plan,
+                                &mut checkpoint,
+                            )?;
+                        }
                     }
                     Response::Group(rows)
                 }
@@ -1338,6 +2065,10 @@ mod mixed {
                     mut barrier,
                     requests,
                 } => {
+                    if transfer {
+                        *barrier =
+                            self.transfer_parallel(*barrier, active.plan, &mut checkpoint)?;
+                    }
                     let mut replies = Vec::new();
                     for request in requests {
                         let identity = request.request.identity.clone();
@@ -1346,11 +2077,19 @@ mod mixed {
                             identity,
                             self.host.dispatch(request.request)?,
                         ));
+                        if transfer {
+                            *barrier =
+                                self.transfer_parallel(*barrier, active.plan, &mut checkpoint)?;
+                        }
                     }
                     for (index, identity, reply) in replies.into_iter().rev() {
                         barrier
                             .try_accept(index, &identity, reply, self.host)
                             .map_err(|_| Refusal)?;
+                        if transfer {
+                            *barrier =
+                                self.transfer_parallel(*barrier, active.plan, &mut checkpoint)?;
+                        }
                         if index > 0 {
                             assert!(
                                 matches!(barrier.poll().unwrap(), ParallelPoll::Awaiting { remaining } if remaining == index)
@@ -1363,6 +2102,7 @@ mod mixed {
                     Response::Group(rows)
                 }
             };
+            checkpoint.run(TransferPhase::Parent)?;
             Ok(Receipt {
                 node: active.plan.node,
                 identity: active.plan.id(),
@@ -1626,18 +2366,475 @@ mod mixed {
         }
     }
 
+    mod coupled_transfer {
+        use super::*;
+        use effect_stack::SavedEffectReturnFrame;
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+
+        type Vm<'r, 'ir, P> = leselang_vm::native::Vm<
+            'ir,
+            'r,
+            Node,
+            View<'ir, P>,
+            RestoredEffectBindings<'ir, View<'ir, P>>,
+            Identity,
+            Plan<'ir, P>,
+            Receipt<'ir, P>,
+        >;
+        type Frame<'ir, P> =
+            SavedEffectReturnFrame<'ir, Node, RestoredEffectBindings<'ir, View<'ir, P>>>;
+
+        #[derive(Clone, Copy, Debug)]
+        enum Fault {
+            None,
+            Closed,
+            Revoked,
+            Stale,
+            WrongRoot,
+            Capture,
+            Shape,
+            Unwind,
+            ChildRefused,
+            ChildRevoked,
+            ChildUnwind,
+        }
+        impl Fault {
+            fn is_child(self) -> bool {
+                matches!(
+                    self,
+                    Self::ChildRefused | Self::ChildRevoked | Self::ChildUnwind
+                )
+            }
+        }
+        #[derive(Default)]
+        struct Cuts {
+            parent: usize,
+            child: usize,
+        }
+
+        // Pointer fingerprints observe moves, not a portable codec or authenticator.
+        // Real admission below also checks live policy and retained native results.
+        fn fingerprint<P: Profile>(frames: &[Frame<'_, P>]) -> Vec<usize> {
+            let mut pointers = Vec::new();
+            for frame in frames {
+                pointers.extend([
+                    frame.name.as_ptr() as usize,
+                    frame.body as *const Node as usize,
+                    frame.capture.as_ptr() as usize,
+                    frame.capture.len(),
+                ]);
+                for (name, value) in &frame.capture {
+                    pointers.push(name.as_ptr() as usize);
+                    if let PureValue::Result(View::Group(_, group)) = value {
+                        pointers.push(Rc::as_ptr(group) as usize);
+                        for row in group.members() {
+                            pointers.push(&*row.as_parts().4.buffer as *const u8 as usize);
+                        }
+                    }
+                }
+            }
+            pointers
+        }
+
+        fn handoff<'r, 'ir: 'r, P: Profile>(
+            slot: &mut Option<Vm<'r, 'ir, P>>,
+            scope: &LocalExecutionScope,
+            runtime: &Runtime<'r, 'ir, '_, '_, P>,
+            plan: &'r Plan<'ir, P>,
+            fault: Fault,
+        ) -> Result<(), Refusal> {
+            let vm = slot.take().unwrap();
+            let remaining = vm.fuel_remaining();
+            let serial = runtime.host.serial.get();
+            let invoked = runtime.host.invoked.borrow().len();
+            let mut pending = vm.try_into_pending_binding().unwrap();
+            assert_eq!(pending.limits, STACK);
+            assert!(pending.identity == plan.id());
+            assert!(std::ptr::eq(pending.declaration, plan));
+            let mut frames: Vec<_> = pending
+                .continuation
+                .into_frames()
+                .into_iter()
+                .map(|frame| {
+                    let (name, body, capture) = frame.into_parts();
+                    SavedEffectReturnFrame {
+                        name,
+                        body,
+                        capture,
+                    }
+                })
+                .collect();
+            let original = fingerprint(&frames);
+            match fault {
+                Fault::Closed => {
+                    scope.close();
+                }
+                Fault::Revoked => runtime.host.granted.set(false),
+                Fault::Stale => pending.identity.revision += 1,
+                Fault::WrongRoot => {
+                    pending.declaration = runtime
+                        .plans
+                        .iter()
+                        .find(|candidate| !std::ptr::eq(*candidate, plan))
+                        .unwrap();
+                }
+                Fault::Capture => {
+                    frames[0].name = "foreign-capture-site";
+                }
+                Fault::Shape => frames[0].name = "",
+                Fault::None | Fault::Unwind => {}
+                Fault::ChildRefused | Fault::ChildRevoked | Fault::ChildUnwind => {
+                    panic!("child fault must run inside collector admission");
+                }
+            }
+            let admissions = Cell::new(0);
+            let restored = Vm::restore_pending_in_scope(
+                pending.identity,
+                pending.declaration,
+                frames,
+                pending.fuel,
+                pending.limits,
+                |identity, declaration, frames, fuel| {
+                    admissions.set(admissions.get() + 1);
+                    let admitted = (|| {
+                        runtime.authorize(identity)?;
+                        if *identity != plan.id()
+                            || !std::ptr::eq(declaration, plan)
+                            || fuel.remaining() != remaining
+                            || fingerprint(frames) != original
+                        {
+                            return Err(Refusal);
+                        }
+                        for frame in frames {
+                            for (_, value) in &frame.capture {
+                                match value {
+                                    PureValue::Result(View::Atom(id, value)) => {
+                                        runtime.authorize(id)?;
+                                        P::validate(value)?;
+                                    }
+                                    PureValue::Result(View::Group(id, group)) => {
+                                        runtime.authorize(id)?;
+                                        let source = runtime
+                                            .plans
+                                            .iter()
+                                            .find(|p| p.identity.borrow().as_ref() == Some(id))
+                                            .ok_or(Refusal)?;
+                                        source.validate_rows(group.members())?;
+                                        for row in group.members() {
+                                            runtime.authorize(row.as_parts().2)?;
+                                        }
+                                    }
+                                    PureValue::Scalar(_) => {}
+                                }
+                            }
+                        }
+                        Ok(())
+                    })();
+                    assert!(
+                        !matches!(fault, Fault::Unwind),
+                        "injected native admission unwind"
+                    );
+                    admitted
+                },
+                scope,
+            );
+            assert_eq!(
+                admissions.get(),
+                usize::from(!matches!(fault, Fault::Closed | Fault::Shape))
+            );
+            let mut restored = match restored {
+                Ok(vm) => vm,
+                Err(_) => {
+                    assert!(!scope.is_open());
+                    return Err(Refusal);
+                }
+            };
+            assert!(matches!(
+                restored.poll(runtime).unwrap(),
+                EffectSessionPoll::Awaiting
+            ));
+            assert_eq!(restored.fuel_remaining(), remaining);
+            assert_eq!(runtime.host.serial.get(), serial);
+            assert_eq!(runtime.host.invoked.borrow().len(), invoked);
+            *slot = Some(restored);
+            Ok(())
+        }
+
+        fn run<P: MixedProfile>(
+            first: &str,
+            last: &str,
+            budget: u64,
+            fault: Option<(usize, Fault)>,
+        ) -> (TransferOutcome, Cuts, bool) {
+            let mut output = None;
+            fixture::<P>(|host, scope| {
+                let sibling = LocalExecutionScope::new();
+                let node = compile(&P::program(first, last), &host).unwrap();
+                let plans = plans(&node, &host);
+                let runtime = Runtime {
+                    host: &host,
+                    plans: &plans,
+                };
+                let mut owner =
+                    scope.bind(Some(Vm::new(&node, Vec::new(), Fuel::new(budget), STACK)));
+                let mut checkpoints = Cuts::default();
+                let mut refused = false;
+                let mut remaining = budget;
+                let mut result = None;
+                for phase in 0..=4 {
+                    let polled = owner.value_mut().as_mut().unwrap().poll(&runtime);
+                    remaining = owner.value().as_ref().unwrap().fuel_remaining();
+                    match polled {
+                        Ok(EffectSessionPoll::Request(active)) => {
+                            assert!(phase < 4);
+                            let plan = active.plan;
+                            let mut child_failed = false;
+                            let mut child_failure_counts = None;
+                            let (scope, slot) = owner.as_parts_mut();
+                            let collected = catch_unwind(AssertUnwindSafe(|| {
+                                runtime.collect_with_checkpoint(
+                                    active,
+                                    true,
+                                    Some(scope),
+                                    |phase| {
+                                        if phase == TransferPhase::ChildAdmission {
+                                            let injected = fault
+                                                .filter(|(cut, fault)| {
+                                                    fault.is_child() && *cut == checkpoints.child
+                                                })
+                                                .map_or(Fault::None, |(_, fault)| fault);
+                                            checkpoints.child += 1;
+                                            assert!(scope.is_open());
+                                            assert_eq!(
+                                                slot.as_ref().unwrap().status(),
+                                                EffectSessionStatus::Awaiting
+                                            );
+                                            child_failed = injected.is_child();
+                                            if child_failed {
+                                                child_failure_counts = Some((
+                                                    host.invoked.borrow().len(),
+                                                    host.serial.get(),
+                                                ));
+                                            }
+                                            match injected {
+                                                Fault::ChildRefused => return Err(Refusal),
+                                                Fault::ChildRevoked => {
+                                                    scope.close();
+                                                }
+                                                Fault::ChildUnwind => {
+                                                    panic!("injected child admission unwind");
+                                                }
+                                                Fault::None => {}
+                                                _ => unreachable!(),
+                                            }
+                                            return Ok(());
+                                        }
+                                        let injected = fault
+                                            .filter(|(cut, fault)| {
+                                                !fault.is_child() && *cut == checkpoints.parent
+                                            })
+                                            .map_or(Fault::None, |(_, fault)| fault);
+                                        checkpoints.parent += 1;
+                                        // Repeated replacement while the child collector's
+                                        // original saved rows are parked on the same stack.
+                                        handoff(slot, scope, &runtime, plan, injected)?;
+                                        handoff(slot, scope, &runtime, plan, Fault::None)
+                                    },
+                                )
+                            }));
+                            let reply = match collected {
+                                Ok(Ok(reply)) => reply,
+                                Ok(Err(_)) | Err(_) => {
+                                    assert!(!owner.is_open());
+                                    assert_eq!(owner.value().is_some(), child_failed);
+                                    assert!(runtime.authorize(&plan.id()).is_err());
+                                    if let Some((invocations, requests)) = child_failure_counts {
+                                        assert_eq!(host.invoked.borrow().len(), invocations);
+                                        assert_eq!(host.serial.get(), requests);
+                                    }
+                                    if let Some(vm) = owner.value_mut().as_mut() {
+                                        // Revocation does not pretend to cancel or destroy
+                                        // the restored parent. Reconcile it explicitly.
+                                        assert_eq!(vm.status(), EffectSessionStatus::Awaiting);
+                                        assert_eq!(vm.fuel_remaining(), remaining);
+                                        assert!(vm.cancel());
+                                    }
+                                    refused = true;
+                                    break;
+                                }
+                            };
+                            let pointer = &*reply.buffer as *const u8;
+                            let identity = reply.identity.clone();
+                            let mut stale = identity.clone();
+                            stale.serial = 0;
+                            let vm = owner.value_mut().as_mut().unwrap();
+                            let reply = vm.try_accept(&stale, reply, &runtime).unwrap_err().reply;
+                            assert_eq!(&*reply.buffer as *const u8, pointer);
+                            assert_eq!(vm.status(), EffectSessionStatus::Awaiting);
+                            assert_eq!(vm.fuel_remaining(), remaining);
+                            vm.try_accept(&identity, reply, &runtime).unwrap();
+                        }
+                        Ok(EffectSessionPoll::Value(PureValue::Scalar(value))) => {
+                            assert_eq!(phase, 4);
+                            assert_eq!(value, P::result(first));
+                            result = Some(value);
+                            assert_eq!(
+                                owner.value().as_ref().unwrap().status(),
+                                EffectSessionStatus::Terminal(EffectSessionEnd::Completed)
+                            );
+                            break;
+                        }
+                        Err(_) => {
+                            assert_eq!(
+                                owner.value().as_ref().unwrap().status(),
+                                EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+                            );
+                            break;
+                        }
+                        _ => panic!("unexpected coupled pipeline state"),
+                    }
+                }
+                owner.close();
+                let invocations = host.invoked.borrow().clone();
+                assert_eq!(invocations, P::inputs(first)[..invocations.len()]);
+                let requests = host.serial.get();
+                if let Some(vm) = owner.value_mut().as_mut() {
+                    let status = vm.status();
+                    assert!(!vm.cancel());
+                    assert!(matches!(
+                        vm.poll(&runtime).unwrap(),
+                        EffectSessionPoll::Terminal(_)
+                    ));
+                    assert_eq!(vm.status(), status);
+                    assert_eq!(vm.fuel_remaining(), remaining);
+                }
+                assert!(!host.lease.is_open());
+                assert!(sibling.is_open());
+                assert_eq!(host.serial.get(), requests);
+                assert_eq!(*host.invoked.borrow(), invocations);
+                output = Some((
+                    TransferOutcome {
+                        value: result,
+                        remaining,
+                        invocations,
+                        requests,
+                    },
+                    checkpoints,
+                    refused,
+                ));
+            });
+            output.unwrap()
+        }
+
+        #[test]
+        fn coupled_vm_and_collectors_keep_original_captures_and_budget_at_every_cutoff() {
+            fn check<P: MixedProfile>() {
+                for first in ["seq", "all", "repeat"] {
+                    for last in ["seq", "all"] {
+                        let baseline = run_with_transfer::<P>(first, last, 10_000, false);
+                        let (transferred, cuts, refused) = run::<P>(first, last, 10_000, None);
+                        assert!(!refused);
+                        assert!(cuts.parent > 10);
+                        assert!(cuts.child > 0);
+                        assert_eq!(transferred, baseline);
+                        for budget in 0..=10_001 - baseline.remaining {
+                            let (transferred, _, refused) = run::<P>(first, last, budget, None);
+                            assert!(!refused);
+                            assert_eq!(
+                                transferred,
+                                run_with_transfer::<P>(first, last, budget, false),
+                                "{first}/{last} budget={budget}"
+                            );
+                        }
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+
+        #[test]
+        fn coupled_vm_and_collector_transfer_refuses_every_revoked_or_corrupt_cut() {
+            fn check<P: MixedProfile>() {
+                for first in ["seq", "all", "repeat"] {
+                    for last in ["seq", "all"] {
+                        let (_, cuts, _) = run::<P>(first, last, 10_000, None);
+                        for cut in 0..cuts.parent {
+                            for fault in [
+                                Fault::Closed,
+                                Fault::Revoked,
+                                Fault::Stale,
+                                Fault::WrongRoot,
+                                Fault::Capture,
+                                Fault::Shape,
+                            ] {
+                                let (outcome, seen, refused) =
+                                    run::<P>(first, last, 10_000, Some((cut, fault)));
+                                assert!(refused, "{first}/{last} cut={cut} {fault:?}");
+                                assert_eq!(seen.parent, cut + 1);
+                                assert!(outcome.value.is_none());
+                            }
+                        }
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+
+        #[test]
+        fn coupled_native_admission_unwind_closes_owner_without_rearming_root_or_children() {
+            fn check<P: MixedProfile>() {
+                for (first, last) in [("seq", "all"), ("all", "seq"), ("repeat", "all")] {
+                    let (_, cuts, _) = run::<P>(first, last, 10_000, None);
+                    for cut in [0, cuts.parent / 2, cuts.parent - 1] {
+                        let (outcome, seen, refused) =
+                            run::<P>(first, last, 10_000, Some((cut, Fault::Unwind)));
+                        assert!(refused);
+                        assert_eq!(seen.parent, cut + 1);
+                        assert!(outcome.value.is_none());
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+
+        #[test]
+        fn child_restore_failure_revokes_the_already_restored_parent_at_every_frontier() {
+            fn check<P: MixedProfile>() {
+                for first in ["seq", "all", "repeat"] {
+                    for last in ["seq", "all"] {
+                        let (_, cuts, _) = run::<P>(first, last, 10_000, None);
+                        for cut in 0..cuts.child {
+                            for fault in
+                                [Fault::ChildRefused, Fault::ChildRevoked, Fault::ChildUnwind]
+                            {
+                                let (outcome, seen, refused) =
+                                    run::<P>(first, last, 10_000, Some((cut, fault)));
+                                assert!(refused, "{first}/{last} child={cut} {fault:?}");
+                                assert_eq!(seen.child, cut + 1);
+                                assert!(outcome.value.is_none());
+                            }
+                        }
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+    }
+
     mod saved_mixed {
         use super::*;
         use effect_stack::{
             SavedEffectReturnFrame, StackedEffectOutcome, evaluate_stacked_effects_in_scope,
             restore_effect_return_stack, resume_accepted_stacked_effects,
         };
-        use parallel_evaluation::{SavedParallelMember, SavedParallelReply};
-        use sequence_evaluation::{SavedSequenceMember, SavedSequenceReply, SequenceEnd};
+        use parallel_evaluation::SavedParallelReply;
+        use sequence_evaluation::{SavedSequenceReply, SequenceEnd};
 
         type Queued<'ir, P> = PreparedSequenceSession<'ir, Node, (), Identity, Domain<P>, usize>;
-        type MemberReceipt<'ir, P> =
-            AcceptedReply<'ir, Identity, (), Domain<P>, Reply<<P as Profile>::Value>>;
 
         #[derive(Clone, Copy, Default)]
         enum Fault {
@@ -1734,18 +2931,6 @@ mod mixed {
             }
         }
 
-        fn accept<'ir, P: Profile>(
-            runtime: &Runtime<'_, 'ir, '_, '_, P>,
-            plan: &Plan<'ir, P>,
-            index: usize,
-            reply: Reply<P::Value>,
-        ) -> Result<MemberReceipt<'ir, P>, Refusal> {
-            let identity = plan.members.borrow()[index].clone();
-            PendingReply::new(identity.clone(), (), plan.domain)
-                .try_accept(&identity, reply, runtime.host)
-                .map_err(|_| Refusal)
-        }
-
         fn collect<'ir, 's, P: Profile>(
             runtime: &Runtime<'_, 'ir, '_, 's, P>,
             scope: &LocalExecutionScope,
@@ -1789,7 +2974,7 @@ mod mixed {
                     )
                     .map_err(|_| Refusal)?;
                     let prefix = cut / 2;
-                    let mut saved = Vec::new();
+                    let mut accepted = Vec::new();
                     for (index, branch) in branches.iter().enumerate().take(prefix) {
                         let SequencePoll::Request {
                             index: actual,
@@ -1804,51 +2989,27 @@ mod mixed {
                         let row = queue
                             .try_accept(&identity, reply, runtime.host)
                             .map_err(|_| Refusal)?;
-                        let (_, original, _, _, reply) = row.into_parts();
-                        assert!(std::ptr::eq(original, branch));
-                        saved.push(SavedSequenceMember {
-                            index,
-                            name: &branch.name,
-                            reply: SavedSequenceReply::Accepted(accept(
-                                runtime, plan, index, reply,
-                            )?),
-                        });
+                        assert!(std::ptr::eq(row.as_parts().1, branch));
+                        accepted.push(row);
                     }
                     let mut flying = None;
-                    for (index, branch) in branches.iter().enumerate().skip(prefix) {
-                        let identity = plan.members.borrow()[index].clone();
-                        let reply = if index == prefix && cut % 2 == 1 {
-                            let SequencePoll::Request {
-                                index: actual,
-                                request,
-                            } = inventory.publish(runtime, &mut queue)?
-                            else {
-                                return Err(Refusal);
-                            };
-                            assert_eq!(actual, index);
-                            flying = Some(inventory.invoke(runtime, request)?);
-                            SavedSequenceReply::Awaiting {
-                                identity,
-                                declaration: plan.domain,
-                            }
-                        } else {
-                            SavedSequenceReply::Prepared(PreparedSequenceMember {
-                                identity,
-                                declaration: plan.domain,
-                                request: if matches!(fault, Fault::QueuedHandle) {
-                                    8
-                                } else {
-                                    index
-                                },
-                            })
+                    if cut % 2 == 1 {
+                        let SequencePoll::Request { index, request } =
+                            inventory.publish(runtime, &mut queue)?
+                        else {
+                            return Err(Refusal);
                         };
-                        saved.push(SavedSequenceMember {
-                            index,
-                            name: &branch.name,
-                            reply,
-                        });
+                        assert_eq!(index, prefix);
+                        flying = Some(inventory.invoke(runtime, request)?);
                     }
-                    drop(queue);
+                    let mut saved = queue.try_into_saved(accepted).map_err(|_| Refusal)?;
+                    if matches!(fault, Fault::QueuedHandle) {
+                        for row in &mut saved {
+                            if let SavedSequenceReply::Prepared(member) = &mut row.reply {
+                                member.request = 8;
+                            }
+                        }
+                    }
                     let remaining = fuel.remaining();
                     invalidate(runtime, scope, fault);
                     let (mut queue, mut rows) =
@@ -1932,33 +3093,16 @@ mod mixed {
                     for request in requests {
                         replies.push(Some(inventory.invoke(runtime, request.request)?));
                     }
-                    let mut saved = Vec::new();
-                    for (index, branch) in branches.iter().enumerate() {
+                    for (index, reply) in replies.iter_mut().enumerate() {
                         let identity = plan.members.borrow()[index].clone();
-                        let reply = if cut & (1 << index) != 0 {
-                            let reply = replies[index].take().ok_or(Refusal)?;
-                            // Fixture-native snapshot copy, not a core Clone/codec requirement.
-                            let retained = Reply {
-                                value: reply.value.clone(),
-                                buffer: Box::new(*reply.buffer),
-                            };
+                        if cut & (1 << index) != 0 {
+                            let reply = reply.take().ok_or(Refusal)?;
                             barrier
                                 .try_accept(index, &identity, reply, runtime.host)
                                 .map_err(|_| Refusal)?;
-                            SavedParallelReply::Accepted(accept(runtime, plan, index, retained)?)
-                        } else {
-                            SavedParallelReply::Awaiting {
-                                identity,
-                                declaration: plan.domain,
-                            }
-                        };
-                        saved.push(SavedParallelMember {
-                            index,
-                            name: &branch.name,
-                            reply,
-                        });
+                        }
                     }
-                    drop(barrier);
+                    let saved = barrier.try_into_saved().map_err(|_| Refusal)?;
                     let remaining = fuel.remaining();
                     invalidate(runtime, scope, fault);
                     let mut barrier = Parallel::restore(plan.node, saved, BATCH, |snapshot| {
@@ -2305,7 +3449,16 @@ fn main() = bind(initial: step(text: "seed"), body: bind(seed: field(value: init
         }
     }
     fn run<P: MixedProfile>(first: &str, last: &str, budget: u64) -> Result<u64, ()> {
-        let result = Cell::new(Err(()));
+        let outcome = run_with_transfer::<P>(first, last, budget, false);
+        outcome.value.map(|_| outcome.remaining).ok_or(())
+    }
+    fn run_with_transfer<P: MixedProfile>(
+        first: &str,
+        last: &str,
+        budget: u64,
+        transfer: bool,
+    ) -> TransferOutcome {
+        let mut result = None;
         fixture::<P>(|host, scope| {
             let node = compile(&P::program(first, last), &host).unwrap();
             let plans = plans(&node, &host);
@@ -2331,6 +3484,12 @@ fn main() = bind(initial: step(text: "seed"), body: bind(seed: field(value: init
                         *host.invoked.borrow(),
                         P::inputs(first)[..host.invoked.borrow().len()]
                     );
+                    result = Some(TransferOutcome {
+                        value: None,
+                        remaining,
+                        invocations: host.invoked.borrow().clone(),
+                        requests: host.serial.get(),
+                    });
                     return;
                 };
                 assert!(matches!(
@@ -2342,7 +3501,7 @@ fn main() = bind(initial: step(text: "seed"), body: bind(seed: field(value: init
                     vm.poll(&runtime).unwrap(),
                     EffectSessionPoll::Awaiting
                 ));
-                let reply = runtime.collect(active).unwrap();
+                let reply = runtime.collect_with_transfer(active, transfer).unwrap();
                 let identity = reply.identity.clone();
                 vm.try_accept(&identity, reply, &runtime).unwrap();
                 assert_eq!(vm.fuel_remaining(), fuel);
@@ -2351,25 +3510,34 @@ fn main() = bind(initial: step(text: "seed"), body: bind(seed: field(value: init
                     P::inputs(first)[..host.invoked.borrow().len()]
                 );
             }
-            match vm.poll(&runtime) {
+            let value = match vm.poll(&runtime) {
                 Ok(EffectSessionPoll::Value(PureValue::Scalar(value))) => {
                     assert_eq!(value, P::result(first));
-                    result.set(Ok(vm.fuel_remaining()));
                     assert!(matches!(
                         vm.poll(&runtime).unwrap(),
                         EffectSessionPoll::Terminal(EffectSessionEnd::Completed)
                     ));
+                    Some(value)
                 }
-                Err(_) => assert_eq!(
-                    vm.status(),
-                    EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
-                ),
+                Err(_) => {
+                    assert_eq!(
+                        vm.status(),
+                        EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+                    );
+                    None
+                }
                 _ => panic!("unexpected mixed result"),
-            }
+            };
             assert!(!vm.lease().is_open());
             assert_eq!(*host.invoked.borrow(), P::inputs(first));
+            result = Some(TransferOutcome {
+                value,
+                remaining: vm.fuel_remaining(),
+                invocations: host.invoked.borrow().clone(),
+                requests: host.serial.get(),
+            });
         });
-        result.get()
+        result.unwrap()
     }
     #[test]
     fn two_hosts_mix_atomic_seq_all_repeat_and_captured_successors_through_one_vm() {
@@ -2379,6 +3547,50 @@ fn main() = bind(initial: step(text: "seed"), body: bind(seed: field(value: init
                 assert!(run::<Panel>(first, last, 10_000).is_ok());
             }
         }
+    }
+
+    #[test]
+    fn two_hosts_transfer_real_all_barriers_through_one_vm_at_every_fuel_cutoff() {
+        fn check<P: MixedProfile>() {
+            for (first, last) in [
+                ("all", "all"),
+                ("seq", "all"),
+                ("repeat", "all"),
+                ("all", "seq"),
+            ] {
+                let remaining = run::<P>(first, last, 10_000).unwrap();
+                for budget in (0..=10_001 - remaining).chain([10_000]) {
+                    assert_eq!(
+                        run_with_transfer::<P>(first, last, budget, true),
+                        run_with_transfer::<P>(first, last, budget, false)
+                    );
+                }
+            }
+        }
+        check::<Counter>();
+        check::<Panel>();
+    }
+
+    #[test]
+    fn two_hosts_transfer_seq_frontiers_and_original_prefixes_at_every_vm_fuel_cutoff() {
+        fn check<P: MixedProfile>() {
+            for (first, last) in [
+                ("seq", "seq"),
+                ("repeat", "seq"),
+                ("seq", "all"),
+                ("all", "seq"),
+            ] {
+                let remaining = run::<P>(first, last, 10_000).unwrap();
+                for budget in (0..=10_001 - remaining).chain([10_000]) {
+                    assert_eq!(
+                        run_with_transfer::<P>(first, last, budget, true),
+                        run_with_transfer::<P>(first, last, budget, false)
+                    );
+                }
+            }
+        }
+        check::<Counter>();
+        check::<Panel>();
     }
 
     fn reject_group_receipts<P: MixedProfile>(first: &str) {

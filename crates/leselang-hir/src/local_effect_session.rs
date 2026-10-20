@@ -48,6 +48,20 @@ use crate::{
 ///     let other = session.clone();
 /// }
 /// ```
+///
+/// ```compile_fail
+/// use leselang_hir::local_effect_session::LocalStackedControlSession;
+/// fn escape(session: LocalStackedControlSession<'_, '_, (), (), (), u8, (), ()>) {
+///     let pending = session.try_into_pending_binding();
+/// }
+/// ```
+///
+/// ```compile_fail
+/// use leselang_hir::local_effect_session::LocalStackedControlSession;
+/// fn escape(session: LocalStackedControlSession<'_, '_, (), (), (), u8, (), ()>) {
+///     let pending = session.try_into_pending_final();
+/// }
+/// ```
 #[must_use = "retain the local session until completion or deliberate cancellation"]
 pub struct LocalStackedControlSession<
     'expression,
@@ -119,6 +133,30 @@ impl<'expression, 'schema, Node: ?Sized, Value, Capture, Identity, Declaration: 
             scope,
             session: StackedControlSession::new(expression, bindings, fuel, limits),
         }
+    }
+
+    /// Adopt a host-admitted final request under a unique local lifetime owner.
+    /// Closed scopes refuse before policy/native admission. Refusal or unwind
+    /// revokes before retained identity and unused-hook cleanup; callback
+    /// revocation wins over its result. Success uses the original reply-gated
+    /// lifecycle. No external cancellation, durable receipt or retry is supplied.
+    pub fn restore_pending_final<Error>(
+        scope: LocalExecutionScope,
+        identity: Identity,
+        declaration: &'schema Declaration,
+        fuel: Fuel,
+        limits: EffectStackLimits,
+        admit: impl FnOnce(&Identity, &'schema Declaration, &Fuel) -> Result<(), Error>,
+    ) -> Result<Self, StackedSessionRestoreError<Error>> {
+        let session = StackedControlSession::restore_pending_final_with_scope(
+            identity,
+            declaration,
+            fuel,
+            limits,
+            admit,
+            Some(&scope),
+        )?;
+        Ok(Self { scope, session })
     }
 
     pub fn lease(&self) -> LocalExecutionLease {

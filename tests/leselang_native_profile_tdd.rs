@@ -109,6 +109,42 @@ fn native_source_export_is_a_rust_workflow_with_unchanged_code_and_isolated_cons
 }
 
 #[test]
+fn source_verification_owns_disposable_cache_without_monorepo_build_artifacts() {
+    let source = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    for required in [
+        "struct ExportDirectory",
+        "impl Drop for ExportDirectory",
+        "std::env::temp_dir().join(",
+        "verifier(&stage.path, &target.path)",
+        "finish_export_cleanup(result, target.cleanup())?",
+        "finish_export_cleanup(result, stage.cleanup())?",
+        "verified_exports_use_fresh_private_targets_and_remove_them_before_publication",
+        "overlapping_exports_never_share_or_remove_each_others_verification_cache",
+        "verifier_unwind_cleans_both_owned_directories_without_publishing",
+        "failed_cache_cleanup_preserves_verification_error_and_blocks_publication",
+        "owned_cache_cleanup_does_not_follow_links_into_unrelated_directories",
+    ] {
+        assert!(source.contains(required), "missing {required}");
+    }
+    let export = source
+        .split("fn export_with_verifier(")
+        .nth(1)
+        .unwrap()
+        .split("fn unique_suffix(")
+        .next()
+        .unwrap();
+    assert!(!export.contains("root.join(\"target\")"));
+    let cleanup = export
+        .find("finish_export_cleanup(result, target.cleanup())?")
+        .unwrap();
+    assert!(cleanup < export.find("check_inventory(&stage.path, &plan)?").unwrap());
+    assert!(cleanup < export.find("publish(&stage.path, &output)?").unwrap());
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("Overlapping exports have distinct targets"));
+    assert!(docs.contains("Abrupt process termination can still leave temporary directories"));
+}
+
+#[test]
 fn default_and_explicit_profiles_retain_the_existing_host_contract() {
     for flags in [
         &[][..],
@@ -267,7 +303,7 @@ fn restored_parallel_consumer_uses_the_existing_barrier_without_promoting_durabl
     let source =
         fs::read_to_string(root().join("crates/leselang-hir/src/prepared_parallel.rs")).unwrap();
     assert!(source.contains("pub fn restore<Error>"));
-    assert!(source.contains("ParallelReplyCore::restore(branches, rows, admit)"));
+    assert!(source.contains("ParallelReplyCore::restore(branches, rows, admit, scope)"));
     let restore = source
         .split("pub fn restore<Error>")
         .nth(1)
@@ -323,7 +359,7 @@ fn restored_parallel_consumer_uses_the_existing_barrier_without_promoting_durabl
 fn saved_sequence_consumer_derives_frontiers_through_the_original_reply_core() {
     let source =
         fs::read_to_string(root().join("crates/leselang-hir/src/prepared_sequence.rs")).unwrap();
-    assert!(source.contains("SequenceReplyCore::restore(branches, rows, admit)"));
+    assert!(source.contains("SequenceReplyCore::restore(branches, rows, admit, scope)"));
     let restore = source
         .split("pub fn restore<Reply, Error>")
         .nth(1)
@@ -399,8 +435,8 @@ fn saved_mixed_consumer_composes_existing_walkers_without_claiming_portable_reco
         "Parallel::restore(",
         "restore_effect_return_stack(",
         "resume_accepted_stacked_effects(",
-        "drop(queue)",
-        "drop(barrier)",
+        "queue.try_into_saved(accepted)",
+        "barrier.try_into_saved()",
         "every_seq_all_frontier_composes_with_native_helper_return_stacks",
         "restored_mixed_helpers_keep_exact_original_fuel_at_every_cutoff",
         "mixed_snapshot_admission_rejects_stale_revoked_and_closed_hosts_before_tail_work",
@@ -836,6 +872,113 @@ fn multiple_source_captures_use_shared_snapshots_and_native_collectors() {
 }
 
 #[test]
+fn pending_transfer_uses_original_owners_and_cannot_escape_local_scope() {
+    let session =
+        fs::read_to_string(root().join("crates/leselang-hir/src/effect_stack_session.rs")).unwrap();
+    for required in [
+        "pub struct PendingStackedBinding",
+        "pub fn try_into_pending_binding(",
+        "core.try_into_pending_binding()",
+        "Err(core) => Err(Self { core, limits })",
+    ] {
+        assert!(session.contains(required), "missing {required}");
+    }
+    let core =
+        fs::read_to_string(root().join("crates/leselang-hir/src/effect_session.rs")).unwrap();
+    assert!(core.contains("State::AwaitingBinding(pending) => match pending.try_into_parts()"));
+    assert!(core.contains("state => Err(Self { state, fuel })"));
+    let local =
+        fs::read_to_string(root().join("crates/leselang-hir/src/local_effect_session.rs")).unwrap();
+    assert!(!local.contains("pub fn try_into_pending_binding"));
+    assert!(local.contains("let pending = session.try_into_pending_binding();"));
+    let tests =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/effect_session.rs")).unwrap();
+    assert!(tests.contains(
+        "pending_transfer_refuses_initial_final_accepted_and_all_terminal_states_unchanged"
+    ));
+    assert!(
+        tests.contains("transferred_binding_owns_all_move_only_frames_even_when_disposal_unwinds")
+    );
+    let fixture = tests
+        .split("fn saved_session")
+        .nth(1)
+        .unwrap()
+        .split("#[test]")
+        .next()
+        .unwrap();
+    assert!(fixture.contains("session.poll(host)"));
+    assert!(fixture.contains("session.try_into_pending_binding()"));
+    assert!(!fixture.contains("evaluate_stacked_effects_in_scope"));
+    let pipeline =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/native_host_pipeline.rs"))
+            .unwrap();
+    assert!(pipeline.contains(
+        "both_hosts_move_actual_pending_vm_frames_and_recover_without_budget_reset_or_replay"
+    ));
+    assert!(
+        pipeline
+            .contains("both_hosts_recheck_policy_and_keep_cancelled_transferred_sessions_terminal")
+    );
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Moving Actual Pending VM State"));
+}
+
+#[test]
+fn final_request_transfer_reuses_final_state_without_dropping_binding_frames() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir/src/effect_stack_session.rs")).unwrap();
+    for required in [
+        "pub struct PendingStackedFinal",
+        "pub fn try_into_pending_final(",
+        "pub fn restore_pending_final<Error>",
+        "core.try_into_pending_final()",
+        "preflight_final_return_limits(limits)",
+        "SessionCore::from_pending_final(identity, declaration, fuel)",
+    ] {
+        assert!(source.contains(required), "missing {required}");
+    }
+    let shared =
+        fs::read_to_string(root().join("crates/leselang-hir/src/effect_session.rs")).unwrap();
+    let transfer = shared
+        .split("pub(crate) fn try_into_pending_final(")
+        .nth(1)
+        .unwrap()
+        .split("pub(crate) fn cancel(")
+        .next()
+        .unwrap();
+    assert!(transfer.contains("State::AwaitingFinal(pending) => match pending.try_into_parts()"));
+    assert!(transfer.contains("state => Err(Self { state, fuel })"));
+    assert!(!transfer.contains("Fuel::new"));
+    assert!(!transfer.contains(".clone()"));
+    let local =
+        fs::read_to_string(root().join("crates/leselang-hir/src/local_effect_session.rs")).unwrap();
+    assert!(local.contains("StackedControlSession::restore_pending_final_with_scope("));
+    assert!(!local.contains("pub fn try_into_pending_final"));
+    assert!(local.contains("let pending = session.try_into_pending_final();"));
+    let tests =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/effect_session.rs")).unwrap();
+    for proof in [
+        "actual_final_request_roundtrip_preserves_zero_fuel_domain_and_once_only_projection",
+        "binding_waiters_cannot_be_misclassified_as_final_requests",
+        "final_policy_limits_and_closed_scope_precede_native_admission_and_cleanup",
+        "final_admission_refusal_and_unwind_release_owned_identity_and_errors",
+        "final_local_acceptance_and_projection_panics_revoke_before_retained_cleanup",
+        "final_local_cancel_drop_and_cleanup_unwind_never_project_or_rearm",
+    ] {
+        assert!(tests.contains(proof), "missing {proof}");
+    }
+    let pipeline =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/native_host_pipeline.rs"))
+            .unwrap();
+    assert!(pipeline.contains("two_hosts_restore_direct_and_captured_final_requests_before_or_after_dispatch_at_every_fuel_cutoff"));
+    assert!(pipeline.contains(
+        "two_hosts_final_restore_and_local_ownership_preserve_revocation_and_cancellation"
+    ));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Final-Request Ownership And Restoration"));
+}
+
+#[test]
 fn pending_restore_uses_original_session_core_and_exports_ownership_regressions() {
     let session =
         fs::read_to_string(root().join("crates/leselang-hir/src/effect_stack_session.rs")).unwrap();
@@ -869,6 +1012,343 @@ fn pending_restore_uses_original_session_core_and_exports_ownership_regressions(
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     assert!(docs.contains("### Restoring Pending Session Ownership"));
     assert!(docs.contains("does\nnot yet combine their collector inventory and meter"));
+}
+
+#[test]
+fn parallel_transfer_reuses_original_collectors_and_removes_fixture_reply_copies() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir/src/prepared_parallel.rs")).unwrap();
+    assert!(source.contains("pub fn try_into_saved("));
+    assert!(source.contains("self.core.try_into_saved().map_err(|core| Self { core })"));
+    let core =
+        fs::read_to_string(root().join("crates/leselang-hir/src/parallel_evaluation.rs")).unwrap();
+    let transfer = core
+        .split("pub(crate) fn try_into_saved(")
+        .nth(1)
+        .unwrap()
+        .split("pub(crate) fn restore<")
+        .next()
+        .unwrap();
+    assert!(transfer.contains("State::Awaiting { members, .. } | State::ReadyResults(members)"));
+    assert!(transfer.contains("members[row.index] = Member::from_saved(row.reply)"));
+    for forbidden in [
+        ".clone()",
+        ".try_accept",
+        ".authorize",
+        "Fuel::new",
+        ".charge(",
+    ] {
+        assert!(!transfer.contains(forbidden), "unexpected {forbidden}");
+    }
+    let pipeline =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/native_host_pipeline.rs"))
+            .unwrap();
+    assert!(
+        pipeline
+            .contains("two_hosts_transfer_real_all_barriers_through_one_vm_at_every_fuel_cutoff")
+    );
+    let saved = pipeline
+        .split("mod saved_mixed {")
+        .nth(1)
+        .unwrap()
+        .split("trait MixedProfile")
+        .next()
+        .unwrap();
+    assert!(saved.contains("barrier.try_into_saved()"));
+    assert!(!saved.contains("value: reply.value.clone()"));
+    assert!(!saved.contains("buffer: Box::new(*reply.buffer)"));
+    let tests =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/saved_parallel.rs")).unwrap();
+    for proof in [
+        "actual_parallel_owners_roundtrip_every_mask_without_callbacks_clones_or_meter_changes",
+        "transferred_parallel_admission_rejects_revocation_without_recreating_accepted_data",
+        "dropping_transferred_parallel_rows_releases_each_owner_once_without_external_cancellation",
+    ] {
+        assert!(tests.contains(proof), "missing {proof}");
+    }
+    let writer = tests
+        .split("fn publish<T: Data>")
+        .nth(1)
+        .unwrap()
+        .split("fn recover<T: Data>")
+        .next()
+        .unwrap();
+    assert!(writer.contains("session.try_into_saved()"));
+    assert!(!writer.contains("Some(T::sample("));
+    assert!(
+        fs::read_to_string(root().join("docs/leselang-embedding.md"))
+            .unwrap()
+            .contains("### Moving Actual Parallel Collector State")
+    );
+}
+
+#[test]
+fn sequence_transfer_preserves_original_frontier_and_separate_prefix_ownership() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir/src/prepared_sequence.rs")).unwrap();
+    assert!(source.contains("pub fn try_into_saved<Reply>("));
+    assert!(source.contains(".try_into_saved(self.prepared, accepted)"));
+    let core =
+        fs::read_to_string(root().join("crates/leselang-hir/src/sequence_evaluation.rs")).unwrap();
+    let transfer = core
+        .split("pub(crate) fn try_into_saved<Request, Reply>(")
+        .nth(1)
+        .unwrap()
+        .split("pub(crate) fn restore<Request, Reply, Error>(")
+        .next()
+        .unwrap();
+    for required in [
+        "accepted.len() != self.next",
+        "!std::ptr::eq(row.branch, &self.branches[index])",
+        "State::Terminal(SequenceEnd::Completed)",
+        "pending.try_into_parts()",
+        "return Err((self, prepared, accepted))",
+        "SavedSequenceReply::Accepted(row.accepted)",
+    ] {
+        assert!(transfer.contains(required), "missing {required}");
+    }
+    for forbidden in [
+        ".clone()",
+        "PendingReply::new",
+        ".try_accept",
+        ".authorize",
+        "Fuel::new",
+        ".charge(",
+        "panic!",
+        ".unwrap(",
+        ".expect(",
+    ] {
+        assert!(!transfer.contains(forbidden), "unexpected {forbidden}");
+    }
+    let pipeline =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/native_host_pipeline.rs"))
+            .unwrap();
+    assert!(pipeline.contains(
+        "two_hosts_transfer_seq_frontiers_and_original_prefixes_at_every_vm_fuel_cutoff"
+    ));
+    let mixed = pipeline
+        .split("mod saved_mixed {")
+        .nth(1)
+        .unwrap()
+        .split("trait MixedProfile")
+        .next()
+        .unwrap();
+    assert!(mixed.contains("queue.try_into_saved(accepted)"));
+    assert!(!mixed.contains("fn accept<"));
+    assert!(!mixed.contains("SavedSequenceMember {"));
+    let tests =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/saved_sequence.rs")).unwrap();
+    for proof in [
+        "actual_seq_frontiers_move_original_prefix_pending_and_suffix_without_native_callbacks",
+        "malformed_seq_prefix_returns_both_owners_unchanged_before_native_equality",
+        "same_ir_seq_prefix_still_requires_original_execution_admission",
+        "seq_transfer_rejects_cancelled_failed_and_uncertain_owners_without_losing_prefix",
+        "transferred_seq_native_refusal_and_cleanup_unwind_release_each_retained_owner_once",
+    ] {
+        assert!(tests.contains(proof), "missing {proof}");
+    }
+    let checkpoint = tests
+        .split("fn checkpoint<T: Data>")
+        .nth(1)
+        .unwrap()
+        .split("fn recover<T: Data>")
+        .next()
+        .unwrap();
+    assert!(checkpoint.contains("session.try_into_saved(prefix)"));
+    assert!(!checkpoint.contains("value: T::sample("));
+    assert!(
+        fs::read_to_string(root().join("docs/leselang-embedding.md"))
+            .unwrap()
+            .contains("### Moving Actual Sequential Collector State")
+    );
+}
+
+#[test]
+fn scoped_collector_restore_reuses_original_cores_and_fences_retained_cleanup() {
+    for (prepared, core, tests, name) in [
+        (
+            "prepared_sequence",
+            "sequence_evaluation",
+            "saved_sequence",
+            "Sequence",
+        ),
+        (
+            "prepared_parallel",
+            "parallel_evaluation",
+            "saved_parallel",
+            "Parallel",
+        ),
+    ] {
+        let wrapper =
+            fs::read_to_string(root().join(format!("crates/leselang-hir/src/{prepared}.rs")))
+                .unwrap();
+        let source =
+            fs::read_to_string(root().join(format!("crates/leselang-hir/src/{core}.rs"))).unwrap();
+        let proof =
+            fs::read_to_string(root().join(format!("crates/leselang-hir/tests/{tests}.rs")))
+                .unwrap();
+        assert!(wrapper.contains("pub fn restore_in_scope<"));
+        assert!(wrapper.contains("Self::restore_with_scope(group, rows, limits, admit, None)"));
+        assert!(
+            wrapper.contains("Self::restore_with_scope(group, rows, limits, admit, Some(scope))")
+        );
+        assert!(wrapper.contains(&format!(
+            "{name}ReplyCore::restore(branches, rows, admit, scope)"
+        )));
+        assert_eq!(source.matches("enum State<").count(), 1);
+        let restore = source
+            .split("pub(crate) fn restore<")
+            .nth(1)
+            .unwrap()
+            .split("fence.finish();\n        output")
+            .next()
+            .unwrap();
+        assert!(restore.contains("let fence = CallFence::new(scope)"));
+        assert!(restore.contains("let duplicate = row.reply.identity() =="));
+        assert!(restore.contains("scope.is_some_and(|scope| !scope.is_open())"));
+        assert!(restore.contains("drop((admit, rows))"));
+        assert!(restore.contains("let admitted = admit(&rows)"));
+        assert!(restore.contains("drop(admitted)"));
+        for forbidden in [
+            "Fuel::new",
+            ".clone()",
+            "dispatch(",
+            "prepare_effect",
+            "serde",
+        ] {
+            assert!(
+                !restore.contains(forbidden),
+                "{core}: unexpected {forbidden}"
+            );
+        }
+        for required in [
+            "restore_in_scope(",
+            "observe_cleanup",
+            "equality_closes",
+            "preflight_closes_before_rows_and_unused_hook_cleanup",
+            "equality_revocation_and_unwind_stop_before_admission",
+            "native_refusal_revocation_and_cleanup_unwind_preserve_fencing",
+        ] {
+            assert!(proof.contains(required), "{tests}: missing {required}");
+        }
+    }
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Scoped Collector Restoration"));
+    assert!(docs.contains("Callback-internal cleanup remains trusted"));
+}
+
+#[test]
+fn shared_owner_restoration_lends_one_fence_without_another_lifecycle() {
+    let owner =
+        fs::read_to_string(root().join("crates/leselang-runtime-core/src/local_execution.rs"))
+            .unwrap();
+    assert!(owner.contains("pub fn as_parts_mut(&mut self) -> (&LocalExecutionScope, &mut Value)"));
+    assert!(owner.contains("(&self.scope, &mut self.value)"));
+    let session =
+        fs::read_to_string(root().join("crates/leselang-hir/src/effect_stack_session.rs")).unwrap();
+    let entry = session
+        .split("pub fn restore_pending_in_scope<")
+        .nth(1)
+        .unwrap()
+        .split("pub(crate) fn restore_pending_with_scope<")
+        .next()
+        .unwrap();
+    assert!(entry.contains("Self::restore_pending_with_scope("));
+    assert!(entry.contains("Some(scope)"));
+    for forbidden in [
+        "Fuel::new",
+        ".clone()",
+        "dispatch(",
+        "State::",
+        "LocalExecutionScope::new",
+    ] {
+        assert!(!entry.contains(forbidden), "unexpected {forbidden}");
+    }
+    let source =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/native_host_pipeline.rs"))
+            .unwrap();
+    for required in [
+        "owner.as_parts_mut()",
+        "Sequence::restore_in_scope(",
+        "Parallel::restore_in_scope(",
+        "Vm::restore_pending_in_scope(",
+        "child_restore_failure_revokes_the_already_restored_parent_at_every_frontier",
+        "assert_eq!(owner.value().is_some(), child_failed)",
+        "assert!(vm.cancel())",
+        "assert!(sibling.is_open())",
+    ] {
+        assert!(source.contains(required), "missing {required}");
+    }
+    let handoff = source
+        .split("mod coupled_transfer {")
+        .nth(1)
+        .unwrap()
+        .split("fn handoff<")
+        .nth(1)
+        .unwrap()
+        .split("fn run<")
+        .next()
+        .unwrap();
+    // Only the explicit closed-scope fault may close before the core is entered.
+    assert_eq!(handoff.matches("scope.close()").count(), 1);
+    assert!(!handoff.contains("owner.close()"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Shared-Owner Graph Restoration"));
+    assert!(docs.contains("does not mistake revocation for automatic cancellation"));
+}
+
+#[test]
+fn coupled_transfer_uses_original_vm_and_collectors_without_a_second_graph_runtime() {
+    let source =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/native_host_pipeline.rs"))
+            .unwrap();
+    let coupled = source
+        .split("mod coupled_transfer {")
+        .nth(1)
+        .unwrap()
+        .split("mod saved_mixed {")
+        .next()
+        .unwrap();
+    for required in [
+        "slot.take().unwrap()",
+        "vm.try_into_pending_binding()",
+        "Vm::restore_pending_in_scope(",
+        "pending.fuel",
+        "pending.limits",
+        "scope.bind(Some(Vm::new(",
+        "runtime.collect_with_checkpoint(",
+        "owner.as_parts_mut()",
+        "Rc::as_ptr(group)",
+        "source.validate_rows(group.members())?",
+        "coupled_vm_and_collectors_keep_original_captures_and_budget_at_every_cutoff",
+        "coupled_vm_and_collector_transfer_refuses_every_revoked_or_corrupt_cut",
+        "coupled_native_admission_unwind_closes_owner_without_rearming_root_or_children",
+    ] {
+        assert!(coupled.contains(required), "missing {required}");
+    }
+    let handoff = coupled
+        .split("fn handoff<")
+        .nth(1)
+        .unwrap()
+        .split("fn run<")
+        .next()
+        .unwrap();
+    for forbidden in [
+        "Fuel::new",
+        ".clone()",
+        "SavedSequenceMember {",
+        "SavedParallelMember {",
+        ".dispatch(",
+    ] {
+        assert!(!handoff.contains(forbidden), "unexpected {forbidden}");
+    }
+    assert!(source.contains("let saved = queue.try_into_saved(prefix).map_err(|_| Refusal)?;\n            checkpoint.run(TransferPhase::Parent)?;"));
+    assert!(source.contains(
+        "let rows = barrier.try_into_saved().map_err(|_| Refusal)?;\n            checkpoint.run(TransferPhase::Parent)?;"
+    ));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Coupled VM And Collector Transfer"));
+    assert!(docs.contains("No public\nAPI changed: native contract `0.166.0`"));
 }
 
 #[test]

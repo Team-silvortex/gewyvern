@@ -1,0 +1,138 @@
+{
+  "kind": "leselang-native-sequential-collector-transfer",
+  "validated_on": "2026-10-18",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "native_embedding_contract": "0.166.0",
+  "reference_execution_contract": "1.105.0",
+  "hosts": 2,
+  "actual_collector_state": true,
+  "original_reply_and_request_ownership": true,
+  "original_budget_parity": true,
+  "malformed_prefix_returns_original_owners": true,
+  "completed_frontier_stays_terminal": true,
+  "isolated_consumer_passed": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "process_crash_recovery": false,
+  "production_durable_codec": false,
+  "wire_or_journal_schema_changed": false,
+  "scope": "Prepared Seq transfer combines the original host-owned accepted prefix with pending identity/domain and unpublished requests through SequenceReplyCore. Exact prefix count, row indices and original IR pointers precede moves; refusal returns queue and prefix intact. There is no native equality, callback, clone, projection, dispatch or fuel change; a bounded row vector allocates. Completed frontiers restore Completed, never runnable. Cancelled/failed/uncertain queues refuse. Shared IR is not execution provenance: native restore admission rejects foreign-execution prefixes. Two hosts transfer original queues before publication, after publication/dispatch and after acceptance through the original VM, preserving exact outputs, remaining fuel, correlation counts and invocations at every budget cutoff. Mixed-helper and bounded byte-checkpoint models use actual original replies and requests instead of rebuilding accepted handles or sample payloads. Seven three-member frontiers, maximum-width boundaries, unsized domains, repeated transfers, native refusals/unwind, malformed private states and cleanup failures are covered. Scope, meter, external cancellation, authentic storage and settlement remain host-owned; no production codec or complete durable graph recovery is added.",
+  "sources": [
+    {
+      "path": "crates/leselang-hir/src/sequence_evaluation.rs",
+      "sha256": "9ced8ed2ea6d45449dca904e27efbc337c85ec0a3f149ee2e689c95f447241db"
+    },
+    {
+      "path": "crates/leselang-hir/src/sequence_evaluation/transfer_tests.rs",
+      "sha256": "beeff573700283cf590d2677b28769fc7bc1f824c83ff852acf066111ff9a6b8"
+    },
+    {
+      "path": "crates/leselang-hir/src/prepared_sequence.rs",
+      "sha256": "0d3ac070db66add553e2413adfd364d84aea9fb9343209e42b2ad5ad0b8f897d"
+    },
+    {
+      "path": "crates/leselang-hir/tests/saved_sequence.rs",
+      "sha256": "3b8daa96294e1a0b6b49b05170ee1bc4d61b056727bf2babd74cc1f70964561c"
+    },
+    {
+      "path": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "76b2dfcd3da4c2abe97924ee9ed3bc66f0d56685c508c3f1feef05cc8f1a9e4a"
+    }
+  ],
+  "verification": [
+    {
+      "name": "hir",
+      "path": "/private/tmp/leselang-sequence-transfer-hir.log",
+      "sha256": "891a2f8502091db87ddf01c62fff090c7671d858ac051a869109dd0b3bd4c3dc",
+      "passed": 36
+    },
+    {
+      "name": "pipeline",
+      "path": "/private/tmp/leselang-sequence-transfer-pipeline.log",
+      "sha256": "566ad5f1a4f39d39388b9ce8d6881113a6f630eeafe8f686e1de813db00e83b9",
+      "passed": 37
+    },
+    {
+      "name": "consumer",
+      "path": "/private/tmp/leselang-sequence-transfer-consumer.log",
+      "sha256": "af674c648d46cee85060a343c8e724d6eaa9a3fbce2141f36c4d76ab01c1af2f",
+      "passed": 51
+    },
+    {
+      "name": "exported-unit",
+      "path": "/private/tmp/leselang-sequence-transfer-exported-unit.log",
+      "sha256": "8b6c500062810c994a640aebe41db66ae1e09b4aea84ffeb4c863504c3d98bf4",
+      "passed": 25
+    },
+    {
+      "name": "clippy",
+      "path": "/private/tmp/leselang-sequence-transfer-clippy.log",
+      "sha256": "ce98881a7f46481081a80cccc2219e8c43154b26ff4a47c01653347013ec2813",
+      "passed": true
+    },
+    {
+      "name": "runtime",
+      "path": "/private/tmp/leselang-sequence-transfer-runtime.log",
+      "sha256": "2159b839ce71d59f411dbfb8b55cec40b88bffd2607836fd96e5bc4a75e3f390",
+      "passed": 3268
+    },
+    {
+      "name": "guards",
+      "path": "/private/tmp/leselang-sequence-transfer-guards.log",
+      "sha256": "c49cd397376a34eb18c096b8d7d8eb91d68082960fd009cfd8b2dadb56d7fade",
+      "passed": 457
+    },
+    {
+      "name": "native-full",
+      "path": "/private/tmp/leselang-sequence-transfer-native-full.log",
+      "sha256": "83dd18ea14292c46ed6e3b3ae93681868ea0e93e91ad1b4981a25920d5604703",
+      "passed": 56
+    },
+    {
+      "name": "exported-doc",
+      "path": "/private/tmp/leselang-sequence-transfer-exported-doc.log",
+      "sha256": "870bf3a73630bad0296a91fc652d552eb23f1ba455ff8c4bc2c36b333e5c1bf1",
+      "passed": 65
+    },
+    {
+      "name": "consumer-clippy",
+      "path": "/private/tmp/leselang-sequence-transfer-consumer-clippy.log",
+      "sha256": "27f328216f1fe28b9cc7dc700dce48f3faaf3e0891e3b2f2306de5db98571cf4",
+      "passed": true
+    },
+    {
+      "name": "exported-clippy",
+      "path": "/private/tmp/leselang-sequence-transfer-exported-clippy.log",
+      "sha256": "42d2460b215a7cf9f6310242283bee3ff75313fa057a65e986caef5eb40ab08a",
+      "passed": true
+    },
+    {
+      "name": "guard-clippy",
+      "path": "/private/tmp/leselang-sequence-transfer-guard-clippy.log",
+      "sha256": "9238195183c9293c51de66d2b6514db1cc06d9c88c4adef06c94d6b9583f3794",
+      "passed": true
+    },
+    {
+      "name": "exporter-tests",
+      "path": "/private/tmp/leselang-sequence-transfer-exporter-tests.log",
+      "sha256": "cacdf4ffd4fd80865f54458159b7641b482fe4fc9a0fbe821e5b8f7fe556f642",
+      "passed": 16
+    },
+    {
+      "name": "fmt",
+      "path": "/private/tmp/leselang-sequence-transfer-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-sequence-transfer-source",
+    "manifest_sha256": "148d2b8b59d0305a0a8c25a86868f5c464fc844e4d29bf6dd929088bdc96de63",
+    "files": 279,
+    "source_copies_byte_matched": 269,
+    "full_export_verified": false,
+    "product_free_dependency_tree": true,
+    "temporary_build_artifacts_pruned": true
+  }
+}

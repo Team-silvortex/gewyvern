@@ -162,6 +162,24 @@ impl<Value> ScopedLocalExecution<Value> {
         &mut self.value
     }
 
+    /// Lend the original fence and native value together to a coordinator.
+    ///
+    /// Child operations can use this fence without another owner or liveness
+    /// cell. Neither borrow outlives this owner; closure still retains the value.
+    /// Like `value_mut`, this does not fence arbitrary host mutation or unwind:
+    /// use a scope-aware operation, or close before uncertain native cleanup.
+    ///
+    /// ```compile_fail
+    /// use leselang_runtime_core::LocalExecutionScope;
+    /// let mut owner = LocalExecutionScope::new().bind(());
+    /// let (scope, _) = owner.as_parts_mut();
+    /// drop(owner);
+    /// assert!(scope.is_open());
+    /// ```
+    pub fn as_parts_mut(&mut self) -> (&LocalExecutionScope, &mut Value) {
+        (&self.scope, &mut self.value)
+    }
+
     /// Revoke before handing the original value back; does not run its destructor.
     pub fn into_inner(self) -> Value {
         let Self { scope, value } = self;
