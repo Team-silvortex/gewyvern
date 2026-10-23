@@ -99,10 +99,13 @@ fn frozen_validate_merge_plan(plan: &MergePlan) -> Result<(), Fault> {
             | ExecutionOrder::ParallelGroupConditional
     ) != plan.result_binding.is_some()
     {
-        return Err(group_binding::invalid());
+        return Err(Fault {
+            code: "LSV1409".into(),
+            message: "invalid group-result binding or missing complete group journal".into(),
+        });
     }
     if plan.order == ExecutionOrder::ResultChain && plan.branches != ["result", "successor"] {
-        return Err(successor::invalid());
+        return Err(frozen_successor_fault());
     }
     if plan.order == ExecutionOrder::Dataflow
         && plan
@@ -111,7 +114,7 @@ fn frozen_validate_merge_plan(plan: &MergePlan) -> Result<(), Fault> {
             .enumerate()
             .any(|(index, name)| *name != format!("step_{}", index + 1))
     {
-        return Err(successor::invalid());
+        return Err(frozen_successor_fault());
     }
     let minimum = if matches!(
         plan.order,
@@ -144,9 +147,16 @@ fn frozen_validate_merge_plan(plan: &MergePlan) -> Result<(), Fault> {
         });
     }
     if let Some(binding) = &plan.result_binding {
-        binding.validate(plan)?;
+        group_binding::plan_contract_tests::frozen_validate_group(binding, plan)?;
     }
     Ok(())
+}
+
+fn frozen_successor_fault() -> Fault {
+    Fault {
+        code: "LSV1407".into(),
+        message: "invalid result-driven successor or missing original effect authority".into(),
+    }
 }
 
 fn frozen_valid_merge_branch_name(name: &str) -> bool {
@@ -277,6 +287,11 @@ fn merge_plan_preserves_frozen_wire_classification_and_layered_admission() {
                     expected,
                     "order={order:?}, branches={branches:?}"
                 );
+                assert_eq!(
+                    leselang_command::reference_merge::validate_merge_plan(&plan),
+                    expected,
+                    "adapter order={order:?}, branches={branches:?}"
+                );
                 assert_eq!(serde_json::to_vec(&plan).unwrap(), before);
                 comparisons += 1;
             }
@@ -319,4 +334,80 @@ fn merge_plan_constructor_keeps_legacy_faults_defaults_and_closed_decoding() {
     }
     // Saved data is still unchecked until explicit plan admission.
     assert!(serde_json::from_str::<MergePlan>(r#"{"branches":[]}"#).is_ok());
+}
+
+#[test]
+fn static_merge_admission_neither_reserves_ids_nor_restores_or_finishes_live_groups() {
+    let binding = group(true);
+    let branches = binding.plan_branches().unwrap();
+    let plan = MergePlan {
+        branches: vec!["a".into(), "b".into()],
+        order: ExecutionOrder::BoundParallel,
+        result_binding: Some(Box::new(binding.clone())),
+    };
+    let mut vm = Vm::new(500);
+    assert_eq!(
+        leselang_command::reference_merge::validate_merge_plan(&plan),
+        Ok(())
+    );
+    let mut malformed = binding.binding.clone();
+    malformed.name = "x".repeat(leselang_hir::MAX_BRANCH_NAME_BYTES + 1);
+    let begin = |vm: &mut Vm, saved| {
+        vm.start_group(
+            branches,
+            ExecutionOrder::Parallel,
+            Principal::new("operator").unwrap(),
+            CapabilitySet::new(["ui.presentation"]),
+            Some(Revision(7)),
+            1000,
+            None,
+            100,
+            Some(saved),
+        )
+    };
+    assert!(matches!(begin(&mut vm, malformed), Step::Fault(fault) if fault.code == "LSV1405"));
+    assert_eq!(vm.next_effect_id, 1);
+    assert_eq!(vm.pending_count(), 0);
+    assert_eq!(vm.completed_count(), 0);
+    assert!(vm.claim_effect(1, 10).unwrap().is_none());
+
+    let Step::Effects(batch) = begin(&mut vm, binding.binding.clone()) else {
+        panic!()
+    };
+    assert_eq!(batch.merge_token.as_str(), "merge-1");
+    assert_eq!(batch.branches[0].request.effect_id, "effect-2");
+    assert_eq!(batch.branches[1].request.effect_id, "effect-3");
+    let pending = vm.pending_continuations();
+    assert_eq!(
+        leselang_command::reference_merge::validate_merge_plan(&plan),
+        Ok(())
+    );
+    assert_eq!(vm.pending_continuations(), pending);
+    assert_eq!(vm.merge_result(&batch.merge_token).unwrap(), None);
+    let mut receiver = Vm::new(500);
+    assert_eq!(
+        receiver.restore(pending[0].clone()).unwrap_err().code,
+        "LSV1409"
+    );
+    assert_eq!(receiver.next_effect_id, 1);
+    assert_eq!(receiver.pending_count(), 0);
+    let reply = |name: &str| {
+        EffectResult::Presentation(PresentationResult::Focus {
+            node_id: name.into(),
+        })
+    };
+    let left = &batch.branches[0].request.continuation;
+    let right = &batch.branches[1].request.continuation;
+    assert!(
+        matches!(vm.resume(left, reply("a")), Step::Waiting(wait) if wait.completed_branches == 1)
+    );
+    let done = Step::Done(Value::Scalar {
+        value: ScalarValue::None,
+    });
+    assert_eq!(vm.resume(right, reply("b")), done);
+    assert_eq!(vm.resume(left, reply("ignored")), done);
+    assert_eq!(vm.resume(right, reply("ignored")), done);
+    assert_eq!(vm.pending_count(), 0);
+    assert_eq!(vm.completed_count(), 2);
+    assert!(vm.claim_effect(2, 10).unwrap().is_none());
 }

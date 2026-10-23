@@ -4,38 +4,40 @@
   <img src="../docs/assets/branding/gewyvern-logo-v1.svg" alt="gewyvern logo" width="140">
 </p>
 
-This repository now carries the nearby application stack in one place so
-`gewyvern`, `leserpent`, and `etragon` can evolve together without losing their
-separate roles.
+This directory contains replaceable clients, a compatibility bridge, and the
+optional advisory application. The control-plane authority is Rust
+[`leserpentd`](../crates/leserpentd), not an application under this directory.
+Use the [repository map](../docs/monorepo-stack.md) for complete source ownership.
 
-Current app shelves:
+## Application Shelves
 
-- `apps/etragon`
-  Diagnosis-partner sidecar for one nearby `gewyvern` runtime.
-- `apps/leserpent`
-  Cross-platform control plane for fleets of nearby runtimes and paired
-  sidecars.
+| Application | Role |
+| --- | --- |
+| [Avalonia desktop](leserpent-avalonia/README.md) | Native multi-daemon hub and renderer |
+| [Mobile](leserpent-mobile/README.md) | Mobile renderer using the same authority protocol |
+| [Web compatibility bridge](leserpent/README.md) | ASP.NET compatibility and TypeScript browser rendering; no separate control authority |
+| [Etragon](etragon/README.md) | Optional advisory sidecar; never the owner of evidence or control truth |
 
-Versioning rule:
+One client may manage many independent daemons; each daemon manages many
+Gewyvern services. Shared commands, authorization, persistence, and effects live
+in the Rust crates. UI work belongs here; language work belongs in the language
+crates, not inside a renderer. Companion applications follow the root workspace
+release line, while protocol versions describe their own compatibility.
 
-- companion applications follow the root workspace release line
-- do not assign independent `etragon` or `leserpent` product versions unless
-  the repository deliberately re-splits their release cadence later
+## Local Entrypoints
 
-Working rule:
+From the repository root:
 
-- keep runtime/core protocol work in the repository root `gewyvern` crate
-- keep companion applications under `apps/`
-- only promote shared code upward when the boundary is stable enough to deserve
-  it
+```bash
+cargo dev doctor
+cargo dev check --scope desktop
+cargo dev build --scope control
+cargo dev package desktop
+```
 
-Common local entrypoints from the repository root:
+For Web-specific frontend checks, use the
+[Web bridge guide](leserpent/README.md). A direct build of its `.csproj` builds
+only the compatibility host, not the whole Rust authority stack.
 
-- `cargo run -- --scan-all --json --summary-only`
-  Run the main `gewyvern` runtime surface.
-- `cargo run -p etragon -- --help`
-  Run the nearby diagnosis-partner sidecar CLI.
-- `cd apps/leserpent && npm run check:frontend`
-  Type-check the `leserpent` dashboard frontend.
-- `dotnet build apps/leserpent/src/Leserpent/Leserpent.csproj`
-  Build the `leserpent` control plane backend.
+Use the [development guide](../docs/development.md) for focused tests and cache
+retention, and [packaging](../docs/packaging.md) for installation workflows.

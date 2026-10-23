@@ -1,0 +1,108 @@
+{
+  "kind": "leselang-native-captured-iteration",
+  "validated_on": "2026-10-23",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.120.0",
+  "host_pipelines": 72,
+  "all_fuel_cutoff_pipelines": 12,
+  "limit_failure_cases": 48,
+  "cold_refusal_cases": 60,
+  "revocation_and_cancellation_cases": 96,
+  "native_pipeline_tests": 53,
+  "reference_feature_pipeline_tests": 53,
+  "isolated_test_executions": 2580,
+  "shared_compiler_and_evaluator": true,
+  "isolated_consumer_passed": true,
+  "limits_not_recoverable": true,
+  "no_successor_after_terminal": true,
+  "cold_checks_before_dispatch": true,
+  "isolated_build_cache_removed": true,
+  "production_code_changed": false,
+  "contract_version_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "This acceptance increment adds no production code or syntax. Existing source compilation and native LocalVm now have continuous two-host proofs for loops, folds and nested fold/loop work after accepted Seq/All results, including computed fields, helper conditions, early returns and captured successor operands. Original receipt/fuel/terminal invariants remain mandatory. Unknown cold exports, hidden effects and escaped iteration locals fail before invocation. Iteration limits cannot be caught as recoverable arithmetic faults. No new interpreter, callback sandbox, GUI integration or host-neutral durable graph recovery is claimed.",
+  "sources": [
+    {
+      "path": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "b292ea3eec448bacd0443d199280cd09c5eb783fed77a275fc4d04cd7f8e584a"
+    },
+    {
+      "path": "tests/leselang_native_profile_tdd.rs",
+      "sha256": "5a31e967fbb7d99c87d64f2233e99949940e0d38c2ce21cb2f4ff2ca877169b6"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "1032c710b7c08e6ff0b63a26093f07ede2565006298fd4d76ad58de84c0afcf4"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "16fdfb8880b469aa8ce3f22051da5d67db2b308a986b9bfb3342db0ff5ebc9af"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "9bcb835e0248128a1105dd7b23754372d95c8012b0e88b9258aff1f8e84e2de0"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "pipeline",
+      "log": "/private/tmp/leselang-captured-iteration-20261023-pipeline.log",
+      "sha256": "05a57f8a5c538152a87ccf0253f65ee6a9c642778e21b3c1289e05bb7bc4a604"
+    },
+    {
+      "stage": "reference-pipeline",
+      "log": "/private/tmp/leselang-captured-iteration-20261023-reference-pipeline.log",
+      "sha256": "17eacb1ab3a97422f1846d68390c3191d50b78563f3d57ea91fb922a092bc3a0"
+    },
+    {
+      "stage": "pipeline-clippy",
+      "log": "/private/tmp/leselang-captured-iteration-20261023-pipeline-clippy.log",
+      "sha256": "444d58717396cb500ff55d8e30204fbdcee98173b2dde88a3725814701f07da2"
+    },
+    {
+      "stage": "gates-clippy",
+      "log": "/private/tmp/leselang-captured-iteration-20261023-gates-clippy.log",
+      "sha256": "c09024db7660ab26c9ce88062931301ac789a5fac6a7619c02b2d38f12fb6091"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-captured-iteration-20261023-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "export",
+      "log": "/private/tmp/leselang-captured-iteration-20261023-export.log",
+      "sha256": "9703045d1fab1e0bd26b80bd441b4b23ad14403b393921e40444103f19b17471"
+    },
+    {
+      "stage": "gates",
+      "log": "/private/tmp/leselang-captured-iteration-20261023-gates.log",
+      "sha256": "820d63063a9c2f67794d267eb9aa317c445a9d6ae68eeb181b6bf1bb668a97ea"
+    }
+  ],
+  "baseline": {
+    "export_manifest": "/private/tmp/leselang-computed-projection-20261023-2.4.0/export-manifest.json",
+    "sha256": "7862d68f1d7c4de6995e5c2377e06f7d63a491f28e19cb38adfab435a948a80e",
+    "unchanged_native_production_sources": 112
+  },
+  "export": {
+    "path": "/private/tmp/leselang-captured-iteration-20261023-2.4.0",
+    "files": 280,
+    "copied_sources": 270,
+    "bytes": 6763002,
+    "manifest_sha256": "d9f75b83d7a540536c9041990daf5d27b19b4c1a1dd78582a92fc354242f14ad",
+    "verified": true,
+    "source_copies_unchanged": true,
+    "complete_vm": false,
+    "full_extraction_gate": false
+  },
+  "root_architecture_tests": 410,
+  "strict_lints_passed": true,
+  "format_check_passed": true
+}

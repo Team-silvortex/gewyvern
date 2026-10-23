@@ -19,6 +19,7 @@ use crate::flow_typing::{
     CallFlowEnvironment, CallFlowTypeError, CallFlowTypeLimits, infer_call_flow_type,
 };
 use crate::ir::Computation;
+use crate::projection_source::{ProjectionSourceError, field_source, preflight_names};
 use crate::pure_typing::{MAX_TYPE_INFERENCE_NODES, PureType, TypeInferenceLimits};
 use crate::scalar_source::{
     ScalarSourceError, ScalarSourceLimits, lower_scalar_source_with_scope, primitive,
@@ -69,6 +70,7 @@ pub enum CatalogSourceError<Error> {
         error: Box<SourceCallError<Self>>,
     },
     Projection(Box<BoundProjectionSourceError<Error>>),
+    ComputedProjection(Box<ProjectionSourceError<Self>>),
     Mapping {
         span: Span,
         error: Error,
@@ -100,6 +102,7 @@ impl<Error> fmt::Display for CatalogSourceError<Error> {
             Self::Scalar { .. } => "catalog expression scalar source rejected",
             Self::Call { .. } => "catalog expression operation signature rejected",
             Self::Projection(_) => "catalog expression bound projection rejected",
+            Self::ComputedProjection(_) => "catalog expression computed projection rejected",
             Self::Mapping { .. } => "catalog expression native operation mapping failed",
             Self::OperationIdentity { .. } => {
                 "catalog expression mapped operation differs from source"
@@ -318,8 +321,86 @@ impl<'source, 'schema, Operation, Domain, Declaration, Capability, Environment, 
         Locals,
     >
 {
+    fn projection<Field, HostEffect, IrResult>(
+        &mut self,
+        source: &'source Expression,
+        prefix: &[(&'source str, &PureType<Environment::Result>)],
+    ) -> CatalogSourceResult<
+        Node<Field, Operation, HostEffect, IrResult>,
+        Environment::Result,
+        Environment::Error,
+    >
+    where
+        Operation: Borrow<str> + PartialEq,
+        Domain: ScalarArgumentDomain,
+        Capability: PartialEq,
+        Environment: CatalogSourceEnvironment<'source, 'schema, Field, Operation, Declaration>,
+        Locals: CatalogLocalSource<
+                'source,
+                Field,
+                Operation,
+                HostEffect,
+                IrResult,
+                Environment::Result,
+                Environment::Error,
+            >,
+    {
+        let computed = match source {
+            Expression::Call { callee, arguments, .. } if callee == "field" => {
+                field_source::<Environment::Error>(arguments, span(source)).ok().filter(|form| {
+                    !matches!(form.value, Expression::Reference { .. })
+                        && !matches!(form.value, Expression::Call { callee, .. } if callee == "member")
+                })
+            }
+            _ => None,
+        };
+        let Some(form) = computed else {
+            return lower_catalog_projection_source(
+                source,
+                prefix,
+                BoundProjectionSourceLimits {
+                    source: self.limits.control.source,
+                    max_bindings: self.limits.control.max_bindings,
+                },
+                &mut Projection(
+                    self.environment,
+                    PhantomData::<fn(&'schema ()) -> Declaration>,
+                ),
+            )
+            .map_err(|error| CatalogSourceError::Projection(Box::new(error)));
+        };
+        preflight_names(source)
+            .map_err(|error| CatalogSourceError::ComputedProjection(Box::new(error)))?;
+        let limits = self.limits.control;
+        let environment = self.environment;
+        form.lower_preflighted(
+            limits.source,
+            |child| {
+                let (node, ty) = lower_preflighted_control_source(child, prefix, limits, self)
+                    .map_err(|error| CatalogSourceError::Control(Box::new(error)))?;
+                let PureType::Result(result) = ty else {
+                    return Err(CatalogSourceError::ComputedProjection(Box::new(
+                        ProjectionSourceError::NonResult { span: span(child) },
+                    )));
+                };
+                Ok((node, result))
+            },
+            Ok,
+            |result, name| {
+                environment.source_field(result, name).map_err(|error| {
+                    CatalogSourceError::Mapping {
+                        span: span(source),
+                        error,
+                    }
+                })
+            },
+        )
+        .map(|(node, ty)| (node, PureType::Scalar(ty)))
+        .map_err(|error| CatalogSourceError::ComputedProjection(Box::new(error)))
+    }
+
     fn scalar<Field, HostEffect, IrResult>(
-        &self,
+        &mut self,
         source: &'source Expression,
         prefix: &[(&'source str, &PureType<Environment::Result>)],
     ) -> ScalarResult<Node<Field, Operation, HostEffect, IrResult>, Environment::Error>
@@ -350,46 +431,34 @@ impl<'source, 'schema, Operation, Domain, Declaration, Capability, Environment, 
             },
             &scalar_prefix,
             |child, local| {
-                if self.program.is_some() || self.locals.contains(child) {
-                    let scalar_types: Vec<_> = local
-                        .bindings()
-                        .iter()
-                        .map(|(name, ty)| (*name, PureType::Scalar(*ty)))
-                        .collect();
-                    let mut extended: Vec<_> = prefix
-                        .iter()
-                        .copied()
-                        .filter(|(_, ty)| ty.scalar_type().is_none())
-                        .collect();
-                    extended.extend(scalar_types.iter().map(|(name, ty)| (*name, ty)));
-                    if let Some(lowered) = self.locals.lower(child, &extended).or_else(|| {
+                let scalar_types: Vec<_> = local
+                    .bindings()
+                    .iter()
+                    .map(|(name, ty)| (*name, PureType::Scalar(*ty)))
+                    .collect();
+                let mut extended: Vec<_> = prefix
+                    .iter()
+                    .copied()
+                    .filter(|(_, ty)| ty.scalar_type().is_none())
+                    .collect();
+                extended.extend(scalar_types.iter().map(|(name, ty)| (*name, ty)));
+                if (self.program.is_some() || self.locals.contains(child))
+                    && let Some(lowered) = self.locals.lower(child, &extended).or_else(|| {
                         self.program.and_then(|program| {
                             program.lower_helper(child, &extended, self.host, self.environment)
                         })
-                    }) {
-                        let (node, ty) = lowered?;
-                        let PureType::Scalar(ty) = ty else {
-                            return Err(CatalogSourceError::NonScalar { span: span(child) });
-                        };
-                        return Ok((node, Some(ty)));
-                    }
+                    })
+                {
+                    let (node, ty) = lowered?;
+                    let PureType::Scalar(ty) = ty else {
+                        return Err(CatalogSourceError::NonScalar { span: span(child) });
+                    };
+                    return Ok((node, Some(ty)));
                 }
                 if matches!(child, Expression::Reference { .. }) {
                     return Err(CatalogSourceError::NonScalar { span: span(child) });
                 }
-                let (node, ty) = lower_catalog_projection_source(
-                    child,
-                    prefix,
-                    BoundProjectionSourceLimits {
-                        source: self.limits.control.source,
-                        max_bindings: self.limits.control.max_bindings,
-                    },
-                    &mut Projection(
-                        self.environment,
-                        PhantomData::<fn(&'schema ()) -> Declaration>,
-                    ),
-                )
-                .map_err(|e| CatalogSourceError::Projection(Box::new(e)))?;
+                let (node, ty) = self.projection(child, &extended)?;
                 let PureType::Scalar(ty) = ty else {
                     return Err(CatalogSourceError::NonScalar { span: span(child) });
                 };
@@ -523,19 +592,7 @@ where
         }
         if matches!(source, Expression::Call { callee, .. } if matches!(callee.as_str(), "field" | "member"))
         {
-            return lower_catalog_projection_source(
-                source,
-                scope.bindings(),
-                BoundProjectionSourceLimits {
-                    source: self.limits.control.source,
-                    max_bindings: self.limits.control.max_bindings,
-                },
-                &mut Projection(
-                    self.environment,
-                    PhantomData::<fn(&'schema ()) -> Declaration>,
-                ),
-            )
-            .map_err(|e| CatalogSourceError::Projection(Box::new(e)));
+            return self.projection(source, scope.bindings());
         }
         if !intrinsic(source) {
             if let Some(lowered) = self.locals.lower(source, scope.bindings()) {
@@ -643,8 +700,10 @@ where
 /// flow inference prevent per-leaf budgets or supplied observations granting IR.
 ///
 /// Supports scalar forms/loop/fold, Bind/Choose, catalog calls and direct bound
-/// field/member projection. Groups/repeats, helper registration, opaque Host
-/// payloads and arbitrary result-expression field inputs are not this profile.
+/// field/member projection, plus fields over pure computed results. Computed
+/// inputs reuse the same control compiler and pure projection budget; even cold
+/// Host/Call/Group nodes cannot hide inside a field input. Groups/repeats, helper
+/// registration and opaque Host payloads are not this expression entry's profile.
 /// Unknown names fail closed; host catalogs cannot replace reserved intrinsics.
 /// Output is still mutable data, not execution authority or a schema snapshot.
 /// Execution must revalidate live policy and actual replies through its protocol.

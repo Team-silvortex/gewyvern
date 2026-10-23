@@ -1565,6 +1565,18 @@ mod mixed {
 
     fn compile_diagnostic(error: catalog_source::CatalogSourceError<Refusal>) -> String {
         match error {
+            catalog_source::CatalogSourceError::Scalar { span, error } => match *error {
+                scalar_source::ScalarSourceError::Native { error, .. } => {
+                    format!("{span:?}/scalar: {}", compile_diagnostic(error))
+                }
+                error => format!("{span:?}/scalar: {error:?}"),
+            },
+            catalog_source::CatalogSourceError::ComputedProjection(error) => match *error {
+                projection_source::ProjectionSourceError::Native { error, .. } => {
+                    compile_diagnostic(error)
+                }
+                error => format!("computed field: {error:?}"),
+            },
             catalog_source::CatalogSourceError::Group(error) => group_diagnostic(*error),
             catalog_source::CatalogSourceError::Control(error) => match *error {
                 control_source::ControlSourceError::Native { span, phase, error } => {
@@ -2605,10 +2617,51 @@ mod mixed {
             budget: u64,
             fault: Option<(usize, Fault)>,
         ) -> (TransferOutcome, Cuts, bool) {
+            run_pipeline::<P>(
+                &Pipeline {
+                    source: P::program(first, last),
+                    output: P::result(first),
+                    inputs: P::inputs(first),
+                    groups: vec![false, true, false, true],
+                },
+                budget,
+                true,
+                fault,
+            )
+        }
+
+        struct Pipeline {
+            source: String,
+            output: ScalarValue,
+            inputs: Vec<ScalarValue>,
+            groups: Vec<bool>,
+        }
+        impl From<ConditionalCase> for Pipeline {
+            fn from(case: ConditionalCase) -> Self {
+                let mut groups = vec![false, true];
+                if case.inputs.len() == 4 {
+                    groups.push(false);
+                }
+                Self {
+                    source: case.source,
+                    output: case.output,
+                    inputs: case.inputs,
+                    groups,
+                }
+            }
+        }
+
+        fn run_pipeline<P: Profile>(
+            case: &Pipeline,
+            budget: u64,
+            transfer: bool,
+            fault: Option<(usize, Fault)>,
+        ) -> (TransferOutcome, Cuts, bool) {
             let mut output = None;
             fixture::<P>(|host, scope| {
                 let sibling = LocalExecutionScope::new();
-                let node = compile(&P::program(first, last), &host).unwrap();
+                let node = compile(&case.source, &host)
+                    .unwrap_or_else(|error| panic!("{error}\n{}", case.source));
                 let plans = plans(&node, &host);
                 let runtime = Runtime {
                     host: &host,
@@ -2620,23 +2673,31 @@ mod mixed {
                 let mut refused = false;
                 let mut remaining = budget;
                 let mut result = None;
-                for phase in 0..=4 {
+                for phase in 0..=case.groups.len() {
                     let (scope, slot) = owner.as_parts_mut();
                     let polled = slot.as_mut().unwrap().poll_in_scope(&runtime, scope);
                     remaining = owner.value().as_ref().unwrap().fuel_remaining();
                     match polled {
                         Ok(EffectSessionPoll::Request(active)) => {
-                            assert!(phase < 4);
+                            assert!(phase < case.groups.len());
+                            assert_eq!(
+                                matches!(active.work, Work::Sequence(_) | Work::Parallel { .. }),
+                                case.groups[phase]
+                            );
                             let plan = active.plan;
                             let mut child_failed = false;
-                            let mut child_failure_counts = None;
+                            let mut failure_counts = None;
                             let (scope, slot) = owner.as_parts_mut();
                             let collected = catch_unwind(AssertUnwindSafe(|| {
                                 runtime.collect_with_checkpoint(
                                     active,
-                                    true,
+                                    transfer,
                                     Some(scope),
                                     |phase| {
+                                        if !transfer {
+                                            assert!(fault.is_none());
+                                            return Ok(());
+                                        }
                                         if phase == TransferPhase::ChildAdmission {
                                             let injected = fault
                                                 .filter(|(cut, fault)| {
@@ -2651,7 +2712,7 @@ mod mixed {
                                             );
                                             child_failed = injected.is_child();
                                             if child_failed {
-                                                child_failure_counts = Some((
+                                                failure_counts = Some((
                                                     host.invoked.borrow().len(),
                                                     host.serial.get(),
                                                 ));
@@ -2675,6 +2736,12 @@ mod mixed {
                                             })
                                             .map_or(Fault::None, |(_, fault)| fault);
                                         checkpoints.parent += 1;
+                                        if !matches!(injected, Fault::None) {
+                                            failure_counts = Some((
+                                                host.invoked.borrow().len(),
+                                                host.serial.get(),
+                                            ));
+                                        }
                                         // Repeated replacement while the child collector's
                                         // original saved rows are parked on the same stack.
                                         handoff(slot, scope, &runtime, plan, injected)?;
@@ -2688,7 +2755,7 @@ mod mixed {
                                     assert!(!owner.is_open());
                                     assert_eq!(owner.value().is_some(), child_failed);
                                     assert!(runtime.authorize(&plan.id()).is_err());
-                                    if let Some((invocations, requests)) = child_failure_counts {
+                                    if let Some((invocations, requests)) = failure_counts {
                                         assert_eq!(host.invoked.borrow().len(), invocations);
                                         assert_eq!(host.serial.get(), requests);
                                     }
@@ -2718,12 +2785,35 @@ mod mixed {
                             assert_eq!(vm.status(), EffectSessionStatus::Awaiting);
                             assert_eq!(vm.fuel_remaining(), remaining);
                             assert!(scope.is_open());
+                            let reply = if let Some(cold) = plans.iter().find(|candidate| {
+                                matches!(plan.node, Node::Group { .. })
+                                    && matches!(candidate.node, Node::Group { .. })
+                                    && candidate.identity.borrow().is_none()
+                            }) {
+                                let mut reply = reply;
+                                let original = reply.node;
+                                reply.node = cold.node;
+                                let mut reply = vm
+                                    .try_accept_in_scope(&identity, reply, &runtime, scope)
+                                    .unwrap_err()
+                                    .reply;
+                                assert_eq!(&*reply.buffer as *const u8, pointer);
+                                assert_eq!(vm.status(), EffectSessionStatus::Awaiting);
+                                assert_eq!(vm.fuel_remaining(), remaining);
+                                assert!(scope.is_open());
+                                assert!(cold.members.borrow().is_empty());
+                                reply.node = original;
+                                reply
+                            } else {
+                                reply
+                            };
                             vm.try_accept_in_scope(&identity, reply, &runtime, scope)
                                 .unwrap();
                         }
                         Ok(EffectSessionPoll::Value(PureValue::Scalar(value))) => {
-                            assert_eq!(phase, 4);
-                            assert_eq!(value, P::result(first));
+                            assert_eq!(phase, case.groups.len());
+                            assert_eq!(value, case.output);
+                            assert_eq!(*host.invoked.borrow(), case.inputs);
                             result = Some(value);
                             assert_eq!(
                                 owner.value().as_ref().unwrap().status(),
@@ -2743,7 +2833,29 @@ mod mixed {
                 }
                 assert!(!owner.is_open());
                 let invocations = host.invoked.borrow().clone();
-                assert_eq!(invocations, P::inputs(first)[..invocations.len()]);
+                assert_eq!(invocations, case.inputs[..invocations.len()]);
+                let active_groups = plans
+                    .iter()
+                    .filter(|plan| matches!(plan.node, Node::Group { .. }))
+                    .filter(|plan| {
+                        if plan.identity.borrow().is_none() {
+                            assert!(plan.members.borrow().is_empty());
+                            false
+                        } else {
+                            true
+                        }
+                    })
+                    .count();
+                if result.is_some() {
+                    assert_eq!(
+                        active_groups,
+                        case.groups.iter().filter(|group| **group).count()
+                    );
+                    assert_eq!(
+                        host.serial.get(),
+                        (case.inputs.len() + active_groups) as u64
+                    );
+                }
                 let requests = host.serial.get();
                 let (scope, slot) = owner.as_parts_mut();
                 if let Some(vm) = slot.as_mut() {
@@ -2772,6 +2884,143 @@ mod mixed {
                 ));
             });
             output.unwrap()
+        }
+
+        fn selected_cases<P: Profile>(kind: &str, left: bool, early: bool) -> Vec<ConditionalCase> {
+            let mut cases = vec![conditional_case::<P>(kind, left, early)];
+            for operand in [false, true] {
+                if early && operand {
+                    continue;
+                }
+                for form in 0..4 {
+                    cases.push(computed_projection_case::<P>(
+                        kind, left, early, form, operand,
+                    ));
+                }
+                for form in 0..3 {
+                    cases.push(iteration_case::<P>(kind, left, early, form, operand));
+                }
+            }
+            cases
+        }
+
+        #[test]
+        fn selected_result_control_flow_survives_coupled_parent_and_collector_replacement() {
+            fn check<P: Profile>() {
+                let mut count = 0;
+                for kind in ["seq", "all"] {
+                    for left in [false, true] {
+                        for early in [false, true] {
+                            for case in selected_cases::<P>(kind, left, early) {
+                                let local = run_conditional::<P>(&case, 10_000).unwrap();
+                                let case = Pipeline::from(case);
+                                let (live, _, refused) =
+                                    run_pipeline::<P>(&case, 10_000, false, None);
+                                assert!(!refused);
+                                assert_eq!(live.remaining, local);
+                                let (restored, cuts, refused) =
+                                    run_pipeline::<P>(&case, 10_000, true, None);
+                                assert!(!refused);
+                                assert_eq!(restored, live);
+                                assert_eq!(restored.value, Some(case.output));
+                                assert_eq!(cuts.child, if kind == "seq" { 7 } else { 5 });
+                                assert_eq!(cuts.parent, cuts.child + 5 + if early { 0 } else { 3 });
+                                count += 1;
+                            }
+                        }
+                    }
+                }
+                assert_eq!(count, 92);
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+
+        #[test]
+        fn selected_result_replacement_preserves_failure_prefixes_at_every_fuel_cutoff() {
+            fn check<P: Profile>() {
+                for kind in ["seq", "all"] {
+                    let cases =
+                        std::iter::once(computed_projection_case::<P>(kind, true, false, 3, true))
+                            .chain(
+                                (0..3)
+                                    .map(|form| iteration_case::<P>(kind, true, false, form, true)),
+                            );
+                    for (form, case) in cases.enumerate() {
+                        let case = Pipeline::from(case);
+                        let (live, _, _) = run_pipeline::<P>(&case, 10_000, false, None);
+                        assert!(live.value.is_some());
+                        let used = 10_000 - live.remaining;
+                        for budget in 0..=used + 1 {
+                            let (restored, _, refused) =
+                                run_pipeline::<P>(&case, budget, true, None);
+                            assert!(!refused);
+                            assert_eq!(
+                                restored,
+                                run_pipeline::<P>(&case, budget, false, None).0,
+                                "{kind}/{form}/{budget}"
+                            );
+                            assert_eq!(restored.value.is_some(), budget >= used);
+                            if budget >= used {
+                                assert_eq!(restored.remaining, budget - used);
+                            }
+                        }
+                    }
+                }
+            }
+            check::<Counter>();
+            check::<Panel>();
+        }
+
+        #[test]
+        fn selected_result_restore_refusals_block_tail_work_at_every_parent_and_child_cut() {
+            fn check<P: Profile>() {
+                let mut count = 0;
+                for kind in ["seq", "all"] {
+                    for early in [false, true] {
+                        let case =
+                            Pipeline::from(iteration_case::<P>(kind, false, early, 2, !early));
+                        let (baseline, cuts, _) = run_pipeline::<P>(&case, 10_000, true, None);
+                        assert!(baseline.value.is_some());
+                        for fault in [
+                            Fault::Closed,
+                            Fault::Revoked,
+                            Fault::Stale,
+                            Fault::WrongRoot,
+                            Fault::Capture,
+                            Fault::Shape,
+                            Fault::Unwind,
+                            Fault::ChildRefused,
+                            Fault::ChildRevoked,
+                            Fault::ChildUnwind,
+                        ] {
+                            let frontier = if fault.is_child() {
+                                cuts.child
+                            } else {
+                                cuts.parent
+                            };
+                            for cut in 0..frontier {
+                                let (outcome, seen, refused) =
+                                    run_pipeline::<P>(&case, 10_000, true, Some((cut, fault)));
+                                assert!(refused, "{kind}/{early}/{cut}/{fault:?}");
+                                assert!(outcome.value.is_none());
+                                assert_eq!(
+                                    if fault.is_child() {
+                                        seen.child
+                                    } else {
+                                        seen.parent
+                                    },
+                                    cut + 1
+                                );
+                                count += 1;
+                            }
+                        }
+                    }
+                }
+                assert_eq!(count, 422);
+            }
+            check::<Counter>();
+            check::<Panel>();
         }
 
         #[derive(Clone, Copy, Debug, PartialEq)]
@@ -5366,7 +5615,8 @@ fn main() = bind(initial: step(text: "seed"), body: bind(seed: field(value: init
     fn run_conditional<P: Profile>(case: &ConditionalCase, budget: u64) -> Result<u64, ()> {
         let result = Cell::new(Err(()));
         fixture::<P>(|host, scope| {
-            let node = compile(&case.source, &host).unwrap();
+            let node = compile(&case.source, &host)
+                .unwrap_or_else(|error| panic!("{error}\n{}", case.source));
             let plans = plans(&node, &host);
             assert_eq!(
                 plans
@@ -5497,6 +5747,95 @@ fn main() = bind(initial: step(text: "seed"), body: bind(seed: field(value: init
         check::<Panel>();
     }
 
+    fn computed_projection_case<P: Profile>(
+        kind: &str,
+        left: bool,
+        early: bool,
+        form: usize,
+        operand: bool,
+    ) -> ConditionalCase {
+        let mut case = conditional_case::<P>(kind, left, early);
+        let right = "member(value: alias, name: \"right\")";
+        let other = "member(value: alias, name: \"left\")";
+        let input = match form {
+            0 => format!("choose(when: true, then: {right}, otherwise: {other})"),
+            1 => format!("choose(when: false, then: {other}, otherwise: {right})"),
+            2 => format!(
+                "bind(picked: {right}, body: choose(when: true, then: picked, otherwise: {other}))"
+            ),
+            3 => format!(
+                "choose(when: recover(value: eq(left: div(left: 1, right: 0), right: 0), fallback: true), then: {right}, otherwise: {other})"
+            ),
+            _ => panic!(),
+        };
+        let field = if P::ARGUMENT == ScalarType::Integer {
+            "value"
+        } else {
+            "text"
+        };
+        let projection = format!("field(value: {input}, name: \"{field}\")");
+        case.source = case.source.replace(
+            &format!("field(value: {right}, name: \"{field}\")"),
+            &projection,
+        );
+        if operand {
+            case.source = case.source.replace(
+                ": selected, seed: seed)",
+                &format!(": {projection}, seed: seed)"),
+            );
+        }
+        case
+    }
+
+    #[test]
+    fn computed_result_fields_join_two_host_group_reply_and_successor_pipelines() {
+        fn check<P: Profile>() {
+            let mut cases = 0;
+            for kind in ["seq", "all"] {
+                for left in [false, true] {
+                    for early in [false, true] {
+                        for form in 0..4 {
+                            for operand in [false, true] {
+                                if early && operand {
+                                    continue;
+                                }
+                                let case =
+                                    computed_projection_case::<P>(kind, left, early, form, operand);
+                                assert!(run_conditional::<P>(&case, 10_000).is_ok());
+                                cases += 1;
+                            }
+                        }
+                    }
+                }
+            }
+            assert_eq!(cases, 48);
+        }
+        check::<Counter>();
+        check::<Panel>();
+    }
+
+    #[test]
+    fn computed_result_fields_keep_the_original_meter_at_every_pipeline_cutoff() {
+        fn check<P: Profile>() {
+            for kind in ["seq", "all"] {
+                for form in 0..4 {
+                    let case = computed_projection_case::<P>(kind, true, false, form, true);
+                    let used = 10_000 - run_conditional::<P>(&case, 10_000).unwrap();
+                    for budget in 0..used {
+                        assert!(
+                            run_conditional::<P>(&case, budget).is_err(),
+                            "{kind}/{form}/{budget}"
+                        );
+                    }
+                    assert_eq!(run_conditional::<P>(&case, used), Ok(0));
+                    assert_eq!(run_conditional::<P>(&case, used + 1), Ok(1));
+                }
+            }
+        }
+        check::<Counter>();
+        check::<Panel>();
+    }
+
     #[test]
     fn selected_group_and_early_exit_keep_exact_fuel_at_every_pipeline_cutoff() {
         fn check<P: Profile>() {
@@ -5513,6 +5852,269 @@ fn main() = bind(initial: step(text: "seed"), body: bind(seed: field(value: init
                         }
                         assert_eq!(run_conditional::<P>(&case, used), Ok(0));
                         assert_eq!(run_conditional::<P>(&case, used + 1), Ok(1));
+                    }
+                }
+            }
+        }
+        check::<Counter>();
+        check::<Panel>();
+    }
+
+    fn iteration_expression<P: Profile>(form: usize) -> String {
+        let field = if P::ARGUMENT == ScalarType::Integer {
+            "value"
+        } else {
+            "text"
+        };
+        let initial = if P::ARGUMENT == ScalarType::Integer {
+            "0"
+        } else {
+            "\"\""
+        };
+        let projection = |condition: &str, otherwise: &str| {
+            format!(
+                "field(value: bind(picked: choose(when: {condition}, then: member(value: alias, name: \"right\"), otherwise: member(value: alias, name: \"{otherwise}\")), body: picked), name: \"{field}\")"
+            )
+        };
+        match form {
+            0 => {
+                let index = if P::ARGUMENT == ScalarType::Integer {
+                    "cursor"
+                } else {
+                    "len(value: cursor)"
+                };
+                let selected = projection(&format!("eq(left: {index}, right: 0)"), "right");
+                let (bound, next) = if P::ARGUMENT == ScalarType::Integer {
+                    (selected, "add(left: cursor, right: 1)".into())
+                } else {
+                    (
+                        format!("len(value: {selected})"),
+                        format!(
+                            "concat(left: cursor, right: value_or(left: char_at(left: {selected}, right: {index}), right: \"\"))"
+                        ),
+                    )
+                };
+                format!(
+                    "loop(cursor: {initial}, while: lt(left: {index}, right: {bound}), next: {next}, limit: 8)"
+                )
+            }
+            1 | 2 => {
+                let condition = if form == 1 {
+                    "eq(left: piece, right: \"right\")"
+                } else {
+                    "pick_piece(piece: piece)"
+                };
+                let selected = projection(condition, "left");
+                let next = if form == 1 {
+                    selected
+                } else {
+                    format!(
+                        "loop(cursor: state, while: ne(left: cursor, right: {selected}), next: {selected}, limit: 1)"
+                    )
+                };
+                format!(
+                    "fold(state: {initial}, items: strings(a: \"left\", b: \"right\"), item: \"piece\", next: {next}, limit: 2)"
+                )
+            }
+            _ => panic!(),
+        }
+    }
+
+    fn iteration_case<P: Profile>(
+        kind: &str,
+        left: bool,
+        early: bool,
+        form: usize,
+        operand: bool,
+    ) -> ConditionalCase {
+        let mut case = conditional_case::<P>(kind, left, early);
+        let field = if P::ARGUMENT == ScalarType::Integer {
+            "value"
+        } else {
+            "text"
+        };
+        let original =
+            format!("field(value: member(value: alias, name: \"right\"), name: \"{field}\")");
+        let calculation = iteration_expression::<P>(form);
+        assert_eq!(case.source.matches(&original).count(), 1);
+        case.source = case.source.replace(&original, &calculation);
+        if operand {
+            case.source = case.source.replace(
+                ": selected, seed: seed)",
+                &format!(": {calculation}, seed: seed)"),
+            );
+        }
+        if form == 2 {
+            case.source
+                .push_str("\nfn pick_piece(piece: string) = eq(left: piece, right: \"right\")\n");
+        }
+        case
+    }
+
+    #[test]
+    fn captured_group_iterations_join_result_selection_and_successor_operands_for_two_hosts() {
+        fn check<P: Profile>() {
+            let mut cases = 0;
+            for kind in ["seq", "all"] {
+                for left in [false, true] {
+                    for early in [false, true] {
+                        for form in 0..3 {
+                            for operand in [false, true] {
+                                if early && operand {
+                                    continue;
+                                }
+                                let case = iteration_case::<P>(kind, left, early, form, operand);
+                                assert!(run_conditional::<P>(&case, 10_000).is_ok());
+                                cases += 1;
+                            }
+                        }
+                    }
+                }
+            }
+            assert_eq!(cases, 36);
+        }
+        check::<Counter>();
+        check::<Panel>();
+    }
+
+    #[test]
+    fn captured_group_iterations_keep_the_original_meter_at_every_pipeline_cutoff() {
+        fn check<P: Profile>() {
+            for kind in ["seq", "all"] {
+                for form in 0..3 {
+                    let case = iteration_case::<P>(kind, true, false, form, true);
+                    let used = 10_000 - run_conditional::<P>(&case, 10_000).unwrap();
+                    for budget in 0..used {
+                        assert!(
+                            run_conditional::<P>(&case, budget).is_err(),
+                            "{kind}/{form}/{budget}"
+                        );
+                    }
+                    assert_eq!(run_conditional::<P>(&case, used), Ok(0));
+                    assert_eq!(run_conditional::<P>(&case, used + 1), Ok(1));
+                }
+            }
+        }
+        check::<Counter>();
+        check::<Panel>();
+    }
+
+    #[test]
+    fn captured_group_iteration_limits_cannot_be_recovered_into_a_successor() {
+        fn check<P: Profile>() {
+            for kind in ["seq", "all"] {
+                for early in [false, true] {
+                    for form in 0..3 {
+                        for recover in [false, true] {
+                            let mut case = iteration_case::<P>(kind, true, early, form, false);
+                            let expression = iteration_expression::<P>(form);
+                            let limit = match form {
+                                0 => "limit: 8",
+                                1 => "limit: 2",
+                                _ => "limit: 1",
+                            };
+                            assert!(expression.contains(limit));
+                            let mut refused = expression.replace(limit, "limit: 0");
+                            if recover {
+                                let fallback = if P::ARGUMENT == ScalarType::Integer {
+                                    "0"
+                                } else {
+                                    "\"fallback\""
+                                };
+                                refused =
+                                    format!("recover(value: {refused}, fallback: {fallback})");
+                            }
+                            case.source = case.source.replace(&expression, &refused);
+                            fixture::<P>(|host, scope| {
+                                let node = compile(&case.source, &host).unwrap();
+                                let plans = plans(&node, &host);
+                                let runtime = Runtime {
+                                    host: &host,
+                                    plans: &plans,
+                                };
+                                let mut vm = LocalVm::new(
+                                    scope,
+                                    &node,
+                                    Vec::new(),
+                                    Fuel::new(10_000),
+                                    STACK,
+                                );
+                                for _ in 0..2 {
+                                    let EffectSessionPoll::Request(active) =
+                                        vm.poll(&runtime).unwrap()
+                                    else {
+                                        panic!()
+                                    };
+                                    let reply = runtime.collect(active).unwrap();
+                                    vm.try_accept(&reply.identity.clone(), reply, &runtime)
+                                        .unwrap();
+                                }
+                                let before = vm.fuel_remaining();
+                                assert!(vm.poll(&runtime).is_err());
+                                assert!(vm.fuel_remaining() < before);
+                                let remaining = vm.fuel_remaining();
+                                assert_eq!(
+                                    vm.status(),
+                                    EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+                                );
+                                assert!(!vm.lease().is_open());
+                                assert!(matches!(
+                                    vm.poll(&runtime).unwrap(),
+                                    EffectSessionPoll::Terminal(EffectSessionEnd::Failed)
+                                ));
+                                assert_eq!(vm.fuel_remaining(), remaining);
+                                assert_eq!(*host.invoked.borrow(), case.inputs[..3]);
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        check::<Counter>();
+        check::<Panel>();
+    }
+
+    #[test]
+    fn captured_group_iterations_reject_cold_exports_effects_and_escaped_locals() {
+        fn check<P: Profile>() {
+            for kind in ["seq", "all"] {
+                for form in 0..3 {
+                    let case = iteration_case::<P>(kind, true, false, form, false);
+                    let expression = iteration_expression::<P>(form);
+                    let field = if P::ARGUMENT == ScalarType::Integer {
+                        "value"
+                    } else {
+                        "text"
+                    };
+                    let initial = if P::ARGUMENT == ScalarType::Integer {
+                        "0"
+                    } else {
+                        "\"\""
+                    };
+                    let invalid = format!(
+                        "field(value: choose(when: true, then: member(value: alias, name: \"right\"), otherwise: member(value: alias, name: \"missing\")), name: \"{field}\")"
+                    );
+                    let effect = if P::ARGUMENT == ScalarType::Integer {
+                        "step(n: 1)"
+                    } else {
+                        "step(text: \"unsafe\")"
+                    };
+                    for replacement in [
+                        format!("loop(cursor: {initial}, while: false, next: {invalid}, limit: 0)"),
+                        format!(
+                            "fold(state: {initial}, items: strings(), item: \"piece\", next: {invalid}, limit: 0)"
+                        ),
+                        format!("loop(cursor: {initial}, while: false, next: {effect}, limit: 0)"),
+                        "cursor".into(),
+                        "piece".into(),
+                    ] {
+                        fixture::<P>(|host, _scope| {
+                            let source = case.source.replace(&expression, &replacement);
+                            assert_ne!(source, case.source);
+                            assert!(compile(&source, &host).is_err());
+                            assert!(host.invoked.borrow().is_empty());
+                            assert_eq!(host.serial.get(), 0);
+                        });
                     }
                 }
             }
@@ -5559,51 +6161,66 @@ fn main() = bind(initial: step(text: "seed"), body: bind(seed: field(value: init
             for kind in ["seq", "all"] {
                 for early in [false, true] {
                     for revoke in 0..4 {
-                        let case = conditional_case::<P>(kind, false, early);
-                        fixture::<P>(|host, scope| {
-                            let node = compile(&case.source, &host).unwrap();
-                            let plans = plans(&node, &host);
-                            let runtime = Runtime {
-                                host: &host,
-                                plans: &plans,
-                            };
-                            let mut vm =
-                                LocalVm::new(scope, &node, Vec::new(), Fuel::new(10_000), STACK);
-                            for _ in 0..2 {
-                                let EffectSessionPoll::Request(active) = vm.poll(&runtime).unwrap()
-                                else {
-                                    panic!()
+                        for case in
+                            std::iter::once(conditional_case::<P>(kind, false, early))
+                                .chain((0..4).map(|form| {
+                                    computed_projection_case::<P>(kind, false, early, form, true)
+                                }))
+                                .chain((0..3).map(|form| {
+                                    iteration_case::<P>(kind, false, early, form, true)
+                                }))
+                        {
+                            fixture::<P>(|host, scope| {
+                                let node = compile(&case.source, &host).unwrap();
+                                let plans = plans(&node, &host);
+                                let runtime = Runtime {
+                                    host: &host,
+                                    plans: &plans,
                                 };
-                                let reply = runtime.collect(active).unwrap();
-                                vm.try_accept(&reply.identity.clone(), reply, &runtime)
-                                    .unwrap();
-                            }
-                            let before = vm.fuel_remaining();
-                            match revoke {
-                                0 => host.granted.set(false),
-                                1 => host.revision.set(2),
-                                2 => host.version.set(32),
-                                _ => {
-                                    assert!(vm.cancel());
+                                let mut vm = LocalVm::new(
+                                    scope,
+                                    &node,
+                                    Vec::new(),
+                                    Fuel::new(10_000),
+                                    STACK,
+                                );
+                                for _ in 0..2 {
+                                    let EffectSessionPoll::Request(active) =
+                                        vm.poll(&runtime).unwrap()
+                                    else {
+                                        panic!()
+                                    };
+                                    let reply = runtime.collect(active).unwrap();
+                                    vm.try_accept(&reply.identity.clone(), reply, &runtime)
+                                        .unwrap();
                                 }
-                            }
-                            let end = if revoke == 3 {
-                                assert_eq!(vm.fuel_remaining(), before);
-                                EffectSessionEnd::Cancelled
-                            } else {
-                                assert!(vm.poll(&runtime).is_err());
-                                EffectSessionEnd::Failed
-                            };
-                            assert_eq!(vm.status(), EffectSessionStatus::Terminal(end));
-                            let fuel = vm.fuel_remaining();
-                            assert!(fuel <= before);
-                            assert!(
-                                matches!(vm.poll(&runtime).unwrap(), EffectSessionPoll::Terminal(actual) if actual == end)
-                            );
-                            assert_eq!(vm.fuel_remaining(), fuel);
-                            assert!(!vm.lease().is_open());
-                            assert_eq!(*host.invoked.borrow(), case.inputs[..3]);
-                        });
+                                let before = vm.fuel_remaining();
+                                match revoke {
+                                    0 => host.granted.set(false),
+                                    1 => host.revision.set(2),
+                                    2 => host.version.set(32),
+                                    _ => {
+                                        assert!(vm.cancel());
+                                    }
+                                }
+                                let end = if revoke == 3 {
+                                    assert_eq!(vm.fuel_remaining(), before);
+                                    EffectSessionEnd::Cancelled
+                                } else {
+                                    assert!(vm.poll(&runtime).is_err());
+                                    EffectSessionEnd::Failed
+                                };
+                                assert_eq!(vm.status(), EffectSessionStatus::Terminal(end));
+                                let fuel = vm.fuel_remaining();
+                                assert!(fuel <= before);
+                                assert!(
+                                    matches!(vm.poll(&runtime).unwrap(), EffectSessionPoll::Terminal(actual) if actual == end)
+                                );
+                                assert_eq!(vm.fuel_remaining(), fuel);
+                                assert!(!vm.lease().is_open());
+                                assert_eq!(*host.invoked.borrow(), case.inputs[..3]);
+                            });
+                        }
                     }
                 }
             }

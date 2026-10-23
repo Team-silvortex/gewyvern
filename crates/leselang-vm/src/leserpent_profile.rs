@@ -63,6 +63,8 @@ mod operation_request_tests;
 #[cfg(test)]
 mod presentation_request_tests;
 #[cfg(test)]
+mod reference_value_contract_tests;
+#[cfg(test)]
 mod request_codec_tests;
 mod result_binding;
 #[cfg(test)]
@@ -114,21 +116,24 @@ pub(crate) use leselang_command::reference_continuation::{
 pub use leselang_command::{MAX_CONTINUATION_BYTES, decode_continuation, encode_continuation};
 pub const DEFAULT_FUEL: u64 = 1_000;
 pub const DEFAULT_EFFECT_DEADLINE_MS: u64 = 30_000;
-pub const DEFAULT_DISPATCH_LEASE_MS: u64 = 30_000;
-pub const MAX_DISPATCH_LEASE_MS: u64 = 5 * 60 * 1_000;
-pub const MAX_DISPATCH_ATTEMPTS: u32 = 100;
+pub use leselang_command::ContinuationToken;
+pub(crate) use leselang_command::continuation_identity::{
+    MAX_EFFECT_SEQUENCE, canonical_continuation_sequence, continuation_age_order,
+    valid_continuation_token,
+};
+pub use leselang_command::reference_dispatch::{
+    DEFAULT_DISPATCH_LEASE_MS, MAX_DISPATCH_ATTEMPTS, MAX_DISPATCH_LEASE_MS,
+};
+pub use leselang_command::reference_value::MAX_STRUCTURED_VALUE_DEPTH;
+pub(crate) use leselang_command::reference_value::{
+    validate_branch_outcome, validate_value, value_bounds_fault, value_validation_limits,
+};
 pub use leselang_command::retention_policy::{
     DEFAULT_COMPACTION_BATCH, DEFAULT_COMPLETED_RETENTION, MAX_COMPACTION_BATCH,
 };
 pub use leselang_command::retry_policy::{
     DEFAULT_MAX_SEMANTIC_RETRIES, DEFAULT_RETRY_BASE_DELAY_MS, DEFAULT_RETRY_MAX_DELAY_MS,
     MAX_RETRY_DELAY_MS, MAX_SEMANTIC_RETRIES,
-};
-pub const MAX_STRUCTURED_VALUE_DEPTH: usize = 16;
-pub use leselang_command::ContinuationToken;
-pub(crate) use leselang_command::continuation_identity::{
-    MAX_EFFECT_SEQUENCE, canonical_continuation_sequence, continuation_age_order,
-    valid_continuation_token,
 };
 
 pub use leselang_command::reference_request::{
@@ -1219,6 +1224,7 @@ fn validate_effect_clock(now_ms: u64, timeout_ms: u64) -> Result<u64, Fault> {
     leselang_runtime_core::validate_execution_deadline(now_ms, timeout_ms)
 }
 
+#[cfg(any(test, feature = "sqlite-journal"))]
 fn validate_effect_error(error: &EffectError) -> Result<(), Fault> {
     leselang_command::retry_policy::validate_effect_error(error).map_err(effect_retry_fault)
 }
@@ -1371,110 +1377,17 @@ fn merge_output_fault(items: usize, limit: usize) -> Fault {
     }
 }
 
-pub(crate) fn validate_merge_plan(plan: &MergePlan) -> Result<(), Fault> {
-    leselang_command::validate_merge_plan(
-        plan,
-        merge_plan_admission_limits(),
-        valid_merge_branch_name,
-        group_binding::validate_plan_encoding,
-    )
-    .map(|_| ())
-    .map_err(merge_plan_admission_fault)
-}
-
-fn merge_plan_admission_limits() -> leselang_command::MergePlanAdmissionLimits {
-    leselang_command::MergePlanAdmissionLimits {
-        shape: leselang_command::MergePlanShapeLimits {
-            max_branches: MAX_MERGE_BRANCHES,
-            max_name_bytes: MAX_MERGE_BRANCH_NAME_BYTES,
-        },
-        group: group_binding::admission_limits(),
-    }
-}
-
-fn merge_plan_admission_fault(error: leselang_command::MergePlanAdmissionError<Fault>) -> Fault {
-    match error {
-        leselang_command::MergePlanAdmissionError::Binding(error) => {
-            group_binding::admission_fault(error)
-        }
-        leselang_command::MergePlanAdmissionError::Shape(error) => match error {
-            leselang_command::MergePlanShapeError::GroupBinding => group_binding::invalid(),
-            leselang_command::MergePlanShapeError::Successor => successor::invalid(),
-            leselang_command::MergePlanShapeError::Branches => Fault {
-                code: "LSV2401".to_string(),
-                message: "structured merge plan is invalid or exceeds runtime bounds".to_string(),
-            },
-        },
-    }
-}
+pub(crate) use leselang_command::reference_merge::validate_merge_plan;
+use leselang_command::reference_merge::{merge_plan_admission_fault, merge_plan_admission_limits};
 
 fn valid_merge_branch_name(name: &str) -> bool {
     leselang_command::valid_merge_branch_name(name, MAX_MERGE_BRANCH_NAME_BYTES)
-}
-
-fn validate_branch_outcome(outcome: &BranchOutcome) -> Result<usize, Fault> {
-    match outcome {
-        BranchOutcome::Value(value) => validate_value(value, 2),
-        BranchOutcome::Cancelled(cancellation)
-            if valid_continuation_token(&cancellation.continuation)
-                && cancellation.observed_at_ms <= i64::MAX as u64 =>
-        {
-            Ok(0)
-        }
-        BranchOutcome::Failed(failure)
-            if failure.retry_count <= MAX_SEMANTIC_RETRIES
-                && validate_effect_error(&failure.error).is_ok() =>
-        {
-            Ok(0)
-        }
-        BranchOutcome::Fault(fault)
-            if !fault.code.is_empty() && fault.code.len() <= 32 && fault.message.len() <= 4_096 =>
-        {
-            Ok(0)
-        }
-        _ => Err(Fault {
-            code: "LSV2403".to_string(),
-            message: "structured merge branch outcome is invalid".to_string(),
-        }),
-    }
 }
 
 fn effect_sequence_exhausted_fault() -> Fault {
     Fault {
         code: "LSV1003".to_string(),
         message: "continuation sequence is exhausted".to_string(),
-    }
-}
-
-pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault> {
-    leselang_command::validate_value_items(
-        value,
-        depth,
-        value_validation_limits(),
-        valid_merge_branch_name,
-    )
-    .map_err(value_bounds_fault)
-}
-
-fn value_validation_limits() -> leselang_command::ValueValidationLimits {
-    leselang_command::ValueValidationLimits {
-        max_depth: MAX_STRUCTURED_VALUE_DEPTH,
-        max_fields: MAX_MERGE_BRANCHES,
-        max_query_items: DEFAULT_MAX_OUTPUT_ITEMS,
-    }
-}
-
-fn value_bounds_fault(error: leselang_command::ValueBoundsError) -> Fault {
-    Fault {
-        code: "LSV2403".into(),
-        message: match error {
-            leselang_command::ValueBoundsError::Nesting => {
-                "structured value nesting exceeds runtime bounds"
-            }
-            leselang_command::ValueBoundsError::Fields => "structured value fields are invalid",
-            leselang_command::ValueBoundsError::Value => "structured value exceeds runtime bounds",
-        }
-        .into(),
     }
 }
 

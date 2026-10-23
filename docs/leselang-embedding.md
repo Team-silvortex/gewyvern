@@ -9079,6 +9079,261 @@ Developing/Draft at completion 10. Product version remains `2.4.0`. This does no
 introduce a native codec, change a wire/journal schema, complete host-neutral
 durable recovery or satisfy the full repository-extraction gate.
 
+### Static Value And Branch Outcome Ownership
+
+`leselang-command::reference_value` now owns the released value ceilings,
+value-tree admission, diagnostic mapping and branch-terminal admission. The VM
+uses exact imports, including the existing public `MAX_STRUCTURED_VALUE_DEPTH`
+path. This is product adapter policy, not a new host-neutral value system.
+
+Inclusive depth 16, 64 fields, the 10,000 query-item ceiling, declaration-order
+name/child errors and local duplicate scopes stay unchanged. Callers retain
+their original depth offsets: raw values at 0, merged values at 1 and branch
+values at 2. Terminal metadata contributes zero items. Cancellation still
+accepts legacy lexical identities; it does not require canonical sequence IDs.
+Retry and fault metadata retain their original byte bounds and redacted errors.
+
+Static validation neither authenticates a receipt nor matches a live pending
+operation, reserves identity, spends fuel, cancels work or commits a journal.
+Typed reply matching, per-execution output/encoding bounds and actual receipt
+acceptance remain at their original VM boundaries. Journal terminal recovery
+keeps its distinct compatibility policy rather than being silently replaced by
+branch-outcome admission. No wire or journal schema changes.
+
+The [value-policy proof](fixtures/leselang_reference_value_macos_arm64_20261023.json)
+records direct adapter tests, 1,482 frozen value/depth comparisons, 78 branch
+value comparisons and 708 frozen terminal comparisons. The memory VM proof
+checks that valid protocol data cannot cancel pending work or override a changed
+continuation, then completes and replays the original receipt. The independent
+native source checkpoint remains separate from this product policy.
+
+Reference execution advances to `1.119.0`. Native embedding stays `0.171.0`,
+Developing/Draft at completion 10; `complete_vm=false` and
+`full_extraction_gate=false`. Product version remains `2.4.0`; host-neutral
+durable recovery and the full independent-language pipeline remain open.
+
+### Static Merge Plan Ownership
+
+`leselang-command::reference_merge` owns the released merge/group ceilings,
+whole-plan admission, bounded group-plan encoding and diagnostic mapping. The
+VM imports these rules rather than maintaining another concrete policy. Generic
+hosts can still use the explicit-limit APIs; this module remains product policy,
+not a new host-neutral execution API.
+
+The gate order stays shape, saved-binding structure, plan correspondence,
+64 KiB compact encoding, then full type/scalar checks. The encoding limit is
+inclusive and does not certify semantic validity. Lower-level binding and
+encoding callbacks require preflighted recursive data and the original binding;
+use `validate_merge_plan` for a whole unchecked plan. Decode alone is not admission.
+
+Successful validation does not grant fuel, authenticate reserved sequences,
+restore a group or run its saved body. Group preparation, successor construction,
+capture reentry, completion and journal settlement stay in the VM. Wire formats,
+fault order and the full-graph recovery gates remain unchanged.
+
+The [merge-policy proof](fixtures/leselang_reference_merge_macos_arm64_20261023.json)
+records 1,120 plan cases and 3,360 group cases checked through both adapter and
+VM entry points against frozen policy, plus direct adapter boundary tests. A
+memory VM regression verifies rejection before identity reservation, no restore
+from an isolated member, the original group barrier and first-receipt replay.
+The independent native source checkpoint is a separate regression check.
+
+That migration advanced reference execution to `1.120.0`, with native embedding `0.171.0`,
+Developing/Draft at completion 10. Product version stays `2.4.0`;
+`complete_vm=false` and `full_extraction_gate=false`. Full independent-language
+pipeline convergence and host-neutral durable recovery are still open gates.
+
+### Native Computed Result Fields
+
+The native catalog compiler now accepts `field(value: choose(...), name: "...")`
+and other pure result expressions, including result aliases inside `bind`.
+It reuses the original control compiler, projection construction, cold type
+inference and evaluator. No second IR, scheduler or product adapter is introduced.
+Direct bound fields and `field(value: member(...), ...)` retain their existing
+entry and diagnostics; `member` itself still requires a bound group reference.
+
+The computed input must return a native result, not a scalar. Both alternatives
+must have compatible types. All generated input nodes, including cold branches,
+must be pure: hidden `Host`, `Call` or `Group` nodes are rejected before the outer
+field export query. Literal metadata is preflighted before lowering. The field
+root and its complete child IR share inclusive output-node/depth limits, while
+scalar operand locals remain visible to nested choices. Native errors stay
+move-only and redacted; native unwind is not converted into a successful result.
+
+The [computed projection proof](fixtures/leselang_native_computed_projection_macos_arm64_20261023.json)
+covers 96 numeric/headless-GUI host pipelines through accepted seq/all replies,
+result selection, early returns and captured successors. Sixteen representative
+pipelines retain the original fuel meter at every cutoff. Existing revocation and
+cancellation tests also traverse these computed projections after group receipt
+acceptance, before any successor dispatch. Four direct compiler regressions cover
+lexical scopes, cold-effect/type/metadata refusal, inclusive bounds and native
+error/unwind ownership. Compiler tests are exported unchanged in the standalone
+workspace; the external consumer also runs the unchanged host pipeline tests.
+
+HIR advances to `0.184.0`, native embedding to `0.172.0`; reference execution stays
+`1.120.0` and product version stays `2.4.0`. Native embedding remains
+Developing/Draft at completion 10. This closes one real native source composition
+gap, not complete language parity or durable recovery: `complete_vm=false` and
+`full_extraction_gate=false` remain mandatory.
+
+### Native Captured Result Iteration
+
+The [captured iteration proof](fixtures/leselang_native_captured_iteration_macos_arm64_20261023.json)
+extends the original two-host source pipeline after accepted seq/all receipts:
+result selection now feeds pure loops, ordered folds and nested fold/loop bodies,
+then either an early return or a captured successor. Iteration locals, group
+aliases and a scalar helper remain visible only in their declared scopes.
+The string host explicitly unwraps `char_at` with `value_or`; nullable characters
+are not implicitly coerced into strings.
+
+Seventy-two host/program paths use the same native compiler, LocalVm, collectors,
+reply checks and evaluator. Twelve representative paths check every original
+fuel cutoff, exact completion and one-unit remainder. Forty-eight limit failures
+remain terminal even under `recover`: accepted receipts are not replayed, spent
+fuel is retained and no successor is dispatched. Sixty cold refusals cover unknown
+exports inside a false loop or empty fold, hidden effects and escaped iteration
+locals before the initial host invocation. Ninety-six additional live-policy and
+cancellation paths stop after group receipt acceptance without dispatching a
+successor. These are exported unchanged, not evaluated by a test-only interpreter.
+
+This is composition acceptance evidence, not a runtime rewrite or new language
+syntax. This increment changes no production code or contract version: HIR stays `0.184.0`, native
+embedding stays `0.172.0`, reference execution stays `1.120.0`, product stays
+`2.4.0`. Native embedding remains Developing/Draft at completion 10. Effectful
+loops, complete language/reference parity and host-neutral durable graph recovery
+are not granted by this proof; both complete VM and extraction gates remain false.
+
+### Native Selected Result Recovery
+
+The [selected result recovery proof](fixtures/leselang_native_selected_recovery_macos_arm64_20261023.json)
+joins conditional seq/all helpers, computed result fields and captured pure
+loop/fold work to the existing parent VM and child collector transfer paths.
+One shared test driver now serves both the original mixed helper chains and
+these selected-result pipelines; it does not introduce another interpreter.
+
+For two unrelated host schemas, 184 source pipelines compare uninterrupted
+execution with repeated parent replacement at each collector checkpoint. Saved
+captures and accepted member buffers retain their original ownership; restoration
+does not replay an invocation or replenish fuel. Sixteen representative pipelines
+compare the complete result, remaining fuel, request count and invocation prefix
+at every fuel cutoff, including exact completion and one-unit remainder. Wrong
+root identities and cold group-site receipts preserve the original retryable
+reply after restoration; the unselected group is never dispatched.
+
+Another 844 fault cases cover every observed parent and child restoration frontier
+for early and captured returns: closed owners, revoked or stale authority, wrong
+root declarations, altered or malformed captures, admission refusal and unwind.
+Refusal closes only the original owner, does not publish further work, and leaves
+an unrelated sibling scope open. A surviving parent is explicitly cancelled
+rather than treating owner revocation as destruction of the VM.
+
+This is in-memory, same-IR ownership transfer. Pointer fingerprints in the test
+adapter only observe moves; they are not a portable snapshot codec, authentication
+scheme or process-restart proof. No production code, language syntax, journal or
+contract version changes in this increment. HIR stays `0.184.0`, native embedding
+`0.172.0`, reference execution `1.120.0` and product `2.4.0`. Native embedding
+remains Developing/Draft at completion 10; durable graph recovery, full reference
+parity, `complete_vm` and `full_extraction_gate` remain open.
+
+### Static Journal Completion Ownership
+
+`leselang-command::reference_completion` now owns the released static policy for
+terminal receipts, cancellation-token correspondence, deadline observation data,
+terminal-to-branch payload conversion and sequential stop summaries. Both memory
+and SQLite journals call the same adapter implementation. The adapter reuses the
+existing value/retry validators and bounded ordered-outcome kernel; it does not
+introduce another evaluator or depend on the VM or a database.
+
+Journal terminal admission deliberately retains depth 1, nonempty cancellation
+identities and code-only fault checks. Structured branch admission still uses
+depth 2, lexical identity checks and a bounded fault message. Unifying those
+different gates would change legacy recovery behavior. Static cancellation checks
+validate terminal shape before exact token equality; constructing a deadline
+observation neither verifies that a deadline is due nor cancels live work.
+Terminal conversion moves owned payloads, while sequential observation stops at
+the first terminal/overflow without inspecting later rows.
+
+The [completion policy proof](fixtures/leselang_reference_completion_macos_arm64_20261023.json)
+records 379 frozen terminal cases, 758 cancellation comparisons and 729 ordered
+three-step combinations, plus inclusive branch-count and lazy-stop boundaries.
+Direct adapter tests need no VM. Live memory coverage keeps pending state,
+forged-frame refusal and original committed-result replay unchanged after static
+policy calls; the default journal/recovery suites continue to exercise SQLite.
+
+Reference execution advances to `1.121.0`; native embedding stays `0.172.0`, HIR
+`0.184.0`, and product version `2.4.0`. Ingress bounds, current owner/lease/group
+authority, transaction commit, durable restore and graph recovery remain with
+their existing owners. This removes product policy from journal code, not the
+remaining product state or full native recovery dependency. Native maturity and
+the complete VM/extraction gates are unchanged.
+
+### Static Dispatch Policy Ownership
+
+`leselang-command::reference_dispatch` owns the released lease-duration/attempt
+limits and six static clock, issuance, observation and retry-admission functions
+formerly embedded in the journal. Existing VM constant paths are direct re-exports;
+both memory and SQLite journals call the adapter without local policy copies.
+Host-neutral arithmetic stays in runtime-core. No new queue, evaluator, serialization
+layer, database dependency or dispatch authority is introduced by this move.
+
+The old diagnostic order remains exact: clock range before duration before expiry
+overflow; numeric attempt exhaustion before the product ceiling; superseded lease
+before expiration; exact next retry count and future portable time before metadata.
+An observation may be valid at the maximum clock even when no future lease fits.
+Equal-expiry receipts remain valid only until a replacement lease commits.
+The observation comparator deliberately does not authenticate caller-supplied
+identity/active flags, and retry admission does not classify permanent errors.
+Those decisions still belong to the existing request validation and retry planner.
+
+The [dispatch policy proof](fixtures/leselang_reference_dispatch_macos_arm64_20261023.json)
+covers 49 lease plans, 105 attempt counters, 768 lease observations and 9,600 retry
+combinations against independent frozen product decisions, including exact fault
+messages and unchanged payload bytes. A shared live scenario covers memory and
+SQLite reopen: forged observations do not issue leases, replaced attempts remain
+fenced, committed retry times survive recovery, early/old receipts cannot settle,
+invalid issuance cannot trigger deadline cleanup, and the original committed result
+wins replay. Journals still observe their own state and check/commit under the
+existing owner or transaction; static success is never a durable capability.
+
+Reference execution advances to `1.122.0`. HIR `0.184.0`, native embedding `0.172.0`,
+product `2.4.0`, wire payloads and journal schema 10 stay unchanged. Product-bound
+state/recovery types and complete host-neutral durable graph recovery remain open;
+this is real policy relocation, not a claim that the full VM is extractable.
+
+### Product Effect Record Recovery Ownership
+
+`leselang-command::reference_recovery` now owns single-record product recovery
+admission: bounded image/receipt decoding, canonical sequence, token/deadline
+correspondence, stored-state selection, terminal admission and payload handoff.
+It implements the existing runtime-core `RecordRecoveryHost` and uses the same
+`inspect_record_recovery` phase runner, not a second recovery algorithm.
+The journal entry-size constant and bounded JSON diagnostic adapter move with it;
+the existing VM constant path and journal call sites remain direct re-exports.
+
+`ReferenceRecordSource` is a product adapter boundary, not a portable storage ABI.
+It lends original bytes and supplies deadline reads plus owner/successor proofs.
+The SQLite implementation retains token/state header reads, field extraction,
+same-transaction graph queries and native read diagnostics. Image/sequence/identity
+checks precede deadline and owner; owner proof precedes state selection; pending
+rows never read a completed receipt. Sources may be borrowed, unsized and local
+without Clone or Send bounds. Admitted image/receipt owners move into the existing
+record envelope, with unused completed-image owners released before handoff.
+
+The [record policy proof](fixtures/leselang_reference_recovery_macos_arm64_20261023.json)
+records 3,456 frozen phase/payload/read-trace comparisons, native-hook unwind
+boundaries, 784 original SQLite record corruption comparisons and 64 additional
+field-type/header-order cases. The existing 7,560 bounded-decoder comparisons and
+32 corrupt-image reopen refusals continue to protect unchanged diagnostics and
+original tables. A database-free live-VM check rejects a statically inspected but
+altered pending frame; the original completion/replay path remains authoritative.
+
+Inspecting one row is not authentication, full graph recovery or a committed
+checkpoint. Global dispatch/graph/audit checks, reservation/watermark handling,
+transactions, current authority and publication remain with the original VM and
+journal. Reference execution advances to `1.123.0`; native embedding `0.172.0`, HIR
+`0.184.0`, product `2.4.0`, existing wire data and journal schema 10 are unchanged.
+The native durable-graph and complete-extraction gates remain open.
+
 **The current 2.3.0-and-later phase closes acceptance gates; physical extraction is deferred.**
 It is not an automatic version-triggered move. No replacement extraction version
 or date is assigned. Continue the shared implementation in this monorepo until

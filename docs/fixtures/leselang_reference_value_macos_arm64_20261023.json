@@ -1,0 +1,153 @@
+{
+  "kind": "leselang-reference-value-policy",
+  "validated_on": "2026-10-23",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "reference_execution_contract": "1.119.0",
+  "native_embedding_contract": "0.171.0",
+  "value_depth_comparisons": 1482,
+  "branch_value_comparisons": 78,
+  "terminal_comparisons": 708,
+  "direct_adapter_tests": 4,
+  "default_runtime_tests": 1126,
+  "memory_reference_tests": 130,
+  "public_memory_profile_tests": 17,
+  "adapter_has_no_vm_or_sqlite_dependency": true,
+  "original_diagnostics_and_bytes_retained": true,
+  "legacy_lexical_cancellation_tokens_retained": true,
+  "distinct_journal_terminal_policy_retained": true,
+  "memory_execution_and_first_receipt_replay_passed": true,
+  "isolated_consumer_passed": true,
+  "validation_grants_execution_authority": false,
+  "wire_or_journal_schema_changed": false,
+  "new_native_api": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "Released product value bounds and branch-terminal admission moved to the command adapter. The VM imports the same policy and preserves its public depth constant. Frozen depth/tree and terminal matrices retain item counts, fault order, byte bounds and legacy lexical identities. Four direct adapter tests need no VM or SQLite. The memory VM proves static data cannot cancel pending work or override a changed continuation; actual completion and first-receipt replay stay authoritative. Typed reply matching, per-execution output and encoding bounds, and distinct journal-terminal recovery policy remain unchanged in the VM. Native source checkpoint verification is independent evidence, not promotion to a complete durable VM. No Linux kernel behavior or GUI packaging was changed.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_value.rs",
+      "sha256": "59cf7394426a778704a9bb7956996a511f6cbc1b2fb10f083c4629672cbebac5"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "346bc20ec0aaace1ca6d59a8942dd79b37abc24bf4009ce2673c24b630148a10"
+    },
+    {
+      "path": "crates/leselang-command/Cargo.toml",
+      "sha256": "51753fa79fce986890ef1948ad092f9875b370be116b228c49513375066e462f"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_value.rs",
+      "sha256": "e0a5a71d8e054341992d8b5b272cd9397289a35aabb7abe22b9fce1da673d4f5"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "040dd3e149c85eb16f6209780f33f9609bced4fd6450d4397f348c19db231bfa"
+    },
+    {
+      "path": "crates/leselang-vm/src/value_validation_tests.rs",
+      "sha256": "d63e1c685bd12bbfd8088a16d218e283a80f00560ff624f923f95fc152bbafac"
+    },
+    {
+      "path": "crates/leselang-vm/src/reference_value_contract_tests.rs",
+      "sha256": "e82b13da7574fe4b38648fecbe589ed8c93f711c0636472b0c4f86f682c47168"
+    },
+    {
+      "path": "crates/leselang-vm/src/host_result.rs",
+      "sha256": "68c54f8f49c23793bf40a49710b989e5ece3ea0ab40c0781b039d208db9033d5"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "dbd92a1b7a5887797dcb469ee1495ab1b3384f185b5e09f969c3c29f286032f4"
+    },
+    {
+      "path": "crates/leselang-vm/tests/ephemeral_profile.rs",
+      "sha256": "ca42cd19f89bb7132016b75ebf8c080a42ac5e129e85dcd282c03c064d2c1fe8"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "9e325594e14c5397cfdf05ff92c2b5c6c083e1a38fa730f03781d9e42b848ca0"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "e55b04f4e93b167556ddf761b504cc721f391030ce1fddd78e9529de28b84e71"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "acfae29798c7af29b0ccef42564c959db0386e099ddb9335d9ac98097ab5236d"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "7f8b373b72016d4d9ee729dc210d4c2bda843f0dae414ac8e01abba733182b81"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "f22b519accf23211d7445d8bd12fc4fa70cd23caba7e38f17d0dbd5682cfc473"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "targeted",
+      "log": "/private/tmp/leselang-reference-value-20261023-targeted.log",
+      "sha256": "fbe4f72564bf053389cfbe978402d2ed9bcf15416ee751fd1e2611546e49400c",
+      "passed_tests": 298
+    },
+    {
+      "stage": "runtime",
+      "log": "/private/tmp/leselang-reference-value-20261023-runtime.log",
+      "sha256": "6f88d00610e629b1d02bbc750c1eeb10ca57dc19fccb0347739fe5f6424d2ee5",
+      "passed_tests": 1126
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-reference-value-20261023-memory.log",
+      "sha256": "6f6b928f29366ca419e99e1cda0432514ff5c28d36e32f78505903e7dc588989",
+      "passed_tests": 130
+    },
+    {
+      "stage": "clippy",
+      "log": "/private/tmp/leselang-reference-value-20261023-clippy.log",
+      "sha256": "1f33d05eabed01896413a68a216fd3406073071b1e1a6456161654578bfdd593"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-reference-value-20261023-memory-clippy.log",
+      "sha256": "bf45dfd70def21e711963f868380e869c07ee70f0f060d28ca80e9a97e0ea6bb"
+    },
+    {
+      "stage": "fmt",
+      "log": "/private/tmp/leselang-reference-value-20261023-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "profile-fmt",
+      "log": "/private/tmp/leselang-reference-value-20261023-profile-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "adapter-tree",
+      "log": "/private/tmp/leselang-reference-value-20261023-adapter-tree.log",
+      "sha256": "ce60daed6f8484fc55e503aa2f4b097e268afe75c528b90ef00682b0f790cc6e"
+    },
+    {
+      "stage": "export",
+      "log": "/private/tmp/leselang-reference-value-20261023-export.log",
+      "sha256": "6a829c6eec22540c6c0f5b2792eaa573fe474a04528cf71e4fc7a044ebca7f55",
+      "passed_tests": 2564
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-reference-value-20261023-2.4.0",
+    "manifest_sha256": "38667700c703537892dc55f29894ca6512e8268c7a1f7c47f3b39a8e30f82617",
+    "files": 280,
+    "source_copies": 270,
+    "bytes": 6721580,
+    "verified": true,
+    "temporary_build_cache_removed": true,
+    "complete_vm": false,
+    "full_extraction_gate": false
+  }
+}

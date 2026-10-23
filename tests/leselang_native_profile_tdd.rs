@@ -217,6 +217,15 @@ fn continuous_host_pipeline_is_exported_without_promoting_the_complete_vm_gate()
         "mixed_shared_ir_rejects_foreign_group_members_even_with_a_matching_root_label",
         "mixed_invalid_late_group_and_cold_policy_are_rejected_before_the_initial_effect",
         "two_hosts_select_group_helpers_alias_results_and_take_early_or_captured_returns",
+        "computed_result_fields_join_two_host_group_reply_and_successor_pipelines",
+        "computed_result_fields_keep_the_original_meter_at_every_pipeline_cutoff",
+        "captured_group_iterations_join_result_selection_and_successor_operands_for_two_hosts",
+        "captured_group_iterations_keep_the_original_meter_at_every_pipeline_cutoff",
+        "captured_group_iteration_limits_cannot_be_recovered_into_a_successor",
+        "captured_group_iterations_reject_cold_exports_effects_and_escaped_locals",
+        "selected_result_control_flow_survives_coupled_parent_and_collector_replacement",
+        "selected_result_replacement_preserves_failure_prefixes_at_every_fuel_cutoff",
+        "selected_result_restore_refusals_block_tail_work_at_every_parent_and_child_cut",
         "selected_group_and_early_exit_keep_exact_fuel_at_every_pipeline_cutoff",
         "unselected_group_helpers_are_typed_but_never_evaluated_or_dispatched",
         "selected_group_reentry_cannot_bypass_revocation_even_when_returning_early",
@@ -258,6 +267,45 @@ fn continuous_host_pipeline_is_exported_without_promoting_the_complete_vm_gate()
     assert!(section.contains("72 host/program/data combinations"));
     assert!(section.contains("Another 60"));
     assert!(section.contains("not new\nlanguage syntax"));
+}
+
+#[test]
+fn computed_result_projection_reuses_shared_compilation_and_pure_budget_kernels() {
+    let compiler =
+        fs::read_to_string(root().join("crates/leselang-hir/src/catalog_source.rs")).unwrap();
+    for required in [
+        "fn projection<",
+        "lower_catalog_projection_source(",
+        "lower_preflighted_control_source(child, prefix, limits, self)",
+        "preflight_names(source)",
+        "form.lower_preflighted(",
+        "self.projection(child, &extended)",
+        "CatalogSourceError::ComputedProjection",
+    ] {
+        assert!(
+            compiler.contains(required),
+            "computed projection lost {required}"
+        );
+    }
+    let projection =
+        fs::read_to_string(root().join("crates/leselang-hir/src/projection_source.rs")).unwrap();
+    assert!(projection.contains("preflight_with_budget(&value, 1, budget)"));
+    assert_eq!(
+        projection
+            .matches("pub(crate) fn lower_preflighted<")
+            .count(),
+        1
+    );
+    let proof =
+        fs::read_to_string(root().join("crates/leselang-hir/tests/catalog_source.rs")).unwrap();
+    for required in [
+        "computed_fields_preserve_result_and_scalar_lexical_scopes",
+        "computed_fields_reject_cold_effects_types_and_metadata_before_outer_export",
+        "computed_field_root_and_cold_children_share_inclusive_output_limits",
+        "computed_field_native_denial_errors_and_unwind_are_not_reinterpreted",
+    ] {
+        assert!(proof.contains(required));
+    }
 }
 
 #[test]
@@ -1485,12 +1533,17 @@ fn dispatch_lease_fence_is_shared_without_exporting_reference_storage() {
     assert!(core.contains("pub fn validate_dispatch_lease("));
     assert!(core.contains("submitted.expires_at_ms < now_ms"));
     let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
-    assert!(journal.contains("validate_dispatch_lease("));
-    assert!(journal.contains("DispatchLeaseError::Superseded"));
+    let policy =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_dispatch.rs"))
+            .unwrap();
+    assert!(journal.contains("use leselang_command::reference_dispatch::{"));
+    assert_eq!(journal.matches("validate_observed_lease(").count(), 2);
+    assert!(policy.contains("validate_dispatch_lease("));
+    assert!(policy.contains("DispatchLeaseError::Superseded"));
     let successor =
         fs::read_to_string(root().join("crates/leselang-vm/src/journal/successor.rs")).unwrap();
     assert!(successor.contains("validate_stored_lease(&dispatch, lease, now_ms, true)?"));
-    for source in [&journal, &successor] {
+    for source in [&journal, &successor, &policy] {
         assert!(!source.contains("lease.lease_expires_at_ms < now_ms"));
     }
     let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
@@ -1539,7 +1592,12 @@ fn semantic_retry_planning_reuses_numeric_kernels_and_stays_outside_host_storage
             .count(),
         2
     );
-    assert!(journal.contains("validate_retry_schedule("));
+    let dispatch =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_dispatch.rs"))
+            .unwrap();
+    assert!(journal.contains("use leselang_command::reference_dispatch::{"));
+    assert!(dispatch.contains("validate_retry_schedule("));
+    assert!(!dispatch.contains("schedule.retry_count + 1"));
     assert!(!journal.contains("dispatch.retry_count + 1"));
     let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
     assert!(exporter.contains("consumer/tests/retry_schedule.rs"));
@@ -1627,8 +1685,15 @@ fn lease_issuance_planning_stays_separate_from_existing_lease_settlement() {
         assert!(core.contains(required));
     }
     let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
-    assert!(journal.contains("plan_dispatch_lease(now_ms, lease_ms, MAX_DISPATCH_LEASE_MS)"));
-    assert!(journal.contains("next_dispatch_attempt(current, MAX_DISPATCH_ATTEMPTS)"));
+    let policy =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_dispatch.rs"))
+            .unwrap();
+    assert!(journal.contains("use leselang_command::reference_dispatch::{"));
+    assert!(journal.contains("lease_expiration(now_ms, lease_ms)?"));
+    assert!(journal.contains("next_attempt(dispatch.attempt)?"));
+    assert!(journal.contains("next_attempt(attempt)?"));
+    assert!(policy.contains("plan_dispatch_lease(now_ms, lease_ms, MAX_DISPATCH_LEASE_MS)"));
+    assert!(policy.contains("next_dispatch_attempt(current, MAX_DISPATCH_ATTEMPTS)"));
     assert_eq!(
         journal
             .matches("journal.claim_dispatch(now_ms, expires_at_ms, limits)")

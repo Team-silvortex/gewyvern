@@ -1,7 +1,7 @@
 use super::*;
 
 // Frozen pre-migration traversal; leaf rules remain independently covered.
-fn legacy_validate_value(value: &Value, depth: usize) -> Result<usize, Fault> {
+pub(super) fn legacy_validate_value(value: &Value, depth: usize) -> Result<usize, Fault> {
     if depth > MAX_STRUCTURED_VALUE_DEPTH {
         return Err(Fault {
             code: "LSV2403".into(),
@@ -120,6 +120,8 @@ fn value_traversal_matches_frozen_counts_fault_precedence_and_unchanged_bytes() 
             ),
         ],
     });
+    assert_eq!(cases.len(), 39);
+    let mut comparisons = 0;
     for (index, value) in cases.iter().enumerate() {
         let before = serde_json::to_vec(value).unwrap();
         for depth in (0..=MAX_STRUCTURED_VALUE_DEPTH + 1).chain([usize::MAX]) {
@@ -128,7 +130,23 @@ fn value_traversal_matches_frozen_counts_fault_precedence_and_unchanged_bytes() 
                 legacy_validate_value(value, depth),
                 "case {index}, depth {depth}"
             );
+            assert_eq!(
+                leselang_command::reference_value::validate_value(value, depth),
+                legacy_validate_value(value, depth),
+                "adapter case {index}, depth {depth}"
+            );
+            comparisons += 2;
         }
+        let outcome = BranchOutcome::Value(value.clone());
+        assert_eq!(
+            validate_branch_outcome(&outcome),
+            legacy_validate_value(value, 2)
+        );
+        assert_eq!(
+            leselang_command::reference_value::validate_branch_outcome(&outcome),
+            legacy_validate_value(value, 2)
+        );
         assert_eq!(serde_json::to_vec(value).unwrap(), before);
     }
+    assert_eq!(comparisons, 1_482);
 }

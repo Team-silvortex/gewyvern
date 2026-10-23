@@ -10,6 +10,166 @@ use leselang_vm::{
     encode_continuation,
 };
 
+#[path = "support/reference_dispatch_authority.rs"]
+mod reference_dispatch_authority;
+
+#[test]
+fn inspected_record_is_not_authority_to_replace_a_live_continuation() {
+    use leselang_command::ContinuationImage;
+    use leselang_command::reference_recovery::{ReferenceRecordSource, inspect_effect_record};
+    use leselang_runtime_core::{Fault, RecoveryPayload};
+    struct Source<'a>(&'a [u8]);
+    impl<'a> ReferenceRecordSource for Source<'a> {
+        type Bytes = &'a [u8];
+        fn read_image(&mut self) -> Result<Self::Bytes, Fault> {
+            Ok(self.0)
+        }
+        fn read_deadline(&mut self) -> Result<Option<i64>, Fault> {
+            Ok(None)
+        }
+        fn validate_owner(&mut self, _: &ContinuationImage) -> Result<(), Fault> {
+            Ok(())
+        }
+        fn read_completed(&mut self) -> Result<Self::Bytes, Fault> {
+            panic!("pending receipt is cold")
+        }
+        fn validate_successor(
+            &mut self,
+            _: &ContinuationImage,
+            _: Option<&Step>,
+        ) -> Result<(), Fault> {
+            Ok(())
+        }
+    }
+    let mut vm = Vm::new(100);
+    let request = effect(start(&mut vm, r#"fn main() = ui.focus(node_id: "a")"#));
+    let mut changed = request.continuation.clone();
+    changed.fuel_remaining -= 1;
+    let bytes = serde_json::to_vec(&changed).unwrap();
+    let record =
+        inspect_effect_record(&mut Source(&bytes), changed.token.as_str(), "pending").unwrap();
+    let RecoveryPayload::Pending(recovered) = record.payload else {
+        panic!("expected pending")
+    };
+    assert_eq!(recovered, changed);
+    assert_eq!(vm.restore(recovered).unwrap_err().code, "LSV2002");
+    assert_eq!(
+        vm.pending_continuations(),
+        vec![request.continuation.clone()]
+    );
+    assert_eq!(vm.completed_count(), 0);
+    let done = Step::Done(Value::UiFocus {
+        node_id: "a".into(),
+    });
+    assert_eq!(vm.resume_at(&request.continuation, 2, focus("a")), done);
+    assert_eq!(
+        vm.resume_at(&request.continuation, 3, focus("different")),
+        done
+    );
+}
+
+#[test]
+fn memory_dispatch_adapter_proposals_cannot_replace_current_leases_or_commit_retries() {
+    reference_dispatch_authority::exercise(Vm::new(100), |vm| vm);
+}
+
+#[test]
+fn adapter_completion_policy_cannot_settle_or_cancel_pending_execution() {
+    use leselang_command::reference_completion::{
+        deadline_cancellation, sequence_stop, terminal_step_outcome, validate_cancellation_step,
+        validate_terminal_step,
+    };
+    let mut vm = Vm::new(100);
+    let request = effect(start(&mut vm, r#"fn main() = ui.focus(node_id: "a")"#));
+    let claimed = deadline_cancellation(&request.continuation, 0);
+    assert_eq!(
+        validate_cancellation_step(&request.continuation, &claimed),
+        Ok(())
+    );
+    assert_eq!(validate_terminal_step(&claimed), Ok(()));
+    assert_eq!(sequence_stop([&claimed]), Ok(Some(claimed.clone())));
+    assert!(matches!(
+        terminal_step_outcome(claimed),
+        Ok(leselang_command::BranchOutcome::Cancelled(_))
+    ));
+    assert_eq!(
+        vm.pending_continuations(),
+        vec![request.continuation.clone()]
+    );
+    assert_eq!(vm.completed_count(), 0);
+    let mut changed = request.continuation.clone();
+    changed.fuel_remaining -= 1;
+    assert!(matches!(
+        vm.resume_at(&changed, 2, focus("a")),
+        Step::Fault(_)
+    ));
+    assert_eq!(
+        vm.pending_continuations(),
+        vec![request.continuation.clone()]
+    );
+    let expected = Step::Done(Value::UiFocus {
+        node_id: "a".into(),
+    });
+    assert_eq!(vm.resume_at(&request.continuation, 2, focus("a")), expected);
+    assert_eq!(
+        vm.resume_at(&request.continuation, 3, focus("different")),
+        expected
+    );
+    assert_eq!(vm.pending_count(), 0);
+    assert_eq!(vm.completed_count(), 1);
+}
+
+#[test]
+fn adapter_value_admission_does_not_cancel_or_override_pending_execution() {
+    use leselang_command::reference_value::{validate_branch_outcome, validate_value};
+    use leselang_command::{BranchOutcome, Cancellation};
+    let mut vm = Vm::new(100);
+    let request = effect(start(&mut vm, r#"fn main() = ui.focus(node_id: "a")"#));
+    let value = Value::UiFocus {
+        node_id: "a".into(),
+    };
+    assert_eq!(validate_value(&value, 0), Ok(1));
+    assert_eq!(
+        validate_branch_outcome(&BranchOutcome::Value(value.clone())),
+        Ok(1)
+    );
+    assert_eq!(
+        validate_branch_outcome(&BranchOutcome::Cancelled(Cancellation {
+            continuation: request.continuation.token.clone(),
+            reason: CancellationReason::Requested,
+            observed_at_ms: 2,
+        })),
+        Ok(0)
+    );
+    assert_eq!(
+        vm.pending_continuations(),
+        vec![request.continuation.clone()]
+    );
+    assert_eq!(vm.completed_count(), 0);
+
+    let mut changed = request.continuation.clone();
+    changed.max_output_items = 0;
+    assert!(matches!(
+        vm.resume_at(&changed, 2, focus("a")),
+        Step::Fault(_)
+    ));
+    assert_eq!(
+        vm.pending_continuations(),
+        vec![request.continuation.clone()]
+    );
+    assert_eq!(
+        vm.resume_at(&request.continuation, 2, focus("a")),
+        Step::Done(value.clone())
+    );
+    assert_eq!(vm.pending_count(), 0);
+    assert_eq!(vm.completed_count(), 1);
+    // Replaying the original accepted receipt returns the first committed value.
+    assert_eq!(
+        vm.resume_at(&request.continuation, 3, focus("different")),
+        Step::Done(value)
+    );
+}
+
 #[test]
 fn adapter_continuation_codec_does_not_restore_complete_groups_or_override_live_state() {
     let mut vm = Vm::new(100);

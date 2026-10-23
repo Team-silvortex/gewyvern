@@ -5,6 +5,10 @@ This page is the durable source-layering note for `gewyvern`.
 It describes the current `src/` layering as the project converges on a more
 stable release line.
 
+For the complete workspace, clients and Leselang extraction boundary, start at
+the [repository map](monorepo-stack.md). This page describes Gewyvern's product
+runtime; it is not the owner map for every language crate.
+
 The goal is simple:
 
 - keep `main.rs` as an entry and orchestration layer
@@ -55,10 +59,13 @@ Alongside those entry-facing modules, the core modeling and runtime substrate is
 still centered on:
 
 - `src/dsl.rs`
-  `gewylang` parsing, lowering, and package/project loading.
+  Gewyvern semantic host, materialization and compatibility entrypoints for
+  GewyLang. Generic parsing/package loading belongs to `gewylang-syntax`;
+  expansion and host-generic lowering belong to `gewylang-compiler`.
 - `src/ir.rs`
-  Shared IR semantics for predicates, signals, phase kinds, observation scope,
-  transport matching, and required fact dependencies.
+  Product runtime predicates, signals, phase kinds, observation scope,
+  transport matching, and required fact dependencies. Stable compiler-stage
+  Binding/Analysis IR exchange belongs to `gewylang-ir`, not this module.
 - `src/runtime.rs`
   Runtime event interpretation, finding generation, and flow-state evaluation.
 - `src/fragment.rs`
@@ -158,8 +165,10 @@ As a quick rule of thumb:
 - If the change is about shared formatting helpers, start in
   `src/render_utils.rs`.
 - If the change is about the language, IR, fragments, facts, or runtime event
-  semantics, start in `src/dsl.rs`, `src/ir.rs`, `src/fragment.rs`,
-  `src/runtime.rs`, or `src/export.rs`.
+  semantics, distinguish the owner first: generic GewyLang syntax/compiler/IR
+  changes belong in `crates/gewylang-*`; product semantic adapters belong in
+  `src/dsl/` and `src/gewyc/`; runtime facts, matching and reconstruction belong
+  in `src/ir.rs`, `src/fragment.rs`, `src/runtime.rs`, or `src/export.rs`.
 
 ## Near-Term Intent
 

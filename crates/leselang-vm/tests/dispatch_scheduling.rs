@@ -8,6 +8,18 @@ use leselang_vm::{
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+#[path = "support/reference_dispatch_authority.rs"]
+mod reference_dispatch_authority;
+
+#[test]
+fn durable_dispatch_adapter_proposals_remain_fenced_across_restarts() {
+    let path = JournalPath::new();
+    reference_dispatch_authority::exercise(path.vm(true), |vm| {
+        drop(vm);
+        path.vm(true)
+    });
+}
+
 struct JournalPath(PathBuf);
 impl JournalPath {
     fn new() -> Self {

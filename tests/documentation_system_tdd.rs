@@ -15,6 +15,87 @@ fn repository_root() -> PathBuf {
 }
 
 #[test]
+fn repository_map_names_each_workspace_member_and_client_shelf() {
+    let root = repository_root();
+    let manifest = fs::read_to_string(root.join("Cargo.toml")).unwrap();
+    let members = manifest
+        .split_once("members = [")
+        .unwrap()
+        .1
+        .split_once(']')
+        .unwrap()
+        .0;
+    let map = fs::read_to_string(root.join("docs/monorepo-stack.md")).unwrap();
+    let map = map
+        .split_once("## Repository Map\n")
+        .unwrap()
+        .1
+        .split_once("\n## ")
+        .unwrap()
+        .0;
+    let mut count = 0;
+    for member in members.split(',').map(str::trim).filter(|v| !v.is_empty()) {
+        let path = member.strip_prefix('"').unwrap().strip_suffix('"').unwrap();
+        let path = if path == "." { "src" } else { path };
+        let link = format!("| [`{path}/`](../{path}) |");
+        assert!(map.contains(&link), "workspace member has no owner: {path}");
+        assert!(root.join(path).is_dir(), "missing member directory: {path}");
+        count += 1;
+    }
+    assert!(count > 1, "the workspace inventory must not be empty");
+
+    let apps = fs::read_to_string(root.join("apps/README.md")).unwrap();
+    for path in [
+        "leserpent-avalonia",
+        "leserpent-mobile",
+        "leserpent",
+        "etragon",
+    ] {
+        assert!(
+            apps.contains(&format!("({path}/README.md)")),
+            "application entry is missing: {path}"
+        );
+        assert!(root.join("apps").join(path).join("README.md").is_file());
+    }
+    assert!(apps.contains("../docs/monorepo-stack.md"));
+    assert!(apps.contains("../crates/leserpentd"));
+    assert!(apps.contains("compatibility bridge"));
+}
+
+#[test]
+fn repository_guide_keeps_native_extraction_and_disk_retention_separate() {
+    let root = repository_root();
+    let map = fs::read_to_string(root.join("docs/monorepo-stack.md")).unwrap();
+    for boundary in [
+        "## Leselang Extraction Boundary",
+        "default-features = false",
+        "leserpent-profile",
+        "vm-bridge",
+        "sqlite-journal",
+        "Cargo features are additive",
+        "complete_vm=false",
+        "full_extraction_gate=false",
+        "project/status/catalog.json",
+    ] {
+        assert!(map.contains(boundary), "missing boundary: {boundary}");
+    }
+    let development = fs::read_to_string(root.join("docs/development.md")).unwrap();
+    for retained in [
+        "target/dev-workflow/",
+        "target/package/",
+        "target/validation/",
+        "export-manifest.json",
+        "docs/fixtures/",
+        "Git history",
+    ] {
+        assert!(
+            development.contains(retained),
+            "missing retention rule: {retained}"
+        );
+    }
+}
+
+#[test]
 fn optional_leserpent_profile_docs_preserve_default_api_and_native_vm_boundaries() {
     let embedding =
         fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();

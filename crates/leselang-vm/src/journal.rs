@@ -4,50 +4,68 @@ use std::collections::{BTreeMap, BTreeSet};
 #[cfg(feature = "sqlite-journal")]
 use std::{fs, path::Path, time::Duration};
 
+#[cfg(test)]
+use crate::MAX_DISPATCH_LEASE_MS;
+#[cfg(feature = "sqlite-journal")]
+use crate::MAX_SEMANTIC_RETRIES;
+#[cfg(feature = "sqlite-journal")]
+use crate::validate_effect_error;
 #[cfg(feature = "sqlite-journal")]
 use crate::validate_image;
+#[cfg(any(test, feature = "sqlite-journal"))]
+use crate::{Cancellation, CancellationReason};
 #[cfg(feature = "sqlite-journal")]
 use leselang_command::debugger_audit::command_origin_label;
 use leselang_command::debugger_audit::{audit_matches_record, debugger_audit_record};
-#[cfg(all(test, feature = "sqlite-journal"))]
-use leselang_runtime_core::validate_group_receipt;
+use leselang_command::reference_completion::{
+    deadline_cancellation, sequence_stop, terminal_step_outcome, validate_cancellation_step,
+    validate_terminal_step,
+};
+pub(super) use leselang_command::reference_dispatch::validate_lease_clock;
+use leselang_command::reference_dispatch::{
+    lease_expiration, next_attempt, validate_dispatch_clock, validate_observed_lease,
+    validate_proposed_retry,
+};
+#[cfg(feature = "sqlite-journal")]
+use leselang_command::reference_recovery::{
+    RecoveredEffectRecord, ReferenceRecordSource, decode_journal_value as decode_bounded,
+    inspect_effect_record,
+};
 #[cfg(feature = "sqlite-journal")]
 use leselang_runtime_core::{
     CheckpointCommitError, CheckpointError, CheckpointRecovery, GroupGraphMember,
-    GroupReceiptError, RecoveryRecord, StoredGroupState, dispatch_lease_capacity_exhausted,
+    GroupReceiptError, StoredGroupState, dispatch_lease_capacity_exhausted,
 };
-use leselang_runtime_core::{
-    ClockError, DispatchAttemptError, DispatchLeaseError, DispatchLeaseObservation,
-    DispatchLeasePlanError, DispatchLeaseStamp, GroupGraphError, RetrySchedulePoint,
-    checked_clock_add, next_dispatch_attempt, plan_dispatch_lease, validate_dispatch_lease,
-    validate_retry_schedule,
-};
+use leselang_runtime_core::{DispatchLeaseObservation, GroupGraphError};
+#[cfg(all(test, feature = "sqlite-journal"))]
+use leselang_runtime_core::{RecoveryRecord, validate_group_receipt};
 #[cfg(feature = "sqlite-journal")]
 use rusqlite::{
     Connection, OpenFlags, OptionalExtension, TransactionBehavior, limits::Limit, params,
 };
 
 use crate::{
-    BranchCompletion, BranchOutcome, Cancellation, CancellationReason, ContinuationImage,
-    ContinuationToken, DEFAULT_MAX_OUTPUT_ITEMS, DebuggerAuditContext, DebuggerAuditRecord,
-    DispatchClaim, DispatchLease, EffectError, EffectRequest, ExecutionOrder, Fault,
-    MAX_CONTINUATION_BYTES, MAX_DISPATCH_ATTEMPTS, MAX_DISPATCH_LEASE_MS, MAX_SEMANTIC_RETRIES,
-    MergePlan, RetentionPolicy, RetryDisposition, SchedulerLimits, SchedulerPressure, Step,
+    BranchCompletion, ContinuationImage, ContinuationToken, DEFAULT_MAX_OUTPUT_ITEMS,
+    DebuggerAuditContext, DebuggerAuditRecord, DispatchClaim, DispatchLease, EffectError,
+    EffectRequest, ExecutionOrder, Fault, MAX_CONTINUATION_BYTES, MAX_DISPATCH_ATTEMPTS, MergePlan,
+    RetentionPolicy, RetryDisposition, SchedulerLimits, SchedulerPressure, Step,
     continuation_age_order, encode_json_capped, measure_json_capped, valid_continuation_token,
-    validate_continuation_encoding_size, validate_effect_error, validate_effect_request,
-    validate_merge_plan, validate_value,
+    validate_continuation_encoding_size, validate_effect_request, validate_merge_plan,
+    validate_value,
 };
 
 #[cfg(all(test, feature = "sqlite-journal"))]
 mod bounded_decode_tests;
 mod group_binding;
 #[cfg(test)]
+mod reference_completion_contract_tests;
+#[cfg(test)]
 mod retention_tests;
 mod successor;
 
 pub const JOURNAL_SCHEMA_VERSION: u32 = 10;
+pub use leselang_command::reference_recovery::MAX_JOURNAL_ENTRY_BYTES;
 pub use leselang_command::retention_policy::MAX_JOURNAL_RECORDS;
-pub const MAX_JOURNAL_ENTRY_BYTES: usize = 8 * 1024 * 1024;
 pub const MAX_JOURNAL_TOTAL_BYTES: usize = 64 * 1024 * 1024;
 #[cfg(feature = "sqlite-journal")]
 const JOURNAL_BUSY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -1083,50 +1101,6 @@ fn validate_ephemeral_lease(
             expires_at_ms: dispatch.lease_expires_at_ms,
         },
     )
-}
-
-fn validate_proposed_retry(
-    current_retry_count: u32,
-    schedule: &crate::RetrySchedule,
-    now_ms: u64,
-) -> Result<(), Fault> {
-    if validate_retry_schedule(
-        current_retry_count,
-        RetrySchedulePoint {
-            retry_count: schedule.retry_count,
-            ready_at_ms: schedule.ready_at_ms,
-        },
-        now_ms,
-        MAX_SEMANTIC_RETRIES,
-    )
-    .is_err()
-        || validate_effect_error(&schedule.error).is_err()
-    {
-        return Err(journal_fault("LSV4026", "retry schedule is invalid"));
-    }
-    Ok(())
-}
-
-fn validate_observed_lease(
-    lease: &DispatchLease,
-    now_ms: u64,
-    observation: DispatchLeaseObservation,
-) -> Result<(), Fault> {
-    validate_dispatch_lease(
-        DispatchLeaseStamp {
-            attempt: lease.attempt,
-            retry_count: lease.retry_count,
-            expires_at_ms: lease.lease_expires_at_ms,
-        },
-        observation,
-        now_ms,
-    )
-    .map_err(|error| match error {
-        DispatchLeaseError::Superseded => {
-            journal_fault("LSV4022", "dispatch lease has been superseded")
-        }
-        DispatchLeaseError::Expired => journal_fault("LSV4023", "dispatch lease has expired"),
-    })
 }
 
 #[cfg(feature = "sqlite-journal")]
@@ -2618,114 +2592,50 @@ impl SqliteJournal {
 }
 
 #[cfg(feature = "sqlite-journal")]
-type RecoveredEffectRecord = RecoveryRecord<ContinuationToken, ContinuationImage, Step>;
-
-#[cfg(feature = "sqlite-journal")]
 fn recover_effect_record(
     connection: &Connection,
     row: &rusqlite::Row<'_>,
 ) -> Result<RecoveredEffectRecord, Fault> {
-    use leselang_runtime_core::{RecordRecoveryError, inspect_record_recovery};
     let token: String = row
         .get(0)
         .map_err(|error| journal_error("LSV4005", "invalid journal token", error))?;
     let state: String = row
         .get(1)
         .map_err(|error| journal_error("LSV4005", "invalid journal state", error))?;
-    inspect_record_recovery(&mut SqliteRecoveryRecord {
-        connection,
-        row,
-        token,
-        state,
-    })
-    .map_err(|error| match error {
-        RecordRecoveryError::Image(error)
-        | RecordRecoveryError::Sequence(error)
-        | RecordRecoveryError::Identity(error)
-        | RecordRecoveryError::Deadline(error)
-        | RecordRecoveryError::Owner(error)
-        | RecordRecoveryError::State(error)
-        | RecordRecoveryError::Receipt(error)
-        | RecordRecoveryError::Successor(error) => error,
-    })
+    inspect_effect_record(
+        &mut SqliteRecoveryRecord { connection, row },
+        &token,
+        &state,
+    )
 }
 
 #[cfg(feature = "sqlite-journal")]
 struct SqliteRecoveryRecord<'a, 'row> {
     connection: &'a Connection,
     row: &'a rusqlite::Row<'row>,
-    token: String,
-    state: String,
 }
 
 #[cfg(feature = "sqlite-journal")]
-impl leselang_runtime_core::RecordRecoveryHost for SqliteRecoveryRecord<'_, '_> {
-    type Key = ContinuationToken;
-    type Image = ContinuationImage;
-    type Pending = ContinuationImage;
-    type Completed = Step;
-    type Error = Fault;
+impl ReferenceRecordSource for SqliteRecoveryRecord<'_, '_> {
+    type Bytes = Vec<u8>;
 
-    fn admit_image(&mut self) -> Result<ContinuationImage, Fault> {
-        let bytes: Vec<u8> = self
-            .row
+    fn read_image(&mut self) -> Result<Vec<u8>, Fault> {
+        self.row
             .get(2)
-            .map_err(|error| journal_error("LSV4005", "invalid journal image", error))?;
-        let image: ContinuationImage = decode_bounded(&bytes, MAX_CONTINUATION_BYTES)?;
-        validate_image(&image)?;
-        Ok(image)
+            .map_err(|error| journal_error("LSV4005", "invalid journal image", error))
     }
-    fn sequence(&mut self, image: &ContinuationImage) -> Result<u64, Fault> {
-        crate::canonical_continuation_sequence(&image.token)
-            .ok_or_else(|| journal_fault("LSV4007", "journal continuation sequence is invalid"))
-    }
-    fn validate_identity(&mut self, image: &ContinuationImage) -> Result<(), Fault> {
-        if image.token.as_str() != self.token {
-            return Err(journal_fault(
-                "LSV4007",
-                "journal token does not match continuation image",
-            ));
-        }
-        Ok(())
-    }
-    fn validate_deadline(&mut self, image: &ContinuationImage) -> Result<(), Fault> {
-        let stored_deadline: Option<i64> = self
-            .row
+    fn read_deadline(&mut self) -> Result<Option<i64>, Fault> {
+        self.row
             .get(3)
-            .map_err(|error| journal_error("LSV4005", "invalid journal effect deadline", error))?;
-        let stored_deadline = stored_deadline
-            .map(|value| {
-                u64::try_from(value)
-                    .map_err(|_| journal_fault("LSV4007", "effect deadline is invalid"))
-            })
-            .transpose()?;
-        if stored_deadline != image.deadline_at_ms {
-            return Err(journal_fault(
-                "LSV4007",
-                "journal deadline does not match continuation image",
-            ));
-        }
-        Ok(())
+            .map_err(|error| journal_error("LSV4005", "invalid journal effect deadline", error))
     }
     fn validate_owner(&mut self, image: &ContinuationImage) -> Result<(), Fault> {
         group_binding::validate_owner(self.connection, image)
     }
-    fn stored_state(&mut self) -> Result<leselang_runtime_core::StoredRecordState, Fault> {
-        use leselang_runtime_core::StoredRecordState;
-        match self.state.as_str() {
-            "pending" => Ok(StoredRecordState::Pending),
-            "completed" => Ok(StoredRecordState::Completed),
-            _ => Err(journal_fault("LSV4007", "invalid journal record state")),
-        }
-    }
-    fn admit_completed(&mut self) -> Result<Step, Fault> {
-        let bytes: Vec<u8> = self
-            .row
+    fn read_completed(&mut self) -> Result<Vec<u8>, Fault> {
+        self.row
             .get(4)
-            .map_err(|error| journal_error("LSV4005", "invalid completed journal record", error))?;
-        let step = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
-        validate_terminal_step(&step)?;
-        Ok(step)
+            .map_err(|error| journal_error("LSV4005", "invalid completed journal record", error))
     }
     fn validate_successor(
         &mut self,
@@ -2733,41 +2643,6 @@ impl leselang_runtime_core::RecordRecoveryHost for SqliteRecoveryRecord<'_, '_> 
         completed: Option<&Step>,
     ) -> Result<(), Fault> {
         successor::validate_record(self.connection, image, completed)
-    }
-    fn pending_payload(
-        &mut self,
-        image: ContinuationImage,
-    ) -> (ContinuationToken, ContinuationImage) {
-        (image.token.clone(), image)
-    }
-    fn completed_payload(
-        &mut self,
-        image: ContinuationImage,
-        completed: Step,
-    ) -> (ContinuationToken, Step) {
-        let ContinuationImage {
-            token,
-            expected_revision,
-            result_type,
-            pending_effect,
-            result_binding,
-            group_result,
-            schema_version: _,
-            program_counter: _,
-            fuel_remaining: _,
-            deadline_ms: _,
-            deadline_at_ms: _,
-            max_output_items: _,
-        } = image;
-        // Release unused image owners before constructing the handoff value.
-        drop((
-            expected_revision,
-            result_type,
-            pending_effect,
-            result_binding,
-            group_result,
-        ));
-        (token, completed)
     }
 }
 
@@ -3214,42 +3089,6 @@ fn execution_order_label(order: ExecutionOrder) -> &'static str {
     }
 }
 
-fn sequence_stop<'a>(steps: impl IntoIterator<Item = &'a Step>) -> Result<Option<Step>, Fault> {
-    use leselang_runtime_core::{OrderedOutcomeSummary, OutcomeOrder};
-    let invalid = || {
-        journal_fault(
-            "LSV4007",
-            "sequential result observations exceed runtime bounds",
-        )
-    };
-    let overflow = |_, _| {
-        Step::Fault(journal_fault(
-            "LSV2404",
-            "sequential output exceeds runtime bounds",
-        ))
-    };
-    let mut outcomes = OrderedOutcomeSummary::new(
-        OutcomeOrder::Sequential,
-        crate::MAX_MERGE_BRANCHES,
-        DEFAULT_MAX_OUTPUT_ITEMS,
-    )
-    .map_err(|_| invalid())?;
-    for step in steps {
-        validate_terminal_step(step)?;
-        if let Step::Done(value) = step {
-            outcomes
-                .observe_success(validate_value(value, 0)?, overflow)
-                .map_err(|_| invalid())?;
-        } else {
-            outcomes.observe_stop(step.clone()).map_err(|_| invalid())?;
-        }
-        if outcomes.has_stop().map_err(|_| invalid())? {
-            return Ok(outcomes.finish(overflow).map_err(|_| invalid())?.first_stop);
-        }
-    }
-    Ok(outcomes.finish(overflow).map_err(|_| invalid())?.first_stop)
-}
-
 #[cfg(feature = "sqlite-journal")]
 fn ensure_sequence_ready(connection: &Connection, token: &str) -> Result<(), Fault> {
     let blocked: bool = connection.query_row(
@@ -3268,19 +3107,6 @@ fn ensure_sequence_ready(connection: &Connection, token: &str) -> Result<(), Fau
         ));
     }
     Ok(())
-}
-
-fn terminal_step_outcome(step: Step) -> Result<BranchOutcome, Fault> {
-    validate_terminal_step(&step)?;
-    match step {
-        Step::Done(value) => Ok(BranchOutcome::Value(value)),
-        Step::Cancelled(cancellation) => Ok(BranchOutcome::Cancelled(cancellation)),
-        Step::Failed(failure) => Ok(BranchOutcome::Failed(failure)),
-        Step::Fault(fault) => Ok(BranchOutcome::Fault(fault)),
-        Step::Effect(_) | Step::Effects(_) | Step::Waiting(_) | Step::Yield(_) => Err(
-            journal_fault("LSV4007", "merge branch completion is not terminal"),
-        ),
-    }
 }
 
 #[cfg(feature = "sqlite-journal")]
@@ -4276,105 +4102,6 @@ fn advance_sequence_watermark(connection: &Connection, used_sequence: u64) -> Re
             })?;
     }
     Ok(update.next_sequence)
-}
-
-pub(super) fn validate_lease_clock(now_ms: u64, lease_ms: u64) -> Result<(), Fault> {
-    lease_expiration(now_ms, lease_ms).map(|_| ())
-}
-
-fn validate_dispatch_clock(now_ms: u64) -> Result<(), Fault> {
-    // Observing or completing work does not require a representable future lease.
-    checked_clock_add(now_ms, 0)
-        .map(|_| ())
-        .map_err(|_| journal_fault("LSV4015", "dispatch clock is out of range"))
-}
-
-fn lease_expiration(now_ms: u64, lease_ms: u64) -> Result<u64, Fault> {
-    plan_dispatch_lease(now_ms, lease_ms, MAX_DISPATCH_LEASE_MS).map_err(|error| match error {
-        DispatchLeasePlanError::Clock(ClockError::OutOfRange) => {
-            journal_fault("LSV4015", "dispatch clock is out of range")
-        }
-        DispatchLeasePlanError::Clock(ClockError::Overflow) => {
-            journal_fault("LSV4015", "dispatch lease expiration is out of range")
-        }
-        DispatchLeasePlanError::Duration => journal_fault(
-            "LSV4015",
-            format!("dispatch lease must be between 1 and {MAX_DISPATCH_LEASE_MS} ms"),
-        ),
-    })
-}
-
-fn next_attempt(current: u32) -> Result<u32, Fault> {
-    next_dispatch_attempt(current, MAX_DISPATCH_ATTEMPTS).map_err(|error| match error {
-        DispatchAttemptError::CounterExhausted => {
-            journal_fault("LSV4017", "dispatch attempt counter is exhausted")
-        }
-        DispatchAttemptError::LimitReached => journal_fault(
-            "LSV4017",
-            format!("dispatch attempt limit {MAX_DISPATCH_ATTEMPTS} reached"),
-        ),
-    })
-}
-
-#[cfg(feature = "sqlite-journal")]
-fn decode_bounded<T: serde::de::DeserializeOwned>(bytes: &[u8], limit: usize) -> Result<T, Fault> {
-    leselang_command::bounded_json::decode(bytes, limit).map_err(|error| match error {
-        leselang_command::bounded_json::BoundedJsonDecodeError::Limit { limit, .. } => {
-            journal_fault("LSV4006", format!("journal entry exceeds {limit} bytes"))
-        }
-        leselang_command::bounded_json::BoundedJsonDecodeError::Deserialize(error) => {
-            journal_error("LSV4007", "invalid journal JSON", error)
-        }
-    })
-}
-
-fn validate_terminal_step(step: &Step) -> Result<(), Fault> {
-    match step {
-        Step::Done(value) if validate_value(value, 1).is_ok() => Ok(()),
-        Step::Cancelled(cancellation)
-            if !cancellation.continuation.as_str().is_empty()
-                && cancellation.observed_at_ms <= i64::MAX as u64 =>
-        {
-            Ok(())
-        }
-        Step::Failed(failure)
-            if failure.retry_count <= MAX_SEMANTIC_RETRIES
-                && validate_effect_error(&failure.error).is_ok() =>
-        {
-            Ok(())
-        }
-        Step::Fault(fault) if !fault.code.is_empty() && fault.code.len() <= 32 => Ok(()),
-        Step::Done(_) => Err(journal_fault(
-            "LSV4007",
-            "completed journal output exceeds runtime limit",
-        )),
-        Step::Effect(_) | Step::Effects(_) | Step::Waiting(_) | Step::Yield(_) => Err(
-            journal_fault("LSV4007", "journal completion must be a terminal step"),
-        ),
-        Step::Fault(_) | Step::Cancelled(_) | Step::Failed(_) => Err(journal_fault(
-            "LSV4007",
-            "journal fault has an invalid diagnostic code",
-        )),
-    }
-}
-
-fn validate_cancellation_step(image: &ContinuationImage, step: &Step) -> Result<(), Fault> {
-    validate_terminal_step(step)?;
-    match step {
-        Step::Cancelled(cancellation) if cancellation.continuation == image.token => Ok(()),
-        _ => Err(journal_fault(
-            "LSV4007",
-            "cancellation does not match continuation image",
-        )),
-    }
-}
-
-fn deadline_cancellation(image: &ContinuationImage, observed_at_ms: u64) -> Step {
-    Step::Cancelled(Cancellation {
-        continuation: image.token.clone(),
-        reason: CancellationReason::DeadlineExceeded,
-        observed_at_ms,
-    })
 }
 
 #[cfg(unix)]

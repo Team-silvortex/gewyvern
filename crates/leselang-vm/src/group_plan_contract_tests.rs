@@ -2,6 +2,20 @@ use super::*;
 use crate::ExecutionOrder;
 use leselang_hir::computation::Computation;
 
+fn invalid() -> Fault {
+    Fault {
+        code: "LSV1409".into(),
+        message: "invalid group-result binding or missing complete group journal".into(),
+    }
+}
+
+pub(crate) fn frozen_validate_group(
+    binding: &GroupResultBinding,
+    plan: &MergePlan,
+) -> Result<Type, Fault> {
+    FrozenGroup(binding).validate(plan)
+}
+
 fn fixture(parallel: bool, kind: usize) -> (GroupResultBinding, MergePlan) {
     let pure = Computation::Literal {
         value: crate::ScalarValue::None,
@@ -222,6 +236,11 @@ fn group_plan_keeps_frozen_full_admission_across_orders_flows_and_corruptions() 
                         FrozenGroup(&binding).validate(&plan),
                         "parallel={parallel} kind={kind} order={order:?} defect={defect}"
                     );
+                    assert_eq!(
+                        leselang_command::reference_merge::validate_group_binding(&binding, &plan),
+                        FrozenGroup(&binding).validate(&plan),
+                        "adapter parallel={parallel} kind={kind} order={order:?} defect={defect}"
+                    );
                     assert_eq!(serde_json::to_vec(&plan).unwrap(), before);
                     comparisons += 1;
                 }
@@ -249,6 +268,10 @@ fn group_plan_keeps_structure_then_correspondence_then_size_then_type_faults() {
         let expected = FrozenGroup(binding).validate(plan);
         assert_eq!(expected.as_ref().unwrap_err().code, code);
         assert_eq!(binding.validate(plan), expected);
+        assert_eq!(
+            leselang_command::reference_merge::validate_group_binding(binding, plan),
+            expected
+        );
     };
     check(&binding, &plan, "LSV3002");
     binding.fuel_remaining = crate::MAX_EXECUTION_FUEL + 1;

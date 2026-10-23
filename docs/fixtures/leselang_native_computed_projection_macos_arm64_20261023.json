@@ -1,0 +1,123 @@
+{
+  "kind": "leselang-native-computed-projection",
+  "validated_on": "2026-10-23",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.120.0",
+  "host_pipelines": 96,
+  "all_fuel_cutoff_pipelines": 16,
+  "computed_revocation_and_cancellation_cases": 128,
+  "direct_compiler_tests": 4,
+  "native_hir_vm_tests": 1403,
+  "reference_hir_tests": 1690,
+  "default_runtime_tests": 1133,
+  "isolated_test_executions": 2572,
+  "shared_compiler_and_evaluator": true,
+  "isolated_consumer_passed": true,
+  "cold_effects_rejected": true,
+  "original_cancellation_and_revocation_preserved": true,
+  "isolated_build_cache_removed": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_or_journal_schema_changed": false,
+  "scope": "Native catalog fields now accept pure computed result inputs using the original control compiler, projection structure budget, cold typing and evaluator. Direct bound/member projection diagnostics remain unchanged. Two numeric/headless-GUI schemas exercise accepted group replies, selection/aliases, lazy recovery, early returns and captured successors. Cold effects, scalar result inputs and malformed metadata fail before the outer field export. No product DTO, alternate scheduler or interpreter is added. Native callbacks remain trusted; host-neutral durable recovery and full language/reference parity remain open. No GUI packaging or Linux kernel behavior changed.",
+  "sources": [
+    {
+      "path": "crates/leselang-hir/src/catalog_source.rs",
+      "sha256": "918c1d586102c5d2f968678bc82a81c09515ec9c231d057a3449bc7b8d2e7dd5"
+    },
+    {
+      "path": "crates/leselang-hir/src/projection_source.rs",
+      "sha256": "576cd5d6d855dd191288f29bf3ee8b49b9a26e65d8c8abc87e3574cdcf01429f"
+    },
+    {
+      "path": "crates/leselang-hir/tests/catalog_source.rs",
+      "sha256": "790bcaab0c8e0f7ac767b85284373b76e746a2dd60e708d28a34f6c6c52d05e2"
+    },
+    {
+      "path": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "c15beed2eef7d29432892e5b882fe280ee9c6686b9e9257c1f6d6c83a2d96349"
+    },
+    {
+      "path": "tests/leselang_native_profile_tdd.rs",
+      "sha256": "24e07cbca73b8240dfded9ddcea1d82d3c6db74533f798750b2d8c04574999d3"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "2a865d828fd38e3e7f51db28bc0afdfdc40acfad4da27fb821b77d699ffed04e"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "cd9df9daf9f2e0164ce56caf09e30614dfffbe18263cea5e2b076fc3978d2995"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "c9cb0a16d88650389cb86aa8796c2d28a4428bfad9af193682e7b4abb48d1b9f"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "native",
+      "log": "/private/tmp/leselang-computed-projection-20261023-native.log",
+      "sha256": "d4d88030ce554509de61bb003a9b2ba9588355b92524f704c770622c768bf0b1"
+    },
+    {
+      "stage": "native-clippy",
+      "log": "/private/tmp/leselang-computed-projection-20261023-native-clippy.log",
+      "sha256": "507b82cb89a125252a4d66de902dcd43a1a270bc3b195d01b5525c54c6132469"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-computed-projection-20261023-default.log",
+      "sha256": "af05f78246bd93351ead4c6fc178ab1f011653111969a2b644d56e8301b1052a"
+    },
+    {
+      "stage": "hir-default",
+      "log": "/private/tmp/leselang-computed-projection-20261023-hir-default.log",
+      "sha256": "812732744312cdb13430da2ff07a1d732f59c407a95f972056d98756bc4e0175"
+    },
+    {
+      "stage": "export",
+      "log": "/private/tmp/leselang-computed-projection-20261023-export.log",
+      "sha256": "c3b68eebafd29dd5c6058d289231752524c82e8e914a90362d33d1906e23146e"
+    },
+    {
+      "stage": "default-clippy",
+      "log": "/private/tmp/leselang-computed-projection-20261023-default-clippy.log",
+      "sha256": "937edc391e3954cc33a0d1809d34b352d5eb24c8b6887f43a247e8cc5167a390"
+    },
+    {
+      "stage": "gates",
+      "log": "/private/tmp/leselang-computed-projection-20261023-gates.log",
+      "sha256": "f8a585fb643e45b1d3e482f483cdcdf9ef36b56851fab6f2ad210573f54b6d4f"
+    },
+    {
+      "stage": "gates-clippy",
+      "log": "/private/tmp/leselang-computed-projection-20261023-gates-clippy.log",
+      "sha256": "0f208c24384ce9e0ae0eca9ed62c2d4266af2f2af78fe402154911e5405227eb"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-computed-projection-20261023-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "export": {
+    "path": "/private/tmp/leselang-computed-projection-20261023-2.4.0",
+    "files": 280,
+    "copied_sources": 270,
+    "bytes": 6738268,
+    "manifest_sha256": "7862d68f1d7c4de6995e5c2377e06f7d63a491f28e19cb38adfab435a948a80e",
+    "verified": true,
+    "source_copies_unchanged": true,
+    "complete_vm": false,
+    "full_extraction_gate": false
+  },
+  "root_architecture_tests": 409,
+  "strict_lints_passed": true,
+  "format_check_passed": true
+}

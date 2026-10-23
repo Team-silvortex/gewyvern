@@ -1,0 +1,175 @@
+{
+  "kind": "leselang-reference-dispatch",
+  "validated_on": "2026-10-23",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.122.0",
+  "lease_planning_cases": 49,
+  "attempt_cases": 105,
+  "lease_observation_cases": 768,
+  "retry_cases": 9600,
+  "direct_adapter_tests": 4,
+  "live_authority_scenarios": 2,
+  "adapter_owned_static_policy": true,
+  "both_journals_share_adapter": true,
+  "runtime_authority_unchanged": true,
+  "committed_replay_unchanged": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "Six static product dispatch policy functions and three limits moved from the VM/journal to the command adapter. Numeric kernels, diagnostics and precedence stay unchanged. The journal still owns actual observations, lease issuance, retry commit, deadline cleanup, transactions, recovery and settled replay. The memory and SQLite-reopen scenarios reject forged/stale receipts despite valid caller-supplied static observations. No full VM extraction or native durable graph recovery is claimed.",
+  "verification_status": "passed",
+  "default_runtime_tests": 1149,
+  "memory_vm_tests": 126,
+  "root_architecture_tests": 415,
+  "migrated_static_functions": 6,
+  "migrated_policy_constants": 3,
+  "unchanged_function_bodies": true,
+  "strict_lints_passed": true,
+  "format_checks_passed": true,
+  "native_no_default_check_passed": true,
+  "native_dependency_boundary_passed": true,
+  "native_checkpoint_reused": true,
+  "new_native_export_performed": false,
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "5b56a49934044bc6bf03731b4b4af92cb884f7d051267e62cf12da53e192cfb7"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_dispatch.rs",
+      "sha256": "b62f9b90c51eb675e9e35433ebcb48fa6fd3b448d6575f377653d59d374b286b"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_dispatch.rs",
+      "sha256": "66cc51870ce0a2e60c2679419499ca4a4096927034f20f0cdd04ff2e7a2256c3"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "d0f33f32491fe6be0b9cbd6269e5e4a87f784bb9b87074df142e89c73e3eaed8"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "26f35fa7f3bc758ac298efd230146f52adac891f5db941ce2ef810b6552b0514"
+    },
+    {
+      "path": "crates/leselang-vm/tests/ephemeral_profile.rs",
+      "sha256": "64f21d57ab8fc551b79586886646fe80a9be6008ad55f2bfec65a738126a4411"
+    },
+    {
+      "path": "crates/leselang-vm/tests/dispatch_scheduling.rs",
+      "sha256": "1d365943542dbf182e1ba2c0686b7321e2eeda916658af21653ceb4d228e8e97"
+    },
+    {
+      "path": "crates/leselang-vm/tests/support/reference_dispatch_authority.rs",
+      "sha256": "137c04802bc96a2d0030a2ca9d977dd198be6441f803edd5c14b2e377af98ff5"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "3f28f0ae76a0fbe90d120881f7d09827b14a9533c2fd6a940192d0c9df39a8f0"
+    },
+    {
+      "path": "tests/leselang_native_profile_tdd.rs",
+      "sha256": "7bafba9c7c611fb2a0081e9aceb0c76e379b40dda2c1247826b3261edf87abb7"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "6d25f8a289f36576c862cdc1d59ddfee0144ac7e8cf1a694172d8716af164ea7"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "5a944b10e1309b791c567f4259b544833ad2e2fd1369dba5f3f9a7eb21b73039"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "447d0971ef5fad181fa9869752bdf0ef9b99d02be486efef96b74778cb4d27e1"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "f77c90e3924a0cca6be8aa49a096a702347ce186f1ae03a553a71d32528d7ec5"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "direct",
+      "log": "/private/tmp/leselang-reference-dispatch-20261023-direct.log",
+      "sha256": "210302464f69ffa2c919ec9d417667527398b59c167612cd9c0cebc02ca47a0f"
+    },
+    {
+      "stage": "authority",
+      "log": "/private/tmp/leselang-reference-dispatch-20261023-authority.log",
+      "sha256": "f2cbe46e0e36db5715a37fd55e3be72c2f1bac51f3c6ae635f366b5307531e13"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-reference-dispatch-20261023-default.log",
+      "sha256": "fdeb85564adc401b09c4575b373a06742fb5dc1ac3c0d75d808a73322c556775"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-reference-dispatch-20261023-memory.log",
+      "sha256": "ce9dcb06535ac02c0634cd590cba85263fc6ad1bf51b7ecbf1f1f912d06c8df2"
+    },
+    {
+      "stage": "gates",
+      "log": "/private/tmp/leselang-reference-dispatch-20261023-gates.log",
+      "sha256": "3d48ee9d75f32c79dc034c2dad8d6868b9194d7c418fa0dc9d0a822be5757e98"
+    },
+    {
+      "stage": "default-clippy",
+      "log": "/private/tmp/leselang-reference-dispatch-20261023-default-clippy.log",
+      "sha256": "b4cfff1ec0a3cbaef43cd9935252320faa935890c275cc07402f6a2e37357741"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-reference-dispatch-20261023-memory-clippy.log",
+      "sha256": "acdbd3656553501185f8f037112dc195289798b0cb818c83a2ec18ae2a013420"
+    },
+    {
+      "stage": "gates-clippy",
+      "log": "/private/tmp/leselang-reference-dispatch-20261023-gates-clippy.log",
+      "sha256": "cd0d9ebef36002d347b636009f98bf949c1a22020f9bf56e6ff1735d2ace9594"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-reference-dispatch-20261023-native-check.log",
+      "sha256": "19c7d339b4005a4b806c4702591d05093488aaa8325e20bb98cef34eb2dc2605"
+    },
+    {
+      "stage": "native-tree",
+      "log": "/private/tmp/leselang-reference-dispatch-20261023-native-tree.log",
+      "sha256": "d961c3f18a38f843bd9b3725ed41a63000bc5b6947ab850d0b328d8d91e434cc"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-reference-dispatch-20261023-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "diff",
+      "log": "/private/tmp/leselang-reference-dispatch-20261023-diff.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "body-parity",
+      "log": "/private/tmp/leselang-reference-dispatch-20261023-body-parity.log",
+      "sha256": "95930ac53d1cb15f79c580d2a09c6e5f9b146f362bdcf37cca969b9b031a525c"
+    }
+  ],
+  "native_checkpoint": {
+    "path": "/private/tmp/leselang-selected-recovery-20261023-2.4.0",
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "files": 280,
+    "copied_sources": 270,
+    "all_source_copies_unchanged": true,
+    "previous_verification_reused": true,
+    "verified": true,
+    "complete_vm": false,
+    "full_extraction_gate": false
+  }
+}

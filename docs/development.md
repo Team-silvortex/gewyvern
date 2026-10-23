@@ -87,8 +87,11 @@ cargo dev package leselang --output target/leselang-native-source --verify
 
 `--dry-run` plans the exact source inventory without writing or running the
 isolated verifier. The output parent must already exist, and an existing output
-is never replaced. Verification reuses the compiler cache, not product source
-paths. The exported workspace and its separate consumer own explicit metadata,
+is never replaced. Verification shares one temporary build target between the
+exported workspace and its consumer, then removes that target before publishing
+the verified output. It retains the source checkpoint and `export-manifest.json`,
+not a per-export compiler cache. Locked registry downloads remain reusable.
+The exported workspace and its separate consumer own explicit metadata,
 locked registry dependencies, MIT license and native CI. This is not the full
 durable VM extraction or publication gate. The four exported crates now include
 the native VM facade and its unchanged direct-consumer host tests; neither
@@ -393,6 +396,28 @@ The default contributor commands remain:
 
 ## Workspace Hygiene
 
+Use the [repository map](monorepo-stack.md) to identify source owners before
+removing or relocating files. Disk size is not a measure of architectural debt:
+a large build directory is not a reason to delete tested source modules.
+
+| Location | Retention |
+| --- | --- |
+| `target/debug/`, `target/lean/` | Rebuildable profiles; preview and trim only when local builds/tests are idle |
+| `target/release/`, `target/dev-workflow/`, `artifacts/` | Retain current packaging/release outputs until replacement is verified |
+| `target/package/`, `target/validation/`, `docs/fixtures/` | Inspect separately; package checkpoints and verification evidence are not ordinary compiler caches |
+| exported source directories and `export-manifest.json` | Retain when referenced by a proof; inspect temporary paths as carefully as repository-local paths |
+| app-local `bin/`, `obj/`, `node_modules/`, Python caches | Rebuildable only when ignored, untracked and unused; do not follow symlinks |
+| shared Cargo/NuGet caches and SDK/workload packs | Reusable toolchain inputs; not a checkout-local cleanup target |
+| runtime databases, profiles, credentials, installed apps, `.git/` | User state and Git history; never build-cache cleanup |
+
+Start with `du -h -d 1 .` and `du -h -d 2 target`, then preview the trim below.
+`target/lean/deps/` can still accumulate large test binaries and feature/profile
+variants even though `lean` disables incremental compilation. Do not delete
+individual hashed dependencies or fingerprints by age; use Cargo's profile
+cleanup so build metadata and outputs are reset together. After cleanup, run
+only the checks relevant to the changed boundary and retain their fresh cache
+for the next edit loop.
+
 Build outputs and test sources have different retention rules. Rust `target/`,
 .NET `bin/`, `obj/`, and `TestResults/`, frontend `node_modules/`, Python bytecode
 and caches, and generated `artifacts/` bundles can be recreated. Remove them
@@ -434,7 +459,10 @@ them or clearing all NuGet packages after every build.
 
 Remote `~/.cache/gewyvern/` target caches, mirrored workspaces, and completed
 one-off proof workspaces are also disposable after checking active processes
-and releasing workspace locks. Preserve checked-in `docs/fixtures/` evidence,
+and releasing workspace locks. Before deleting a proof workspace, check whether
+retained evidence still references its logs, source export or manifest; its
+location under a temporary directory does not make it unreferenced. Preserve
+checked-in `docs/fixtures/` evidence,
 runtime state, databases, credentials, installed applications, and Git history.
 Pruning a cache means the next build may be cold; it does not retire a feature.
 

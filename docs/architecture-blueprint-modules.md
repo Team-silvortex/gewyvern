@@ -3,6 +3,8 @@
 Use this page when you need the source-level architecture sheet for the
 Gewyvern evidence plane. The cross-product authority and intent planes are
 defined by [the canonical architecture blueprint](architecture-blueprint.md).
+Use the [repository map](monorepo-stack.md) for all workspace crates, clients
+and the current Leselang extraction boundary.
 
 This page complements:
 
@@ -115,6 +117,10 @@ These files are the heart of the runtime engine.
 
 ### Compiler And IR
 
+- `crates/gewylang-contract/`
+- `crates/gewylang-syntax/`
+- `crates/gewylang-compiler/`
+- `crates/gewylang-ir/`
 - `src/dsl.rs`
 - `src/gewyc.rs`
 - `src/ir.rs`
@@ -129,7 +135,12 @@ Responsibilities:
 - focused IR review
 - binding validation
 
-These files own how author intent becomes runtime-ready structure.
+The language crates own product-independent syntax, lowering and compiler-stage
+exchange. `src/dsl/` and `src/gewyc/` implement Gewyvern semantic/projection hosts;
+`src/ir.rs` and `src/template.rs` own product runtime structures. Do not put a
+second parser in a runtime adapter or confuse runtime predicates with the
+portable compiler IR. These boundaries own how author intent becomes
+runtime-ready structure.
 
 ### Registry And Protocol Surface
 
@@ -175,7 +186,8 @@ The intended direction is:
 When extending the system:
 
 - add protocol families in `protocol_profiles/` and `protocols/`
-- add DSL/compiler behavior in `dsl.rs` and `gewyc.rs`
+- add generic language/compiler behavior in `crates/gewylang-*`, and only
+  Gewyvern-specific semantic/materialization behavior in `src/dsl/` and `src/gewyc/`
 - add runtime evidence semantics in `runtime.rs`, `flow.rs`, `program.rs`, or `reason.rs`
 - add operator rendering in `report_runtime.rs`
 - add API output shaping in `data_api.rs`

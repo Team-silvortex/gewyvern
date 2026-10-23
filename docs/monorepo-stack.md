@@ -17,20 +17,48 @@ changing a cross-project boundary.
 | [`crates/gewylang-compiler/`](../crates/gewylang-compiler) | product-independent expansion, host-generic lowering, and materializer dispatch | canonical compiler behavior and host boundaries |
 | [`crates/gewylang-ir/`](../crates/gewylang-ir) | product-independent Binding IR, Analysis IR, diagnostics, history, fingerprints, invariant validation, strict wire codec, typed compatibility diff, and projection-host orchestration | stable compiler-stage data, identity, validation, comparison, and exchange contracts |
 | [`crates/gewyc/`](../crates/gewyc) | GewyLang compiler CLI | diagnostic and lowering orchestration |
+| [`crates/gewyvern-dev/`](../crates/gewyvern-dev) | native development, version, packaging and source-export tooling | contributor workflow, not runtime authority |
 | [`crates/silvortex-bounded-io/`](../crates/silvortex-bounded-io) | product-neutral bounded files and transport deadlines | native I/O safety invariants |
 | [`crates/silvortex-identity/`](../crates/silvortex-identity) | product-neutral validated protocol identities | identifier grammar and scalar wire identity |
 | [`crates/gewyvern-install-contract/`](../crates/gewyvern-install-contract) | strict Gewyvern installation and retirement exchange | cross-plane lifecycle wire contract |
 | [`crates/leserpent-domain/`](../crates/leserpent-domain) | shared command/query/event model | control vocabulary |
-| [`crates/leselang-*`](../crates) | Leselang syntax, HIR, VM, command and UI lowering | normalized automation intent |
+| [`crates/leselang-syntax/`](../crates/leselang-syntax) | lossless lexer, parser, spans and diagnostics | language syntax, no product runtime |
+| [`crates/leselang-runtime-core/`](../crates/leselang-runtime-core) | host-neutral values, fuel, lifecycle and re-entry foundations | shared execution primitives |
+| [`crates/leselang-hir/`](../crates/leselang-hir) | native host-defined IR and optional Leserpent lowering | typed automation intent; feature-dependent boundary |
+| [`crates/leselang-vm/`](../crates/leselang-vm) | native facade and feature-gated reference evaluator/journal | session execution; not yet a fully extracted durable VM |
+| [`crates/leselang-host-contract/`](../crates/leselang-host-contract) | reference-host identities, capabilities and ABI values | host exchange types without a product runtime dependency |
+| [`crates/leselang-command/`](../crates/leselang-command) | Leserpent protocol payloads, codecs and pure command lowering | product adapter, not generic language core |
+| [`crates/leselang-ui/`](../crates/leselang-ui) | renderer-neutral Leserpent UI IR | product presentation contract, not a GUI toolkit |
+| [`crates/leselang-observe/`](../crates/leselang-observe) | sanitized projections and optional reference-VM bridge | product observation; read-only does not require a VM |
 | [`crates/leserpent-runtime/`](../crates/leserpent-runtime) | transactions, journal, effects, projections | durable control truth |
 | [`crates/leserpent-protocol/`](../crates/leserpent-protocol) | versioned wire envelopes and transport semantics | protocol compatibility |
 | [`crates/leserpent-adapters/`](../crates/leserpent-adapters) | capability-gated external effects | boundary integration |
 | [`crates/leserpentd/`](../crates/leserpentd) | self-hosted authority process | daemon lifecycle and authenticated access |
 | [`crates/leserpent-cli/`](../crates/leserpent-cli) | native operator client | no independent semantics |
+| [`crates/leserpent-frontend-package/`](../crates/leserpent-frontend-package) | bounded frontend package validation and extraction | asset integrity, not control authority |
 | [`apps/leserpent-avalonia/`](../apps/leserpent-avalonia) | desktop renderer and multi-daemon hub | no independent semantics |
 | [`apps/leserpent-mobile/`](../apps/leserpent-mobile) | mobile renderer | no independent semantics |
 | [`apps/leserpent/`](../apps/leserpent) | ASP.NET/TypeScript Web compatibility bridge | migration and rendering only |
 | [`apps/etragon/`](../apps/etragon) | optional advisory sideplane | append-only advice, never control truth |
+
+The table covers every Cargo workspace member, plus the managed client shelves.
+Prefixes are not independence guarantees: see the feature boundaries below.
+Source and support directories outside the crate map have separate owners:
+
+| Paths | Owns |
+| --- | --- |
+| `ebpf/` | kernel probe sources, not a portable control service |
+| `protocols/`, `dsl/` | checked-in protocol packages and language programs |
+| `tests/`, crate-local tests, `apps/*/tests/` | regression and conformance sources; not disposable output |
+| `project/status/`, `docs/fixtures/` | live status metadata and retained verification evidence |
+| `docs/`, `README.md`, `LESERPENT.md`, `ROADMAP.md`, `STATUS.md` | authoritative guides and short navigation entries |
+| `assets/`, `docs/assets/` | shipped assets and documentation media |
+| `packaging/`, `scripts/`, `docker/`, `.github/`, `.cargo/` | build inputs, development/validation helpers and CI configuration |
+| `target/`, `artifacts/`, app-local `bin/` and `obj/` | generated outputs with different retention rules, not source ownership |
+
+Disk-retention rules live in [Workspace Hygiene](development.md#workspace-hygiene).
+The [status catalog](../project/status/catalog.json) remains the only progress
+source of truth; this map does not copy maturity scores or historical proof logs.
 
 ## Process Topology
 
@@ -94,15 +122,16 @@ silvortex-bounded-io -> Gewyvern / protocol / adapters / CLI / daemon
 silvortex-identity -> Gewyvern install contract / leserpent-domain
 gewyvern-install-contract -> Gewyvern installer / protocol / adapters
 
-leserpent-domain
-  -> Leselang HIR/VM/lowering
-  -> leserpent-runtime
-  -> leserpent-protocol
-  -> leserpent-adapters
-  -> leserpentd
+Host-neutral Leselang syntax / runtime-core
+  -> native HIR / native VM facade
+
+Leserpent domain + host contract + profiled HIR
+  -> command payloads / UI lowering / reference VM / observation
+  -> runtime / protocol / adapters / leserpentd
   -> replaceable clients and bridges
 ```
 
+These arrows show foundation-to-consumer flow, not every direct Cargo edge.
 Lower layers must not depend on a renderer. A transport may encode a command,
 but it must not decide whether that command is allowed. An adapter may execute
 an authorized effect, but it must not mint authority.
@@ -121,6 +150,41 @@ adapters. `CompilerProjectionHost` returns their stable output values and
 diagnostic failures to `gewylang-ir` as one coherent stage set. The concrete
 Gewyvern adapter remains linked today; extracting it into a narrow crate is the
 remaining physical boundary.
+
+## Leselang Extraction Boundary
+
+Do not move all `leselang-*` crates into an independent repository as one unit.
+There are two distinct layers today:
+
+| Layer | Current boundary |
+| --- | --- |
+| Native language foundation | `leselang-syntax`, `leselang-runtime-core`, and HIR/VM with `default-features = false`; host-owned operations, values and synchronous re-entry |
+| Leserpent reference specialization | `leserpent-profile`, host contract, command payloads, UI and observation; explicit product vocabulary and adapters |
+
+Feature selection is part of the boundary:
+
+- HIR enables `leserpent-profile` by default; native embedders opt out.
+- VM with no defaults exposes the native facade. Adding `leserpent-profile`
+  enables the in-memory product evaluator; default `sqlite-journal` adds durable
+  reference storage. Removing SQLite alone does not remove the product profile.
+- Observe with no defaults remains a product-specific read-only projection
+  library without VM/SQLite. `vm-bridge` adds the in-memory evaluator bridge;
+  default `sqlite-journal` preserves the released durable bridge.
+- Command payloads, continuation codecs, and UI IR are product adapters even
+  when they do not depend on the VM. Static validation is not live authorization.
+
+Cargo features are additive within a resolved graph. Validate native consumers
+in isolation rather than inferring independence from a default workspace build.
+The verified four-crate source checkpoint contains syntax, runtime-core, native
+HIR and the native VM facade; it deliberately excludes product/reference code.
+It remains `complete_vm=false` and `full_extraction_gate=false`: host-neutral
+durable recovery and the full-language independent host pipeline are still
+open. See [embedding boundaries](leselang-embedding.md) for authoritative gates.
+
+Keep pure language mechanisms below host adapters. Keep live authority checks,
+durable product state and renderer dispatch in their current owners. A moved
+codec or a successful source export is not evidence that the full VM is ready
+to split.
 
 ## Toolchain Boundaries
 

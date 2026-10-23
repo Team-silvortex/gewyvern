@@ -11,6 +11,48 @@ fn comparable(record: RecoveredEffectRecord) -> (ContinuationToken, u64, serde_j
 }
 
 #[test]
+fn storage_field_errors_keep_header_order_and_pending_receipts_stay_cold() {
+    let mut cases = 0;
+    for stage in [0, 2] {
+        let fixture = Fixture::new(r#"fn main() = ui.focus(node_id: "a")"#, stage);
+        let connection = Connection::open(&fixture.0).unwrap();
+        let before = snapshot(&connection);
+        for mask in 0..32 {
+            let fields = ["token", "state", "image", "deadline_at_ms", "terminal_step"]
+                .into_iter()
+                .enumerate()
+                .map(|(index, name)| {
+                    if mask & (1 << index) == 0 {
+                        name.to_string()
+                    } else if index == 3 {
+                        format!("'invalid-clock' AS {name}")
+                    } else {
+                        format!("NULL AS {name}")
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            let mut statement = connection
+                .prepare(&format!(
+                    "SELECT {fields} FROM vm_effects ORDER BY token LIMIT 1"
+                ))
+                .unwrap();
+            let mut rows = statement.query([]).unwrap();
+            let row = rows.next().unwrap().unwrap();
+            let expected = frozen(&connection, row).map(comparable);
+            assert_eq!(expected.is_ok(), mask == 0 || (stage == 0 && mask == 16));
+            assert_eq!(
+                recover_effect_record(&connection, row).map(comparable),
+                expected
+            );
+            assert_eq!(snapshot(&connection), before);
+            cases += 1;
+        }
+    }
+    assert_eq!(cases, 64);
+}
+
+#[test]
 fn stored_effect_record_preserves_frozen_fault_order_and_original_tables() {
     let sources = [
         r#"fn main() = seq(a: ui.focus(node_id: "a"), b: ui.focus(node_id: "b"))"#,

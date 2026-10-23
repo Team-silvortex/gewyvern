@@ -9,7 +9,7 @@ mod protocol_tests;
 
 #[cfg(test)]
 #[path = "group_plan_contract_tests.rs"]
-mod plan_contract_tests;
+pub(crate) mod plan_contract_tests;
 
 use crate::result_binding::{ReferenceResultBinding, group_capture_limits};
 use crate::{ContinuationToken, EffectRequest, Fault, MergePlan, ResultBinding, Step, Value};
@@ -19,36 +19,10 @@ pub(super) enum CaptureProgress {
     Pending(Box<EffectRequest>),
 }
 
-pub(super) fn invalid() -> Fault {
-    leselang_command::reference_request::continuation_admission_fault(
-        leselang_command::ContinuationAdmissionError::Schema(
-            leselang_command::continuation_schema::ContinuationSchemaError::Group,
-        ),
-    )
-}
-
-pub(super) fn admission_limits() -> leselang_command::GroupBindingLimits {
-    leselang_command::GroupBindingLimits {
-        plan: leselang_command::GroupPlanLimits {
-            max_branches: crate::MAX_MERGE_BRANCHES,
-            max_effect_sequence: crate::MAX_EFFECT_SEQUENCE,
-            max_fuel: crate::MAX_EXECUTION_FUEL,
-        },
-        binding: crate::result_binding::result_binding_limits(),
-    }
-}
-
-pub(super) fn validate_plan_encoding(plan: &MergePlan) -> Result<(), Fault> {
-    crate::validate_json_size_capped(plan, crate::MAX_CONTINUATION_BYTES, "group-result plan")
-}
-
-pub(super) fn admission_fault(error: leselang_command::GroupBindingError<Fault>) -> Fault {
-    match error {
-        leselang_command::GroupBindingError::Binding => crate::result_binding::invalid(),
-        leselang_command::GroupBindingError::Plan => invalid(),
-        leselang_command::GroupBindingError::Encoding(fault) => fault,
-    }
-}
+pub(super) use leselang_command::reference_merge::invalid_group_binding as invalid;
+pub(super) use leselang_command::reference_merge::{
+    group_binding_admission_fault as admission_fault, validate_plan_encoding,
+};
 
 pub(super) trait ReferenceGroupResultBinding {
     fn branches(&self) -> Result<&[HirBranch], Fault>;
@@ -113,14 +87,7 @@ impl ReferenceGroupResultBinding for GroupResultBinding {
 
     #[cfg(any(test, feature = "sqlite-journal"))]
     fn validate(&self, plan: &MergePlan) -> Result<Type, Fault> {
-        leselang_command::validate_group_binding(
-            self,
-            plan,
-            admission_limits(),
-            crate::valid_merge_branch_name,
-            validate_plan_encoding,
-        )
-        .map_err(admission_fault)
+        leselang_command::reference_merge::validate_group_binding(self, plan)
     }
 
     #[cfg(test)]

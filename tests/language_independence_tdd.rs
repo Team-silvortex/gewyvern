@@ -138,9 +138,7 @@ fn real_reference_capture_validation_uses_product_free_helpers_without_moving_au
         std::fs::read_to_string(root.join("crates/leselang-vm/src/result_binding.rs")).unwrap();
     for retained in [
         "leselang_command::validate_result_binding_structure(",
-        "max_saved_bindings: MAX_EFFECT_NESTING_DEPTH",
-        "max_name_bytes: MAX_BRANCH_NAME_BYTES",
-        "max_members: crate::MAX_MERGE_BRANCHES - 1",
+        "leselang_command::reference_request::result_binding_limits()",
         "crate::valid_merge_branch_name",
         ".map_err(projection_fault)",
         "leselang_command::validate_result_binding(",
@@ -149,6 +147,17 @@ fn real_reference_capture_validation_uses_product_free_helpers_without_moving_au
             reference.contains(retained),
             "capture adapter lost {retained}"
         );
+    }
+    let policy =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/reference_request.rs"))
+            .unwrap();
+    for retained in [
+        "max_saved_bindings: MAX_EFFECT_NESTING_DEPTH",
+        "max_name_bytes: MAX_BRANCH_NAME_BYTES",
+        "max_members: crate::MAX_MERGE_BRANCHES - 1",
+    ] {
+        assert!(policy.contains(retained), "capture policy lost {retained}");
+        assert!(!reference.contains(retained), "VM duplicated {retained}");
     }
     let binding =
         std::fs::read_to_string(root.join("crates/leselang-command/src/result_binding.rs"))
@@ -493,7 +502,15 @@ fn real_execution_reentry_uses_shared_original_state_without_a_second_meter_or_p
     assert!(!saved.contains(".clone()"));
     let group =
         std::fs::read_to_string(root.join("crates/leselang-vm/src/group_binding.rs")).unwrap();
-    assert!(group.contains("leselang_command::validate_group_binding("));
+    assert!(
+        group.contains("leselang_command::reference_merge::validate_group_binding(self, plan)")
+    );
+    let reference_merge =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/reference_merge.rs"))
+            .unwrap();
+    assert!(reference_merge.contains("crate::validate_group_binding("));
+    assert!(reference_merge.contains("group_binding_admission_limits()"));
+    assert!(reference_merge.contains(".map_err(group_binding_admission_fault)"));
     let group_admission =
         std::fs::read_to_string(root.join("crates/leselang-command/src/group_admission.rs"))
             .unwrap();
@@ -8770,14 +8787,27 @@ fn local_vm_terminal_liveness_delegates_to_the_original_session_without_error_in
     for required in [
         "LocalExecutionScope",
         "StackedControlSession::new(",
-        "session.poll_with_scope(environment, Some(scope))",
-        "session.try_accept_in_scope(identity, reply, authority, scope)",
-        "matches!(self.session.status(), EffectSessionStatus::Terminal(_))",
-        "local_scope::CallFence",
-        "self.scope.close()",
-        "fence.finish()",
+        "self.session.poll_in_scope(environment, &self.scope)",
+        ".try_accept_in_scope(identity, reply, authority, &self.scope)",
+        "self.session.cancel_in_scope(&self.scope)",
     ] {
         assert!(local.contains(required), "local entry lost {required}");
+    }
+    let shared =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_stack_session.rs"))
+            .unwrap();
+    for required in [
+        "session.poll_with_scope(environment, Some(scope))",
+        ".try_accept_with_scope(identity, reply, authority, Some(scope))",
+        "matches!(self.status(), EffectSessionStatus::Terminal(_))",
+        "local_scope::CallFence",
+        "scope.close()",
+        "fence.finish()",
+    ] {
+        assert!(
+            shared.contains(required),
+            "shared local entry lost {required}"
+        );
     }
     for forbidden in [
         "enum State",
@@ -8849,10 +8879,14 @@ fn fenced_host_work_reuses_pending_state_and_exports_the_same_native_proofs() {
         std::fs::read_to_string(root.join("crates/leselang-hir/src/local_effect_session.rs"))
             .unwrap();
     assert!(local.contains("pub fn with_host_work<Input, Output>"));
-    assert!(local.contains("session.with_host_work(input, |input|"));
+    assert!(local.contains(".with_host_work_in_scope(input, work, &self.scope)"));
+    let shared =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_stack_session.rs"))
+            .unwrap();
+    assert!(shared.contains("session.core.with_host_work(input, |input|"));
     assert!(
-        local.contains(
-            "self.with_host_outcome(input, |input| HostWorkOutcome::Pending(work(input)))"
+        shared.contains(
+            "self.with_host_outcome_in_scope(input, |input| HostWorkOutcome::Pending(work(input)), scope)"
         )
     );
     let gui = std::fs::read_to_string(root.join("crates/leselang-hir/tests/prepared_gui_host.rs"))
@@ -9162,7 +9196,24 @@ fn classified_native_outcomes_reuse_core_terminal_states_without_error_string_in
         std::fs::read_to_string(root.join("crates/leselang-hir/src/local_effect_session.rs"))
             .unwrap();
     assert!(local.contains("pub fn with_host_outcome<Input, Output>"));
-    assert!(local.contains("if !matches!(&output, HostWorkOutcome::Pending(_))"));
+    assert!(local.contains(".with_host_outcome_in_scope(input, work, &self.scope)"));
+    let shared =
+        std::fs::read_to_string(root.join("crates/leselang-hir/src/effect_stack_session.rs"))
+            .unwrap();
+    let classified = shared
+        .split_once("pub fn with_host_outcome_in_scope<Input, Output>")
+        .unwrap()
+        .1
+        .split_once("pub fn with_metered_host_outcome_in_scope<Input, Output>")
+        .unwrap()
+        .0;
+    let outcome = classified.find("let output = work(input)").unwrap();
+    let terminal = classified
+        .find("if !matches!(&output, HostWorkOutcome::Pending(_))")
+        .unwrap();
+    let revoke = classified.find("scope.close()").unwrap();
+    let finish = classified.find("fence.finish()").unwrap();
+    assert!(outcome < terminal && terminal < revoke && revoke < finish);
     for forbidden in [
         "enum State",
         "error.code",

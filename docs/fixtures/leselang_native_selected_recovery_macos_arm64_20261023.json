@@ -1,0 +1,111 @@
+{
+  "kind": "leselang-native-selected-recovery",
+  "validated_on": "2026-10-23",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.120.0",
+  "host_pipelines": 184,
+  "all_fuel_cutoff_pipelines": 16,
+  "restore_refusal_cases": 844,
+  "shared_compiler_vm_and_collectors": true,
+  "repeated_parent_replacement": true,
+  "original_captures_and_receipts_retained": true,
+  "identical_fuel_requests_and_invocation_prefixes": true,
+  "wrong_group_receipts_remain_retryable": true,
+  "no_dispatch_after_restore_refusal": true,
+  "sibling_scope_preserved": true,
+  "isolated_consumer_passed": true,
+  "production_code_changed": false,
+  "contract_version_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "portable_snapshot_codec": false,
+  "scope": "In-memory same-IR transfer acceptance only. Conditional Seq/All helpers, computed result projections and captured pure iteration reuse the original source compiler, VM, collectors and host checks. Both host schemas compare uninterrupted execution with repeated parent replacement while child collectors are saved and restored. The shared driver also retains original mixed-helper regressions. Pointer fingerprints observe moves, not portable encoding or authentication. No process restart, durable graph recovery, new interpreter, GUI integration or full extraction is claimed.",
+  "verification_status": "passed",
+  "native_pipeline_tests": 56,
+  "reference_feature_pipeline_tests": 56,
+  "isolated_test_executions": 2586,
+  "root_architecture_tests": 411,
+  "isolated_build_cache_removed": true,
+  "strict_lints_passed": true,
+  "format_check_passed": true,
+  "sources": [
+    {
+      "path": "crates/leselang-vm/tests/native_host_pipeline.rs",
+      "sha256": "a45501419873bccbeec2470964523f5839aa81be7d434459bb7b0edd19e437e3"
+    },
+    {
+      "path": "tests/leselang_native_profile_tdd.rs",
+      "sha256": "6a6a458f5917d6cc797564473bf8495d7496910ace1165884705fb160f234c4a"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "c81a19c23988107112ba6fab07816d62e94e385ba296ebec848d3397f77ef522"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "3bcc6e528f30320ff629300d1b67a944335933571f30b425d225ebb4046a2c86"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "74d220b56e238cd6f86497d8c450677bcd5b770b3201a0ee0ba2834570d5ccf7"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "pipeline",
+      "log": "/private/tmp/leselang-selected-recovery-20261023-pipeline.log",
+      "sha256": "e6138c8c8db9b24dc8e1869c4daebed47f1f6bf0790aaf241d4cc8d32e07a70b"
+    },
+    {
+      "stage": "reference-pipeline",
+      "log": "/private/tmp/leselang-selected-recovery-20261023-reference-pipeline.log",
+      "sha256": "200624179f77b6ab75b91c7a626be528bcfceaff0d0e3a3563c8e89298401e14"
+    },
+    {
+      "stage": "pipeline-clippy",
+      "log": "/private/tmp/leselang-selected-recovery-20261023-pipeline-clippy.log",
+      "sha256": "5306be2f5e60fbd5b3c03d0dd67c09fed8305275e94ac9ded14fb4faf1b9f3f0"
+    },
+    {
+      "stage": "gates-clippy",
+      "log": "/private/tmp/leselang-selected-recovery-20261023-gates-clippy.log",
+      "sha256": "fb845fd322167c7764622702d2d0a1ff96c73d948a79f2f0e498ce654cd7a21e"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-selected-recovery-20261023-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "export",
+      "log": "/private/tmp/leselang-selected-recovery-20261023-export.log",
+      "sha256": "5ae5498fba4a818ddd6bf36b4f22783b1ae7128187a58df31a8d61f68e8bc997"
+    },
+    {
+      "stage": "gates",
+      "log": "/private/tmp/leselang-selected-recovery-20261023-gates.log",
+      "sha256": "981cb525f1db0ac88e618bb57e81bb58604afc01dfea1bda4e616a4f0fd9742e"
+    }
+  ],
+  "baseline": {
+    "export_manifest": "/private/tmp/leselang-captured-iteration-20261023-2.4.0/export-manifest.json",
+    "sha256": "d9f75b83d7a540536c9041990daf5d27b19b4c1a1dd78582a92fc354242f14ad",
+    "unchanged_native_production_sources": 112
+  },
+  "export": {
+    "path": "/private/tmp/leselang-selected-recovery-20261023-2.4.0",
+    "files": 280,
+    "copied_sources": 270,
+    "bytes": 6784528,
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "verified": true,
+    "source_copies_unchanged": true,
+    "complete_vm": false,
+    "full_extraction_gate": false
+  }
+}

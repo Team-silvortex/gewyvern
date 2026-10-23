@@ -1,0 +1,157 @@
+{
+  "kind": "leselang-reference-completion",
+  "validated_on": "2026-10-23",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.121.0",
+  "terminal_cases": 379,
+  "cancellation_comparisons": 758,
+  "ordered_sequences": 729,
+  "direct_adapter_tests": 4,
+  "adapter_owned_static_policy": true,
+  "unchanged_journal_terminal_semantics": true,
+  "both_journals_share_adapter": true,
+  "runtime_authority_unchanged": true,
+  "committed_replay_unchanged": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "Static reference-product terminal/cancellation/sequence policy moved from the journal to the command adapter, reusing existing value/retry validators and ordered summary kernel. Original journal-specific depth, token and diagnostic semantics remain distinct from branch-outcome admission. Runtime ownership, live grants, lease checks, graph restore, transactions and committed settlement stay with the existing VM/journals. No product version, storage schema, wire format or native extraction maturity change is claimed.",
+  "verification_status": "passed",
+  "default_runtime_tests": 1143,
+  "memory_vm_tests": 125,
+  "root_architecture_tests": 413,
+  "migrated_static_functions": 5,
+  "unchanged_function_bodies": true,
+  "frozen_matrix_tests": 2,
+  "strict_lints_passed": true,
+  "format_checks_passed": true,
+  "native_no_default_check_passed": true,
+  "native_dependency_boundary_passed": true,
+  "native_checkpoint_reused": true,
+  "new_native_export_performed": false,
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "8096352dbb814be3336ce12330b30e1f7019e0331b3023928421c3b0cd085c8f"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_completion.rs",
+      "sha256": "b24d4aae5db9f008aa0c3f4eb617c3cb19ec4d16aef78ebe6175efac045e5487"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_completion.rs",
+      "sha256": "99ace220617214bfb90deab89bbd406a827de059b52e5030682491ff5a07cc7a"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "825da97b22c92a6bcf8d8bd5537af43e8fcd3b7a6e60ec5595181277568d830c"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/reference_completion_contract_tests.rs",
+      "sha256": "133b1f33c977fc1c2326b821ebc7a5e50f6759340d80e7aec2c9b33fedbcced2"
+    },
+    {
+      "path": "crates/leselang-vm/tests/ephemeral_profile.rs",
+      "sha256": "9a4af5df55958e490138f5f025aeb16722c59ff42f9b6844f2e0d9e470b4f762"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "af5135e07057d0fc56cb3677f81069504153b9dd3337ad120741ff257d916714"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "5e3ea7e7fc9b019fdd72d24333a8bc67098a4bde20a9db45a20e65d09717be77"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "a445e57fa501be3f65b885992eeed2401853c86470ec83439e788cbd84e20ba1"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "a5fac0e1f820daec3724b43d329d302c1e735c81ebf43616a736e66cf26c6c78"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "41445c2ebcdf16071546baaf2927661e483f80c4fe35adcef022c211cbaff09d"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "direct",
+      "log": "/private/tmp/leselang-reference-completion-20261023-direct.log",
+      "sha256": "94f4d3e2c61777e4210031b3b2244d5aab3dcac1d38413d173f04a61f3c2b876"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-reference-completion-20261023-default.log",
+      "sha256": "d2a3c9d2e8c7a0a01f626434ea32702ac3674f50a11411baafb8239ce0146046"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-reference-completion-20261023-memory.log",
+      "sha256": "38505ef66f68693f1cc76f048886cd9a5d719e542a4bac876e9938af8a687164"
+    },
+    {
+      "stage": "default-clippy",
+      "log": "/private/tmp/leselang-reference-completion-20261023-default-clippy.log",
+      "sha256": "405782bb4cf8a2db7fb5be952138b3beb591ae289bf469832000e5c3195bd769"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-reference-completion-20261023-memory-clippy.log",
+      "sha256": "8d824ccf272e3d369b3805ee0dd4494d906b41e9afd447b618e2d390f69d1b1b"
+    },
+    {
+      "stage": "gates",
+      "log": "/private/tmp/leselang-reference-completion-20261023-gates.log",
+      "sha256": "c2c395c0943c42ccccd6dfd8babeb7806604f838e6452518cc9feabe7b7359a3"
+    },
+    {
+      "stage": "gates-clippy",
+      "log": "/private/tmp/leselang-reference-completion-20261023-gates-clippy.log",
+      "sha256": "dc7fbe19d93044047ccdeadaba4c6410593400ad3425c30a81675917d321cadb"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-reference-completion-20261023-native-check.log",
+      "sha256": "9137cbc955439bf532298db70187e8b0c1fab87691888a42f8d305e7d55226e0"
+    },
+    {
+      "stage": "native-tree",
+      "log": "/private/tmp/leselang-reference-completion-20261023-native-tree.log",
+      "sha256": "d961c3f18a38f843bd9b3725ed41a63000bc5b6947ab850d0b328d8d91e434cc"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-reference-completion-20261023-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "frozen-format",
+      "log": "/private/tmp/leselang-reference-completion-20261023-frozen-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "body-parity",
+      "log": "/private/tmp/leselang-reference-completion-20261023-body-parity.log",
+      "sha256": "4f4c0aa4530a4923125af8dd95a1ef5b0747d84ec23b70ba31d9dc74a20a52e6"
+    }
+  ],
+  "native_checkpoint": {
+    "path": "/private/tmp/leselang-selected-recovery-20261023-2.4.0",
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "files": 280,
+    "copied_sources": 270,
+    "all_source_copies_unchanged": true,
+    "previous_verification_reused": true,
+    "verified": true,
+    "complete_vm": false,
+    "full_extraction_gate": false
+  }
+}

@@ -7,13 +7,36 @@ fn repository_root() -> PathBuf {
 
 fn production_source(path: impl AsRef<Path>) -> String {
     let source = fs::read_to_string(path).expect("source file must be readable");
+    production_source_text(&source)
+}
+
+fn production_source_text(source: &str) -> String {
     source
-        .split_once("\n#[cfg(test)]\n")
-        .map_or(source.as_str(), |(production, _)| production)
         .lines()
+        .take_while(|line| *line != "#[cfg(test)]" && !line.starts_with("#[cfg(all(test, "))
         .filter(|line| !line.trim_start().starts_with("//"))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[test]
+fn production_scan_excludes_test_only_suffixes_but_keeps_feature_gated_production() {
+    for gate in ["#[cfg(test)]", "#[cfg(all(test, feature = \"vm-bridge\"))]"] {
+        let source = format!("fn production() {{}}\n{gate}\nmod tests {{ panic!(); }}");
+        assert_eq!(production_source_text(&source), "fn production() {}");
+    }
+    for gate in [
+        "#[cfg(feature = \"vm-bridge\")]",
+        "#[cfg(any(test, feature = \"vm-bridge\"))]",
+        "#[cfg(all(feature = \"vm-bridge\", unix))]",
+    ] {
+        let source = format!("{gate}\nfn production() {{ panic!(); }}");
+        assert!(production_source_text(&source).contains("panic!("));
+    }
+    assert!(
+        production_source_text("fn production() { panic!(); }\n#[cfg(test)]\nmod tests {}")
+            .contains("panic!(")
+    );
 }
 
 #[test]

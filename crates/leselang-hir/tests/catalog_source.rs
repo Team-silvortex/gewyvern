@@ -202,6 +202,166 @@ fn compile(
     compile_catalog_source(source, &[], limits, host, environment)
 }
 
+mod computed_projection {
+    use super::*;
+
+    struct ProjectionEnvironment<'a>(&'a Environment);
+    impl PureTypeEnvironment<Field, Key> for ProjectionEnvironment<'_> {
+        type Result = ();
+        fn field_type(&self, _: &(), _: &Field) -> Option<ScalarType> {
+            Some(ScalarType::Integer)
+        }
+        fn member_result(&self, _: &(), _: &str, _: &Key) -> Option<()> {
+            None
+        }
+    }
+    impl<'schema> CallFlowEnvironment<'schema, Field, Key, Declaration> for ProjectionEnvironment<'_> {
+        fn call_result_type(
+            &self,
+            key: &Key,
+            declaration: &'schema Declaration,
+        ) -> Option<PureType<()>> {
+            self.0.call_result_type(key, declaration)
+        }
+    }
+    impl<'source, 'schema> CatalogSourceEnvironment<'source, 'schema, Field, Key, Declaration>
+        for ProjectionEnvironment<'_>
+    {
+        type Error = Private;
+        fn source_operation(&self, key: &Key) -> Result<Key, Private> {
+            self.0.source_operation(key)
+        }
+        fn source_field(
+            &self,
+            _: &(),
+            name: &'source str,
+        ) -> Result<Option<(Field, ScalarType)>, Private> {
+            self.0.hooks.borrow_mut().push("field");
+            match self.0.mode.get() {
+                4 => Err(Private("private field export failure")),
+                5 => panic!("native field export unwind"),
+                _ => Ok((name == "value").then_some((Field, ScalarType::Integer))),
+            }
+        }
+        fn source_member(
+            &self,
+            _: &(),
+            _: &'source str,
+            _: &'source str,
+        ) -> Result<Option<(Key, ())>, Private> {
+            Ok(None)
+        }
+    }
+    fn lower(
+        text: &str,
+        host: &SourceHost<'_, '_>,
+        env: &Environment,
+        limits: CatalogSourceLimits,
+    ) -> CatalogSourceResult<Node, (), Private> {
+        compile_catalog_source(
+            &expression(text),
+            &[("row", &PureType::Result(()))],
+            limits,
+            host,
+            &ProjectionEnvironment(env),
+        )
+    }
+
+    const INPUT: &str =
+        "field(value: choose(when: true, then: row, otherwise: row), name: \"value\")";
+
+    #[test]
+    fn computed_fields_preserve_result_and_scalar_lexical_scopes() {
+        with_host("counter.add", ScalarType::Integer, |host, env| {
+            for text in [
+                INPUT,
+                "field(value: bind(selected: row, body: choose(when: true, then: selected, otherwise: row)), name: \"value\")",
+                "add(left: bind(flag: true, body: field(value: choose(when: flag, then: row, otherwise: row), name: \"value\")), right: 1)",
+                "counter.add(n: bind(flag: false, body: field(value: choose(when: flag, then: row, otherwise: row), name: \"value\")))",
+            ] {
+                let (_, ty) = lower(text, host, env, LIMITS).unwrap();
+                assert_eq!(ty, PureType::Scalar(ScalarType::Integer));
+            }
+        });
+    }
+
+    #[test]
+    fn computed_fields_reject_cold_effects_types_and_metadata_before_outer_export() {
+        with_host("counter.add", ScalarType::Integer, |host, env| {
+            for text in [
+                "field(value: choose(when: true, then: row, otherwise: bind(effect: counter.add(n: 1), body: row)), name: \"value\")",
+                "field(value: choose(when: true, then: row, otherwise: 1), name: \"value\")",
+                "field(value: choose(when: true, then: row, otherwise: row), name: 1)",
+                "field(value: choose(when: true, then: row, otherwise: member(value: row, name: 1)), name: \"value\")",
+                "field(value: add(left: 1, right: 2), name: \"value\")",
+            ] {
+                env.hooks.borrow_mut().clear();
+                assert!(lower(text, host, env, LIMITS).is_err(), "{text}");
+                assert!(!env.hooks.borrow().contains(&"field"), "{text}");
+            }
+        });
+    }
+
+    #[test]
+    fn computed_field_root_and_cold_children_share_inclusive_output_limits() {
+        with_host("counter.add", ScalarType::Integer, |host, env| {
+            for (nodes, depth, accepted) in
+                [(5, 2, true), (6, 3, true), (4, 2, false), (5, 1, false)]
+            {
+                let mut limits = LIMITS;
+                limits.control.source.max_lowered_nodes = nodes;
+                limits.control.source.max_lowered_depth = depth;
+                env.hooks.borrow_mut().clear();
+                assert_eq!(
+                    lower(INPUT, host, env, limits).is_ok(),
+                    accepted,
+                    "{nodes}/{depth}"
+                );
+                assert_eq!(env.hooks.borrow().contains(&"field"), accepted);
+            }
+        });
+    }
+
+    #[test]
+    fn computed_field_native_denial_errors_and_unwind_are_not_reinterpreted() {
+        with_host("counter.add", ScalarType::Integer, |host, env| {
+            assert!(lower(&INPUT.replace("\"value\"", "\"secret\""), host, env, LIMITS).is_err());
+            env.mode.set(4);
+            let Err(error) = lower(INPUT, host, env, LIMITS) else {
+                panic!()
+            };
+            assert!(!format!("{error:?}: {error}").contains("private"));
+            let CatalogSourceError::Control(error) = error else {
+                panic!()
+            };
+            let leselang_hir::control_source::ControlSourceError::Native { error, .. } = *error
+            else {
+                panic!()
+            };
+            let CatalogSourceError::ComputedProjection(error) = error else {
+                panic!()
+            };
+            let leselang_hir::projection_source::ProjectionSourceError::Native { error, .. } =
+                *error
+            else {
+                panic!()
+            };
+            let CatalogSourceError::Mapping {
+                error: Private(secret),
+                ..
+            } = error
+            else {
+                panic!()
+            };
+            assert_eq!(secret, "private field export failure");
+            env.mode.set(5);
+            assert!(catch_unwind(AssertUnwindSafe(|| lower(INPUT, host, env, LIMITS))).is_err());
+            env.mode.set(0);
+            assert!(lower(INPUT, host, env, LIMITS).is_ok());
+        });
+    }
+}
+
 #[test]
 fn one_shared_compiler_uses_unrelated_catalogs_with_nonclone_native_slots() {
     for (name, ty, operand) in [

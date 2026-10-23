@@ -263,6 +263,20 @@ fn module_names(source: &str) -> Result<Vec<&str>, String> {
     Ok(names.into_iter().collect())
 }
 
+fn validate_reference_test_support(root: &Path, relative: &Path) -> Result<(), String> {
+    let children = regular_children(root, relative)?;
+    if children != [relative.join("reference_dispatch_authority.rs")] {
+        return Err(format!(
+            "untracked reference test support asset: {}",
+            relative.display()
+        ));
+    }
+    for child in children {
+        read_regular(root, &child)?;
+    }
+    Ok(())
+}
+
 fn copy_crate(
     root: &Path,
     name: &str,
@@ -286,8 +300,13 @@ fn copy_crate(
         }
     }
     for test in regular_children(root, &base.join("tests"))? {
+        // Shared by two excluded product suites, not part of the native closure.
+        if name == "leselang-vm" && test == base.join("tests/support") {
+            validate_reference_test_support(root, &test)?;
+            continue;
+        }
         if test.extension().is_none_or(|e| e != "rs") {
-            return Err("untracked native test asset".into());
+            return Err(format!("untracked native test asset: {}", test.display()));
         }
         let text = read_text(root, &test)?;
         // Product-only suites stay in the reference repository; mixed suites
@@ -1225,6 +1244,53 @@ mod tests {
     }
 
     #[test]
+    fn reference_test_support_omission_requires_a_closed_bounded_inventory() {
+        let temp = Temp::new();
+        let relative = Path::new("crates/leselang-vm/tests/support");
+        let directory = temp.0.join(relative);
+        fs::create_dir_all(&directory).unwrap();
+        assert!(validate_reference_test_support(&temp.0, relative).is_err());
+        let helper = directory.join("reference_dispatch_authority.rs");
+        fs::write(&helper, "pub fn exercise() {}\n").unwrap();
+        validate_reference_test_support(&temp.0, relative).unwrap();
+        for extra in ["unknown.rs", "fixture.json"] {
+            fs::write(directory.join(extra), "unreviewed").unwrap();
+            assert!(validate_reference_test_support(&temp.0, relative).is_err());
+            fs::remove_file(directory.join(extra)).unwrap();
+        }
+        fs::create_dir(directory.join("nested")).unwrap();
+        assert!(validate_reference_test_support(&temp.0, relative).is_err());
+        fs::remove_dir(directory.join("nested")).unwrap();
+        OpenOptions::new()
+            .write(true)
+            .open(&helper)
+            .unwrap()
+            .set_len(MAX_FILE_BYTES + 1)
+            .unwrap();
+        assert!(validate_reference_test_support(&temp.0, relative).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reference_test_support_omission_does_not_allow_source_symlinks() {
+        use std::os::unix::fs::symlink;
+        let temp = Temp::new();
+        let relative = Path::new("support");
+        fs::create_dir(temp.0.join(relative)).unwrap();
+        fs::write(temp.0.join("outside.rs"), "private").unwrap();
+        symlink(
+            "../outside.rs",
+            temp.0
+                .join(relative)
+                .join("reference_dispatch_authority.rs"),
+        )
+        .unwrap();
+        assert!(validate_reference_test_support(&temp.0, relative).is_err());
+        symlink("support", temp.0.join("linked-support")).unwrap();
+        assert!(validate_reference_test_support(&temp.0, Path::new("linked-support")).is_err());
+    }
+
+    #[test]
     fn manifests_remove_workspace_and_optional_product_requirements_without_enabling_reference_cfg()
     {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1461,6 +1527,7 @@ mod tests {
             "crates/leselang-vm/tests/restore_allocator.rs",
             "crates/leselang-vm/tests/debugger_audit_memory.rs",
             "crates/leselang-vm/tests/debugger_audit_durable.rs",
+            "crates/leselang-vm/tests/support/reference_dispatch_authority.rs",
             "crates/leselang-vm/src/debugger_audit_contract_tests.rs",
         ] {
             assert!(!plan.entries.contains_key(Path::new(path)));

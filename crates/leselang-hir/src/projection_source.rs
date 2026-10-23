@@ -15,7 +15,6 @@ use crate::source_call::{
 
 type Node<Field, Operation, HostEffect, IrResult> =
     Computation<Field, Operation, HostEffect, IrResult>;
-#[cfg(any(test, feature = "leserpent-profile"))]
 type NativeFieldInput<Node, Input, Error> = Result<(Node, Input), Error>;
 type NativeFieldExport<Field, Error> = Result<Option<(Field, ScalarType)>, Error>;
 type FieldSourceOutput<Node, Error> = Result<(Node, ScalarType), ProjectionSourceError<Error>>;
@@ -115,10 +114,9 @@ impl<'source> FieldSource<'source> {
         Ok(value)
     }
 
-    // The reference frontend owns cold source/declaration checks and recursive
+    // Calling frontends own cold source/declaration checks and recursive
     // accounting. Keep child errors before literal/closed-name decoding here;
     // decoding is metadata mapping, never a native export or value query.
-    #[cfg(any(test, feature = "leserpent-profile"))]
     pub(crate) fn lower_preflighted<Field, Operation, HostEffect, IrResult, Input, Key, Error>(
         self,
         limits: SourceCallLimits,
