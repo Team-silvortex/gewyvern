@@ -1,4 +1,5 @@
 use super::*;
+use leselang_command::reference_recovery::decode_journal_value as decode_bounded;
 
 fn plans() -> Vec<MergePlan> {
     [
@@ -225,6 +226,153 @@ fn merge_completion_refusals_keep_plan_first_validation_and_exact_error_preceden
     assert_eq!(comparisons, 432);
 }
 
+#[test]
+fn unbound_receipt_policy_matches_frozen_data_merge_and_decode_precedence() {
+    use leselang_command::reference_group_recovery::{
+        RecoveredMergeBranch, validate_unbound_group_receipt,
+    };
+    let mut comparisons = 0;
+    for original in plans() {
+        for left in 0..9 {
+            for right in 0..9 {
+                for defect in 0..8 {
+                    let mut plan = original.clone();
+                    let mut rows = plan
+                        .branches
+                        .iter()
+                        .zip([left, right])
+                        .enumerate()
+                        .map(|(position, (name, kind))| {
+                            let step = match outcome(kind, name) {
+                                BranchOutcome::Value(value) => Step::Done(value),
+                                BranchOutcome::Cancelled(value) => Step::Cancelled(value),
+                                BranchOutcome::Failed(value) => Step::Failed(value),
+                                BranchOutcome::Fault(value) => Step::Fault(value),
+                            };
+                            (
+                                name.clone(),
+                                position as i64,
+                                "completed".into(),
+                                Some(serde_json::to_vec(&step).unwrap()),
+                                format!("continuation-{}", position + 1),
+                            )
+                        })
+                        .collect::<Vec<RecoveredMergeBranch>>();
+                    match defect {
+                        0 => {}
+                        1 => rows[1].3 = Some(b"{".to_vec()),
+                        2 => rows[1].3 = None,
+                        3 => rows.swap(0, 1),
+                        4 => rows[1].0 = rows[0].0.clone(),
+                        5 => {
+                            rows.pop();
+                        }
+                        6 => plan.branches[1] = plan.branches[0].clone(),
+                        7 => plan.order = ExecutionOrder::GroupTail,
+                        _ => unreachable!(),
+                    }
+                    let before = serde_json::to_vec(&(&plan, &rows)).unwrap();
+                    let expected = frozen_unbound_receipt(&plan, &rows);
+                    let candidates = [
+                        expected.clone().unwrap_or_else(Step::Fault),
+                        Step::Done(Value::UiFocus {
+                            node_id: "forged".into(),
+                        }),
+                    ];
+                    for terminal in candidates {
+                        let wanted = if plan.result_binding.is_some() {
+                            Ok(())
+                        } else {
+                            expected.clone().and_then(|step| {
+                                if step == terminal {
+                                    Ok(())
+                                } else {
+                                    Err(receipt_mismatch())
+                                }
+                            })
+                        };
+                        assert_eq!(
+                            validate_unbound_group_receipt(&plan, &rows, &terminal),
+                            wanted,
+                            "{:?}, left={left}, right={right}, defect={defect}",
+                            plan.order
+                        );
+                        comparisons += 1;
+                    }
+                    assert_eq!(serde_json::to_vec(&(&plan, &rows)).unwrap(), before);
+                }
+            }
+        }
+    }
+    assert_eq!(comparisons, 7_776);
+}
+
+fn receipt_mismatch() -> Fault {
+    Fault {
+        code: "LSV4007".into(),
+        message: "merge group receipt does not match original branch results".into(),
+    }
+}
+
+// Frozen pre-extraction receipt decisions, including the old finalization guard
+// and old data-only merge. Does not call the new receipt/output adapter.
+fn frozen_unbound_receipt(
+    plan: &MergePlan,
+    branches: &[leselang_command::reference_group_recovery::RecoveredMergeBranch],
+) -> Result<Step, Fault> {
+    if plan.result_binding.is_some() {
+        return Ok(Step::Done(Value::UiFocus {
+            node_id: "ignored".into(),
+        }));
+    }
+    if branches.len() != plan.branches.len() || branches.len() > MAX_MERGE_BRANCHES {
+        return Err(receipt_mismatch());
+    }
+    let steps = branches
+        .iter()
+        .map(|branch| {
+            decode_bounded::<Step>(
+                branch.3.as_deref().ok_or_else(receipt_mismatch)?,
+                MAX_JOURNAL_ENTRY_BYTES,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if plan.order.is_sequential()
+        && let Some(stop) = leselang_command::reference_completion::sequence_stop(steps.iter())?
+    {
+        return Ok(stop);
+    }
+    let completions = branches
+        .iter()
+        .zip(steps)
+        .map(|(branch, step)| {
+            Ok(BranchCompletion {
+                branch: branch.0.clone(),
+                outcome: leselang_command::reference_completion::terminal_step_outcome(step)?,
+            })
+        })
+        .collect::<Result<Vec<_>, Fault>>()?;
+    let result = if plan.order.captures_group_successor()
+        || (plan.order.has_group_successor()
+            && plan
+                .result_binding
+                .as_ref()
+                .is_none_or(|binding| !binding.has_successor(plan)))
+    {
+        Err(group_binding::invalid())
+    } else {
+        frozen_merge(plan, completions, DEFAULT_MAX_OUTPUT_ITEMS, true)
+    };
+    match result {
+        Err(error)
+            if error.code == "LSV3002" || (plan.order.is_parallel() && error.code == "LSV2404") =>
+        {
+            Ok(Step::Fault(error))
+        }
+        result => result,
+    }
+}
+
 // Frozen pre-migration completion admission, ordering and finalization.
 fn frozen_merge(
     plan: &MergePlan,
@@ -272,7 +420,12 @@ fn frozen_merge(
         by_branch.insert(completion.branch, completion.outcome);
     }
     if output_items > max_output_items {
-        return Err(merge_output_fault(output_items, max_output_items));
+        return Err(Fault {
+            code: "LSV2404".into(),
+            message: format!(
+                "structured merge returned {output_items} items, limit is {max_output_items}"
+            ),
+        });
     }
 
     let mut fields = Vec::with_capacity(plan.branches.len());

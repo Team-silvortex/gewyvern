@@ -1,9 +1,13 @@
 use super::*;
 use crate::group_binding::invalid;
 #[cfg(feature = "sqlite-journal")]
-use leselang_runtime_core::{OrderedOutcomeSummary, OutcomeOrder};
+use leselang_command::reference_bound_receipt::validate_bound_group_receipt;
 #[cfg(feature = "sqlite-journal")]
-use leselang_runtime_core::{ReservationObservation, validate_reservation_proof};
+use leselang_command::reference_group_reservations::{
+    ReferenceReservationSource, inspect_group_reservations,
+};
+#[cfg(feature = "sqlite-journal")]
+use leselang_runtime_core::{OrderedOutcomeSummary, OutcomeOrder};
 
 pub(super) fn needs_successor(plan: &MergePlan) -> bool {
     plan.order.has_group_successor()
@@ -27,17 +31,7 @@ pub(super) fn finish(plan: &MergePlan, completions: Vec<BranchCompletion>) -> Re
     )
 }
 
-fn terminal_merge(plan: &MergePlan, result: Result<Step, Fault>) -> Result<Step, Fault> {
-    // Returned-data limits must commit with the receipt, unlike failed journal writes.
-    match result {
-        Err(error)
-            if error.code == "LSV3002" || (plan.order.is_parallel() && error.code == "LSV2404") =>
-        {
-            Ok(Step::Fault(error))
-        }
-        result => result,
-    }
-}
+use leselang_command::reference_merge_output::terminal_merge;
 
 fn successor_plan(plan: &MergePlan) -> Result<MergePlan, Fault> {
     let mut next = plan.clone();
@@ -356,8 +350,25 @@ pub(super) fn validate_records(
     if binding.has_successor(plan) && successful_prefix != binding.branches()?.len() {
         return Err(invalid());
     }
-    if binding.successor_sequence.is_some() {
-        let next_sequence: i64 = connection
+    inspect_group_reservations(plan, &mut GroupReservationSource(connection))?;
+    validate_bound_group_receipt(
+        plan,
+        requests
+            .last()
+            .and_then(|(_, request)| request.continuation.result_binding.as_deref()),
+        last_step.as_ref(),
+        outcomes,
+        terminal,
+    )
+}
+
+#[cfg(feature = "sqlite-journal")]
+struct GroupReservationSource<'a>(&'a Connection);
+
+#[cfg(feature = "sqlite-journal")]
+impl ReferenceReservationSource for GroupReservationSource<'_> {
+    fn allocation_watermark(&mut self) -> Result<i64, Fault> {
+        self.0
             .query_row(
                 "SELECT next_sequence FROM vm_metadata WHERE singleton = 1",
                 [],
@@ -365,118 +376,34 @@ pub(super) fn validate_records(
             )
             .map_err(|error| {
                 journal_error("LSV4007", "failed to validate successor reservation", error)
-            })?;
-        for (index, sequence) in binding.reserved_sequences().enumerate() {
-            let exists: bool = connection
-                .query_row(
-                    "SELECT EXISTS(SELECT 1 FROM vm_effects WHERE token = ?1)",
-                    [format!("continuation-{sequence}")],
-                    |row| row.get(0),
-                )
-                .map_err(|error| {
-                    journal_error("LSV4007", "failed to validate reserved successor", error)
-                })?;
-            let aliases_group: bool = connection
-                .query_row(
-                    "SELECT EXISTS(SELECT 1 FROM vm_merge_groups WHERE token = ?1)",
-                    [format!("merge-{sequence}")],
-                    |row| row.get(0),
-                )
-                .map_err(|error| {
-                    journal_error(
-                        "LSV4007",
-                        "failed to validate reserved group identity",
-                        error,
-                    )
-                })?;
-            validate_reservation_proof(
-                sequence,
-                index < plan.branches.len() - binding.branches()?.len(),
-                ReservationObservation {
-                    allocation_watermark: u64::try_from(next_sequence).ok(),
-                    record_exists: exists,
-                    aliases_owner: aliases_group,
-                },
+            })
+    }
+
+    fn effect_exists(&mut self, token: &str) -> Result<bool, Fault> {
+        self.0
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM vm_effects WHERE token = ?1)",
+                [token],
+                |row| row.get(0),
             )
-            .map_err(|_| invalid())?;
-        }
+            .map_err(|error| {
+                journal_error("LSV4007", "failed to validate reserved successor", error)
+            })
     }
-    if let Some(terminal) = terminal {
-        let summary = outcomes
-            .finish(|items, limit| Step::Fault(crate::merge_output_fault(items, limit)))
-            .map_err(|_| invalid())?;
-        if let Some(failure) = summary.first_stop {
-            if *terminal != failure {
-                return Err(invalid());
-            }
-        } else {
-            if binding.has_successor(plan) {
-                if binding.captures_successor() {
-                    return match terminal {
-                        Step::Done(crate::Value::Scalar { value })
-                            if requests.last().is_some_and(|(_, request)| {
-                                request
-                                    .continuation
-                                    .result_binding
-                                    .as_ref()
-                                    .is_some_and(|saved| {
-                                        saved.body.is_pure()
-                                            || (binding.is_conditional()
-                                                && saved.body.can_return_without_suspending())
-                                    })
-                            }) && binding.validate(plan)?
-                                == leselang_hir::Type::Scalar(value.scalar_type()) =>
-                        {
-                            Ok(())
-                        }
-                        Step::Fault(fault)
-                            if matches!(
-                                fault.code.as_str(),
-                                "LSV1001"
-                                    | "LSV1401"
-                                    | "LSV1403"
-                                    | "LSV1405"
-                                    | "LSV1406"
-                                    | "LSV1408"
-                                    | "LSV3002"
-                            ) || ((binding.is_dataflow() || binding.is_conditional())
-                                && matches!(
-                                    fault.code.as_str(),
-                                    "LSV1002" | "LSV1402" | "LSV1404" | "LSV3001"
-                                )) =>
-                        {
-                            Ok(())
-                        }
-                        _ => Err(invalid()),
-                    };
-                }
-                if last_step.as_ref() != Some(terminal) {
-                    return Err(invalid());
-                }
-                return Ok(());
-            }
-            // Replay the committed scalar/fault; never re-evaluate source during recovery.
-            match terminal {
-                Step::Done(crate::Value::Scalar { value })
-                    if (binding.successor_sequence.is_none()
-                        || (binding.is_conditional()
-                            && binding.binding.body.can_return_without_suspending()))
-                        && binding.validate(plan)?
-                            == leselang_hir::Type::Scalar(value.scalar_type()) => {}
-                Step::Fault(fault)
-                    if matches!(
-                        fault.code.as_str(),
-                        "LSV1001" | "LSV1401" | "LSV1403" | "LSV1406" | "LSV1408" | "LSV3002"
-                    ) => {}
-                Step::Fault(fault)
-                    if binding.successor_sequence.is_some()
-                        && matches!(
-                            fault.code.as_str(),
-                            "LSV1002" | "LSV1402" | "LSV1404" | "LSV1405" | "LSV3001" | "LSV3002"
-                        ) => {}
-                _ => return Err(invalid()),
-            }
-        }
+
+    fn group_exists(&mut self, token: &str) -> Result<bool, Fault> {
+        self.0
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM vm_merge_groups WHERE token = ?1)",
+                [token],
+                |row| row.get(0),
+            )
+            .map_err(|error| {
+                journal_error(
+                    "LSV4007",
+                    "failed to validate reserved group identity",
+                    error,
+                )
+            })
     }
-    Ok(())
 }

@@ -125,8 +125,10 @@ pub use leselang_command::reference_dispatch::{
     DEFAULT_DISPATCH_LEASE_MS, MAX_DISPATCH_ATTEMPTS, MAX_DISPATCH_LEASE_MS,
 };
 pub use leselang_command::reference_value::MAX_STRUCTURED_VALUE_DEPTH;
+#[cfg(test)]
+pub(crate) use leselang_command::reference_value::validate_branch_outcome;
 pub(crate) use leselang_command::reference_value::{
-    validate_branch_outcome, validate_value, value_bounds_fault, value_validation_limits,
+    validate_value, value_bounds_fault, value_validation_limits,
 };
 pub use leselang_command::retention_policy::{
     DEFAULT_COMPACTION_BATCH, DEFAULT_COMPLETED_RETENTION, MAX_COMPACTION_BATCH,
@@ -1272,24 +1274,13 @@ fn merge_declared_inner(
     max_output_items: usize,
     finish_binding: bool,
 ) -> Result<Step, Fault> {
-    validate_merge_plan(plan)?;
-    let merged = leselang_command::merge_completion::merge_preflighted_completions(
+    let step = leselang_command::reference_merge_output::assemble_merge(
         plan,
         completions,
         max_output_items,
-        DEFAULT_MAX_OUTPUT_ITEMS,
         finish_binding,
-        &ReferenceMergeCompletionHost,
-    )
-    .map_err(merge_completion_fault)?;
-    let step = match merged {
-        leselang_command::merge_completion::MergedCompletion::Value(value) => Step::Done(value),
-        leselang_command::merge_completion::MergedCompletion::Terminal(step) => step,
-    };
-    if let Step::Done(value) = &step {
-        validate_value(value, 1)?;
-    }
-    encode_json_capped(&step, MAX_JOURNAL_ENTRY_BYTES, "structured merge output")?;
+        |binding, branch, value| binding.validate_member(branch, value),
+    )?;
     if finish_binding
         && !plan.order.has_group_successor()
         && let (Some(binding), Step::Done(value)) = (&plan.result_binding, &step)
@@ -1297,84 +1288,6 @@ fn merge_declared_inner(
         return Ok(binding.finish(value));
     }
     Ok(step)
-}
-
-struct ReferenceMergeCompletionHost;
-
-impl leselang_command::merge_completion::MergeCompletionHost for ReferenceMergeCompletionHost {
-    type Completion = BranchCompletion;
-    type Outcome = BranchOutcome;
-    type Terminal = Step;
-    type Error = Fault;
-
-    fn into_parts(completion: BranchCompletion) -> (String, BranchOutcome) {
-        (completion.branch, completion.outcome)
-    }
-
-    fn validate_outcome(&self, outcome: &BranchOutcome) -> Result<usize, Fault> {
-        validate_branch_outcome(outcome)
-    }
-
-    fn validate_member(
-        &self,
-        binding: &GroupResultBinding,
-        branch: &str,
-        outcome: &BranchOutcome,
-    ) -> Result<(), Fault> {
-        if let BranchOutcome::Value(value) = outcome {
-            binding.validate_member(branch, value)?;
-        }
-        Ok(())
-    }
-
-    fn into_value_or_terminal(
-        outcome: BranchOutcome,
-    ) -> leselang_command::merge_completion::MergedCompletion<Step> {
-        use leselang_command::merge_completion::MergedCompletion;
-        match outcome {
-            BranchOutcome::Value(value) => MergedCompletion::Value(value),
-            BranchOutcome::Cancelled(cancellation) => {
-                MergedCompletion::Terminal(Step::Cancelled(cancellation))
-            }
-            BranchOutcome::Failed(failure) => MergedCompletion::Terminal(Step::Failed(failure)),
-            BranchOutcome::Fault(fault) => MergedCompletion::Terminal(Step::Fault(fault)),
-        }
-    }
-}
-
-fn merge_completion_fault(
-    error: leselang_command::merge_completion::MergeCompletionError<Fault>,
-) -> Fault {
-    use leselang_command::merge_completion::MergeCompletionError;
-    let (code, message) = match error {
-        MergeCompletionError::Native(error) => return error,
-        MergeCompletionError::OutputItems { items, limit } => {
-            return merge_output_fault(items, limit);
-        }
-        MergeCompletionError::MissingFinalValue => return successor::invalid(),
-        MergeCompletionError::OutputBudget => (
-            "LSV2404",
-            "structured merge output budget exceeds runtime bounds",
-        ),
-        MergeCompletionError::Incomplete => {
-            ("LSV2402", "structured merge completion set is incomplete")
-        }
-        MergeCompletionError::Mismatch => (
-            "LSV2402",
-            "structured merge completion set does not match its plan",
-        ),
-    };
-    Fault {
-        code: code.into(),
-        message: message.into(),
-    }
-}
-
-fn merge_output_fault(items: usize, limit: usize) -> Fault {
-    Fault {
-        code: "LSV2404".into(),
-        message: format!("structured merge returned {items} items, limit is {limit}"),
-    }
 }
 
 pub(crate) use leselang_command::reference_merge::validate_merge_plan;

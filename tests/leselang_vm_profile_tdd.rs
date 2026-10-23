@@ -841,10 +841,12 @@ fn product_identity_and_terminal_data_move_without_runtime_or_storage_authority(
     assert!(terminal.contains("pub enum CancellationReason"));
     assert!(!terminal.contains("deny_unknown_fields"));
     let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
-    assert!(
-        journal
-            .contains("leselang_command::continuation_identity::canonical_merge_sequence(token)")
-    );
+    assert!(journal.contains("merge_reserved_sequence(group_token, plan)"));
+    let batch =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_group_batch.rs"))
+            .unwrap();
+    assert!(batch.contains("canonical_merge_sequence(token)"));
+    assert!(batch.contains("canonical_continuation_sequence(token)"));
     assert!(journal.contains("fn advance_sequence_watermark("));
     let frozen = fs::read_to_string(
         root().join("crates/leselang-vm/src/identity_outcome_contract_tests.rs"),
@@ -1144,21 +1146,40 @@ fn product_merge_completion_moves_ordering_without_moving_vm_finalization() {
         .split_once("fn merge_declared_inner(")
         .unwrap()
         .1
-        .split_once("struct ReferenceMergeCompletionHost;")
+        .split_once("pub(crate) use leselang_command::reference_merge::validate_merge_plan;")
         .unwrap()
         .0;
     let mut offset = 0;
     for ordered in [
-        "validate_merge_plan(plan)?",
-        "leselang_command::merge_completion::merge_preflighted_completions(",
-        "validate_value(value, 1)?",
-        "encode_json_capped(&step, MAX_JOURNAL_ENTRY_BYTES",
+        "leselang_command::reference_merge_output::assemble_merge(",
+        "binding.validate_member(branch, value)",
         "binding.finish(value)",
     ] {
         offset += merge[offset..].find(ordered).unwrap() + ordered.len();
     }
     assert!(!merge.contains("by_branch"));
     assert!(!merge.contains("saturating_add"));
+    let output =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_merge_output.rs"))
+            .unwrap();
+    let mut offset = 0;
+    for ordered in [
+        "validate_merge_plan(plan)?",
+        "merge_preflighted_completions(",
+        "validate_value(value, 1)?",
+        "bounded_json::measure(&step, MAX_JOURNAL_ENTRY_BYTES)",
+    ] {
+        offset += output[offset..].find(ordered).unwrap() + ordered.len();
+    }
+    for absent in [
+        "binding.finish(",
+        "Fuel::new",
+        "rusqlite",
+        "leselang_vm",
+        "computation::",
+    ] {
+        assert!(!output.contains(absent), "{absent}");
+    }
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/merge_completion.rs")).unwrap();
     for required in [
@@ -1559,18 +1580,31 @@ fn complete_dispatch_recovery_is_shared_before_checkpoint_commit() {
         .0;
     for boundary in [
         "recover_dispatch_record(row)?",
+        "inspect_dispatch_record(&mut SqliteRecoveryDispatch { row }, &token)",
+        "impl ReferenceDispatchSource for SqliteRecoveryDispatch",
+        "invalid dispatch request",
+        "invalid dispatch continuation image",
+        "invalid dispatch retry error",
+    ] {
+        assert!(pass.contains(boundary), "{boundary}");
+    }
+    let adapter = fs::read_to_string(
+        root().join("crates/leselang-command/src/reference_dispatch_recovery.rs"),
+    )
+    .unwrap();
+    for boundary in [
         "inspect_dispatch_recovery(",
-        "impl leselang_runtime_core::DispatchRecoveryHost for SqliteRecoveryDispatch",
+        "DispatchRecoveryHost for DispatchPolicy",
         "MAX_JOURNAL_ENTRY_BYTES",
         "MAX_CONTINUATION_BYTES",
         "MAX_DISPATCH_ATTEMPTS",
         "MAX_SEMANTIC_RETRIES",
-        "decode_bounded(&bytes, 2_048)",
+        "decode_journal_value(bytes.as_ref(), 2_048)",
         "validate_effect_request(&request)?",
         "request.continuation.token.as_str() != self.token",
-        "request_image != effect_image",
+        "request_image != effect_image.as_ref()",
     ] {
-        assert!(pass.contains(boundary), "{boundary}");
+        assert!(adapter.contains(boundary), "{boundary}");
     }
     assert!(!pass.contains("if attempt < 0"));
     let frozen = fs::read_to_string(
@@ -1598,6 +1632,69 @@ fn complete_dispatch_recovery_is_shared_before_checkpoint_commit() {
     ] {
         assert!(consumer.contains(test), "{test}");
     }
+}
+
+#[test]
+fn product_dispatch_recovery_keeps_sql_reads_and_authority_outside_the_adapter() {
+    let adapter = fs::read_to_string(
+        root().join("crates/leselang-command/src/reference_dispatch_recovery.rs"),
+    )
+    .unwrap();
+    for absent in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "std::time",
+        ".commit()",
+        "encode_continuation(",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let storage = journal
+        .split_once("impl ReferenceDispatchSource for SqliteRecoveryDispatch")
+        .unwrap()
+        .1
+        .split_once("struct SqliteRecoveryFinalizer")
+        .unwrap()
+        .0;
+    let mut cursor = 0;
+    for column in [1, 9, 2, 3, 8, 5, 6, 7] {
+        let needle = format!(".get({column})");
+        cursor += storage[cursor..].find(&needle).unwrap() + needle.len();
+    }
+    for absent in [
+        "decode_bounded",
+        "validate_effect_request",
+        "DispatchRecoveryError",
+        ".get(4)",
+        ".commit()",
+    ] {
+        assert!(!storage.contains(absent), "{absent}");
+    }
+    let direct = fs::read_to_string(
+        root().join("crates/leselang-command/tests/reference_dispatch_recovery.rs"),
+    )
+    .unwrap();
+    for case in [
+        "dispatch_policy_matches_frozen_fault_precedence_and_lazy_read_traces",
+        "dispatch_numeric_history_error_and_completion_boundaries_match_frozen_policy",
+        "request_bound_is_checked_before_parsing_and_image_comparison_is_byte_exact",
+        "local_move_only_byte_owners_and_each_unwind_stop_without_retry",
+    ] {
+        assert!(direct.contains(case), "{case}");
+    }
+    let authority = fs::read_to_string(
+        root().join("crates/leselang-vm/tests/support/reference_dispatch_authority.rs"),
+    )
+    .unwrap();
+    assert!(authority.contains("inspect_supplied_dispatch(&forged)"));
+    assert!(authority.contains("inspect_supplied_dispatch(&original)"));
+    assert!(
+        fs::read_to_string(root().join(".github/workflows/ci.yml"))
+            .unwrap()
+            .contains("--test reference_dispatch_recovery")
+    );
 }
 
 fn assert_complete_record_recovery_order() {
@@ -1750,14 +1847,45 @@ fn complete_stored_group_batch_uses_shared_global_reservations_before_checkpoint
     assert_complete_group_batch_order();
     let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
     for required in [
-        "inspect_group_recovery_batch(",
-        "max_groups: MAX_JOURNAL_RECORDS",
-        "GroupRecoveryBatchError::Reservation(_) => crate::group_binding::invalid()",
-        "impl leselang_runtime_core::GroupRecoveryBatchHost<RawMergeGroup>",
+        "inspect_group_batch(groups, &mut RecoveredGroupsHost(connection))",
+        "impl ReferenceGroupBatchProofs<Vec<u8>> for RecoveredGroupsHost",
         "validate_recovered_group(self.0, &token, &plan, &branches, &state, terminal)",
     ] {
         assert!(journal.contains(required), "{required}");
     }
+    let policy =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_group_batch.rs"))
+            .unwrap();
+    for required in [
+        "inspect_group_recovery_batch(",
+        "max_groups: MAX_JOURNAL_RECORDS",
+        "max_reservations: MAX_JOURNAL_RECORDS * MAX_MERGE_BRANCHES",
+        "GroupRecoveryBatchError::Reservation(_) => invalid_group_binding()",
+        "summary.highest_sequence",
+    ] {
+        assert!(policy.contains(required), "{required}");
+    }
+    let mut offset = policy.find("fn admit_group(").unwrap();
+    for required in [
+        "valid_continuation_token(&token)",
+        "self.0.token_conflicts(&token)?",
+        "decode_journal_value(plan_bytes.as_ref(), MAX_CONTINUATION_BYTES)?",
+        "validate_merge_plan(&plan)",
+    ] {
+        offset += policy[offset..].find(required).unwrap() + required.len();
+    }
+    for absent in [
+        "rusqlite",
+        "std::fs",
+        "leselang_vm",
+        "Fuel::",
+        ".commit()",
+        ".finish(value)",
+    ] {
+        assert!(!policy.contains(absent), "{absent}");
+    }
+    assert!(!journal.contains("fn merge_reserved_sequence("));
+    assert!(!journal.contains("fn execution_order_label("));
     let frozen = fs::read_to_string(
         root().join("crates/leselang-vm/src/journal/group_recovery_contract_tests.rs"),
     )
@@ -4964,21 +5092,34 @@ fn live_sequence_and_bound_recovery_share_stop_precedence_without_replay_or_sett
         "OutcomeOrder::Parallel",
         "observe_success(validate_value(&value, 0)?",
         "outcomes.observe_stop(step)",
-        ".finish(|items, limit|",
-        "if let Some(failure) = summary.first_stop",
         "validate_saved_capture(",
-        "validate_reservation_proof(",
+        "inspect_group_reservations(plan, &mut GroupReservationSource(connection))?",
+        "validate_bound_group_receipt(",
     ] {
         assert!(
             recovery.contains(required),
             "bound recovery lost {required}"
         );
     }
+    let receipt =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_bound_receipt.rs"))
+            .unwrap();
     assert!(
-        recovery.find("if let Some(terminal) = terminal").unwrap()
-            < recovery.find(".finish(|items, limit|").unwrap()
+        receipt.find("if let Some(terminal) = terminal").unwrap()
+            < receipt.find(".finish(|items, limit|").unwrap()
     );
-    for source in [sequence, recovery] {
+    assert!(receipt.contains("if let Some(failure) = summary.first_stop"));
+    assert!(receipt.contains("validate_group_binding(binding, plan)?"));
+    assert!(!recovery.contains("binding.validate(plan)?"));
+    assert!(!recovery.contains(".finish(|items, limit|"));
+    assert!(!receipt.contains("rusqlite"));
+    let classifications =
+        fs::read_to_string(root().join("crates/leselang-command/src/group_plan.rs")).unwrap();
+    let vm_binding =
+        fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+    assert!(classifications.contains("pub fn has_successor(&self, plan: &MergePlan) -> bool"));
+    assert!(!vm_binding.contains("fn has_successor("));
+    for source in [sequence, recovery, &receipt] {
         for absent in ["Fuel::new", "resume_group(", "commit()"] {
             assert!(!source.contains(absent));
         }
@@ -5015,34 +5156,29 @@ fn live_sequence_and_bound_recovery_share_stop_precedence_without_replay_or_sett
 #[test]
 fn pending_sequence_recovery_delegates_frontier_phases_without_dispatch_or_evaluation() {
     let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
-    let graph = journal
-        .split("fn validate_merge_graph_records(")
-        .nth(1)
-        .unwrap()
-        .split("fn invalid_group_receipt_state(")
-        .next()
-        .unwrap();
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_group_recovery.rs"))
+            .unwrap();
+    let graph = adapter.as_str();
     assert!(
         graph.contains(
             "require_pending_sequence: plan.order.is_sequential() && state == \"pending\""
         )
     );
-    assert!(graph.contains("validate_pending_sequence(self.connection, self.token, branches)"));
+    assert!(graph.contains("self.proofs.validate_blocked_dispatches(first_pending)"));
     assert_complete_group_recovery_order();
-    let frontier = journal
-        .split("\nfn validate_pending_sequence(")
+    let frontier = adapter
+        .split("pub fn inspect_pending_sequence(")
         .nth(1)
         .unwrap()
-        .split("fn recover_group_receipt(")
+        .split("fn invalid_graph(")
         .next()
         .unwrap();
     for required in [
         "inspect_sequential_frontier(",
-        "crate::MAX_MERGE_BRANCHES",
+        "MAX_MERGE_BRANCHES",
         "MAX_JOURNAL_ENTRY_BYTES",
         "sequence_stop(terminal_steps.iter())?",
-        "b.position > ?2",
-        "d.attempt != 0 OR d.retry_count != 0",
         "SequenceFrontierError::Native { error, .. } => error",
         "SequenceFrontierError::OutOfOrder",
     ] {
@@ -5052,9 +5188,19 @@ fn pending_sequence_recovery_delegates_frontier_phases_without_dispatch_or_evalu
         );
     }
     assert!(
-        frontier.find("decode_bounded::<Step>(").unwrap()
-            < frontier.find("connection.query_row(").unwrap()
+        frontier.find("decode_journal_value::<Step>(").unwrap()
+            < frontier.find("validate_blocked(first_pending)").unwrap()
     );
+    let storage = journal
+        .split("fn validate_blocked_dispatches(\n")
+        .nth(1)
+        .unwrap()
+        .split("fn recover_group_receipt(")
+        .next()
+        .unwrap();
+    assert!(storage.contains("b.position > ?2"));
+    assert!(storage.contains("d.attempt != 0 OR d.retry_count != 0"));
+    assert!(!storage.contains("decode_bounded"));
     for absent in [
         "Fuel::new",
         "resume(",
@@ -5091,6 +5237,77 @@ fn pending_sequence_recovery_delegates_frontier_phases_without_dispatch_or_evalu
 }
 
 #[test]
+fn product_group_recovery_policy_preserves_explicit_host_proofs_and_has_no_storage() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_group_recovery.rs"))
+            .unwrap();
+    for required in [
+        "pub trait ReferenceGroupProofs",
+        "Proofs: ReferenceGroupProofs + ?Sized",
+        "Bytes: AsRef<[u8]>",
+        "inspect_group_recovery(",
+        "inspect_sequential_frontier(",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "Fuel::new",
+        ".commit()",
+        "merge_declared(",
+        "group_binding::finish(",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let proofs = journal
+        .split_once("impl ReferenceGroupProofs for RecoveredGroupHost")
+        .unwrap()
+        .1
+        .split_once("fn validate_pending_sequence(")
+        .unwrap()
+        .0;
+    for required in [
+        "successor::validate_chain(self.connection, self.token)",
+        "validate_blocked_dispatches(self.connection, self.token, first_pending)",
+        "validate_unbound_group_receipt(self.plan, self.branches, terminal)",
+        "group_binding::validate_records(self.connection, self.token, self.plan, terminal)",
+    ] {
+        assert!(proofs.contains(required), "{required}");
+    }
+    assert!(!proofs.contains("decode_bounded"));
+    let direct = fs::read_to_string(
+        root().join("crates/leselang-command/tests/reference_group_recovery.rs"),
+    )
+    .unwrap();
+    for required in [
+        "assert_eq!(cases, 12600)",
+        "assert_eq!(cases, 324)",
+        "assert_eq!(cases, 8)",
+        "borrowed_receipt_bounds_and_original_proof_payload_are_preserved",
+    ] {
+        assert!(direct.contains(required), "{required}");
+    }
+    assert!(
+        fs::read_to_string(root().join("crates/leselang-vm/tests/ephemeral_profile.rs"))
+            .unwrap()
+            .contains("inspected_group_cannot_publish_a_receipt_or_replace_live_member_authority")
+    );
+    assert!(
+        fs::read_to_string(root().join(".github/workflows/ci.yml"))
+            .unwrap()
+            .contains("--test reference_group_recovery")
+    );
+    assert!(
+        fs::read_to_string(root().join("docs/leselang-embedding.md"))
+            .unwrap()
+            .contains("### Product Single Group Recovery Ownership")
+    );
+}
+
+#[test]
 fn complete_stored_group_recovery_is_core_owned_without_native_storage_or_product_types() {
     assert_complete_group_recovery_order();
     let core =
@@ -5117,10 +5334,12 @@ fn complete_stored_group_recovery_is_core_owned_without_native_storage_or_produc
         assert!(!core.contains(forbidden), "{forbidden}");
     }
     let reference = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
-    assert!(
-        reference
-            .contains("impl leselang_runtime_core::GroupRecoveryHost<RecoveredMergeBranch, str>")
-    );
+    assert!(reference.contains("impl ReferenceGroupProofs for RecoveredGroupHost"));
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_group_recovery.rs"))
+            .unwrap();
+    assert!(adapter.contains("GroupRecoveryHost<RecoveredMergeBranch, str>"));
+    assert!(adapter.contains("inspect_group_recovery("));
     assert!(
         reference
             .contains("#[cfg(all(test, feature = \"sqlite-journal\"))]\nfn recover_group_receipt(")
@@ -5213,38 +5432,75 @@ fn sqlite_reservation_and_completion_fences_are_shared_without_repair_or_executi
         .split("fn validate_merge_graph_records(")
         .nth(1)
         .unwrap()
-        .split("fn merge_reserved_sequence(")
+        .split("fn advance_sequence_watermark(")
         .next()
         .unwrap();
     for boundary in [
-        "inspect_group_recovery_batch(",
-        "MAX_JOURNAL_RECORDS * crate::MAX_MERGE_BRANCHES",
-        "inspect_group_recovery(",
-        "validate_unbound_group_receipt(self.plan, self.branches, &terminal)",
+        "inspect_group_batch(groups, &mut RecoveredGroupsHost(connection))",
+        "inspect_group_record(",
+        "validate_unbound_group_receipt(self.plan, self.branches, terminal)",
         "validate_terminal_step(&terminal)?",
-        "GroupRecoveryError::Receipt(GroupReceiptError::Native(error)) => error",
-        "GroupRecoveryError::Receipt(GroupReceiptError::State) => invalid_group_receipt_state()",
-        "summary.highest_sequence",
         "group_binding::validate_records(self.connection, self.token, self.plan, terminal)",
     ] {
         assert!(graph.contains(boundary), "native graph lost {boundary}");
     }
     assert!(!graph.contains("advance_sequence_watermark("));
     assert!(!graph.contains("resume_group("));
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_group_recovery.rs"))
+            .unwrap();
+    for boundary in [
+        "inspect_group_recovery(",
+        "GroupRecoveryError::Receipt(GroupReceiptError::Native(error)) => error",
+        "GroupRecoveryError::Receipt(GroupReceiptError::State) => invalid_group_receipt_state()",
+    ] {
+        assert!(adapter.contains(boundary), "adapter lost {boundary}");
+    }
     assert_complete_group_batch_order();
     assert_complete_group_recovery_order();
     let bound =
         fs::read_to_string(root().join("crates/leselang-vm/src/journal/group_binding.rs")).unwrap();
+    let reservations = fs::read_to_string(
+        root().join("crates/leselang-command/src/reference_group_reservations.rs"),
+    )
+    .unwrap();
     for boundary in [
         "validate_reservation_proof(",
         "allocation_watermark: u64::try_from(next_sequence).ok()",
         "record_exists: exists",
         "aliases_owner: aliases_group",
-        "index < plan.branches.len() - binding.branches()?.len()",
+        "index < created",
+        ".checked_sub(",
+    ] {
+        assert!(reservations.contains(boundary));
+    }
+    for boundary in [
+        "inspect_group_reservations(plan, &mut GroupReservationSource(connection))?",
+        "SELECT next_sequence FROM vm_metadata WHERE singleton = 1",
+        "SELECT EXISTS(SELECT 1 FROM vm_effects WHERE token = ?1)",
+        "SELECT EXISTS(SELECT 1 FROM vm_merge_groups WHERE token = ?1)",
     ] {
         assert!(bound.contains(boundary));
     }
+    assert!(
+        bound
+            .find("validate_merge_graph_input(token, plan, &graph)?")
+            .unwrap()
+            < bound.find("inspect_group_reservations(plan,").unwrap()
+    );
+    assert!(
+        bound.find("inspect_group_reservations(plan,").unwrap()
+            < bound.find("    validate_bound_group_receipt(").unwrap()
+    );
     assert!(!bound.contains("advance_sequence_watermark("));
+    for forbidden in [
+        "rusqlite",
+        "advance_sequence_watermark(",
+        "Fuel::new",
+        "commit()",
+    ] {
+        assert!(!reservations.contains(forbidden));
+    }
     let core =
         fs::read_to_string(root().join("crates/leselang-runtime-core/src/recovery_fence.rs"))
             .unwrap();
@@ -5283,7 +5539,10 @@ fn sqlite_reservation_and_completion_fences_are_shared_without_repair_or_executi
 #[test]
 fn native_unbound_receipt_correspondence_uses_original_data_merge_without_evaluation() {
     let code = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
-    let gate = code
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_group_recovery.rs"))
+            .unwrap();
+    let gate = adapter
         .split("fn admit_receipt(")
         .nth(1)
         .unwrap()
@@ -5293,26 +5552,32 @@ fn native_unbound_receipt_correspondence_uses_original_data_merge_without_evalua
     assert!(
         gate.find("validate_terminal_step(&terminal)?").unwrap()
             < gate
-                .find("validate_unbound_group_receipt(self.plan, self.branches, &terminal)?")
+                .find("self.proofs.validate_unbound_receipt(&terminal)?")
                 .unwrap()
     );
-    let correspondence = code
+    assert!(code.contains(
+        "use leselang_command::reference_group_recovery::validate_unbound_group_receipt;"
+    ));
+    assert!(!code.contains("fn validate_unbound_group_receipt("));
+    let correspondence = adapter
         .split("fn validate_unbound_group_receipt(")
         .nth(1)
         .unwrap()
-        .split("fn merge_reserved_sequence(")
+        .split("fn invalid_graph(")
         .next()
         .unwrap();
     for required in [
         "if plan.result_binding.is_some()",
         "return Ok(())",
         "branches.len() != plan.branches.len()",
-        "branches.len() > crate::MAX_MERGE_BRANCHES",
-        "decode_bounded::<Step>(",
+        "branches.len() > MAX_MERGE_BRANCHES",
+        "decode_journal_value::<Step>(",
         "MAX_JOURNAL_ENTRY_BYTES",
         "sequence_stop(steps.iter())?",
         "terminal_step_outcome(step)?",
-        "group_binding::finish(plan, completions)?",
+        "plan.order.has_group_successor()",
+        "crate::reference_merge_output::assemble_merge(",
+        "crate::reference_merge_output::terminal_merge(plan, result)?",
         "if &expected != terminal",
         "merge group receipt does not match original branch results",
     ] {
@@ -5339,7 +5604,7 @@ fn native_unbound_receipt_correspondence_uses_original_data_merge_without_evalua
         .next()
         .unwrap();
     assert!(
-        actual.find("inspect_group_recovery(").unwrap()
+        actual.find("inspect_group_record(").unwrap()
             < actual.find("validate_unbound_group_receipt(").unwrap()
     );
     assert!(
@@ -5396,22 +5661,33 @@ fn actual_group_request_and_recovery_graphs_use_the_shared_bounded_identity_kern
         .split("fn validate_merge_graph_records(")
         .nth(1)
         .unwrap()
-        .split("fn merge_reserved_sequence(")
+        .split("fn advance_sequence_watermark(")
         .next()
         .unwrap();
     for boundary in [
-        "inspect_group_recovery(",
-        "usize::try_from(branch.1).ok()",
-        "identity: branch.4.as_str()",
-        "inspect_group_recovery_batch(",
+        "inspect_group_record(",
+        "inspect_group_batch(groups, &mut RecoveredGroupsHost(connection))",
         "successor::validate_chain(self.connection, self.token)",
-        "sequence_stop(terminal_steps.iter())?",
         "validate_terminal_step(&terminal)?",
         "group_binding::validate_records(self.connection, self.token, self.plan, terminal)",
     ] {
         assert!(
             records.contains(boundary),
             "native recovery lost {boundary}"
+        );
+    }
+    let policy =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_group_recovery.rs"))
+            .unwrap();
+    for boundary in [
+        "inspect_group_recovery(",
+        "usize::try_from(branch.1).ok()",
+        "identity: branch.4.as_str()",
+        "sequence_stop(terminal_steps.iter())?",
+    ] {
+        assert!(
+            policy.contains(boundary),
+            "adapter recovery lost {boundary}"
         );
     }
     for proof in [

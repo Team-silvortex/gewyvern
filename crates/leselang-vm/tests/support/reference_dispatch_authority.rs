@@ -24,6 +24,7 @@ pub fn exercise(mut vm: Vm, reopen: impl Fn(Vm) -> Vm) {
     let mut forged = original.clone();
     forged.attempt = next_attempt(original.attempt).unwrap();
     forged.lease_expires_at_ms = lease_expiration(11, 10).unwrap();
+    inspect_supplied_dispatch(&forged);
     let observation = |lease: &DispatchLease, ready_at_ms| DispatchLeaseObservation {
         same_request: true,
         active: true,
@@ -65,6 +66,7 @@ pub fn exercise(mut vm: Vm, reopen: impl Fn(Vm) -> Vm) {
     // Equal-expiry acknowledgement is valid only until a replacement commits.
     let current = vm.claim_effect(11, 10).unwrap().unwrap();
     assert_eq!(current.attempt, 2);
+    inspect_supplied_dispatch(&original);
     assert_eq!(
         validate_observed_lease(&original, 11, observation(&original, 1)),
         Ok(())
@@ -132,6 +134,50 @@ fn effect(step: Step) -> EffectRequest {
         panic!("expected effect: {step:?}")
     };
     *request
+}
+
+fn inspect_supplied_dispatch(lease: &DispatchLease) {
+    use leselang_command::reference_dispatch_recovery::{
+        ReferenceDispatchSource, inspect_dispatch_record,
+    };
+    use leselang_runtime_core::{Fault, StoredDispatchMetadata};
+    struct Source<'a> {
+        request: &'a [u8],
+        image: &'a [u8],
+        attempt: u32,
+    }
+    impl<'a> ReferenceDispatchSource for Source<'a> {
+        type Bytes = &'a [u8];
+        fn read_request(&mut self) -> Result<Self::Bytes, Fault> {
+            Ok(self.request)
+        }
+        fn read_image(&mut self) -> Result<Self::Bytes, Fault> {
+            Ok(self.image)
+        }
+        fn read_metadata(&mut self) -> Result<StoredDispatchMetadata<Self::Bytes>, Fault> {
+            Ok(StoredDispatchMetadata {
+                attempt: i64::from(self.attempt),
+                ready_at_ms: 1,
+                retry_count: 0,
+                last_error: None,
+                acknowledged: false,
+                effect_completed: false,
+            })
+        }
+    }
+    let request = serde_json::to_vec(&lease.request).unwrap();
+    let image = serde_json::to_vec(&lease.request.continuation).unwrap();
+    assert_eq!(
+        inspect_dispatch_record(
+            &mut Source {
+                request: &request,
+                image: &image,
+                attempt: lease.attempt,
+            },
+            lease.request.continuation.token.as_str()
+        ),
+        Ok(())
+    );
 }
 
 fn focus(node: &str) -> EffectResult {

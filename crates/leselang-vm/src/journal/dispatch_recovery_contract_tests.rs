@@ -2,6 +2,58 @@ use super::group_recovery_contract_tests::{Fixture, snapshot};
 use super::*;
 
 #[test]
+fn dispatch_storage_field_errors_preserve_original_read_order_and_cold_lease() {
+    let mut cases = 0;
+    for stage in [0, 2] {
+        let fixture = Fixture::new(r#"fn main() = ui.focus(node_id: "a")"#, stage);
+        let connection = Connection::open(&fixture.0).unwrap();
+        let before = snapshot(&connection);
+        for mask in 0..1024 {
+            let fields = [
+                "d.token",
+                "d.request",
+                "d.state",
+                "d.attempt",
+                "d.lease_expires_at_ms",
+                "d.ready_at_ms",
+                "d.retry_count",
+                "d.last_error",
+                "e.state",
+                "e.image",
+            ]
+            .into_iter()
+            .enumerate()
+            .map(|(index, field)| {
+                if mask & (1 << index) == 0 {
+                    field.to_string()
+                } else if [3, 4, 5, 6, 7].contains(&index) {
+                    "'wrong-type'".into()
+                } else {
+                    "NULL".into()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+            let mut statement = connection.prepare(&format!(
+                "SELECT {fields} FROM vm_dispatches d JOIN vm_effects e ON e.token = d.token ORDER BY d.token LIMIT 1"
+            )).unwrap();
+            let mut rows = statement.query([]).unwrap();
+            let row = rows.next().unwrap().unwrap();
+            let expected = frozen_row(row);
+            assert_eq!(expected.is_ok(), mask == 0 || mask == 16);
+            assert_eq!(
+                recover_dispatch_record(row),
+                expected,
+                "stage {stage}, mask {mask}"
+            );
+            cases += 1;
+        }
+        assert_eq!(snapshot(&connection), before);
+    }
+    assert_eq!(cases, 2048);
+}
+
+#[test]
 fn stored_dispatch_recovery_preserves_frozen_order_and_original_tables() {
     let sources = [
         r#"fn main() = seq(a: ui.focus(node_id: "a"), b: ui.focus(node_id: "b"))"#,
@@ -220,74 +272,79 @@ fn frozen(connection: &Connection) -> Result<(), Fault> {
         .next()
         .map_err(|error| journal_error("LSV4005", "failed to read dispatch record", error))?
     {
-        let token: String = row
-            .get(0)
-            .map_err(|error| journal_error("LSV4005", "invalid dispatch token", error))?;
-        let bytes: Vec<u8> = row
-            .get(1)
-            .map_err(|error| journal_error("LSV4005", "invalid dispatch request", error))?;
-        let request: EffectRequest = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
-        validate_effect_request(&request)?;
-        if request.continuation.token.as_str() != token {
-            return Err(journal_fault(
-                "LSV4007",
-                "dispatch token does not match effect request",
-            ));
-        }
-        let effect_image: Vec<u8> = row.get(9).map_err(|error| {
-            journal_error("LSV4005", "invalid dispatch continuation image", error)
-        })?;
-        let request_image = encode_json_capped(
-            &request.continuation,
-            MAX_CONTINUATION_BYTES,
-            "continuation",
-        )?;
-        if request_image != effect_image {
-            return Err(journal_fault(
-                "LSV4007",
-                "dispatch request conflicts with continuation state",
-            ));
-        }
-        let state: String = row
-            .get(2)
-            .map_err(|error| journal_error("LSV4005", "invalid dispatch state", error))?;
-        let attempt: i64 = row
-            .get(3)
-            .map_err(|error| journal_error("LSV4005", "invalid dispatch attempt", error))?;
-        let effect_state: String = row
-            .get(8)
-            .map_err(|error| journal_error("LSV4005", "invalid dispatch effect state", error))?;
-        let ready_at: i64 = row
-            .get(5)
-            .map_err(|error| journal_error("LSV4005", "invalid dispatch ready clock", error))?;
-        let retry_count: i64 = row
-            .get(6)
-            .map_err(|error| journal_error("LSV4005", "invalid dispatch retry count", error))?;
-        let last_error: Option<Vec<u8>> = row
-            .get(7)
-            .map_err(|error| journal_error("LSV4005", "invalid dispatch retry error", error))?;
-        if attempt < 0 || attempt > i64::from(MAX_DISPATCH_ATTEMPTS) {
-            return Err(journal_fault("LSV4007", "dispatch attempt is invalid"));
-        }
-        if ready_at < 0 || retry_count < 0 || retry_count > i64::from(MAX_SEMANTIC_RETRIES) {
-            return Err(journal_fault("LSV4007", "dispatch retry state is invalid"));
-        }
-        if (retry_count == 0) != last_error.is_none() {
-            return Err(journal_fault(
-                "LSV4007",
-                "dispatch retry history is inconsistent",
-            ));
-        }
-        if let Some(bytes) = last_error {
-            let error: EffectError = decode_bounded(&bytes, 2_048)?;
-            validate_effect_error(&error)?;
-        }
-        if (state == "acknowledged") != (effect_state == "completed") {
-            return Err(journal_fault(
-                "LSV4007",
-                "dispatch and continuation states are inconsistent",
-            ));
-        }
+        frozen_row(row)?;
+    }
+    Ok(())
+}
+
+fn frozen_row(row: &rusqlite::Row<'_>) -> Result<(), Fault> {
+    let token: String = row
+        .get(0)
+        .map_err(|error| journal_error("LSV4005", "invalid dispatch token", error))?;
+    let bytes: Vec<u8> = row
+        .get(1)
+        .map_err(|error| journal_error("LSV4005", "invalid dispatch request", error))?;
+    let request: EffectRequest = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
+    validate_effect_request(&request)?;
+    if request.continuation.token.as_str() != token {
+        return Err(journal_fault(
+            "LSV4007",
+            "dispatch token does not match effect request",
+        ));
+    }
+    let effect_image: Vec<u8> = row
+        .get(9)
+        .map_err(|error| journal_error("LSV4005", "invalid dispatch continuation image", error))?;
+    let request_image = encode_json_capped(
+        &request.continuation,
+        MAX_CONTINUATION_BYTES,
+        "continuation",
+    )?;
+    if request_image != effect_image {
+        return Err(journal_fault(
+            "LSV4007",
+            "dispatch request conflicts with continuation state",
+        ));
+    }
+    let state: String = row
+        .get(2)
+        .map_err(|error| journal_error("LSV4005", "invalid dispatch state", error))?;
+    let attempt: i64 = row
+        .get(3)
+        .map_err(|error| journal_error("LSV4005", "invalid dispatch attempt", error))?;
+    let effect_state: String = row
+        .get(8)
+        .map_err(|error| journal_error("LSV4005", "invalid dispatch effect state", error))?;
+    let ready_at: i64 = row
+        .get(5)
+        .map_err(|error| journal_error("LSV4005", "invalid dispatch ready clock", error))?;
+    let retry_count: i64 = row
+        .get(6)
+        .map_err(|error| journal_error("LSV4005", "invalid dispatch retry count", error))?;
+    let last_error: Option<Vec<u8>> = row
+        .get(7)
+        .map_err(|error| journal_error("LSV4005", "invalid dispatch retry error", error))?;
+    if attempt < 0 || attempt > i64::from(MAX_DISPATCH_ATTEMPTS) {
+        return Err(journal_fault("LSV4007", "dispatch attempt is invalid"));
+    }
+    if ready_at < 0 || retry_count < 0 || retry_count > i64::from(MAX_SEMANTIC_RETRIES) {
+        return Err(journal_fault("LSV4007", "dispatch retry state is invalid"));
+    }
+    if (retry_count == 0) != last_error.is_none() {
+        return Err(journal_fault(
+            "LSV4007",
+            "dispatch retry history is inconsistent",
+        ));
+    }
+    if let Some(bytes) = last_error {
+        let error: EffectError = decode_bounded(&bytes, 2_048)?;
+        validate_effect_error(&error)?;
+    }
+    if (state == "acknowledged") != (effect_state == "completed") {
+        return Err(journal_fault(
+            "LSV4007",
+            "dispatch and continuation states are inconsistent",
+        ));
     }
     Ok(())
 }

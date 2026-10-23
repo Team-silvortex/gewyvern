@@ -11,8 +11,10 @@ mod protocol_tests;
 #[path = "group_plan_contract_tests.rs"]
 pub(crate) mod plan_contract_tests;
 
+#[cfg(test)]
+use crate::MergePlan;
 use crate::result_binding::{ReferenceResultBinding, group_capture_limits};
-use crate::{ContinuationToken, EffectRequest, Fault, MergePlan, ResultBinding, Step, Value};
+use crate::{ContinuationToken, EffectRequest, Fault, ResultBinding, Step, Value};
 
 pub(super) enum CaptureProgress {
     Done(crate::ScalarValue),
@@ -27,8 +29,7 @@ pub(super) use leselang_command::reference_merge::{
 pub(super) trait ReferenceGroupResultBinding {
     fn branches(&self) -> Result<&[HirBranch], Fault>;
     fn successor_name_at(&self, position: usize) -> Result<String, Fault>;
-    fn has_successor(&self, plan: &MergePlan) -> bool;
-    #[cfg(any(test, feature = "sqlite-journal"))]
+    #[cfg(test)]
     fn validate(&self, plan: &MergePlan) -> Result<Type, Fault>;
     #[cfg(test)]
     fn validate_requests(
@@ -78,14 +79,7 @@ impl ReferenceGroupResultBinding for GroupResultBinding {
             .map_err(|_| invalid())
     }
 
-    fn has_successor(&self, plan: &MergePlan) -> bool {
-        self.successor_sequence.is_some()
-            && self
-                .branches()
-                .is_ok_and(|branches| plan.branches.len() > branches.len())
-    }
-
-    #[cfg(any(test, feature = "sqlite-journal"))]
+    #[cfg(test)]
     fn validate(&self, plan: &MergePlan) -> Result<Type, Fault> {
         leselang_command::reference_merge::validate_group_binding(self, plan)
     }

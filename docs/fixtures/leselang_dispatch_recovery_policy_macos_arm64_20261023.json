@@ -1,0 +1,168 @@
+{
+  "kind": "leselang-dispatch-recovery-policy",
+  "validated_on": "2026-10-23",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.124.0",
+  "adapter_phase_cases": 432,
+  "adapter_metadata_cases": 3024,
+  "sqlite_dispatch_comparisons": 1176,
+  "sqlite_field_read_cases": 2048,
+  "direct_adapter_tests": 4,
+  "native_hook_unwind_cases": 9,
+  "adapter_owned_dispatch_recovery_policy": true,
+  "shared_recovery_kernel_reused": true,
+  "storage_read_order_unchanged": true,
+  "checkpoint_authority_unchanged": true,
+  "committed_replay_unchanged": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "Product stored-dispatch recovery policy moves to leselang-command over the unchanged runtime-core phase runner. SQLite retains original token/field reads, state decoding and schema checks, original snapshot authority, global graph/audit checks and atomic checkpoint publication. Inspection is not authority to execute, replace a live lease or publish a recovered VM.",
+  "verification_status": "passed",
+  "default_runtime_tests": 1744,
+  "memory_vm_tests": 272,
+  "root_architecture_tests": 526,
+  "strict_workspace_lints_passed": true,
+  "memory_all_target_lints_passed": true,
+  "format_checks_passed": true,
+  "native_no_default_check_passed": true,
+  "native_checkpoint_reused": true,
+  "new_native_export_performed": false,
+  "native_checkpoint": {
+    "reused_checkpoint": "/private/tmp/gewyvern-ci-native-20261023/export-manifest.json",
+    "verified": true,
+    "complete_vm": false,
+    "full_extraction_gate": false,
+    "total_files": 280,
+    "copied_sources": 270,
+    "source_and_export_mismatches": [],
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "new_export_performed": false
+  },
+  "limitations": [
+    "No new native source-export execution: all 270 copied source hashes and 280 exported file hashes match the previously verified checkpoint.",
+    "macOS policy, SQLite and native-profile coverage only; no new Linux, GUI or remote CI execution."
+  ],
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "f557f284382f725e8409976cf7531805c190fc6c2ee54bc236d7f89438cdffe0"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_dispatch_recovery.rs",
+      "sha256": "f3a258306cdb30f5022265af124f38e9fdfadade64c8f3a0b95af81f49406b28"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_dispatch_recovery.rs",
+      "sha256": "a6e837473c0ed2abdb4316bc87042d4d929069efa5b966a6eaf13f24c2acd79c"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "1d00a0dcb77bf3988a127b6784b49c9a8e44d61aa6cca35cfb96da0d940202e9"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/dispatch_recovery_contract_tests.rs",
+      "sha256": "75f0e9b3ff7d4ddf4e2a359d6c2d279d82fc95e5990a3d9e646f0eb39234b3b4"
+    },
+    {
+      "path": "crates/leselang-vm/tests/support/reference_dispatch_authority.rs",
+      "sha256": "a3391499a5dbe5868e0fe18aa7c2ac72a88a20a50a4e172f3251c810e0e84efc"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/dispatch_recovery.rs",
+      "sha256": "16cec22b7f555998faf5d2b7a7dc4801b665942290a67c9c52a9d26feeb028be"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "5ffbda2f4c621341a359e263228e3cd22d676ec52d54afe18bc6fe1b80b5c504"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "dd97f3ed190b97fdec074527bcb64ba76fd460011bf3c18f0060553e8b158135"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "02eb59d582323d598d761f9c745940d4785f114e339fb691d1030d972514f3b7"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "bfa48df83fc40c67e3a2a5d299e386e1a83e4523bf2748615c4c8a0499bd4f78"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "76c353605b57d789105f021fd18d3febdfe66a6c8e3a952e2cd00695934cb060"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "4e46185651f4b09e253de1afda9230b16dd1da40669744210fbe6e3387fc5ee3"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "direct",
+      "log": "/private/tmp/leselang-dispatch-policy-20261023-direct.log",
+      "sha256": "9817d02d3e58f98288cab139e04e77cd9f0c8857bae53bfbf545c73ecbe352bd"
+    },
+    {
+      "stage": "sqlite",
+      "log": "/private/tmp/leselang-dispatch-policy-20261023-sqlite.log",
+      "sha256": "962111202fb69eb3bdc98eb5650bf254df8ff41d0dbcbd4ba9fbc2aa42a9a20a"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-dispatch-policy-20261023-default.log",
+      "sha256": "ea0578ecc2ea4823a83b2f85cf19c336e14c53023e2398c01a0532020990f75b"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-dispatch-policy-20261023-memory.log",
+      "sha256": "5a18314cfa4d9bb80f7680c8292dcfe152aeea1ed4a53121098b85d2d0cfad8d"
+    },
+    {
+      "stage": "gates",
+      "log": "/private/tmp/leselang-dispatch-policy-20261023-gates.log",
+      "sha256": "a5b6b466f0d32aa09a1cd20ba0ca8d51c0fd94415c532f596522bc6a65afdd19"
+    },
+    {
+      "stage": "default-clippy",
+      "log": "/private/tmp/leselang-dispatch-policy-20261023-default-clippy.log",
+      "sha256": "8b6d22f487d1d9c340547ca572733d80f0b35adcc50b91b65ff28ab738f6ef28"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-dispatch-policy-20261023-memory-clippy.log",
+      "sha256": "a94e76b8777184822a4690b2bbc1d24f05f3feeecb5560fcb08b5fcb039923e8"
+    },
+    {
+      "stage": "workspace-clippy",
+      "log": "/private/tmp/leselang-dispatch-policy-20261023-workspace-clippy.log",
+      "sha256": "23af5a91112f60b9336583a7474c33eafe42635b2afcf80918dbc6636e3cda36"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-dispatch-policy-20261023-native-check.log",
+      "sha256": "0ae16a0cb9a56dd24dd30af1d0e66ec57bd9be827ed53e1da47e1b85e2f307e7"
+    },
+    {
+      "stage": "native-checkpoint",
+      "log": "/private/tmp/leselang-dispatch-policy-20261023-native-checkpoint.log",
+      "sha256": "a1616e1b6bcf0154d246acc50f1a333d171969c102aaf9418d6e759d5b0bbfda"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-dispatch-policy-20261023-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "include-format",
+      "log": "/private/tmp/leselang-dispatch-policy-20261023-include-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

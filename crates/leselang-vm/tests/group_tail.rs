@@ -702,8 +702,57 @@ fn cold_slot_allocation_proof_uses_original_watermark_before_high_identity_repai
             [i64::try_from(reserved).unwrap()],
         )
         .unwrap();
+    // An unrelated inspector's successful observations cannot replace this journal's proof.
+    struct PermissiveSource;
+    impl leselang_command::reference_group_reservations::ReferenceReservationSource
+        for PermissiveSource
+    {
+        fn allocation_watermark(&mut self) -> Result<i64, leselang_vm::Fault> {
+            Ok(i64::MAX)
+        }
+        fn effect_exists(&mut self, _: &str) -> Result<bool, leselang_vm::Fault> {
+            Ok(false)
+        }
+        fn group_exists(&mut self, _: &str) -> Result<bool, leselang_vm::Fault> {
+            Ok(false)
+        }
+    }
+    let inspected_plan = serde_json::from_value(plan(&connection)).unwrap();
+    leselang_command::reference_group_reservations::inspect_group_reservations(
+        &inspected_plan,
+        &mut PermissiveSource,
+    )
+    .unwrap();
+    let snapshot = || {
+        [
+            "vm_metadata",
+            "vm_effects",
+            "vm_dispatches",
+            "vm_merge_groups",
+            "vm_merge_branches",
+        ]
+        .into_iter()
+        .map(|table| {
+            let mut statement = connection
+                .prepare(&format!("SELECT * FROM {table} ORDER BY rowid"))
+                .unwrap();
+            let columns = statement.column_count();
+            statement
+                .query_map([], |row| {
+                    (0..columns)
+                        .map(|index| row.get::<_, rusqlite::types::Value>(index))
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        })
+        .collect::<Vec<_>>()
+    };
+    let before = snapshot();
     let error = Vm::open_journal(&path.0, 1).err().unwrap();
     assert_eq!(error.code, "LSV1409");
+    assert_eq!(snapshot(), before);
     assert_eq!(
         connection
             .query_row("SELECT next_sequence FROM vm_metadata", [], |row| row

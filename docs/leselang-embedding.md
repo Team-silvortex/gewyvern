@@ -9334,6 +9334,206 @@ journal. Reference execution advances to `1.123.0`; native embedding `0.172.0`, 
 `0.184.0`, product `2.4.0`, existing wire data and journal schema 10 are unchanged.
 The native durable-graph and complete-extraction gates remain open.
 
+### Product Stored Dispatch Recovery Ownership
+
+`leselang-command::reference_dispatch_recovery` owns stored dispatch request
+decoding/admission, token and exact compact-image correspondence, product attempt
+and retry ceilings, retry-error decoding and released fault mapping. It delegates
+phase order to the unchanged core `inspect_dispatch_recovery`; it does not create
+another recovery engine or import database dependencies into the native core.
+
+`ReferenceDispatchSource` borrows original request/image bytes and signed metadata.
+SQLite still reads the token first, then request, image, state, attempt, effect
+state, ready clock, retry count and optional error in the original order. State
+decoding and schema integrity remain storage-owned. The lease-expiry column is
+not newly read by this inspection. Image comparison remains byte-exact, not a
+normalized JSON comparison or a stricter restoration-codec gate. Retry bytes are
+decoded only after numeric and history checks. Local, unsized sources and move-only
+byte owners remain supported without Clone or Send requirements.
+
+The [dispatch policy recovery proof](fixtures/leselang_dispatch_recovery_policy_macos_arm64_20261023.json)
+records 432 phase/read-trace and 3,024 numeric/history/error comparisons, nine
+unwind boundaries, 1,176 existing SQLite corruption comparisons and 2,048 field
+type/order cases. Shared memory and SQLite-reopen scenarios inspect forged/stale
+dispatch observations successfully, but the live VM still refuses their leases;
+original completion and committed replay stay authoritative.
+
+Reference execution advances to `1.124.0`. Native embedding `0.172.0`, HIR `0.184.0`,
+product `2.4.0`, wire data and journal schema 10 remain unchanged. Global graph and
+audit checks, sequence watermarks, checkpoint commit/publication and current
+authority remain journal-owned. Full native durable graph recovery and complete
+VM extraction are still open; adapter ownership alone does not close those gates.
+
+### Product Single Group Recovery Ownership
+
+`leselang-command::reference_group_recovery` owns single-group member projection,
+order-derived chain/frontier obligations, state selection, bounded receipt decode,
+terminal admission and fault mapping over the unchanged core group/frontier
+runners. The completed prefix still fully decodes before stop/output checks;
+blocked dispatch observation follows that prefix. Signed positions, member order,
+opaque identities and late state selection retain the released behavior.
+
+`ReferenceGroupProofs` makes the remaining product-runtime responsibilities
+explicit: original chain proof, blocked-dispatch query, data-only receipt
+correspondence, and final records/reservations. Those hooks must use the same
+snapshot and cannot execute saved code. SQLite retains its queries and native
+diagnostics. At reference `1.125.0`, final receipt comparison still used the VM
+merge-output path; the next slice below moves that shared data policy. Batch plan/token admission,
+cross-group reservations, watermark handling and atomic publication also remain
+VM/journal-owned. This is a single-group policy move, not complete group recovery
+extraction or a new storage protocol.
+
+The [single-group policy proof](fixtures/leselang_group_recovery_policy_macos_arm64_20261023.json)
+records 12,600 phase/fault/trace comparisons, 324 prefix cases, eight native/encoded
+owner unwind cases and the existing 374 single-group plus 364 cross-group SQLite
+corruption comparisons. A permissive proof source can accept fabricated group
+data, but cannot publish a receipt or replace a live member lease; real completion
+and committed replay remain authoritative. Borrowed receipts, move-only encoded
+owners and local unsized proof hosts need no Clone or Send implementation.
+
+This slice established reference `1.125.0` without promoting native maturity.
+
+### Product Merge Output And Receipt Ownership
+
+`leselang-command::reference_merge_output::assemble_merge` owns product plan,
+completion, member-type, aggregate-value/item and encoded-output admission. It
+reuses the existing completion kernel rather than implementing a second merger.
+The member proof is borrowed and can retain local non-Send state; returned native
+faults and unwinds stop later work. Encoded size is measured with the same bounded
+JSON writer without allocating an unused output buffer. Inclusive byte ceilings
+and refusal messages remain unchanged.
+
+`reference_group_recovery::validate_unbound_group_receipt` now compares original
+branch data through that same assembly path. All branch bytes decode before a
+sequential early stop; declared order, terminal metadata, aggregate failures and
+size-limit fault receipts remain significant. Bound plans bypass this data-only
+check and still require the runtime's original binding-record proof. Inspection
+does not authenticate storage or grant settlement authority.
+
+The VM retains successor authority checks, member-binding proofs and actual
+`binding.finish` evaluation. At reference `1.126.0`, cross-group policy still lived
+with journal transactions, watermarks and checkpoint publication; the next slice
+below moves its pure decisions. The adapter's
+`terminal_merge` only converts returned-data limit errors into receipt values;
+it does not commit them or turn storage failures into success.
+
+The [merge-output policy proof](fixtures/leselang_merge_output_policy_macos_arm64_20261023.json)
+tracks 7,776 frozen receipt comparisons, the existing 9,720 completion and 432
+refusal comparisons, direct borrowed-proof/unwind checks, all 14 order families
+and the inclusive 8 MiB boundary. This slice established reference `1.126.0`; native
+embedding `0.172.0`, HIR `0.184.0`, product `2.4.0`, wire formats and journal schema
+10 stay unchanged. Native durable graph recovery and complete extraction remain
+open; this is product-policy relocation, not native parity promotion.
+
+### Product Group Batch Recovery Ownership
+
+`leselang-command::reference_group_batch` owns the bounded batch's token syntax,
+collision decision, plan decoding/admission, global successor reservations,
+journal order labels, maximum-sequence observation and diagnostic mapping. It
+uses the unchanged core batch runner: count first, then one complete group before
+the next. After the original typed rows have loaded, a later malformed plan cannot
+overtake an earlier graph refusal;
+duplicate reservations still precede that group's stored-order check. Input
+order, opaque legacy owner IDs and exact native faults are preserved.
+
+`ReferenceGroupBatchProofs` keeps token-conflict queries and complete per-group
+proofs on the original snapshot owner. SQLite still bounds/loads rows in token
+order, reads the original fields, queries effect-token collisions, loads branches
+and validates chain/binding/receipt authority. Neither the returned maximum nor
+`AdmittedMergeGroup` grants recovery or allocation authority. Watermark repair,
+transaction commit and checkpoint publication remain in the journal. Live writes
+reuse the same order-label and sequence-observation functions, not a second map.
+
+The [batch policy proof](fixtures/leselang_group_batch_policy_macos_arm64_20261023.json)
+covers 1,680 direct fault/trace/data comparisons across all 14 orders, zero/exactly
+10,000/over-limit batches, inclusive plan-byte limits, cross-group duplicates,
+fresh-pass reservation isolation and six owner/byte-read unwind boundaries.
+Move-only buffers and borrowed non-Send proof owners preserve original receipts
+without decoding them early. Existing 374 single-group and 364 multi-group SQLite
+comparisons retain the original tables. A real memory VM rejects forged leases
+and does not advance its allocator after a permissive inspection returns 9,000.
+
+This slice established reference `1.127.0`; native embedding `0.172.0`, HIR `0.184.0`, product
+`2.4.0`, wire formats and journal schema 10 stay unchanged. This closes the product
+batch-policy ownership slice, not complete host-neutral durable recovery. The
+remaining original binding/reservation proofs and final checkpoint orchestration
+must retain their snapshot/authority boundaries; native maturity and complete
+extraction are not promoted.
+
+### Product Group Reservation Recovery Ownership
+
+`leselang-command::reference_group_reservations` now owns the product rules for
+original successor reservations: canonical lookup keys, created-versus-cold slot
+presence, signed watermark conversion and `LSV1409` refusal mapping. It delegates
+the actual fence to the unchanged core `validate_reservation_proof`; there is no
+second generic reservation algorithm. A checked count difference also rejects a
+malformed direct-call shape instead of underflowing.
+
+`ReferenceReservationSource` supplies the original allocation watermark and
+effect/group namespace observations. Reads remain ordered: watermark once, then
+effect, group, binding shape and proof for each original reservation. Invalid
+watermarks do not bypass earlier native read errors. Unbound plans and bindings
+without a successor skip reads, as before; that bypass is not plan admission.
+Callers must first bound/admit the plan and original request graph, retain global
+uniqueness checks and use one authentic snapshot. VM recovery calls this stage
+after graph/capture proofs and before final bound-receipt correspondence.
+
+SQLite still owns the unchanged queries, original signed reads and database
+diagnostics. The adapter cannot repair a watermark, allocate a successor,
+evaluate saved code, commit or publish. In particular, imported high identities
+must not raise the watermark before the cold reservations have been proved.
+An inspected result from an unrelated or permissive source cannot authorize
+restoring a different journal.
+
+The [reservation policy proof](fixtures/leselang_group_reservation_policy_macos_arm64_20261023.json)
+records 4,608 frozen result/read-trace comparisons, sparse and boundary IDs,
+five owner-unwind boundaries and borrowed non-Send/dynamically dispatched sources.
+The SQLite cold-slot regression verifies refusal and unchanged original tables
+despite permissive external inspection, followed by successful recovery only
+after the original metadata is restored.
+
+This slice established reference `1.128.0`. Native embedding `0.172.0`, HIR `0.184.0`,
+product `2.4.0`, wire formats and journal schema 10 remain unchanged. Remaining
+bound-record/capture/terminal policy and final checkpoint coordination are not
+extracted by this slice. Native durable recovery, full vertical compatibility and
+the repository split remain open; native maturity is not promoted.
+
+### Product Bound Receipt Recovery Ownership
+
+`leselang-command::reference_bound_receipt::validate_bound_group_receipt` now
+owns the final bound-group receipt decisions. It consumes the unchanged shared
+outcome summary only for a bound terminal, retaining parallel aggregate-overflow
+precedence and sequential first-stop precedence before successor/scalar/fault
+checks. Tail receipts must match the original last step exactly; captured and
+conditional scalar exits retain their original saved-body classification and
+static type checks. Fault allowlists and native validation faults are unchanged.
+
+`GroupResultBinding::has_successor` is the single product-owned classifier used
+by both live VM paths and this recovery policy. It observes the original plan
+shape only, not current authority, valid reservations or permission to dispatch.
+The adapter does not receive a database or evaluator. It borrows the last saved
+binding and last step from original records; scalar values are replayed without
+recomputing or authenticating them. In particular, a same-type scalar or an
+external fabricated summary passing this check is not permission to replace a
+journal receipt. The VM still bounds and admits original records and proves
+graph, capture, successor and reservation correspondence on one snapshot before
+calling this policy, and commits before exposing recovered state.
+
+The [bound-receipt policy proof](fixtures/leselang_bound_receipt_policy_macos_arm64_20261023.json)
+tracks 26,400 frozen comparisons across all ten bound order forms, every saved
+successor prefix, terminal categories, saved-binding shapes and output/stop
+precedence, plus 300 classifier comparisons. Pending/unbound bypasses, closed
+summaries and lazy type-refusal ordering are covered separately. Real SQLite
+tests show fabricated external summaries cannot authorize forged receipts:
+reopen refuses without altering the original tables, while restoring original
+receipt bytes permits recovery without new dispatches.
+
+Reference execution is `1.129.0`; native embedding `0.172.0`, HIR `0.184.0`,
+product `2.4.0`, wire formats and journal schema 10 are unchanged. Bound-record
+stream admission/capture coordination and final checkpoint orchestration remain
+in the VM. Full native durable recovery, vertical compatibility and physical
+repository extraction remain open; this slice does not promote native maturity.
+
 **The current 2.3.0-and-later phase closes acceptance gates; physical extraction is deferred.**
 It is not an automatic version-triggered move. No replacement extraction version
 or date is assigned. Continue the shared implementation in this monorepo until

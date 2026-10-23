@@ -59,7 +59,7 @@ fn frozen_batch(connection: &Connection) -> Result<u64, Fault> {
         let plan: MergePlan = decode_bounded(&plan_bytes, MAX_CONTINUATION_BYTES)?;
         validate_merge_plan(&plan)
             .map_err(|_| journal_fault("LSV4007", "merge group plan is invalid"))?;
-        highest_sequence = highest_sequence.max(merge_reserved_sequence(&token, &plan));
+        highest_sequence = highest_sequence.max(frozen_reserved_sequence(&token, &plan));
         if let Some(binding) = &plan.result_binding {
             for sequence in binding.reserved_sequences() {
                 successor_reservations
@@ -67,7 +67,7 @@ fn frozen_batch(connection: &Connection) -> Result<u64, Fault> {
                     .map_err(|_| crate::group_binding::invalid())?;
             }
         }
-        if execution_order_label(plan.order) != order {
+        if frozen_order_label(plan.order) != order {
             return Err(journal_fault(
                 "LSV4007",
                 "execution order conflicts with group plan",
@@ -105,6 +105,38 @@ fn frozen_batch(connection: &Connection) -> Result<u64, Fault> {
         .finish()
         .map_err(|_| crate::group_binding::invalid())?;
     Ok(highest_sequence.max(reservations.highest_sequence))
+}
+
+fn frozen_order_label(order: ExecutionOrder) -> &'static str {
+    match order {
+        ExecutionOrder::Parallel
+        | ExecutionOrder::BoundParallel
+        | ExecutionOrder::ParallelGroupTail
+        | ExecutionOrder::ParallelGroupCapture
+        | ExecutionOrder::ParallelGroupDataflow
+        | ExecutionOrder::ParallelGroupConditional => "parallel",
+        ExecutionOrder::Sequential
+        | ExecutionOrder::BoundSequential
+        | ExecutionOrder::GroupTail
+        | ExecutionOrder::GroupCapture
+        | ExecutionOrder::ResultChain
+        | ExecutionOrder::Dataflow
+        | ExecutionOrder::GroupDataflow
+        | ExecutionOrder::GroupConditional => "sequential",
+    }
+}
+
+fn frozen_reserved_sequence(token: &ContinuationToken, plan: &MergePlan) -> u64 {
+    let group_sequence = leselang_command::continuation_identity::canonical_merge_sequence(token);
+    plan.result_binding
+        .iter()
+        .flat_map(|binding| binding.reserved_sequences())
+        .fold(
+            group_sequence
+                .or_else(|| crate::canonical_continuation_sequence(token))
+                .unwrap_or(0),
+            u64::max,
+        )
 }
 
 fn frozen(

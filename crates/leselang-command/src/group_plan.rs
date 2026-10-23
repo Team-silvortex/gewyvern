@@ -24,6 +24,15 @@ impl fmt::Display for InvalidGroupPlan {
 impl std::error::Error for InvalidGroupPlan {}
 
 impl GroupResultBinding {
+    /// Observe an appended successor in the original, already-admitted plan.
+    /// Shape correspondence and current request/recovery authority are separate gates.
+    pub fn has_successor(&self, plan: &MergePlan) -> bool {
+        self.successor_sequence.is_some()
+            && self
+                .plan_branches()
+                .is_ok_and(|branches| plan.branches.len() > branches.len())
+    }
+
     /// Borrow original group members without validating their shape or signatures.
     pub fn plan_branches(&self) -> Result<&[HirBranch], InvalidGroupPlan> {
         match &self.pending {

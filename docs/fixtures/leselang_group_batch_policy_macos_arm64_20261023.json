@@ -1,0 +1,173 @@
+{
+  "kind": "leselang-group-batch-policy",
+  "validated_on": "2026-10-23",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.127.0",
+  "adapter_batch_comparisons": 1680,
+  "direct_adapter_tests": 4,
+  "sqlite_group_comparisons": 374,
+  "sqlite_batch_comparisons": 364,
+  "native_hook_and_bytes_unwind_cases": 6,
+  "adapter_owned_batch_policy": true,
+  "shared_batch_kernel_reused": true,
+  "original_sql_queries_unchanged": true,
+  "original_snapshot_proofs_retained_in_vm": true,
+  "checkpoint_authority_unchanged": true,
+  "live_allocator_not_advanced_by_inspection": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "default_runtime_tests": 1758,
+  "memory_vm_tests": 274,
+  "root_architecture_tests": 530,
+  "strict_workspace_lints_passed": true,
+  "memory_all_target_lints_passed": true,
+  "format_checks_passed": true,
+  "native_no_default_check_passed": true,
+  "native_checkpoint_reused": true,
+  "new_native_export_performed": false,
+  "native_checkpoint": {
+    "reused_checkpoint": "/private/tmp/gewyvern-ci-native-20261023/export-manifest.json",
+    "verified": true,
+    "complete_vm": false,
+    "full_extraction_gate": false,
+    "total_files": 280,
+    "copied_sources": 270,
+    "source_and_export_mismatches": [],
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "new_export_performed": false
+  },
+  "scope": "Product batch count/token/plan/reservation/order/maximum policy delegates to the unchanged core runner. Original typed-row loading, same-snapshot namespace queries, member loading and binding/receipt proofs stay with the VM/journal. Live writes reuse the same labels and numeric observations; no inspection grants allocator repair, dispatch or checkpoint publication.",
+  "limitations": [
+    "Product-policy extraction only: native durable recovery and complete execution parity remain open. The snapshot owner must still bound aggregate reads and prove original binding/receipt authority before commit.",
+    "The previously verified standalone checkpoint was reused after rechecking all 270 copied sources and 280 exported files; no new source export or standalone test run was performed.",
+    "Local macOS Rust/SQLite validation only; no new Linux, GUI or remote CI execution."
+  ],
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "0aec36de08bcdc0912bd1d77aaa4131aebe15b00c97280df6f2dd19fab38f453"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_group_batch.rs",
+      "sha256": "ebd50163b0d425b4ea529969452fa060b5bdbe707017c82718e011aac015f4fa"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_group_batch.rs",
+      "sha256": "90b52e24fa42b5589dccd6cb2dce5244e6ecad5ddd9a4f0f7c25688d0c4af049"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "cc960043033567c7799360e408331d104079eaa707e827d40178808a5c7a5079"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_recovery_contract_tests.rs",
+      "sha256": "cb528045c5a41e30aacdc54250381bb50f20d8fa1b45bf065808f20723954a6d"
+    },
+    {
+      "path": "crates/leselang-vm/tests/ephemeral_profile.rs",
+      "sha256": "c9bd42353f5204510935c1f0cb09b6d6e31326c9fceec6661649c0a58f8c977f"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/group_recovery_batch.rs",
+      "sha256": "716310206017ac79a6edda1bd36e62105cbeba44213149da4d6b7f4d2d923c61"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/recovery_fence.rs",
+      "sha256": "72f3c2a451413a4a32d64315cdc76be60e892785ffeb8f3738c8285177b15dd9"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "ac216ccd823edd9523763100b8f6a119e59eeef3022a728566fbef89897e9f44"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "de6ef343c1a0e2b083ba9a07b839a303d6c0cf9fad1ba2d312cea73b9904e110"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "edf8980495c154ab154dd4fc01e8b43fd87be5a3b5b96cd807e13dfdc79b0a25"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "932b34e23673c336feffbda0e9aa2e5df648758b998f087c7362c96d050c5d15"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "3b1eaec9435cf61514c64f77ba38b24a3958e6f25a38cc29c744bce7ca92811e"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "cc449ad1a3918991f136d69f80396d04bf6a11a61754fb4c578db4be91c93dc9"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "direct",
+      "log": "/private/tmp/leselang-group-batch-policy-20261023-direct.log",
+      "sha256": "1069b3938a96c1f8949396144abbb2b28a84a6e1544777189b591bc95fd327ec"
+    },
+    {
+      "stage": "sqlite",
+      "log": "/private/tmp/leselang-group-batch-policy-20261023-sqlite.log",
+      "sha256": "e2973506eeece1cff827a4e9631b2262a0bd1112303c171cddee78ae030dd60d"
+    },
+    {
+      "stage": "authority",
+      "log": "/private/tmp/leselang-group-batch-policy-20261023-authority.log",
+      "sha256": "9d6484553b58697cd3eb4186f8d96e1b1fca6b402387dbed2c6484b39ce0ad8d"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-group-batch-policy-20261023-default.log",
+      "sha256": "058d6e94653e58ad30d036cc904403b1142b87f8be30d43284c8554c3a53670a"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-group-batch-policy-20261023-memory.log",
+      "sha256": "d58c2b5f5ba2e6221eecf82529f12c39da4125ddf8ab5d0c3dc7c4d488acf9e1"
+    },
+    {
+      "stage": "gates-final",
+      "log": "/private/tmp/leselang-group-batch-policy-20261023-gates-final.log",
+      "sha256": "e6d3f86eaee466ad6c3d97b4c033bc7b181c6b6a12375ac762b0f07585e5f75b"
+    },
+    {
+      "stage": "workspace-clippy-final",
+      "log": "/private/tmp/leselang-group-batch-policy-20261023-workspace-clippy-final.log",
+      "sha256": "d409c3a08e2277bb122ef2939807ab923c2b7adc417329faa3944eece73aec7e"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-group-batch-policy-20261023-memory-clippy.log",
+      "sha256": "5df1b4b17d9b44d3bd58eb75f2834c49c91a0bd07a46d4b0d4d7e50533224ef9"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-group-batch-policy-20261023-native-check.log",
+      "sha256": "ac035720d81df06bc4a0eb0ca3fb31ad53e0b57fc9acefb0b81fece08fc32641"
+    },
+    {
+      "stage": "native-checkpoint",
+      "log": "/private/tmp/leselang-group-batch-policy-20261023-native-checkpoint.log",
+      "sha256": "a1616e1b6bcf0154d246acc50f1a333d171969c102aaf9418d6e759d5b0bbfda"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-group-batch-policy-20261023-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "include-format",
+      "log": "/private/tmp/leselang-group-batch-policy-20261023-include-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

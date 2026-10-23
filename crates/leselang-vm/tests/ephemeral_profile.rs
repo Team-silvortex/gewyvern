@@ -14,6 +14,124 @@ use leselang_vm::{
 mod reference_dispatch_authority;
 
 #[test]
+fn inspected_group_cannot_publish_a_receipt_or_replace_live_member_authority() {
+    use leselang_command::reference_group_batch::{
+        AdmittedMergeGroup, ReferenceGroupBatchProofs, inspect_group_batch,
+    };
+    use leselang_command::reference_group_recovery::{ReferenceGroupProofs, inspect_group_record};
+    use leselang_runtime_core::Fault;
+    struct PermissiveProofs;
+    impl ReferenceGroupProofs for PermissiveProofs {
+        fn validate_chain(&mut self) -> Result<(), Fault> {
+            Ok(())
+        }
+        fn validate_blocked_dispatches(&mut self, _: usize) -> Result<(), Fault> {
+            Ok(())
+        }
+        fn validate_unbound_receipt(&mut self, _: &Step) -> Result<(), Fault> {
+            Ok(())
+        }
+        fn validate_records(&mut self, _: Option<&Step>) -> Result<(), Fault> {
+            Ok(())
+        }
+    }
+    impl<'a> ReferenceGroupBatchProofs<&'a [u8]> for PermissiveProofs {
+        fn token_conflicts(
+            &mut self,
+            _: &leselang_command::ContinuationToken,
+        ) -> Result<bool, Fault> {
+            Ok(false)
+        }
+        fn inspect_group(&mut self, _: AdmittedMergeGroup<&'a [u8]>) -> Result<(), Fault> {
+            Ok(())
+        }
+    }
+    let mut vm = Vm::new(100);
+    let Step::Effects(batch) = start(
+        &mut vm,
+        r#"fn main() = all(a: ui.focus(node_id: "a"), b: ui.focus(node_id: "b"))"#,
+    ) else {
+        panic!("expected group")
+    };
+    let plan = leselang_command::MergePlan::new(["a", "b"]).unwrap();
+    let forged = Step::Done(Value::UiFocus {
+        node_id: "forged-group-result".into(),
+    });
+    let bytes = serde_json::to_vec(&forged).unwrap();
+    let rows = batch
+        .branches
+        .iter()
+        .enumerate()
+        .map(|(index, branch)| {
+            (
+                branch.branch.clone(),
+                index as i64,
+                "completed".into(),
+                Some(bytes.clone()),
+                branch.request.continuation.token.as_str().into(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let pending = vm.pending_continuations();
+    assert_eq!(
+        inspect_group_record(
+            &mut PermissiveProofs,
+            &batch.merge_token,
+            &plan,
+            &rows,
+            "completed",
+            Some(bytes.as_slice())
+        ),
+        Ok(())
+    );
+    assert_eq!(vm.merge_result(&batch.merge_token).unwrap(), None);
+    assert_eq!(vm.pending_continuations(), pending);
+    assert_eq!(vm.completed_count(), 0);
+    let plan_bytes = serde_json::to_vec(&plan).unwrap();
+    assert_eq!(
+        inspect_group_batch(
+            vec![(
+                "merge-9000".into(),
+                plan_bytes.as_slice(),
+                "completed".into(),
+                Some(bytes.as_slice()),
+                "parallel".into()
+            )],
+            &mut PermissiveProofs,
+        ),
+        Ok(9000)
+    );
+    assert_eq!(vm.pending_continuations(), pending);
+    assert_eq!(vm.merge_result(&batch.merge_token).unwrap(), None);
+    assert_eq!(vm.completed_count(), 0);
+    let lease = vm.claim_effect(1, 100).unwrap().unwrap();
+    let mut stale = lease.clone();
+    stale.attempt += 1;
+    assert!(
+        matches!(vm.acknowledge_effect(&stale, 2, focus("fake")), Step::Fault(f) if f.code == "LSV4022")
+    );
+    assert_eq!(vm.merge_result(&batch.merge_token).unwrap(), None);
+    assert!(
+        matches!(vm.acknowledge_effect(&lease, 2, focus("a")), Step::Waiting(wait) if wait.completed_branches == 1)
+    );
+    let second = vm.claim_effect(3, 100).unwrap().unwrap();
+    vm.acknowledge_effect(&second, 4, focus("b"));
+    let receipt = vm.merge_result(&batch.merge_token).unwrap().unwrap();
+    assert_ne!(receipt, forged);
+    assert_eq!(vm.acknowledge_effect(&lease, 5, focus("changed")), receipt);
+    assert_eq!(vm.merge_result(&batch.merge_token).unwrap(), Some(receipt));
+    let next = effect(start(&mut vm, r#"fn main() = ui.focus(node_id: "next")"#));
+    assert!(
+        leselang_command::continuation_identity::canonical_continuation_sequence(
+            &next.continuation.token,
+        )
+        .unwrap()
+            < 9000,
+        "an inspected maximum cannot advance the live allocator"
+    );
+}
+
+#[test]
 fn inspected_record_is_not_authority_to_replace_a_live_continuation() {
     use leselang_command::ContinuationImage;
     use leselang_command::reference_recovery::{ReferenceRecordSource, inspect_effect_record};

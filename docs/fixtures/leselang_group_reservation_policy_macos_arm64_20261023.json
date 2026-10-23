@@ -1,0 +1,164 @@
+{
+  "kind": "leselang-group-reservation-policy",
+  "validated_on": "2026-10-23",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.128.0",
+  "adapter_reservation_comparisons": 4608,
+  "direct_adapter_tests": 4,
+  "sqlite_group_tail_tests": 19,
+  "owner_unwind_cases": 5,
+  "adapter_owned_reservation_policy": true,
+  "shared_reservation_proof_reused": true,
+  "original_sql_queries_unchanged": true,
+  "same_snapshot_authority_retained_in_vm": true,
+  "original_watermark_before_repair": true,
+  "permissive_inspection_cannot_authorize_reopen": true,
+  "checked_direct_call_count_difference": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Product reservation key/presence/watermark/refusal policy delegates to the unchanged shared fence. VM retains original same-snapshot queries after request/capture admission and before bound-terminal correspondence. Inspection cannot allocate, repair, execute, commit or publish.",
+  "limitations": [
+    "Bound record/capture/terminal policy and final checkpoint coordination remain in the reference VM; native durable recovery and complete extraction remain open.",
+    "Local macOS Rust/SQLite checks only; no new Linux, GUI or remote CI execution.",
+    "The previously verified standalone checkpoint was reused after rechecking 270 copied sources and 280 exported files; no new standalone export or standalone test execution."
+  ],
+  "default_runtime_tests": 1762,
+  "memory_vm_tests": 274,
+  "root_architecture_tests": 531,
+  "strict_workspace_lints_passed": true,
+  "memory_all_target_lints_passed": true,
+  "format_checks_passed": true,
+  "native_no_default_check_passed": true,
+  "native_checkpoint_reused": true,
+  "new_native_export_performed": false,
+  "native_checkpoint": {
+    "reused_checkpoint": "/private/tmp/gewyvern-ci-native-20261023/export-manifest.json",
+    "verified": true,
+    "complete_vm": false,
+    "full_extraction_gate": false,
+    "total_files": 280,
+    "copied_sources": 270,
+    "source_and_export_mismatches": [],
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "new_export_performed": false
+  },
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "c38e3601012f30787b5ac69a499248131d239bda218728de6b94c3707e2ae1c4"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_group_reservations.rs",
+      "sha256": "c8657304770ea48845386f9dc2e1d94e8869be1f98f4a1fa8ddebb7426b573e1"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_group_reservations.rs",
+      "sha256": "acb795e3b04d0763533a5ede8fa0c643adc6ce8884634009abaf80495f99efaf"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_binding.rs",
+      "sha256": "0d136bdf08683558a61827036f54c4f5d27a4310b2282d5924f69929725a2605"
+    },
+    {
+      "path": "crates/leselang-vm/tests/group_tail.rs",
+      "sha256": "7ff02c26a8d917689dffcbe9dbdbccd098a7625f2f29f124992c86cf39f8bfc7"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/recovery_fence.rs",
+      "sha256": "72f3c2a451413a4a32d64315cdc76be60e892785ffeb8f3738c8285177b15dd9"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "cc960043033567c7799360e408331d104079eaa707e827d40178808a5c7a5079"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "d7d168f323982b02bdbec13c9f437aca5ab061586d7bd937e9c3103e1d254cee"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "df34351c682cd605b93b3119eb669a58888bbf17a624ec2c379d55f0bd5404dd"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "d8ff4000850ed2a8d4082bf3c8f3c09f3e66db9650bc4fa6be78ce0588bf3713"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "0cbcf77e6bd0bd9d3478e7655ed785a593f75c69ffc08ba13c63755d08221b59"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "dba47b04004022559a45b4f016fa6efa41bc303ed995c7ff8fa1d5f11f45c2c8"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "f63e35bfb001a3d54058c7b3478ba6d114ec1851d0bd2a2310a716982955e710"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "direct",
+      "log": "/private/tmp/leselang-group-reservation-policy-20261023-direct.log",
+      "sha256": "a24307e89943e4e1eb9adbc1101f5894716b01acff9a3d5166c3d04352a1481c"
+    },
+    {
+      "stage": "sqlite",
+      "log": "/private/tmp/leselang-group-reservation-policy-20261023-sqlite.log",
+      "sha256": "98032f4c09c165297b6a4a1f4fc8133f2ccc6c3c54562b505a5fdb4445126cb1"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-group-reservation-policy-20261023-default.log",
+      "sha256": "fc2b03272521138c9b7de513b8d472b9dab28c1d21b5d10cf17ef6a59c4468f8"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-group-reservation-policy-20261023-memory.log",
+      "sha256": "d446e3a39707c11997683ea36354e4453f65f60ecdac8d2b27ce514254654dfd"
+    },
+    {
+      "stage": "gates",
+      "log": "/private/tmp/leselang-group-reservation-policy-20261023-gates.log",
+      "sha256": "8b53f852fb3f7a7f6438ca007540f0bdbd998f5f83d10c8c18d2abeef8582f3b"
+    },
+    {
+      "stage": "workspace-clippy",
+      "log": "/private/tmp/leselang-group-reservation-policy-20261023-workspace-clippy.log",
+      "sha256": "08355c7e363e0547d9626c56cb868f8de56214a408f30d58d5cf55ce017466d9"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-group-reservation-policy-20261023-memory-clippy.log",
+      "sha256": "d170e302e8ba1caf615944dc0004f5fa02307287b49b89703f06b1530ed9a2cf"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-group-reservation-policy-20261023-native-check.log",
+      "sha256": "19c7d339b4005a4b806c4702591d05093488aaa8325e20bb98cef34eb2dc2605"
+    },
+    {
+      "stage": "native-checkpoint",
+      "log": "/private/tmp/leselang-group-reservation-policy-20261023-native-checkpoint.log",
+      "sha256": "a1616e1b6bcf0154d246acc50f1a333d171969c102aaf9418d6e759d5b0bbfda"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-group-reservation-policy-20261023-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "include-format",
+      "log": "/private/tmp/leselang-group-reservation-policy-20261023-include-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

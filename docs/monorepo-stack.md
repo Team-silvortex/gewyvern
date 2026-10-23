@@ -27,7 +27,7 @@ changing a cross-project boundary.
 | [`crates/leselang-hir/`](../crates/leselang-hir) | native host-defined IR and optional Leserpent lowering | typed automation intent; feature-dependent boundary |
 | [`crates/leselang-vm/`](../crates/leselang-vm) | native facade and feature-gated reference evaluator/journal | session execution; not yet a fully extracted durable VM |
 | [`crates/leselang-host-contract/`](../crates/leselang-host-contract) | reference-host identities, capabilities and ABI values | host exchange types without a product runtime dependency |
-| [`crates/leselang-command/`](../crates/leselang-command) | Leserpent protocol payloads, codecs and pure command lowering | product adapter, not generic language core |
+| [`crates/leselang-command/`](../crates/leselang-command) | Leserpent protocol payloads, codecs, pure lowering, merge-output and record/dispatch/group/batch/reservation/bound-receipt recovery policy | product adapter, not generic language core; no storage, saved-expression execution or checkpoint authority |
 | [`crates/leselang-ui/`](../crates/leselang-ui) | renderer-neutral Leserpent UI IR | product presentation contract, not a GUI toolkit |
 | [`crates/leselang-observe/`](../crates/leselang-observe) | sanitized projections and optional reference-VM bridge | product observation; read-only does not require a VM |
 | [`crates/leserpent-runtime/`](../crates/leserpent-runtime) | transactions, journal, effects, projections | durable control truth |

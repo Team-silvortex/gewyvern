@@ -311,6 +311,27 @@ fn bound_output_precedence_receipts_cannot_replace_aggregate_or_first_stop() {
                 value: ScalarValue::Boolean(true),
             })
         };
+        // A fabricated summary is not authority to publish this journal's receipt.
+        let inspected_plan = serde_json::from_slice(&plan).unwrap();
+        let mut fabricated = leselang_runtime_core::OrderedOutcomeSummary::new(
+            if parallel {
+                leselang_runtime_core::OutcomeOrder::Parallel
+            } else {
+                leselang_runtime_core::OutcomeOrder::Sequential
+            },
+            64,
+            10_000,
+        )
+        .unwrap();
+        fabricated.observe_stop(forged.clone()).unwrap();
+        leselang_command::reference_bound_receipt::validate_bound_group_receipt(
+            &inspected_plan,
+            None,
+            None,
+            fabricated,
+            Some(&forged),
+        )
+        .unwrap();
         let watermark: i64 = connection
             .query_row("SELECT next_sequence FROM vm_metadata", [], |row| {
                 row.get(0)

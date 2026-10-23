@@ -1,0 +1,173 @@
+{
+  "kind": "leselang-bound-receipt-policy",
+  "validated_on": "2026-10-23",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.129.0",
+  "adapter_receipt_comparisons": 26400,
+  "successor_classification_comparisons": 300,
+  "direct_adapter_tests": 4,
+  "sqlite_receipt_tests": 6,
+  "adapter_owned_bound_receipt_policy": true,
+  "shared_outcome_summary_reused": true,
+  "single_product_successor_classifier": true,
+  "original_snapshot_proofs_retained_in_vm": true,
+  "pending_and_unbound_skip_summary_finish": true,
+  "saved_scalar_never_recomputed_or_authenticated": true,
+  "fabricated_summary_cannot_authorize_reopen": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Product bound receipt policy consumes the original shared outcome summary, then applies unchanged stop, successor, scalar and fault decisions. VM retains original bounded row admission, capture/graph/reservation proofs and transactional checkpoint publication. Successor shape classification is shared by live and recovery paths without granting authority.",
+  "limitations": [
+    "Receipt correspondence alone does not authenticate input observations or same-type scalar values. The original durable owner must prove complete records and authority before commit.",
+    "Bound-record stream/capture coordination and final checkpoint orchestration remain VM-owned. Full native durable recovery and complete extraction remain open.",
+    "Local macOS Rust/SQLite validation only; no new Linux, GUI or remote CI execution.",
+    "The previously verified standalone checkpoint was reused after rechecking 270 copied sources and 280 exported files; no new standalone export or standalone test run was performed."
+  ],
+  "default_runtime_tests": 1766,
+  "memory_vm_tests": 274,
+  "root_architecture_tests": 532,
+  "strict_workspace_lints_passed": true,
+  "memory_all_target_lints_passed": true,
+  "format_checks_passed": true,
+  "native_no_default_check_passed": true,
+  "native_checkpoint_reused": true,
+  "new_native_export_performed": false,
+  "native_checkpoint": {
+    "reused_checkpoint": "/private/tmp/gewyvern-ci-native-20261023/export-manifest.json",
+    "verified": true,
+    "complete_vm": false,
+    "full_extraction_gate": false,
+    "total_files": 280,
+    "copied_sources": 270,
+    "source_and_export_mismatches": [],
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "new_export_performed": false
+  },
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "8176b4c242f062eb704f560b76d0eb113537867fa1d500fa47318322185b85b2"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_bound_receipt.rs",
+      "sha256": "0e57545fd1f6323f6132abcff0d282be69378e38ddbdce6bcbcaf6c793265cc2"
+    },
+    {
+      "path": "crates/leselang-command/src/group_plan.rs",
+      "sha256": "cc2a581e4c643365a778d229031ea2250e2cdda145d9e9d3a80722a382d54590"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_bound_receipt.rs",
+      "sha256": "668e1b3512478757e51571126bcbdb9bb2e1486e02b6e279b0f69e249e7f29bf"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_binding.rs",
+      "sha256": "8decedea7af1241e5bdef1cab12cfad1e18e68cf4b4da93b4c6fcab66b8d54a4"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_binding.rs",
+      "sha256": "9d6524aad38a35fef89ecbecdb5384b8f62f036160a48fac4fed812aafce6b2c"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "e5b904c52152e3d15c54c99ee2d3650d5332b31fd7d26d6331831e18605d60ca"
+    },
+    {
+      "path": "crates/leselang-vm/tests/group_receipts.rs",
+      "sha256": "db47a952a4af5deeee7821002483addbafe4a5ecf3dad1d45ecd831cf776e891"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/outcome_summary.rs",
+      "sha256": "173c31de78254413ae2daf5ce831a19018fd126325d7507cf1acb984cebb8d1b"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "0b3fbef6a2fdce48c94138a86716fdfbace91942a00d953090db7c6df5dac61b"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "daf6a25483f6fb2cfede922b5586dba6f95198a201eecd1daed8424e739ebbd7"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "2b39047151415f5e3d67cb84c04a1aa0fcb10b379e0af1707c8d60725ca8ae47"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "208affa7feb462e21e4ebc0769d17c181a860288bb7679590e18cac5092303fa"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "513926234c4e0e6faf56af1696ebd192bec5af01201049f4908158332f3133c2"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "762092b9439c9850b9f4a8165045e0bbd56757cb899d81e3d74acf887b3531af"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "direct",
+      "log": "/private/tmp/leselang-bound-receipt-policy-20261023-direct.log",
+      "sha256": "7a9eaa4a5ce596f4ff4eafb49f99719cf503ca10d197cb2bad15d036b77dd2bd"
+    },
+    {
+      "stage": "sqlite",
+      "log": "/private/tmp/leselang-bound-receipt-policy-20261023-sqlite.log",
+      "sha256": "547ba95423bc4f6ff34e4eae06efee5bb2bb00a00ce84ba5f7fd900a70aff228"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-bound-receipt-policy-20261023-default.log",
+      "sha256": "c7bc231c0afb7a05e4f63cca109d1fe317a82449a7e0bf69ebbae3279d607e0e"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-bound-receipt-policy-20261023-memory.log",
+      "sha256": "f97559b2930ba257e56f9a6e7cf34b2dbaa4c690961a4e6728e72438c15274e5"
+    },
+    {
+      "stage": "gates-final",
+      "log": "/private/tmp/leselang-bound-receipt-policy-20261023-gates-final.log",
+      "sha256": "65be54b41225c5ebf3731d957dfae51896ade88bb320ce1c75aa8a3df11cbfed"
+    },
+    {
+      "stage": "workspace-clippy-final",
+      "log": "/private/tmp/leselang-bound-receipt-policy-20261023-workspace-clippy-final.log",
+      "sha256": "c2843dffb91e4fc45c7968f587acf83382b0e8c1ea0dccdc4eae71ecf2825377"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-bound-receipt-policy-20261023-memory-clippy.log",
+      "sha256": "b55e0f3949537aa5454b432d2994521c1eeb7a073d8fe05a0f36764c488ffbb9"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-bound-receipt-policy-20261023-native-check.log",
+      "sha256": "f155d4b7be9d96c23eb37e6f6d754732008ce61130cfc99fcb5ab7aec7a54007"
+    },
+    {
+      "stage": "native-checkpoint",
+      "log": "/private/tmp/leselang-bound-receipt-policy-20261023-native-checkpoint.log",
+      "sha256": "a1616e1b6bcf0154d246acc50f1a333d171969c102aaf9418d6e759d5b0bbfda"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-bound-receipt-policy-20261023-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "include-format",
+      "log": "/private/tmp/leselang-bound-receipt-policy-20261023-include-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}
