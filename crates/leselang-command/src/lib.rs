@@ -4,6 +4,7 @@ pub mod bounded_json;
 mod capture_replay;
 mod capture_scope;
 mod continuation_admission;
+pub mod continuation_identity;
 pub mod continuation_schema;
 mod control_plane_reply;
 mod control_plane_request;
@@ -12,6 +13,7 @@ pub mod debugger_audit;
 mod effect_preparation;
 mod effect_value;
 mod execution_environment;
+pub mod execution_outcome;
 mod group_admission;
 mod group_continuation;
 mod group_plan;
@@ -29,6 +31,8 @@ mod presentation_value;
 mod projected_group;
 mod projected_result;
 mod projection_access;
+pub mod reference_continuation;
+pub mod reference_request;
 mod request_admission;
 mod request_codec;
 mod request_correspondence;
@@ -38,9 +42,11 @@ mod result_view;
 pub mod retention_policy;
 pub mod retry_policy;
 mod scalar_projection;
+pub mod scheduler_policy;
 mod structured_value;
 mod successor_admission;
 mod successor_correspondence;
+pub mod terminal_outcome;
 mod value;
 mod value_validation;
 pub use capture_replay::{
@@ -53,12 +59,17 @@ pub use capture_scope::{
 pub use continuation_admission::{
     ContinuationAdmissionError, ContinuationAdmissionLimits, validate_continuation_frame,
 };
+pub use continuation_identity::ContinuationToken;
 pub use control_plane_request::{command_matches_effect, query_matches_effect};
 pub use debugger_audit::{DebuggerAuditContext, DebuggerAuditRecord};
 pub use effect_preparation::{EffectPreparationError, prepare_preflighted_effect_in_scope};
 pub use effect_value::{EffectValueContext, EffectValueError};
 pub use execution_environment::{
     PreflightedResultEnvironment, ResultExecutionHost, ResultExecutionLimits,
+};
+pub use execution_outcome::{
+    DispatchClaim, DispatchLease, FailedEffect, MergeWait, NamedEffectRequest, RetryDisposition,
+    RetrySchedule, Step, StructuredEffectBatch,
 };
 pub use group_admission::{GroupBindingError, GroupBindingLimits, validate_group_binding};
 pub use group_continuation::GroupResultBinding;
@@ -85,6 +96,10 @@ pub use projected_group::{
 };
 pub use projected_result::{InvalidProjectedResult, ProjectedField, ProjectedResult};
 pub use projection_access::validate_captured_projection_accesses;
+pub use reference_continuation::{
+    MAX_CONTINUATION_BYTES, decode_continuation, encode_continuation,
+};
+pub use reference_request::{ContinuationImage, EffectRequest};
 pub use request_admission::{RequestAdmissionError, validate_effect_request};
 pub use request_codec::{DecodedEffectRequest, decode_effect_request};
 pub use request_correspondence::{
@@ -97,6 +112,7 @@ pub use result_domain::{ResultValueDomain, ResultValueError, ResultValueHost};
 pub use result_view::{ResultView, ResultViewError};
 pub use retention_policy::{CompactionReport, RetentionPolicy};
 pub use retry_policy::{EffectError, EffectErrorClass, RetryPolicy};
+pub use scheduler_policy::{SchedulerLimits, SchedulerPressure};
 pub use structured_value::{ValueBoundsError, ValueValidationLimits, validate_value_items};
 pub use successor_admission::{
     SuccessorAdmissionError, SuccessorAdmissionHost, validate_successor_pair,
@@ -104,6 +120,7 @@ pub use successor_admission::{
 pub use successor_correspondence::{
     SuccessorCorrespondenceError, validate_preflighted_successor_pair,
 };
+pub use terminal_outcome::{BranchCompletion, BranchOutcome, Cancellation, CancellationReason};
 pub use value::{StructuredField, Value};
 
 use leselang_hir::Effect;
@@ -162,14 +179,15 @@ pub fn encode_plan(plan: &CommandPlan) -> Result<Vec<u8>, PlanCodecError> {
 }
 
 pub fn decode_plan(bytes: &[u8]) -> Result<CommandPlan, PlanCodecError> {
-    if bytes.len() > MAX_COMMAND_PLAN_BYTES {
-        return Err(PlanCodecError::Oversized {
-            size: bytes.len(),
-            limit: MAX_COMMAND_PLAN_BYTES,
-        });
-    }
-    let plan: CommandPlan = serde_json::from_slice(bytes)
-        .map_err(|error| PlanCodecError::InvalidJson(error.to_string()))?;
+    let plan: CommandPlan =
+        bounded_json::decode(bytes, MAX_COMMAND_PLAN_BYTES).map_err(|error| match error {
+            bounded_json::BoundedJsonDecodeError::Limit { size, limit } => {
+                PlanCodecError::Oversized { size, limit }
+            }
+            bounded_json::BoundedJsonDecodeError::Deserialize(error) => {
+                PlanCodecError::InvalidJson(error.to_string())
+            }
+        })?;
     if plan.schema_version != COMMAND_PLAN_SCHEMA_VERSION {
         return Err(PlanCodecError::UnsupportedSchema {
             actual: plan.schema_version,

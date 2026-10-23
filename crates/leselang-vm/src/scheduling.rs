@@ -1,44 +1,27 @@
-use leselang_runtime_core::{
-    DispatchAdmissionError, check_dispatch_admission, dispatch_lease_capacity_exhausted,
+use leselang_command::scheduler_policy::{
+    check_scheduler_admission, scheduler_lease_capacity_exhausted, validate_scheduler_limits,
 };
-use serde::{Deserialize, Serialize};
+use leselang_runtime_core::DispatchAdmissionError;
 
-use crate::{DispatchLease, Fault, MAX_JOURNAL_RECORDS};
+use crate::Fault;
 
-/// Trusted host policy, applied consistently by every worker of one journal namespace.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct SchedulerLimits {
-    pub max_pending_dispatches: usize,
-    pub max_active_leases: usize,
+pub use leselang_command::{DispatchClaim, SchedulerLimits, SchedulerPressure};
+
+pub(crate) trait ReferenceSchedulerLimits {
+    fn validate(self) -> Result<(), Fault>;
+    fn check_admission(self, pending: usize, additional: usize) -> Result<(), Fault>;
 }
 
-impl Default for SchedulerLimits {
-    fn default() -> Self {
-        Self {
-            max_pending_dispatches: MAX_JOURNAL_RECORDS,
-            max_active_leases: MAX_JOURNAL_RECORDS,
-        }
-    }
-}
-
-impl SchedulerLimits {
-    pub(crate) fn validate(self) -> Result<(), Fault> {
-        if self.max_pending_dispatches == 0
-            || self.max_pending_dispatches > MAX_JOURNAL_RECORDS
-            || self.max_active_leases == 0
-            || self.max_active_leases > MAX_JOURNAL_RECORDS
-        {
-            return Err(Fault {
-                code: "LSV2500".into(),
-                message: "scheduler limits must be between 1 and the journal record limit".into(),
-            });
-        }
-        Ok(())
+impl ReferenceSchedulerLimits for SchedulerLimits {
+    fn validate(self) -> Result<(), Fault> {
+        validate_scheduler_limits(self).map_err(|error| Fault {
+            code: "LSV2500".into(),
+            message: error.to_string(),
+        })
     }
 
-    pub(crate) fn check_admission(self, pending: usize, additional: usize) -> Result<(), Fault> {
-        check_dispatch_admission(pending, additional, self.max_pending_dispatches).map_err(|error| match error {
+    fn check_admission(self, pending: usize, additional: usize) -> Result<(), Fault> {
+        check_scheduler_admission(self, pending, additional).map_err(|error| match error {
             DispatchAdmissionError::BatchTooLarge => Fault {
                 code: "LSV2503".into(),
                 message: format!(
@@ -57,21 +40,17 @@ impl SchedulerLimits {
     }
 }
 
-/// A read-only authoritative outbox snapshot, not a VM-local continuation count.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct SchedulerPressure {
-    pub pending_dispatches: usize,
-    pub active_leases: usize,
-    pub limits: SchedulerLimits,
+pub(crate) trait ReferenceSchedulerPressure {
+    fn lease_capacity_exhausted(self) -> bool;
+    fn lease_fault(self) -> Fault;
 }
 
-impl SchedulerPressure {
-    pub(crate) fn lease_capacity_exhausted(self) -> bool {
-        dispatch_lease_capacity_exhausted(self.active_leases, self.limits.max_active_leases)
+impl ReferenceSchedulerPressure for SchedulerPressure {
+    fn lease_capacity_exhausted(self) -> bool {
+        scheduler_lease_capacity_exhausted(self)
     }
 
-    pub(crate) fn lease_fault(self) -> Fault {
+    fn lease_fault(self) -> Fault {
         Fault {
             code: "LSV2502".into(),
             message: format!(
@@ -80,18 +59,4 @@ impl SchedulerPressure {
             ),
         }
     }
-}
-
-/// Backpressure never grants a lease or increments a delivery attempt.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(
-    tag = "kind",
-    content = "payload",
-    rename_all = "snake_case",
-    deny_unknown_fields
-)]
-pub enum DispatchClaim {
-    Leased(Box<DispatchLease>),
-    Idle,
-    Backpressured(SchedulerPressure),
 }

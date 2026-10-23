@@ -5,7 +5,7 @@ fn fixture() -> (EphemeralJournal, Vec<(ContinuationToken, Step)>) {
     let mut local = Vec::new();
     let original = crate::continuation_contract_tests::requests().remove(0);
     for sequence in 1..=7 {
-        let token = ContinuationToken(format!("continuation-{sequence}"));
+        let token = ContinuationToken::from_wire(format!("continuation-{sequence}"));
         let mut request = original.clone();
         request.continuation.token = token.clone();
         let step = Step::Done(crate::Value::Scalar {
@@ -48,7 +48,7 @@ fn fixture() -> (EphemeralJournal, Vec<(ContinuationToken, Step)>) {
     }
     for (name, first, completed) in [("finished", 3, true), ("live", 5, false)] {
         journal.merge_groups.insert(
-            ContinuationToken(name.into()),
+            ContinuationToken::from_wire(name.into()),
             EphemeralMergeGroup {
                 plan: MergePlan {
                     order: ExecutionOrder::Parallel,
@@ -56,8 +56,8 @@ fn fixture() -> (EphemeralJournal, Vec<(ContinuationToken, Step)>) {
                     result_binding: None,
                 },
                 branch_tokens: vec![
-                    ContinuationToken(format!("continuation-{first}")),
-                    ContinuationToken(format!("continuation-{}", first + 1)),
+                    ContinuationToken::from_wire(format!("continuation-{first}")),
+                    ContinuationToken::from_wire(format!("continuation-{}", first + 1)),
                 ],
                 terminal_step: completed.then_some(Step::Done(crate::Value::Scalar {
                     value: crate::ScalarValue::Integer(7),
@@ -136,13 +136,13 @@ fn successful_compaction_keeps_frozen_reports_units_protection_and_audit_cascade
                 assert!(
                     actual
                         .dispatches
-                        .contains_key(&ContinuationToken(token.into()))
+                        .contains_key(&ContinuationToken::from_wire(token.into()))
                 );
             }
             assert!(
                 actual
                     .merge_groups
-                    .contains_key(&ContinuationToken("live".into()))
+                    .contains_key(&ContinuationToken::from_wire("live".into()))
             );
         }
     }
@@ -152,8 +152,8 @@ fn successful_compaction_keeps_frozen_reports_units_protection_and_audit_cascade
 fn late_encoding_refusal_keeps_the_entire_memory_batch_and_audits_unchanged() {
     for defect in 0..5 {
         let (mut journal, mut local) = fixture();
-        let group = ContinuationToken("finished".into());
-        let branch = ContinuationToken("continuation-4".into());
+        let group = ContinuationToken::from_wire("finished".into());
+        let branch = ContinuationToken::from_wire("continuation-4".into());
         let oversized_step = || {
             Step::Fault(Fault {
                 code: "fixture".into(),
@@ -258,11 +258,13 @@ fn adapter_policy_uses_the_released_vm_api_and_refuses_before_local_or_journal_m
                     vm.compact_journal(&policy).unwrap_err(),
                     expected.unwrap_err()
                 );
+                #[cfg(feature = "sqlite-journal")]
                 let journal = match &vm.journal {
                     Journal::Ephemeral(journal) => journal,
-                    #[cfg(feature = "sqlite-journal")]
                     Journal::Sqlite(_) => unreachable!(),
                 };
+                #[cfg(not(feature = "sqlite-journal"))]
+                let Journal::Ephemeral(journal) = &vm.journal;
                 assert_eq!(snapshot(journal), before);
                 assert_eq!(
                     serde_json::to_vec(&vm.completed.iter().collect::<Vec<_>>()).unwrap(),

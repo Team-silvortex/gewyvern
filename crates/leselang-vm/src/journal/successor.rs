@@ -114,7 +114,7 @@ impl Journal {
         };
         let sequence =
             crate::canonical_continuation_sequence(&next.continuation.token).ok_or_else(invalid)?;
-        let group = ContinuationToken(format!("merge-{sequence}"));
+        let group = ContinuationToken::from_wire(format!("merge-{sequence}"));
         match self {
             Self::Ephemeral(journal) => {
                 validate_continuation_encoding_size(&next.continuation)?;
@@ -319,7 +319,7 @@ impl SqliteJournal {
                     .map_err(|error| journal_error("LSV4034", "failed to stop dataflow", error))?;
                 return Ok(stop);
             }
-            (ContinuationToken(token), plan, bytes.len(), true)
+            (ContinuationToken::from_wire(token), plan, bytes.len(), true)
         } else {
             (group.clone(), plan.clone(), 0, false)
         };

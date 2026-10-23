@@ -1,0 +1,232 @@
+{
+  "kind": "leselang-reference-observe-boundary",
+  "validated_on": "2026-10-23",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "reference_execution_contract": "1.117.0",
+  "native_embedding_contract": "0.171.0",
+  "read_only_tests": 5,
+  "memory_bridge_tests": 18,
+  "daemon_debugger_tests": 42,
+  "new_public_consumer_tests": 7,
+  "dependency_configurations_checked": 4,
+  "read_only_has_no_vm_or_sqlite_including_dev_dependencies": true,
+  "memory_bridge_has_no_sqlite": true,
+  "default_vm_and_sqlite_preserved": true,
+  "explicit_sqlite_matches_default_dependencies": true,
+  "original_mutation_body_unchanged": true,
+  "original_static_request_admission_retained": true,
+  "original_projection_and_inspection_bodies_unchanged": true,
+  "unknown_and_forged_images_refused_without_audit": true,
+  "dry_run_encoding_and_replay_timestamp_retained": true,
+  "daemon_debugger_tests_passed": true,
+  "features_are_authorization": false,
+  "projection_grants_cancellation": false,
+  "host_neutral_observer": false,
+  "wire_or_journal_schema_changed": false,
+  "new_native_api": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "leselang-observe read-only projections, mutation observation DTOs and debugger cancellation-plan inspection use the existing product adapter request and its full static admission without linking leselang-vm or SQLite. The optional vm-bridge exposes the original public cancellation functions; sqlite-journal preserves the released default and forwards durable storage support. Actual normal/build/dev dependency closures distinguish read-only, memory bridge, default and explicit SQLite. The three original function blocks (mutation, plan inspection, complete log/debugger projection and sanitizer) are byte-identical to the recorded Git baseline. Existing live-VM tests are retained under the bridge; five additional public read-only tests use received data without an evaluator. Two bridge tests preserve dry-run image admission and rejection of unknown or altered live images without attributing an audit, then verify original-state cancellation and idempotent audit timestamps. The 42 actual daemon debugger tests pass. Static decoding/projection/inspection and Applied DTOs do not authenticate grants, prove a live continuation or settle work. Cargo features are additive, not a security boundary. The observer remains product-specific, and complete host-neutral durable VM recovery and full repository extraction remain open. Native source checkpoint verification is rerun unchanged; its manifest still reports incomplete full-VM/extraction gates.",
+  "body_parity": {
+    "baseline_commit": "c99461ff32801066d43ab40f07682a96a61d150e",
+    "byte_identical_function_bodies": true,
+    "comparisons": [
+      {
+        "kind": "mutation",
+        "sha256": "f42cbef66682904ceb0f3a3346f7304b5b4c3c7e4f0e07848bad27fb85414ed1"
+      },
+      {
+        "kind": "inspection",
+        "sha256": "3443c1844adbf1e89a9dc2fe3eab102d968c8e7ee054f06ff15111860808255f"
+      },
+      {
+        "kind": "all-projections",
+        "sha256": "87e31064988d24dacbcdc2884b1c1d1c907e87bcb010b9912e04e71f83d3dd25"
+      }
+    ]
+  },
+  "sources": [
+    {
+      "path": "crates/leselang-observe/Cargo.toml",
+      "sha256": "9da752d6c0f2533d428c8492cac1e8e9bec8c3b537611e0ee30c31f5963a3e98"
+    },
+    {
+      "path": "crates/leselang-observe/src/lib.rs",
+      "sha256": "cb52c67af3eb1f6bbed57a37650537bcb6823fe8f273002aec46de2aa19ebdf2"
+    },
+    {
+      "path": "crates/leselang-observe/src/vm_bridge.rs",
+      "sha256": "661481d102ef25224325dc90a994d7ddfd037aa2ba3afdbdfedac95cfe189052"
+    },
+    {
+      "path": "crates/leselang-observe/tests/projection_profile.rs",
+      "sha256": "c5c3f3e3b7351e1380c38f8e30b4bc7e53d7ec3cea5b2d6692a491e086e9f4a1"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_request.rs",
+      "sha256": "a2a15bd906d324bb17a1d8628079eec72e9ff3c659f8879f40f4425fc1a493c5"
+    },
+    {
+      "path": "crates/leselang-vm/Cargo.toml",
+      "sha256": "2f1d51815d543a85d8b69662dbb4578170e8c6b0672f52402e4dec5c05260e21"
+    },
+    {
+      "path": "crates/leserpentd/src/debugger.rs",
+      "sha256": "df9fa0122607e5d4429245013461e128761767f51c79a35aefd5242d6e4e8b88"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "00c625f52bd84bf3e40076aebeee01616c979ab6a54bb3321dde5ff5782efbc8"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "8cdc747d0b0bf90ab65a265ca863a308324cec78277b61b77530d761106dd2a9"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "06a5f14f651dbb6704d524ca0e7c90b7cb8b310e3fa71b641c987b8ca8c22358"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "8dab0576997fa30febbf18ef3c6594b1f5c8a48e8a2d32e42b3d0dda41aca6a8"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "113eb9ee0d899b4e168a059377984baaea7e61711a61af0b16c8b2e1c851eac1"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "e40657a5f9c23131e8824df326b12442cae209fdaf50206a567bae2ae4d81eb6"
+    }
+  ],
+  "verification": [
+    {
+      "name": "read-only-public-consumer",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-verified-read-only.log",
+      "passed": 5,
+      "sha256": "f3f39dc2316c3f145167901ec32a6a9c96bf3b6c53ac40bf8f0d96ee5e18a3c0"
+    },
+    {
+      "name": "memory-mutation-bridge",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-verified-bridge.log",
+      "passed": 18,
+      "sha256": "d445343304d05caae2506d54a154eec3b0a44baf2ac4d56fcb5d2a4133625fdc"
+    },
+    {
+      "name": "default-command-vm-observe",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-runtime.log",
+      "passed": 1112,
+      "sha256": "a1ed34a36812d378b77f5c9e6cdf9e9a362eda392d4e541390be57a5d23cc67b"
+    },
+    {
+      "name": "daemon-debugger-call-chain",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-daemon.log",
+      "passed": 42,
+      "sha256": "2d212605f326488c75ee2b031958c0b1e3215dfa16af837de06eda54392b8061"
+    },
+    {
+      "name": "no-sqlite-reference-vm",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-memory.log",
+      "passed": 124,
+      "sha256": "a4b7b14b273f15a2d40d4ba734f3ca6d1a2e2c02fe5f7f74d733aea4ed3d1fa2"
+    },
+    {
+      "name": "read-only-all-targets-strict-clippy",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-read-only-clippy.log",
+      "passed": true,
+      "sha256": "cd3494804132d7dfc3fbda849e949686284bd37252a9399efff812f90ea9da98"
+    },
+    {
+      "name": "memory-bridge-all-targets-strict-clippy",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-bridge-clippy.log",
+      "passed": true,
+      "sha256": "23c6049a787e3f4418fc137145de36dbbaf1f9af71d99dd0d058863954187048"
+    },
+    {
+      "name": "default-including-daemon-strict-clippy",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-clippy.log",
+      "passed": true,
+      "sha256": "0c6033a2f42f62f65e076fbabc8e7fdb2b301d8dd826c6afe3c773fa011be52d"
+    },
+    {
+      "name": "no-sqlite-vm-all-targets-strict-clippy",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-memory-clippy.log",
+      "passed": true,
+      "sha256": "ee4f2942d8632ce4a5741e0bd4fb11b2b928783e189201c1ee56228e54da128b"
+    },
+    {
+      "name": "four-root-guards-strict-clippy",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-guard-clippy.log",
+      "passed": true,
+      "sha256": "ac42b18061326ecd6ea5fa3b03f6b688e7616ab3308bdf469ecf80b05e79bf46"
+    },
+    {
+      "name": "original-function-body-parity",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-body-parity.log",
+      "passed": true,
+      "sha256": "7c342920a9515eb620328dd053fdb0240bd03f07d31922ce8f827fc14f8ccef3"
+    },
+    {
+      "name": "read-only-dependency-closure-including-dev",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-read-only-tree.log",
+      "passed": true,
+      "sha256": "a1638a4f03e397dd1379aa6c0b6b576ba1a457bc5f6b39770bb00a4b75711a15"
+    },
+    {
+      "name": "memory-bridge-dependency-closure-including-dev",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-bridge-tree.log",
+      "passed": true,
+      "sha256": "171edc3573784de990e98c6408905b8b3ddec85d283fb32253c6258b1db271d3"
+    },
+    {
+      "name": "default-dependency-closure-including-dev",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-default-tree.log",
+      "passed": true,
+      "sha256": "1764836c23b13683b5b0e2b82eb8841442c14f992d520310ffb8d06b5cc800f9"
+    },
+    {
+      "name": "explicit-sqlite-dependency-closure-including-dev",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-explicit-sqlite-tree.log",
+      "passed": true,
+      "sha256": "1764836c23b13683b5b0e2b82eb8841442c14f992d520310ffb8d06b5cc800f9"
+    },
+    {
+      "name": "workspace-format",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-final-fmt.log",
+      "passed": true,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "included-vm-profile-format",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-profile-fmt.log",
+      "passed": true,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "isolated-source-tests-and-strict-clippy",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-export.log",
+      "passed": 2564,
+      "sha256": "61b710359492d92c9979cd703da083601f2caf50233f982555d5f7b5c5e48f12"
+    },
+    {
+      "name": "native-dependency-closure",
+      "path": "/private/tmp/leselang-observe-boundary-20261023-native-tree.log",
+      "passed": true,
+      "sha256": "5023b9b388378f3238f3a6029c622807a440aeae82f89f8c6f321b87f27dfc9c"
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-observe-boundary-20261023-2.4.0",
+    "manifest_sha256": "38667700c703537892dc55f29894ca6512e8268c7a1f7c47f3b39a8e30f82617",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2017,
+    "consumer_tests": 547,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}

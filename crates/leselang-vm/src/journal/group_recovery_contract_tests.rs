@@ -37,7 +37,7 @@ fn frozen_batch(connection: &Connection) -> Result<u64, Fault> {
     );
     let mut highest_sequence = 0;
     for (token, plan_bytes, state, terminal_bytes, order) in groups {
-        let token = ContinuationToken(token);
+        let token = ContinuationToken::from_wire(token);
         if !valid_continuation_token(&token) {
             return Err(journal_fault("LSV4007", "merge group token is invalid"));
         }
@@ -277,7 +277,7 @@ fn recovered_group_pipeline_preserves_frozen_fault_order_and_every_original_tabl
                         |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
                     )
                     .unwrap();
-                let owner = ContinuationToken(owner);
+                let owner = ContinuationToken::from_wire(owner);
                 let plan: MergePlan = serde_json::from_slice(&bytes).unwrap();
                 let mut rows = tx.prepare("SELECT b.branch_name, b.position, e.state, e.terminal_step, b.branch_token FROM vm_merge_branches b JOIN vm_effects e ON e.token = b.branch_token WHERE b.group_token = ?1 ORDER BY b.position").unwrap().query_map([owner.as_str()], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))).unwrap().collect::<Result<Vec<RecoveredMergeBranch>, _>>().unwrap();
                 match defect {

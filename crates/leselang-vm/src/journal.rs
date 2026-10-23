@@ -1,4 +1,5 @@
 use crate::group_binding::ReferenceGroupResultBinding;
+use crate::scheduling::{ReferenceSchedulerLimits, ReferenceSchedulerPressure};
 use std::collections::{BTreeMap, BTreeSet};
 #[cfg(feature = "sqlite-journal")]
 use std::{fs, path::Path, time::Duration};
@@ -37,13 +38,15 @@ use crate::{
     validate_merge_plan, validate_value,
 };
 
+#[cfg(all(test, feature = "sqlite-journal"))]
+mod bounded_decode_tests;
 mod group_binding;
 #[cfg(test)]
 mod retention_tests;
 mod successor;
 
 pub const JOURNAL_SCHEMA_VERSION: u32 = 10;
-pub const MAX_JOURNAL_RECORDS: usize = 10_000;
+pub use leselang_command::retention_policy::MAX_JOURNAL_RECORDS;
 pub const MAX_JOURNAL_ENTRY_BYTES: usize = 8 * 1024 * 1024;
 pub const MAX_JOURNAL_TOTAL_BYTES: usize = 64 * 1024 * 1024;
 #[cfg(feature = "sqlite-journal")]
@@ -1583,7 +1586,7 @@ impl SqliteJournal {
         let Some((merge_token, state, terminal, completed, total, order)) = progress else {
             return Ok(MergeProgress::Standalone);
         };
-        let merge_token = ContinuationToken(merge_token);
+        let merge_token = ContinuationToken::from_wire(merge_token);
         let completed_branches = usize::try_from(completed)
             .map_err(|_| journal_fault("LSV4007", "merge completion count is invalid"))?;
         let total_branches = usize::try_from(total)
@@ -1634,7 +1637,7 @@ impl SqliteJournal {
                     ).map_err(|error| journal_error("LSV4033", "failed to inspect completed prefix", error))?;
                     let completed_tokens = statement
                         .query_map([merge_token.as_str()], |row| {
-                            Ok(ContinuationToken(row.get(0)?))
+                            Ok(ContinuationToken::from_wire(row.get(0)?))
                         })
                         .map_err(|error| {
                             journal_error("LSV4033", "failed to load completed prefix", error)
@@ -1662,7 +1665,7 @@ impl SqliteJournal {
                 ).map_err(|error| journal_error("LSV4033", "failed to read completed group", error))?;
                 let branch_tokens = statement
                     .query_map([merge_token.as_str()], |row| {
-                        Ok(ContinuationToken(row.get(0)?))
+                        Ok(ContinuationToken::from_wire(row.get(0)?))
                     })
                     .map_err(|error| {
                         journal_error("LSV4033", "failed to read completed branches", error)
@@ -3160,7 +3163,7 @@ fn finalize_merge_group(
         let prefix = group_binding::merge_prefix(&plan, completions)?;
         let Some(terminal) = group_binding::admit_successor(
             transaction,
-            &ContinuationToken(group_token.clone()),
+            &ContinuationToken::from_wire(group_token.clone()),
             &plan,
             &prefix,
         )?
@@ -3694,7 +3697,7 @@ fn validate_debugger_audit_records(connection: &Connection) -> Result<(), Fault>
                 journal_error("LSV4005", "invalid debugger audit clock", error)
             })?)
             .map_err(|_| journal_fault("LSV4007", "debugger audit clock is invalid"))?;
-        let token = ContinuationToken(row.get::<_, String>(7).map_err(|error| {
+        let token = ContinuationToken::from_wire(row.get::<_, String>(7).map_err(|error| {
             journal_error("LSV4005", "invalid debugger audit continuation", error)
         })?);
         let context = DebuggerAuditContext {
@@ -3883,7 +3886,7 @@ impl leselang_runtime_core::GroupRecoveryBatchHost<RawMergeGroup> for RecoveredG
 
     fn admit_group(&mut self, stored: RawMergeGroup) -> Result<AdmittedMergeGroup, Fault> {
         let (token, plan_bytes, state, terminal, order) = stored;
-        let token = ContinuationToken(token);
+        let token = ContinuationToken::from_wire(token);
         if !valid_continuation_token(&token) {
             return Err(journal_fault("LSV4007", "merge group token is invalid"));
         }
@@ -4229,11 +4232,7 @@ fn validate_unbound_group_receipt(
 #[cfg(feature = "sqlite-journal")]
 fn merge_reserved_sequence(token: &ContinuationToken, plan: &MergePlan) -> u64 {
     // Opaque legacy group IDs remain valid; only canonical IDs reserve a sequence.
-    let group_sequence = token.as_str().strip_prefix("merge-").and_then(|suffix| {
-        let sequence = suffix.parse::<u64>().ok()?;
-        (sequence > 0 && sequence <= crate::MAX_EFFECT_SEQUENCE && sequence.to_string() == suffix)
-            .then_some(sequence)
-    });
+    let group_sequence = leselang_command::continuation_identity::canonical_merge_sequence(token);
     plan.result_binding
         .iter()
         .flat_map(|binding| binding.reserved_sequences())
@@ -4319,14 +4318,14 @@ fn next_attempt(current: u32) -> Result<u32, Fault> {
 
 #[cfg(feature = "sqlite-journal")]
 fn decode_bounded<T: serde::de::DeserializeOwned>(bytes: &[u8], limit: usize) -> Result<T, Fault> {
-    if bytes.len() > limit {
-        return Err(journal_fault(
-            "LSV4006",
-            format!("journal entry exceeds {limit} bytes"),
-        ));
-    }
-    serde_json::from_slice(bytes)
-        .map_err(|error| journal_error("LSV4007", "invalid journal JSON", error))
+    leselang_command::bounded_json::decode(bytes, limit).map_err(|error| match error {
+        leselang_command::bounded_json::BoundedJsonDecodeError::Limit { limit, .. } => {
+            journal_fault("LSV4006", format!("journal entry exceeds {limit} bytes"))
+        }
+        leselang_command::bounded_json::BoundedJsonDecodeError::Deserialize(error) => {
+            journal_error("LSV4007", "invalid journal JSON", error)
+        }
+    })
 }
 
 fn validate_terminal_step(step: &Step) -> Result<(), Fault> {
@@ -4481,6 +4480,90 @@ fn journal_fault(code: &str, message: impl Into<String>) -> Fault {
 #[cfg(test)]
 mod outcome_tests {
     use super::*;
+    use crate::{EffectErrorClass, FailedEffect, MergeWait, StructuredEffectBatch, Value};
+
+    #[test]
+    fn adapter_step_decode_does_not_replace_original_terminal_admission() {
+        let request = crate::continuation_contract_tests::requests().remove(0);
+        let not_terminal = "journal completion must be a terminal step";
+        let diagnostic = "journal fault has an invalid diagnostic code";
+        let cancellation = |token: &str, observed_at_ms| {
+            Step::Cancelled(Cancellation {
+                continuation: ContinuationToken::from_wire(token.into()),
+                reason: CancellationReason::Requested,
+                observed_at_ms,
+            })
+        };
+        let cases = [
+            (Step::Effect(Box::new(request.clone())), Some(not_terminal)),
+            (
+                Step::Effects(Box::new(StructuredEffectBatch {
+                    merge_token: ContinuationToken::from_wire("merge-1".into()),
+                    branches: vec![],
+                })),
+                Some(not_terminal),
+            ),
+            (
+                Step::Waiting(MergeWait {
+                    merge_token: ContinuationToken::from_wire("invalid/token".into()),
+                    completed_branches: 3,
+                    total_branches: 0,
+                }),
+                Some(not_terminal),
+            ),
+            (Step::Yield(request.continuation), Some(not_terminal)),
+            (
+                Step::Done(Value::UiFocus {
+                    node_id: String::new(),
+                }),
+                Some("completed journal output exceeds runtime limit"),
+            ),
+            (
+                Step::Done(Value::UiFocus {
+                    node_id: "a".into(),
+                }),
+                None,
+            ),
+            (cancellation("", 0), Some(diagnostic)),
+            (cancellation("continuation-1", u64::MAX), Some(diagnostic)),
+            (cancellation("invalid/token", 0), None),
+            (
+                Step::Failed(FailedEffect {
+                    retry_count: u32::MAX,
+                    error: EffectError {
+                        class: EffectErrorClass::Transient,
+                        code: "busy".into(),
+                        message: "retry".into(),
+                    },
+                }),
+                Some(diagnostic),
+            ),
+            (
+                Step::Fault(Fault {
+                    code: String::new(),
+                    message: "raw".into(),
+                }),
+                Some(diagnostic),
+            ),
+            (
+                Step::Fault(Fault {
+                    code: "LEGACY".into(),
+                    message: "x".repeat(4097),
+                }),
+                None,
+            ),
+        ];
+        assert_eq!(cases.len(), 12);
+        for (step, refusal) in cases {
+            let bytes = serde_json::to_vec(&step).unwrap();
+            let decoded: leselang_command::Step = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(decoded, step);
+            assert_eq!(
+                validate_terminal_step(&decoded),
+                refusal.map_or(Ok(()), |message| Err(journal_fault("LSV4007", message)))
+            );
+        }
+    }
 
     #[test]
     fn dispatch_planning_preserves_native_fault_codes_and_precedence() {
@@ -4579,7 +4662,7 @@ mod outcome_tests {
         });
         let failure = Step::Fault(journal_fault("ORIGINAL", "original first failure"));
         let cancelled = Step::Cancelled(Cancellation {
-            continuation: ContinuationToken("continuation-1".into()),
+            continuation: ContinuationToken::from_wire("continuation-1".into()),
             reason: CancellationReason::Requested,
             observed_at_ms: 1,
         });
@@ -4838,7 +4921,7 @@ mod scheduling_tests {
         ));
         drop(vm);
         let journal = SqliteJournal::open(&path).unwrap();
-        let merge_token = ContinuationToken(
+        let merge_token = ContinuationToken::from_wire(
             journal
                 .connection
                 .query_row("SELECT token FROM vm_merge_groups", [], |row| row.get(0))
@@ -5197,7 +5280,7 @@ mod scheduling_tests {
         };
         drop(vm);
         let mut connection = Connection::open(&path).unwrap();
-        let group = ContinuationToken(
+        let group = ContinuationToken::from_wire(
             connection
                 .query_row("SELECT token FROM vm_merge_groups", [], |row| row.get(0))
                 .unwrap(),
@@ -5322,7 +5405,7 @@ mod scheduling_tests {
         }))
         .unwrap();
         let nonterminal = serde_json::to_vec(&Step::Waiting(crate::MergeWait {
-            merge_token: ContinuationToken("merge-private".into()),
+            merge_token: ContinuationToken::from_wire("merge-private".into()),
             completed_branches: 1,
             total_branches: 2,
         }))
@@ -5461,7 +5544,10 @@ mod scheduling_tests {
                 batch.merge_token.clone(),
                 vec![("left", left), ("wrong", &invalid)],
             ),
-            (ContinuationToken(String::new()), vec![("left", &invalid)]),
+            (
+                ContinuationToken::from_wire(String::new()),
+                vec![("left", &invalid)],
+            ),
         ] {
             assert_eq!(
                 validate_merge_graph_input(&owner, &plan, &graph),
@@ -5694,7 +5780,7 @@ mod scheduling_tests {
             let path = root.0.join("flow.sqlite3");
             let (mut journal, _) = Journal::open(&path).unwrap();
             journal
-                .record_merge_graph(&ContinuationToken(group.into()), &plan, &graph)
+                .record_merge_graph(&ContinuationToken::from_wire(group.into()), &plan, &graph)
                 .unwrap();
             let (_, snapshot) = Journal::open(&path).unwrap();
             assert_eq!(snapshot.next_sequence, expected);
@@ -5773,12 +5859,12 @@ mod scheduling_tests {
             "merge-9223372036854775807",
         ] {
             assert_eq!(
-                merge_reserved_sequence(&ContinuationToken(token.into()), &plan),
+                merge_reserved_sequence(&ContinuationToken::from_wire(token.into()), &plan),
                 0
             );
         }
         assert_eq!(
-            merge_reserved_sequence(&ContinuationToken("merge-99".into()), &plan),
+            merge_reserved_sequence(&ContinuationToken::from_wire("merge-99".into()), &plan),
             99
         );
     }

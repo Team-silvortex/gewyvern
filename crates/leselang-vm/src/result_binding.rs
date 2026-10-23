@@ -1,6 +1,5 @@
-use leselang_hir::projection_access::ProjectionAccessLimits;
-use leselang_hir::{Effect, MAX_BRANCH_NAME_BYTES, MAX_EFFECT_NESTING_DEPTH, Type};
-use leselang_runtime_core::{CaptureValidationLimits, GroupCaptureLimits};
+use leselang_hir::{Effect, Type};
+use leselang_runtime_core::GroupCaptureLimits;
 
 use crate::Fault;
 
@@ -14,10 +13,7 @@ pub use leselang_runtime_core::ScalarBinding;
 pub(super) use leselang_command::ProjectedGroupExt as ReferenceProjectedGroup;
 
 pub(super) fn group_capture_limits() -> GroupCaptureLimits {
-    GroupCaptureLimits {
-        min_members: 1,
-        max_members: crate::MAX_MERGE_BRANCHES - 1,
-    }
+    result_binding_limits().groups
 }
 
 pub(super) fn projection_fault(_: leselang_command::InvalidProjectedResult) -> Fault {
@@ -25,28 +21,18 @@ pub(super) fn projection_fault(_: leselang_command::InvalidProjectedResult) -> F
 }
 
 pub(super) fn invalid() -> Fault {
-    Fault {
-        code: "LSV1405".into(),
-        message: "invalid or oversized result-binding continuation".into(),
-    }
+    leselang_command::reference_request::continuation_admission_fault(
+        leselang_command::ContinuationAdmissionError::Binding,
+    )
 }
 
 pub(super) fn result_binding_limits() -> leselang_command::ResultBindingLimits {
-    leselang_command::ResultBindingLimits {
-        captures: CaptureValidationLimits {
-            max_saved_bindings: MAX_EFFECT_NESTING_DEPTH,
-            max_name_bytes: MAX_BRANCH_NAME_BYTES,
-        },
-        groups: group_capture_limits(),
-        accesses: ProjectionAccessLimits {
-            max_nodes: leselang_hir::computation::MAX_COMPUTATION_NODES,
-            max_depth: MAX_EFFECT_NESTING_DEPTH,
-        },
-    }
+    leselang_command::reference_request::result_binding_limits()
 }
 
 pub(super) trait ReferenceResultBinding {
     fn schema_version(&self) -> u32;
+    #[cfg(test)]
     fn validate_structure(&self) -> Result<(), Fault>;
     fn validate(&self, pending: &Effect) -> Result<Type, Fault>;
 }
@@ -56,6 +42,7 @@ impl ReferenceResultBinding for ResultBinding {
         leselang_command::continuation_schema::preflighted_result_binding_schema_version(self)
     }
 
+    #[cfg(test)]
     fn validate_structure(&self) -> Result<(), Fault> {
         let limits = result_binding_limits();
         leselang_command::validate_result_binding_structure(

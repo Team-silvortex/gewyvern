@@ -7,14 +7,15 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use leselang_command::{
+    CancellationReason, EffectOperation, EffectRequest, EffectResult, PresentationOperation,
+    PresentationResult, SchedulerLimits, Step,
+};
 use leselang_hir::{CAPABILITY_UI_PRESENTATION, lower, validate_ui_node_id};
 use leselang_observe::{execute_debugger_cancel, waiting_debugger_projection};
 use leselang_syntax::parse;
 use leselang_ui::{DebuggerFaultSummary, DebuggerProjection, DebuggerState, debugger_document};
-use leselang_vm::{
-    CancellationReason, DEFAULT_FUEL, EffectOperation, EffectRequest, EffectResult,
-    PresentationOperation, PresentationResult, SchedulerLimits, Step, Vm,
-};
+use leselang_vm::{DEFAULT_FUEL, Vm};
 use leserpent_domain::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
     CAPABILITY_RUNTIME_REFRESH, CapabilitySet, CommandEnvelope, CommandPlan, PlannedOperation,
@@ -34,7 +35,7 @@ const MAX_DEBUGGER_SOURCE_BYTES: usize = 64 * 1024;
 const MIN_DEBUGGER_TIMEOUT_MS: u64 = 100;
 const MAX_DEBUGGER_TIMEOUT_MS: u64 = 5 * 60 * 1_000;
 const DEBUGGER_SCHEDULER_LIMITS: SchedulerLimits = SchedulerLimits {
-    max_pending_dispatches: leselang_vm::MAX_MERGE_BRANCHES,
+    max_pending_dispatches: leselang_command::MAX_MERGE_BRANCHES,
     max_active_leases: 1,
 };
 
@@ -1327,8 +1328,8 @@ mod tests {
                     node_id: "ignored-replay".into()
                 })
             ),
-            Step::Done(leselang_vm::Value::Scalar {
-                value: leselang_vm::ScalarValue::Boolean(true)
+            Step::Done(leselang_command::Value::Scalar {
+                value: leselang_hir::computation::ScalarValue::Boolean(true)
             })
         );
     }
@@ -1380,8 +1381,8 @@ mod tests {
             if expected == DebuggerState::Completed {
                 assert_eq!(
                     replay,
-                    Step::Done(leselang_vm::Value::Scalar {
-                        value: leselang_vm::ScalarValue::Boolean(true)
+                    Step::Done(leselang_command::Value::Scalar {
+                        value: leselang_hir::computation::ScalarValue::Boolean(true)
                     })
                 );
             } else {
@@ -1548,7 +1549,7 @@ mod tests {
             let current = &authority.sessions["session-conditional"].request;
             assert_eq!(
                 current.continuation.schema_version,
-                leselang_vm::CONDITIONAL_CONTINUATION_SCHEMA_VERSION
+                leselang_command::continuation_schema::CONDITIONAL_CONTINUATION_SCHEMA_VERSION
             );
             let mut ack = presentation_acknowledgement(
                 "session-conditional",
@@ -1914,8 +1915,8 @@ mod tests {
                     node_id: "ignored".into()
                 })
             ),
-            Step::Done(leselang_vm::Value::Scalar {
-                value: leselang_vm::ScalarValue::Boolean(true)
+            Step::Done(leselang_command::Value::Scalar {
+                value: leselang_hir::computation::ScalarValue::Boolean(true)
             })
         );
     }
@@ -2068,8 +2069,8 @@ mod tests {
                         node_id: "ignored".into()
                     })
                 ),
-                Step::Done(leselang_vm::Value::Scalar {
-                    value: leselang_vm::ScalarValue::Boolean(true)
+                Step::Done(leselang_command::Value::Scalar {
+                    value: leselang_hir::computation::ScalarValue::Boolean(true)
                 })
             );
         }
@@ -2137,8 +2138,8 @@ mod tests {
                     node_id: "ignored".into()
                 })
             ),
-            Step::Done(leselang_vm::Value::Scalar {
-                value: leselang_vm::ScalarValue::StringList(
+            Step::Done(leselang_command::Value::Scalar {
+                value: leselang_hir::computation::ScalarValue::StringList(
                     leselang_hir::computation::StringListValue(vec![
                         "ready-a".into(),
                         "ready-b".into()
@@ -2217,8 +2218,8 @@ mod tests {
                         node_id: "ignored".into()
                     })
                 ),
-                Step::Done(leselang_vm::Value::Scalar {
-                    value: leselang_vm::ScalarValue::Boolean(!skip)
+                Step::Done(leselang_command::Value::Scalar {
+                    value: leselang_hir::computation::ScalarValue::Boolean(!skip)
                 })
             );
         }
@@ -2294,8 +2295,8 @@ mod tests {
                     node_id: "ignored".into()
                 })
             ),
-            Step::Done(leselang_vm::Value::Scalar {
-                value: leselang_vm::ScalarValue::Boolean(true)
+            Step::Done(leselang_command::Value::Scalar {
+                value: leselang_hir::computation::ScalarValue::Boolean(true)
             })
         );
     }
@@ -2501,8 +2502,8 @@ mod tests {
                         node_id: "ignored".into()
                     })
                 ),
-                Step::Done(leselang_vm::Value::Scalar {
-                    value: leselang_vm::ScalarValue::Boolean(ready)
+                Step::Done(leselang_command::Value::Scalar {
+                    value: leselang_hir::computation::ScalarValue::Boolean(ready)
                 })
             );
         }
@@ -2683,8 +2684,8 @@ mod tests {
                         node_id: "ignored".into()
                     })
                 ),
-                Step::Done(leselang_vm::Value::Scalar {
-                    value: leselang_vm::ScalarValue::Boolean(true)
+                Step::Done(leselang_command::Value::Scalar {
+                    value: leselang_hir::computation::ScalarValue::Boolean(true)
                 })
             );
         }
@@ -2802,8 +2803,8 @@ mod tests {
                         node_id: "ignored".into()
                     })
                 ),
-                Step::Done(leselang_vm::Value::Scalar {
-                    value: leselang_vm::ScalarValue::Boolean(expected.is_some())
+                Step::Done(leselang_command::Value::Scalar {
+                    value: leselang_hir::computation::ScalarValue::Boolean(expected.is_some())
                 })
             );
         }
@@ -2961,8 +2962,8 @@ mod tests {
                     node_id: "ignored".into()
                 })
             ),
-            Step::Done(leselang_vm::Value::Scalar {
-                value: leselang_vm::ScalarValue::Boolean(true)
+            Step::Done(leselang_command::Value::Scalar {
+                value: leselang_hir::computation::ScalarValue::Boolean(true)
             })
         );
         let public = serde_json::to_string(&view).unwrap();
@@ -3039,7 +3040,7 @@ mod tests {
                     node_id: "ignored".into()
                 })
             ),
-            Step::Done(leselang_vm::Value::UiFocus {
+            Step::Done(leselang_command::Value::UiFocus {
                 node_id: "runtime-b".into()
             })
         );
@@ -3157,8 +3158,8 @@ mod tests {
                         node_id: "ignored".into()
                     }),
                 ),
-                Step::Done(leselang_vm::Value::Scalar {
-                    value: leselang_vm::ScalarValue::Integer(stop_at),
+                Step::Done(leselang_command::Value::Scalar {
+                    value: leselang_hir::computation::ScalarValue::Integer(stop_at),
                 }),
             );
         }
@@ -3257,8 +3258,8 @@ mod tests {
             } else {
                 assert_eq!(
                     replay,
-                    Step::Done(leselang_vm::Value::Scalar {
-                        value: leselang_vm::ScalarValue::Boolean(true)
+                    Step::Done(leselang_command::Value::Scalar {
+                        value: leselang_hir::computation::ScalarValue::Boolean(true)
                     })
                 );
             }
@@ -3358,8 +3359,8 @@ mod tests {
             } else {
                 assert_eq!(
                     result,
-                    Step::Done(leselang_vm::Value::Scalar {
-                        value: leselang_vm::ScalarValue::Boolean(true)
+                    Step::Done(leselang_command::Value::Scalar {
+                        value: leselang_hir::computation::ScalarValue::Boolean(true)
                     })
                 );
             }

@@ -1,0 +1,166 @@
+{
+  "kind": "leselang-reference-execution-outcome",
+  "validated_on": "2026-10-23",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "reference_execution_contract": "1.116.0",
+  "native_embedding_contract": "0.171.0",
+  "wire_debug_comparisons": 46224,
+  "nested_request_admission_comparisons": 630,
+  "journal_terminal_admission_cases": 12,
+  "exact_type_identity_checks": 9,
+  "direct_adapter_tests": 4,
+  "public_memory_profile_tests": 15,
+  "released_types_are_exact_reexports": true,
+  "concrete_enum_variant_imports_retained": true,
+  "per_type_unknown_field_policy_retained": true,
+  "nested_request_admission_retained": true,
+  "original_terminal_and_lease_authority_retained": true,
+  "original_box_and_buffer_addresses_retained": true,
+  "adapter_has_no_vm_or_sqlite_dependency": true,
+  "no_sqlite_test_lint_fixed_without_suppression": true,
+  "isolated_consumer_passed": true,
+  "decoding_grants_completion_or_dispatch": false,
+  "wire_or_journal_schema_changed": false,
+  "new_native_api": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "The product adapter owns NamedEffectRequest, StructuredEffectBatch, MergeWait, Step, RetryDisposition and DispatchClaim with exact released VM reexports and concrete enum variant imports. DispatchLease, FailedEffect and RetrySchedule retain their runtime-core specializations. Frozen outer DTOs compare normalized wire bytes, Debug and exact serde errors in 46224 cases across all 70 operations, every execution variant, empty/oversized batches and invalid counters; existing leaf protocols remain unchanged. Another 630 comparisons preserve nested checked-request refusal while raw yield data still decodes. Four direct adapter tests verify variant imports, original Box/String addresses, per-type unknown fields, nested request admission and omitted retry-count defaults. Twelve journal cases retain original terminal admission, including its intentionally different cancellation/fault policy from merge outcomes. The actual memory VM consumer verifies all nine type identities: decoded completion data cannot settle work, forged current-attempt data is refused, and the original live lease completes once. VM scheduler state, group membership, bounds, clocks, retry decisions, cancellation and memory/SQLite transactions remain authoritative. Neither a raw observation nor successful nested static request admission authenticates grants, provenance, current leases or completion. No new native API, schema migration, complete durable native VM or completed extraction gate is claimed. An extra no-SQLite strict-lint run exposed an existing test-only infallible match; feature-specific destructuring fixes it without suppression or production changes. After the full 1105/124 suites, that test-only repair was rechecked by all three retention tests in each feature configuration plus both strict lints. Product version follows the unchanged Cargo manifest.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/execution_outcome.rs",
+      "sha256": "3fe0b3a1ad186c3df91754002e5761ae5720457143b95eb416aad5a996ecfecd"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "8d8c8bba581e2fab9e6decab32c7fc1a73a6a2a9a1576f7ccfaba09f483098aa"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_request.rs",
+      "sha256": "a2a15bd906d324bb17a1d8628079eec72e9ff3c659f8879f40f4425fc1a493c5"
+    },
+    {
+      "path": "crates/leselang-command/src/terminal_outcome.rs",
+      "sha256": "acc24c059cff43088a41afc6b5cc5a07d7edde9321a4b18020a705dfaa7d92db"
+    },
+    {
+      "path": "crates/leselang-command/tests/execution_outcome.rs",
+      "sha256": "21ee4c1c1cd74c8c1cb3733f515703a648364c7763492db6b75e12d30a5fd328"
+    },
+    {
+      "path": "crates/leselang-vm/src/execution_outcome_contract_tests.rs",
+      "sha256": "cab180c5c8f2c1814e7af75158fd1f4a00f5e7b25abe80357018f3de2d2cd4eb"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "3118ebf449fc9703c1e9df01ae87e33637a23d74afdec5aa392c2a53d2384555"
+    },
+    {
+      "path": "crates/leselang-vm/src/scheduling.rs",
+      "sha256": "80edced21b062a6a2935321ff24ea01aa7277e75e95d63203d2c1e7795724283"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "dbd92a1b7a5887797dcb469ee1495ab1b3384f185b5e09f969c3c29f286032f4"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/retention_tests.rs",
+      "sha256": "98e3e95fabdc6ee4ba6366e3b040c445f9a2239b799642fa0f23716c4477fa61"
+    },
+    {
+      "path": "crates/leselang-vm/tests/ephemeral_profile.rs",
+      "sha256": "e50d3f46f3cb1806936fdee830429c9d91db6aa04a09dbe59f42f0890af42351"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/dispatch_data.rs",
+      "sha256": "1652795cb5c3da49daa2891a4cb9f1475433a2be25ceb8882895747da0cc3e92"
+    }
+  ],
+  "verification": [
+    {
+      "name": "default-command-vm-and-observe",
+      "path": "/private/tmp/leselang-execution-outcome-20261023-runtime.log",
+      "passed": 1105,
+      "sha256": "51555d089cf30b8a49479d8f02f762488f4b0c50ff589cd18f471f143690a936"
+    },
+    {
+      "name": "no-sqlite-reference-ephemeral-and-audit",
+      "path": "/private/tmp/leselang-execution-outcome-20261023-memory.log",
+      "passed": 124,
+      "sha256": "c9eaac0c6dc8594dbbb29cd4c27a2f1664e6fc11584c68ded93fa9fe8fbb4fc3"
+    },
+    {
+      "name": "command-vm-observe-strict-clippy",
+      "path": "/private/tmp/leselang-execution-outcome-20261023-final-clippy.log",
+      "passed": true,
+      "sha256": "bc77ab34cd4ff7dd4aac11c8d9dc58df02441931dcde5186c354403d554399cf"
+    },
+    {
+      "name": "no-sqlite-all-targets-strict-clippy",
+      "path": "/private/tmp/leselang-execution-outcome-20261023-verified-memory-clippy.log",
+      "passed": true,
+      "sha256": "e380574beeca5dd2695350478076e387e983e505f5b79a52454e26d59e501242"
+    },
+    {
+      "name": "isolated-source-tests-and-strict-clippy",
+      "path": "/private/tmp/leselang-execution-outcome-20261023-export.log",
+      "passed": 2564,
+      "sha256": "28ac33887b94ffde9e081ab4f185f52fe2a3a1f4453af7cd303985b873c7f279"
+    },
+    {
+      "name": "native-dependency-tree",
+      "path": "/private/tmp/leselang-execution-outcome-20261023-native-tree.log",
+      "passed": true,
+      "sha256": "bc8fc19656a0244675643993006768d86e59b639bbdc58a5e0506fafbbf003ae"
+    },
+    {
+      "name": "adapter-dependency-tree",
+      "path": "/private/tmp/leselang-execution-outcome-20261023-adapter-tree.log",
+      "passed": true,
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "name": "four-root-guards-strict-clippy",
+      "path": "/private/tmp/leselang-execution-outcome-20261023-guard-clippy.log",
+      "passed": true,
+      "sha256": "fd260519720096368ad62df57cda5bed77d671998ef0dcb1863e8bfe66adad04"
+    },
+    {
+      "name": "workspace-format",
+      "path": "/private/tmp/leselang-execution-outcome-20261023-final-fmt.log",
+      "passed": true,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "included-profile-format",
+      "path": "/private/tmp/leselang-execution-outcome-20261023-final-profile-fmt.log",
+      "passed": true,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "retention-tests-after-feature-cfg-fix-default",
+      "path": "/private/tmp/leselang-execution-outcome-20261023-retention-sqlite.log",
+      "passed": 3,
+      "sha256": "330dac0b9f25dccb49be26a5f7b711ac3fb89261fbb567d708d8e794f53ab646"
+    },
+    {
+      "name": "retention-tests-after-feature-cfg-fix-no-sqlite",
+      "path": "/private/tmp/leselang-execution-outcome-20261023-retention-memory.log",
+      "passed": 3,
+      "sha256": "185a29e5cf2079e6d02419eaf893c66be9f59c1ab29363216b9a28076ea5a6dc"
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-execution-outcome-20261023-2.4.0",
+    "manifest_sha256": "38667700c703537892dc55f29894ca6512e8268c7a1f7c47f3b39a8e30f82617",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2017,
+    "consumer_tests": 547,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}

@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Shared product ceiling for journal storage, admission and retention policy.
+pub const MAX_JOURNAL_RECORDS: usize = 10_000;
 pub const DEFAULT_COMPLETED_RETENTION: usize = 5_000;
 pub const DEFAULT_COMPACTION_BATCH: usize = 500;
 pub const MAX_COMPACTION_BATCH: usize = 1_000;

@@ -1,13 +1,224 @@
 //! Reference-product VM coverage that needs no database or filesystem fixture.
+use leselang_command::{CancellationReason, EffectRequest};
 use leselang_hir::lower;
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_syntax::parse;
 use leselang_vm::{
-    CancellationReason, DispatchClaim, DispatchLease, EffectError, EffectErrorClass,
-    EffectOperation, EffectRequest, EffectResult, FailedEffect, PresentationOperation,
-    PresentationResult, RetentionPolicy, RetryDisposition, RetryPolicy, RetrySchedule, ScalarValue,
-    SchedulerLimits, Step, Value, Vm, decode_continuation, encode_continuation,
+    DispatchClaim, DispatchLease, EffectError, EffectErrorClass, EffectOperation, EffectResult,
+    FailedEffect, PresentationOperation, PresentationResult, RetentionPolicy, RetryDisposition,
+    RetryPolicy, RetrySchedule, ScalarValue, SchedulerLimits, Step, Value, Vm, decode_continuation,
+    encode_continuation,
 };
+
+#[test]
+fn adapter_continuation_codec_does_not_restore_complete_groups_or_override_live_state() {
+    let mut vm = Vm::new(100);
+    let request = effect(start(&mut vm, r#"fn main() = ui.focus(node_id: "a")"#));
+    let bytes = leselang_command::encode_continuation(&request.continuation).unwrap();
+    assert_eq!(encode_continuation(&request.continuation).unwrap(), bytes);
+    let decoded = leselang_command::decode_continuation(&bytes).unwrap();
+    assert_eq!(decode_continuation(&bytes).unwrap(), decoded);
+    assert_eq!(vm.pending_count(), 1);
+    assert_eq!(vm.completed_count(), 0);
+
+    let mut forged = decoded.clone();
+    forged.fuel_remaining -= 1;
+    let forged = leselang_command::decode_continuation(
+        &leselang_command::encode_continuation(&forged).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(vm.restore(forged.clone()).unwrap_err().code, "LSV2002");
+    assert!(
+        matches!(vm.resume_at(&forged, 2, focus("a")), Step::Fault(fault) if fault.code == "LSV2005")
+    );
+    assert_eq!(vm.pending_continuations(), vec![decoded.clone()]);
+
+    let mut group_member = decoded.clone();
+    group_member.schema_version = 6;
+    group_member.group_result = Some(leselang_command::ContinuationToken::from_wire(
+        "merge-3".into(),
+    ));
+    let wire = leselang_command::encode_continuation(&group_member).unwrap();
+    let group_member = leselang_command::decode_continuation(&wire).unwrap();
+    let mut receiver = Vm::new(100);
+    assert_eq!(receiver.restore(group_member).unwrap_err().code, "LSV1409");
+    assert_eq!(receiver.pending_count(), 0);
+    assert_eq!(receiver.completed_count(), 0);
+    let next = effect(start(
+        &mut receiver,
+        r#"fn main() = ui.focus(node_id: "b")"#,
+    ));
+    assert_eq!(next.effect_id, "effect-1");
+
+    assert!(matches!(
+        vm.resume_at(&decoded, 2, focus("a")),
+        Step::Done(_)
+    ));
+    assert_eq!(vm.restore(decoded).unwrap_err().code, "LSV2003");
+    assert_eq!(vm.pending_count(), 0);
+    assert_eq!(vm.completed_count(), 1);
+}
+
+#[test]
+fn execution_observations_are_exact_adapter_types_without_completion_or_lease_authority() {
+    use leselang_command::DispatchClaim::Leased;
+    use leselang_command::RetryDisposition::Terminal;
+    use leselang_command::Step::Done;
+    use std::any::TypeId;
+    macro_rules! exact {
+        ($($name:ident),+ $(,)?) => {$(assert_eq!(TypeId::of::<leselang_command::$name>(), TypeId::of::<leselang_vm::$name>());)+};
+    }
+    exact!(
+        NamedEffectRequest,
+        StructuredEffectBatch,
+        MergeWait,
+        Step,
+        DispatchLease,
+        FailedEffect,
+        RetrySchedule,
+        RetryDisposition,
+        DispatchClaim
+    );
+    let mut vm = Vm::new(100);
+    let request = effect(start(&mut vm, r#"fn main() = ui.focus(node_id: "a")"#));
+    let claimed_completion = Terminal(Done(Value::UiFocus {
+        node_id: "a".into(),
+    }));
+    let wire = serde_json::to_vec(&claimed_completion).unwrap();
+    let decoded: leselang_vm::RetryDisposition = serde_json::from_slice(&wire).unwrap();
+    assert_eq!(decoded, claimed_completion);
+    assert_eq!(
+        vm.pending_continuations(),
+        vec![request.continuation.clone()]
+    );
+    assert_eq!(vm.completed_count(), 0);
+    let current: leselang_command::DispatchLease = vm.claim_effect(1, 10).unwrap().unwrap();
+    let mut forged = current.clone();
+    forged.attempt += 1;
+    let wire = serde_json::to_vec(&Leased(Box::new(forged))).unwrap();
+    let Leased(forged) = serde_json::from_slice::<leselang_command::DispatchClaim>(&wire).unwrap()
+    else {
+        panic!("missing lease data")
+    };
+    assert!(matches!(
+        vm.acknowledge_effect(&forged, 2, focus("a")),
+        Step::Fault(_)
+    ));
+    assert_eq!(vm.pending_count(), 1);
+    assert_eq!(vm.completed_count(), 0);
+    assert_eq!(
+        vm.acknowledge_effect(&current, 2, focus("a")),
+        Done(Value::UiFocus {
+            node_id: "a".into()
+        })
+    );
+    assert_eq!(vm.pending_count(), 0);
+    assert_eq!(vm.completed_count(), 1);
+}
+
+#[test]
+fn adapter_request_decoding_is_exact_data_without_restore_or_mutation_authority() {
+    use std::any::TypeId;
+    assert_eq!(
+        TypeId::of::<EffectRequest>(),
+        TypeId::of::<leselang_vm::EffectRequest>()
+    );
+    assert_eq!(
+        TypeId::of::<leselang_command::ContinuationImage>(),
+        TypeId::of::<leselang_vm::ContinuationImage>()
+    );
+    let mut source = Vm::new(100);
+    let request = effect(start(&mut source, r#"fn main() = ui.focus(node_id: "a")"#));
+    let original = request.effect_id.as_ptr();
+    let legacy: leselang_vm::EffectRequest = request;
+    assert_eq!(legacy.effect_id.as_ptr(), original);
+    let bytes = serde_json::to_vec(&legacy).unwrap();
+    let mut decoded: EffectRequest = serde_json::from_slice(&bytes).unwrap();
+    let mut receiver = Vm::new(100);
+    assert_eq!(receiver.pending_count(), 0);
+    assert_eq!(source.pending_count(), 1);
+    decoded.budget.fuel_remaining = 0;
+    let expected =
+        leselang_command::reference_request::validate_effect_request(&decoded).unwrap_err();
+    assert_eq!(expected.code, "LSV2013");
+    assert_eq!(receiver.restore_request(decoded), Err(expected));
+    assert_eq!(receiver.pending_count(), 0);
+    receiver.restore_request(legacy.clone()).unwrap();
+    assert_eq!(receiver.pending_count(), 1);
+    assert_eq!(
+        receiver.resume(
+            &legacy.continuation,
+            EffectResult::Presentation(PresentationResult::Focus {
+                node_id: "a".into(),
+            })
+        ),
+        Step::Done(Value::UiFocus {
+            node_id: "a".into()
+        })
+    );
+    assert_eq!(receiver.pending_count(), 0);
+    assert_eq!(source.pending_count(), 1);
+}
+
+#[test]
+fn identity_and_terminal_data_are_exact_adapter_types_without_cancellation_authority() {
+    use leselang_command::{BranchCompletion, Cancellation, ContinuationToken};
+    use leselang_vm::BranchOutcome::Cancelled;
+    use leselang_vm::CancellationReason::Requested;
+    use std::any::TypeId;
+
+    for (current, adapter) in [
+        (
+            TypeId::of::<leselang_vm::ContinuationToken>(),
+            TypeId::of::<ContinuationToken>(),
+        ),
+        (
+            TypeId::of::<leselang_vm::Cancellation>(),
+            TypeId::of::<Cancellation>(),
+        ),
+        (
+            TypeId::of::<leselang_vm::CancellationReason>(),
+            TypeId::of::<CancellationReason>(),
+        ),
+        (
+            TypeId::of::<leselang_vm::BranchOutcome>(),
+            TypeId::of::<leselang_command::BranchOutcome>(),
+        ),
+        (
+            TypeId::of::<leselang_vm::BranchCompletion>(),
+            TypeId::of::<BranchCompletion>(),
+        ),
+    ] {
+        assert_eq!(current, adapter);
+    }
+    let mut vm = Vm::new(100);
+    let Step::Effect(request) = vm.start(
+        &lower(&parse(r#"fn main() = ui.focus(node_id: "a")"#)).unwrap(),
+        Principal::new("operator").unwrap(),
+        CapabilitySet::new(["ui.presentation"]),
+        None,
+    ) else {
+        panic!("missing effect")
+    };
+    let token: ContinuationToken = request.continuation.token.clone();
+    let completion = BranchCompletion {
+        branch: "a".into(),
+        outcome: Cancelled(Cancellation {
+            continuation: token,
+            reason: Requested,
+            observed_at_ms: 1,
+        }),
+    };
+    let bytes = serde_json::to_vec(&completion).unwrap();
+    let decoded: leselang_vm::BranchCompletion = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(decoded, completion);
+    assert_eq!(vm.pending_count(), 1);
+    let Step::Cancelled(actual) = vm.cancel_effect(&request.continuation, 1) else {
+        panic!("missing cancellation")
+    };
+    assert_eq!(decoded.outcome, Cancelled(actual));
+    assert_eq!(vm.pending_count(), 0);
+}
 
 #[test]
 fn merge_plan_and_order_are_exact_adapter_types_with_legacy_constructor_and_variant_imports() {

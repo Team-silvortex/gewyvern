@@ -1,0 +1,147 @@
+{
+  "kind": "leselang-reference-concrete-request",
+  "validated_on": "2026-10-23",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "reference_execution_contract": "1.115.0",
+  "native_embedding_contract": "0.171.0",
+  "frozen_valid_wire_cases": 74,
+  "frozen_malformed_wire_cases": 1332,
+  "frozen_semantic_decode_cases": 592,
+  "existing_frozen_admission_comparisons": 4200,
+  "direct_adapter_tests": 4,
+  "public_memory_profile_tests": 14,
+  "released_types_are_exact_reexports": true,
+  "checked_decode_retains_full_ordered_admission": true,
+  "restore_rechecks_mutable_data": true,
+  "shared_product_limits_and_fault_mapping": true,
+  "borrowed_views_preserve_original_addresses": true,
+  "raw_image_decode_remains_distinct_from_request_admission": true,
+  "adapter_has_no_vm_or_sqlite_dependency": true,
+  "isolated_consumer_passed": true,
+  "decode_grants_execution_authority": false,
+  "wire_or_journal_schema_changed": false,
+  "new_native_api": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "The product adapter owns the concrete EffectRequest, exact ContinuationImage specialization, released static ceilings and ordered consistency diagnostics. Existing VM imports are exact reexports; the generic explicit-policy request validator remains separate. The concrete deserializer still runs the closed current/legacy codec and full frame-before-correspondence admission. Its frozen codec oracle now invokes the independent frozen semantic validator rather than the moved implementation; 74 valid, 1332 malformed and 592 semantic cases retain wire bytes and exact errors. Existing 4200 frame/correspondence comparisons also pass. Direct adapter tests cover original field addresses, eleven overlapping refusal stages, preserved zero-output policy, mutable-data rechecks, lexical frame versus canonical request admission and explicit ingress bounds. A public memory test uses adapter requests through actual VM restore/resume: decoding changes neither VM; mutated budget refuses before admission; successful explicit restoration settles only the receiving VM. Product policy is not authentic capabilities, bounded ingress, canonical pending-source admission, a live clock, original-budget provenance or journal permission. Original VM restore revalidation, identity allocation, conflict checks, pending canonicality, leases and memory/SQLite transactions remain authoritative. No complete durable native VM, new native API, protocol schema change or completed extraction gate is claimed. Product version follows the unchanged Cargo manifest.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_request.rs",
+      "sha256": "a2a15bd906d324bb17a1d8628079eec72e9ff3c659f8879f40f4425fc1a493c5"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "7bfee176d1c2d2385a6073f1646e8fbde5560d415d08abe972f876a6f46b2295"
+    },
+    {
+      "path": "crates/leselang-command/src/request_codec.rs",
+      "sha256": "47fddc17db405cc89ef1b05e242776880c903addf5cef37c17209e1f05d1206d"
+    },
+    {
+      "path": "crates/leselang-command/src/request_admission.rs",
+      "sha256": "17bf2efd7bfe2751da903581854d4d23bce2f236080b1016e3e88aa11d2b100d"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_request.rs",
+      "sha256": "05c576804e8f16111f8dea58cc1abb6fd10fd14c9fe46d225688bb964f33f475"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "4281dcd051dece7fe7a78e21464724333708a8270966e99dcc8c62821a9c6996"
+    },
+    {
+      "path": "crates/leselang-vm/src/result_binding.rs",
+      "sha256": "3f887546be5217d917ed68fed2de44d640d93e78eebd9fe720a88e75101b7fbb"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_binding.rs",
+      "sha256": "346911286f85d2d2b355b894c3600803f7729619e0a0b13df51a144a26691a7c"
+    },
+    {
+      "path": "crates/leselang-vm/src/request_codec_tests.rs",
+      "sha256": "dbce6cccc409382335dfeb99bb25947d04b612a4bc490257bc47f9ad30d5062b"
+    },
+    {
+      "path": "crates/leselang-vm/src/operation_request_tests.rs",
+      "sha256": "b4fcd020846474f2a892a446a9c40f837e6e21290befe5fb60b07443eb68fa82"
+    },
+    {
+      "path": "crates/leselang-vm/src/continuation_schema_tests.rs",
+      "sha256": "de5df235c1a1edf5ba059a78902fb67636e4aebfa7a87299c122505fb4ba2591"
+    },
+    {
+      "path": "crates/leselang-vm/tests/ephemeral_profile.rs",
+      "sha256": "14ecd7bcafa21adac494a97cb7c03b326255c39d3ee0a7a11254eb9aeb2fad4a"
+    }
+  ],
+  "verification": [
+    {
+      "name": "default-command-vm-and-observe",
+      "path": "/private/tmp/leselang-reference-request-20261023-verified-runtime.log",
+      "passed": 1097,
+      "sha256": "7d9792752efe71ee110701d3f825b7d41ae61b94598b92770b7fbc077872fb63"
+    },
+    {
+      "name": "no-sqlite-reference-ephemeral-and-audit",
+      "path": "/private/tmp/leselang-reference-request-20261023-memory.log",
+      "passed": 120,
+      "sha256": "062d27d6e5d233c8601ed7688a7d30f7271d138866f35b2e896d0ff9bd3d4fba"
+    },
+    {
+      "name": "command-vm-observe-strict-clippy",
+      "path": "/private/tmp/leselang-reference-request-20261023-clippy.log",
+      "passed": true,
+      "sha256": "c88b742a852b27c9d47d1d335d877d2c4c65db3ea842a98da087505567ba09c2"
+    },
+    {
+      "name": "isolated-source-tests-and-strict-clippy",
+      "path": "/private/tmp/leselang-reference-request-20261023-export.log",
+      "passed": 2564,
+      "sha256": "0a95b8b895c1eb9d1f187e66a5f08f8fda424c08139bb4b710af0b7e7a5372ac"
+    },
+    {
+      "name": "native-dependency-tree",
+      "path": "/private/tmp/leselang-reference-request-20261023-native-tree.log",
+      "passed": true,
+      "sha256": "7761956849824d975f3c3dc5961bc0c8b76716ccfb04c6aa88cbf18687087dbb"
+    },
+    {
+      "name": "adapter-dependency-tree",
+      "path": "/private/tmp/leselang-reference-request-20261023-adapter-tree.log",
+      "passed": true,
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "name": "four-root-guards-strict-clippy",
+      "path": "/private/tmp/leselang-reference-request-20261023-verified-guard-clippy.log",
+      "passed": true,
+      "sha256": "a17055abc2478178c927e069d85d3c53839c1c9147336a8a5f1888aebc3f6e88"
+    },
+    {
+      "name": "workspace-format",
+      "path": "/private/tmp/leselang-reference-request-20261023-verified-fmt.log",
+      "passed": true,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "included-profile-format",
+      "path": "/private/tmp/leselang-reference-request-20261023-profile-fmt.log",
+      "passed": true,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-reference-request-20261023-2.4.0",
+    "manifest_sha256": "38667700c703537892dc55f29894ca6512e8268c7a1f7c47f3b39a8e30f82617",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2017,
+    "consumer_tests": 547,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}

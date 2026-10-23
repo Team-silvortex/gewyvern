@@ -1,0 +1,129 @@
+{
+  "kind": "leselang-reference-product-scheduler-policy",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "reference_execution_contract": "1.112.0",
+  "native_embedding_contract": "0.171.0",
+  "policy_admission_comparisons": 49,
+  "capacity_and_pressure_comparisons": 3136,
+  "wire_comparisons": 1044,
+  "direct_adapter_tests": 4,
+  "vm_contract_tests": 3,
+  "backpressure_integration_tests": 20,
+  "both_journals_use_adapter_policy": true,
+  "released_policy_types_are_exact_reexports": true,
+  "dispatch_claim_enum_retained": true,
+  "exact_fault_priority_and_wire_parity": true,
+  "shared_core_capacity_arithmetic_retained": true,
+  "journal_transactions_and_eligibility_retained": true,
+  "adapter_has_no_vm_or_sqlite_dependency": true,
+  "isolated_consumer_passed": true,
+  "policy_or_snapshot_grants_authority": false,
+  "wire_or_journal_schema_changed": false,
+  "new_native_api": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "The command adapter owns SchedulerLimits, SchedulerPressure, policy admission and capacity/occupancy forwarding to the existing runtime-core arithmetic. Journal storage, retention and scheduler defaults share the same product MAX_JOURNAL_RECORDS ceiling; released VM paths reexport the exact types and constant. The VM private bridge retains LSV2500-LSV2503 and exact fault messages, while DispatchClaim remains the original concrete enum with variant imports and owned lease payload. Frozen comparisons cover 49 policies, 3,136 capacity/pressure combinations with full-width overflow and permanent-batch-before-transient-pressure precedence, and 1,044 wire cases including closed shapes, primitive/sequence inputs and claims containing all 70 released operation requests. Existing backpressure integration tests now use adapter types directly across memory and SQLite paths, concurrent stale workers, limit lowering, retry readiness, lease fencing, restoration and rollback. Journals still decide eligibility, count outstanding work and check/commit under the original owner or SQLite transaction. Policy decoding or a constructed/stale pressure observation is not current authority, reservation, a runnable candidate or a lease grant. No new scheduler, native API, schema change or complete native durable extraction is claimed. Product version follows the unchanged Cargo manifest, not the Git commit subject.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/scheduler_policy.rs",
+      "sha256": "08a061323f787873a4fb00379e6faf3dabce869ef87063c3cc89003b1d490e40"
+    },
+    {
+      "path": "crates/leselang-command/src/retention_policy.rs",
+      "sha256": "7b58ac84a851853e41f890112fbd7530e88a7885678f4a5b5313d14ad840075e"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "5dc005c4cb20ee8c87a85c581c8e6ae59d8a3d0af18f2272b4901075d2de972d"
+    },
+    {
+      "path": "crates/leselang-command/tests/scheduler_policy.rs",
+      "sha256": "862255f5f119ea91d3f9fbb493bb27b4b5996651ae75a4487b313b56c3aea2b2"
+    },
+    {
+      "path": "crates/leselang-vm/src/scheduling.rs",
+      "sha256": "15e8267a2fb27da71662bae8da9d198a2c0b576bb6cb34f55e370366ea4658df"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "0ce774596c32ae82fd2b5e6679875e2bcc3a47484f9273eb8223f7d68b292ae1"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "caae25bcf374f7ef7a8da233ba69782ad0561ed0d6468beb7e7d8cd21617cdfa"
+    },
+    {
+      "path": "crates/leselang-vm/src/scheduling_contract_tests.rs",
+      "sha256": "09656148f74e6d8ff472ad3fdf187b2d5e58f6d06a9bc8d0cd1f17bf12d896e1"
+    },
+    {
+      "path": "crates/leselang-vm/tests/backpressure.rs",
+      "sha256": "3b0f02fdb4d660dd836d3714761434309b2684693dc969b66071df3551a29d05"
+    }
+  ],
+  "verification": [
+    {
+      "name": "default-command-vm-and-observe",
+      "path": "/private/tmp/leselang-scheduler-policy-runtime.log",
+      "passed": 1074,
+      "sha256": "6831e29a43311d58ebe932521ce722db3e5ebed0175fb911918ff3782a551bf4"
+    },
+    {
+      "name": "adapter-types-through-both-journal-backpressure-paths",
+      "path": "/private/tmp/leselang-scheduler-policy-backpressure.log",
+      "passed": 20,
+      "sha256": "a459404218d9f305cc391820e652e8b39e29da5e7b40b69b4cb398711a90d736"
+    },
+    {
+      "name": "no-sqlite-reference-ephemeral-and-audit",
+      "path": "/private/tmp/leselang-scheduler-policy-memory.log",
+      "passed": 113,
+      "sha256": "5ebd7bc249538b68ee37a340fcfb5f94a23fd172e55aaeae104a2b1c68485395"
+    },
+    {
+      "name": "command-vm-observe-strict-clippy",
+      "path": "/private/tmp/leselang-scheduler-policy-clippy.log",
+      "passed": true,
+      "sha256": "93cf19d26d10af8cb4a9f759d9091066d5a0b07a0fa51b1edb9368c1230a7f07"
+    },
+    {
+      "name": "isolated-source-tests-and-strict-clippy",
+      "path": "/private/tmp/leselang-scheduler-policy-export.log",
+      "passed": 2564,
+      "sha256": "a6d0aedbff859fc08c6b8b0c0840f1b2cd4c225209e6b91f0d0d889991c9fe29"
+    },
+    {
+      "name": "native-dependency-tree",
+      "path": "/private/tmp/leselang-scheduler-policy-tree.log",
+      "passed": true,
+      "sha256": "db7045428a8b2e01a00083136dd5707fc51b5fe3b71bc857646c0529a78869b2"
+    },
+    {
+      "name": "adapter-dependency-tree",
+      "path": "/private/tmp/leselang-scheduler-policy-adapter-tree.log",
+      "passed": true,
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "name": "root-guard-strict-clippy",
+      "path": "/private/tmp/leselang-scheduler-policy-guard-clippy.log",
+      "passed": true,
+      "sha256": "25f76093e1559d268dd656b424228003f0efcaab5643abe3f105c40f08d1c318"
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-scheduler-policy-2.4.0",
+    "manifest_sha256": "38667700c703537892dc55f29894ca6512e8268c7a1f7c47f3b39a8e30f82617",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2017,
+    "consumer_tests": 547,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}

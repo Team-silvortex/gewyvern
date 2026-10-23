@@ -1,12 +1,57 @@
-//! Bounded product-wire encoding, not semantic admission or durable storage.
+//! Bounded product-wire JSON, not semantic admission or durable storage.
 //!
-//! Both operations borrow the value and run its serializer once. Callers must
+//! Encoding operations borrow the value and run its serializer once. Callers must
 //! bound recursive structures before entry. A custom serializer is trusted code:
 //! its CPU, allocations and side effects are not limited or rolled back here.
+//! Decoding checks the entire input byte length before entering serde, retains
+//! serde_json's recursion limit and rejects trailing data. It does not bound the
+//! decoded allocation size or sandbox a custom deserializer. Callers still own
+//! semantic validation, authorization and any durable state transition.
 
 use std::io::{self, Write};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+
+/// Separate from encoding errors to preserve exhaustive matches on the released API.
+#[derive(Debug)]
+pub enum BoundedJsonDecodeError {
+    Limit { size: usize, limit: usize },
+    Deserialize(serde_json::Error),
+}
+
+impl std::fmt::Display for BoundedJsonDecodeError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Limit { limit, .. } => write!(formatter, "input JSON exceeds {limit} bytes"),
+            Self::Deserialize(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for BoundedJsonDecodeError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Limit { .. } => None,
+            Self::Deserialize(error) => Some(error),
+        }
+    }
+}
+
+/// Decode one complete JSON value, allowing the result to borrow from `bytes`.
+/// Whitespace counts toward the input limit. No deserializer runs on oversized
+/// input; once entered, its side effects are not rolled back on a parse failure.
+pub fn decode<'de, T: Deserialize<'de>>(
+    bytes: &'de [u8],
+    limit: usize,
+) -> Result<T, BoundedJsonDecodeError> {
+    if bytes.len() > limit {
+        return Err(BoundedJsonDecodeError::Limit {
+            size: bytes.len(),
+            limit,
+        });
+    }
+    serde_json::from_slice(bytes).map_err(BoundedJsonDecodeError::Deserialize)
+}
 
 #[derive(Debug)]
 pub enum BoundedJsonError {

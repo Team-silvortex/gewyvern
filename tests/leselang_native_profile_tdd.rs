@@ -1568,12 +1568,17 @@ fn dispatch_capacity_is_shared_without_moving_storage_or_product_policy_into_cor
     assert!(core.contains(".checked_add(additional)"));
     let scheduling =
         fs::read_to_string(root().join("crates/leselang-vm/src/scheduling.rs")).unwrap();
+    assert!(scheduling.contains("check_scheduler_admission(self, pending, additional)"));
+    assert!(scheduling.contains("scheduler_lease_capacity_exhausted(self)"));
+    let policy =
+        fs::read_to_string(root().join("crates/leselang-command/src/scheduler_policy.rs")).unwrap();
     assert!(
-        scheduling
-            .contains("check_dispatch_admission(pending, additional, self.max_pending_dispatches)")
+        policy.contains(
+            "check_dispatch_admission(pending, additional, limits.max_pending_dispatches)"
+        )
     );
-    assert!(scheduling.contains(
-        "dispatch_lease_capacity_exhausted(self.active_leases, self.limits.max_active_leases)"
+    assert!(policy.contains(
+        "dispatch_lease_capacity_exhausted(pressure.active_leases, pressure.limits.max_active_leases)"
     ));
     assert!(!scheduling.contains("pending.saturating_add"));
     for code in ["LSV2500", "LSV2501", "LSV2502", "LSV2503"] {
@@ -1665,17 +1670,24 @@ fn dispatch_data_is_host_owned_and_reference_types_are_not_mirrored() {
     }
     let vm =
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/execution_outcome.rs"))
+            .unwrap();
     for (name, payload) in [
         ("DispatchLease", "EffectRequest"),
         ("RetrySchedule", "EffectError"),
         ("FailedEffect", "EffectError"),
     ] {
-        assert!(vm.contains(&format!(
+        assert!(adapter.contains(&format!(
             "pub type {name} = leselang_runtime_core::{name}<{payload}>;"
         )));
         assert!(!vm.contains(&format!("pub struct {name} {{")));
     }
-    assert!(vm.contains("pub enum RetryDisposition {"));
+    assert!(vm.contains(
+        "pub use leselang_command::{DispatchLease, FailedEffect, RetryDisposition, RetrySchedule}"
+    ));
+    assert!(adapter.contains("pub enum RetryDisposition {"));
+    assert!(!adapter.contains("pub type RetryDisposition"));
     let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
     assert!(exporter.contains("consumer/tests/dispatch_data.rs"));
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();

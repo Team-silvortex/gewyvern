@@ -10,6 +10,7 @@ default = []
 native-ssh = ["leserpent-adapters/native-ssh"]
 
 [dependencies]
+leselang-command = { path = "../leselang-command" }
 leselang-hir = { path = "../leselang-hir" }
 leselang-observe = { path = "../leselang-observe" }
 leselang-syntax = { path = "../leselang-syntax" }

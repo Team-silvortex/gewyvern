@@ -47,7 +47,7 @@ impl<'de> Deserialize<'de> for Frozen {
                 budget: wire.budget,
             },
         };
-        validate_effect_request(&request)
+        operation_request_tests::frozen_validate_effect_request(&request)
             .map_err(|fault| D::Error::custom(format!("{}: {}", fault.code, fault.message)))?;
         Ok(Self(request))
     }

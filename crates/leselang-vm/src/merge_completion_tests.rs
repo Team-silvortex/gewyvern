@@ -72,7 +72,7 @@ fn outcome(kind: usize, name: &str) -> BranchOutcome {
             value: ScalarValue::Boolean(true),
         }),
         2 => BranchOutcome::Cancelled(Cancellation {
-            continuation: ContinuationToken("continuation-1".into()),
+            continuation: ContinuationToken::from_wire("continuation-1".into()),
             reason: CancellationReason::Requested,
             observed_at_ms: 101,
         }),
@@ -93,7 +93,7 @@ fn outcome(kind: usize, name: &str) -> BranchOutcome {
             message: name.into(),
         }),
         6 => BranchOutcome::Cancelled(Cancellation {
-            continuation: ContinuationToken("".into()),
+            continuation: ContinuationToken::from_wire("".into()),
             reason: CancellationReason::DeadlineExceeded,
             observed_at_ms: u64::MAX,
         }),

@@ -1,10 +1,11 @@
+use leselang_command::{SchedulerLimits, SchedulerPressure};
 use leselang_hir::lower;
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_syntax::parse;
 use leselang_vm::{
     DispatchClaim, DispatchLease, EffectError, EffectErrorClass, EffectOperation, EffectRequest,
-    EffectResult, MAX_DISPATCH_LEASE_MS, MergePlan, RetryDisposition, RetryPolicy, SchedulerLimits,
-    Step, Vm, merge_declared,
+    EffectResult, MAX_DISPATCH_LEASE_MS, MergePlan, RetryDisposition, RetryPolicy, Step, Vm,
+    merge_declared,
 };
 use rusqlite::Connection;
 use std::path::PathBuf;
@@ -225,7 +226,8 @@ fn invalid_limits_fail_before_creating_a_journal_and_do_not_replace_valid_policy
             vm.set_scheduler_limits(invalid).unwrap_err().code,
             "LSV2500"
         );
-        assert_eq!(vm.scheduler_pressure(100).unwrap().limits, limits(2, 1));
+        let pressure: SchedulerPressure = vm.scheduler_pressure(100).unwrap();
+        assert_eq!(pressure.limits, limits(2, 1));
     }
 }
 

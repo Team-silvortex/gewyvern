@@ -1,10 +1,11 @@
+use leselang_command::CancellationReason;
 use leselang_hir::lower;
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_runtime_core::MAX_CLOCK_MS;
 use leselang_syntax::parse;
 use leselang_vm::{
-    CancellationReason, EffectError, EffectErrorClass, EffectOperation, EffectRequest,
-    EffectResult, RetryDisposition, RetryPolicy, ScalarValue, Step, Value, Vm,
+    EffectError, EffectErrorClass, EffectOperation, EffectRequest, EffectResult, RetryDisposition,
+    RetryPolicy, ScalarValue, Step, Value, Vm,
 };
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};

@@ -5,6 +5,595 @@ fn root() -> &'static Path {
 }
 
 #[test]
+fn continuation_codec_is_adapter_owned_while_restore_and_consumers_keep_execution_boundaries() {
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    let codec =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_continuation.rs"))
+            .unwrap();
+    for removed in [
+        "pub fn encode_continuation(",
+        "pub fn decode_continuation(",
+        "fn validate_pending_effect_contract(",
+        "pub const MAX_CONTINUATION_BYTES:",
+    ] {
+        assert!(!vm.contains(removed), "{removed}");
+    }
+    assert!(vm.contains("pub use leselang_command::{MAX_CONTINUATION_BYTES, decode_continuation, encode_continuation}"));
+    assert!(vm.contains("pub(crate) use leselang_command::reference_continuation::{"));
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "Journal::",
+        "Fuel::new",
+        ".record_pending(",
+        "disable_recursion_limit",
+    ] {
+        assert!(!codec.contains(absent), "{absent}");
+    }
+    let encode = codec
+        .split_once("pub fn encode_continuation(")
+        .unwrap()
+        .1
+        .split_once("pub fn validate_continuation_size(")
+        .unwrap()
+        .0;
+    assert!(
+        encode
+            .find("validate_continuation_encoding_size(image)?")
+            .unwrap()
+            < encode.find("validate_restorable_image(image)?").unwrap()
+    );
+    assert!(
+        encode.find("validate_restorable_image(image)?").unwrap()
+            < encode.find("bounded_json::encode(").unwrap()
+    );
+    let preflight = codec
+        .split_once("pub fn validate_continuation_encoding_size(")
+        .unwrap()
+        .1
+        .split_once("pub fn decode_continuation(")
+        .unwrap()
+        .0;
+    assert!(
+        preflight
+            .find("crate::validate_result_binding_structure(")
+            .unwrap()
+            < preflight.find("bounded_json::measure(").unwrap()
+    );
+    let restore = vm
+        .split_once("fn restore_inner(")
+        .unwrap()
+        .1
+        .split_once("pub fn resume(")
+        .unwrap()
+        .0;
+    let mut rest = restore;
+    for gate in [
+        "validate_continuation_size(&image)?",
+        "if image.group_result.is_some()",
+        "if let Some(current) = self.pending.get(&image.token)",
+        "if self.completed.contains_key(&image.token)",
+        "SequenceWatermarkRequirement::after_observation",
+        ".record_pending(&image, request, self.scheduler_limits)?",
+        "self.next_effect_id =",
+        "self.pending.insert(",
+    ] {
+        rest = rest
+            .split_once(gate)
+            .unwrap_or_else(|| panic!("lost restore gate {gate}"))
+            .1;
+    }
+    let observe =
+        fs::read_to_string(root().join("crates/leselang-observe/src/vm_bridge.rs")).unwrap();
+    assert!(observe.contains("use leselang_vm::Vm;"));
+    assert!(!observe.contains("leselang_vm::{"));
+    let daemon = fs::read_to_string(root().join("crates/leserpentd/src/debugger.rs")).unwrap();
+    assert!(daemon.contains("use leselang_vm::{DEFAULT_FUEL, Vm};"));
+    assert!(daemon.contains("use leselang_command::{"));
+    for path in ["debugger.rs", "remote.rs", "wire.rs"] {
+        let source = fs::read_to_string(root().join("crates/leserpentd/src").join(path)).unwrap();
+        for removed in [
+            "leselang_vm::Value",
+            "leselang_vm::ScalarValue",
+            "leselang_vm::PresentationOperation",
+            "leselang_vm::MAX_MERGE_BRANCHES",
+        ] {
+            assert!(!source.contains(removed), "{path}: {removed}");
+        }
+    }
+    let frozen = fs::read_to_string(
+        root().join("crates/leselang-vm/src/continuation_codec_contract_tests.rs"),
+    )
+    .unwrap();
+    let oracle = frozen.split_once("fn compare(").unwrap().0;
+    assert!(!oracle.contains("leselang_command"));
+    assert!(oracle.contains("continuation_schema_tests::frozen_validate_image(image)?"));
+    assert!(oracle.contains("frozen_encode_json_capped"));
+    assert!(frozen.contains("7_560"));
+    assert!(frozen.contains("2_652"));
+    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(ci.contains("--test reference_continuation"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Static Continuation Codec Ownership"));
+}
+
+#[test]
+fn observation_projection_features_really_remove_vm_and_storage_dependencies() {
+    for (features, vm, sqlite) in [
+        (vec!["--no-default-features"], false, false),
+        (
+            vec!["--no-default-features", "--features", "vm-bridge"],
+            true,
+            false,
+        ),
+        (vec![], true, true),
+        (
+            vec!["--no-default-features", "--features", "sqlite-journal"],
+            true,
+            true,
+        ),
+    ] {
+        let output = Command::new(env!("CARGO"))
+            .args([
+                "tree",
+                "-p",
+                "leselang-observe",
+                "--locked",
+                "--offline",
+                "--edges",
+                "normal,build,dev",
+                "--prefix",
+                "none",
+            ])
+            .args(features)
+            .current_dir(root())
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let tree = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(
+            tree.lines().any(|line| line.starts_with("leselang-vm v")),
+            vm
+        );
+        assert_eq!(
+            tree.lines().any(|line| line.starts_with("rusqlite v")),
+            sqlite
+        );
+        assert_eq!(
+            tree.lines()
+                .any(|line| line.starts_with("libsqlite3-sys v")),
+            sqlite
+        );
+        assert!(
+            tree.lines()
+                .any(|line| line.starts_with("leselang-command v"))
+        );
+        assert!(
+            tree.lines()
+                .any(|line| line.starts_with("leserpent-domain v"))
+        );
+    }
+}
+
+#[test]
+fn read_only_observation_and_optional_mutation_keep_the_original_authority_boundary() {
+    let source = fs::read_to_string(root().join("crates/leselang-observe/src/lib.rs")).unwrap();
+    let (production, tests) = source
+        .split_once("#[cfg(all(test, feature = \"vm-bridge\"))]")
+        .unwrap();
+    assert!(!production.contains("leselang_vm"));
+    assert!(production.contains("use leselang_runtime_core::Fault"));
+    assert!(
+        production.contains("use leselang_command::reference_request::validate_effect_request")
+    );
+    assert!(
+        production.contains(
+            "validate_effect_request(request).map_err(ObserveError::InvalidEffectRequest)?"
+        )
+    );
+    assert!(production.contains("#[cfg(feature = \"vm-bridge\")]\nmod vm_bridge;"));
+    assert!(production.contains("#[cfg(feature = \"vm-bridge\")]\npub use vm_bridge::{execute_debugger_cancel, execute_debugger_cancel_effect};"));
+    assert!(tests.contains("debugger_cancel_requires_capability_and_confirmation_then_applies"));
+    let bridge =
+        fs::read_to_string(root().join("crates/leselang-observe/src/vm_bridge.rs")).unwrap();
+    let mut rest = bridge.as_str();
+    for original_gate in [
+        "inspect_debugger_cancel_plan(plan, projection)?",
+        "encode_continuation(image).map_err(ObserveError::InvalidDebuggerContinuation)?",
+        "if image.program_counter != projection.program_counter",
+        "if inspection.dry_run",
+        "let audit = DebuggerAuditContext",
+        ".cancel_effect_audited(image, now_ms, &audit)",
+        "audited_at_ms: Some(record.observed_at_ms)",
+        "if mutation.status != DebuggerMutationStatus::Applied",
+    ] {
+        rest = rest
+            .split_once(original_gate)
+            .unwrap_or_else(|| panic!("lost ordered bridge gate {original_gate}"))
+            .1;
+    }
+    let tests =
+        fs::read_to_string(root().join("crates/leselang-observe/tests/projection_profile.rs"))
+            .unwrap();
+    let (read_only, bridge_tests) = tests.split_once("#[cfg(feature = \"vm-bridge\")]").unwrap();
+    assert!(!read_only.contains("leselang_vm"));
+    assert_eq!(read_only.matches("#[test]").count(), 5);
+    assert_eq!(bridge_tests.matches("#[test]").count(), 2);
+    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    for command in [
+        "cargo +1.98.0 test -p leselang-observe --locked --no-default-features",
+        "cargo +1.98.0 clippy -p leselang-observe --locked --no-default-features --all-targets -- -D warnings",
+        "cargo +1.98.0 test -p leselang-observe --locked --no-default-features --features vm-bridge",
+        "cargo +1.98.0 clippy -p leselang-observe --locked --no-default-features --features vm-bridge --all-targets -- -D warnings",
+    ] {
+        assert!(ci.contains(command), "{command}");
+    }
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    let section = docs
+        .split_once("### Optional Observation VM Bridge")
+        .unwrap()
+        .1;
+    assert!(section.contains("Cargo features are additive, not an authorization boundary"));
+    assert!(section.contains("not a\nhost-neutral UI adapter or complete standalone VM"));
+}
+
+#[test]
+fn execution_observation_types_move_without_terminal_or_dispatch_ownership() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/execution_outcome.rs"))
+            .unwrap();
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    let scheduler =
+        fs::read_to_string(root().join("crates/leselang-vm/src/scheduling.rs")).unwrap();
+    for declaration in [
+        "pub enum Step",
+        "pub enum RetryDisposition",
+        "pub enum DispatchClaim",
+        "pub struct NamedEffectRequest",
+        "pub struct StructuredEffectBatch",
+        "pub struct MergeWait",
+    ] {
+        assert!(adapter.contains(declaration), "{declaration}");
+        assert!(!vm.contains(declaration));
+        assert!(!scheduler.contains(declaration));
+    }
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "Fuel::",
+        "LSV",
+        "pub type Step",
+        "pub type RetryDisposition",
+        "pub type DispatchClaim",
+        "pub fn ",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    assert_eq!(adapter.matches("deny_unknown_fields").count(), 1);
+    assert!(vm.contains(
+        "pub use leselang_command::{MergeWait, NamedEffectRequest, Step, StructuredEffectBatch}"
+    ));
+    assert!(vm.contains(
+        "pub use leselang_command::{DispatchLease, FailedEffect, RetryDisposition, RetrySchedule}"
+    ));
+    assert!(
+        scheduler.contains(
+            "pub use leselang_command::{DispatchClaim, SchedulerLimits, SchedulerPressure}"
+        )
+    );
+    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    assert!(journal.contains("fn validate_terminal_step(step: &Step)"));
+    assert!(
+        journal.contains("Step::Effect(_) | Step::Effects(_) | Step::Waiting(_) | Step::Yield(_)")
+    );
+    assert!(journal.contains("validate_dispatch_lease("));
+    assert!(journal.contains("adapter_step_decode_does_not_replace_original_terminal_admission"));
+    let frozen = fs::read_to_string(
+        root().join("crates/leselang-vm/src/execution_outcome_contract_tests.rs"),
+    )
+    .unwrap();
+    assert!(frozen.contains("46_224"));
+    assert!(frozen.contains("assert_eq!(comparisons, 630)"));
+    let frozen = frozen.split_once("mod frozen {").unwrap().1;
+    assert!(!frozen.contains("leselang_command"));
+    assert!(frozen.contains("pub enum Step"));
+    assert!(frozen.contains("pub enum DispatchClaim"));
+    let memory =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/ephemeral_profile.rs")).unwrap();
+    assert!(memory.contains(
+        "execution_observations_are_exact_adapter_types_without_completion_or_lease_authority"
+    ));
+    assert!(
+        fs::read_to_string(root().join("docs/leselang-embedding.md"))
+            .unwrap()
+            .contains("### Execution Observation Ownership")
+    );
+}
+
+#[test]
+fn concrete_product_request_and_static_policy_move_without_execution_authority() {
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
+            .unwrap();
+    assert!(vm.contains("pub use leselang_command::{ContinuationImage, EffectRequest}"));
+    for removed in [
+        "pub struct EffectRequest",
+        "impl<'de> Deserialize<'de> for EffectRequest",
+        "fn continuation_admission_limits(",
+        "fn request_admission_fault(",
+    ] {
+        assert!(!vm.contains(removed), "{removed}");
+    }
+    for required in [
+        "pub struct EffectRequest",
+        "pub fn as_view(",
+        "pub fn validate_effect_request(",
+        "pub fn continuation_admission_limits(",
+        "pub fn request_admission_fault(",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "Fuel::new",
+        ".clone()",
+        "Journal",
+        "canonical_source(",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    let restore = vm
+        .split_once("pub fn restore_request(")
+        .unwrap()
+        .1
+        .split_once("pub fn resume(")
+        .unwrap()
+        .0;
+    assert!(
+        restore.find("validate_effect_request(&request)?").unwrap()
+            < restore.find("self.restore_inner(").unwrap()
+    );
+    assert!(restore.contains("validate_continuation_size(&image)?"));
+    assert!(restore.contains(".record_pending(&image, request, self.scheduler_limits)?"));
+    let continuation =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_continuation.rs"))
+            .unwrap();
+    assert!(continuation.contains("canonical_source(&image.pending_effect)"));
+    let codec =
+        fs::read_to_string(root().join("crates/leselang-vm/src/request_codec_tests.rs")).unwrap();
+    assert!(codec.contains("operation_request_tests::frozen_validate_effect_request(&request)"));
+    let consumer =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/ephemeral_profile.rs")).unwrap();
+    assert!(consumer.contains("use leselang_command::{CancellationReason, EffectRequest}"));
+    assert!(
+        consumer.contains(
+            "adapter_request_decoding_is_exact_data_without_restore_or_mutation_authority"
+        )
+    );
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Concrete Product Request Ownership"));
+}
+
+#[test]
+fn product_identity_and_terminal_data_move_without_runtime_or_storage_authority() {
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    assert!(vm.contains("pub use leselang_command::ContinuationToken"));
+    assert!(vm.contains("pub use leselang_command::{BranchCompletion, BranchOutcome, Cancellation, CancellationReason}"));
+    assert!(vm.contains("pub(crate) use leselang_command::continuation_identity::"));
+    for removed in [
+        "pub struct ContinuationToken",
+        "pub struct Cancellation",
+        "pub enum CancellationReason",
+        "pub struct BranchCompletion",
+        "pub enum BranchOutcome",
+        "fn canonical_continuation_sequence(",
+        "fn continuation_age_order(",
+    ] {
+        assert!(!vm.contains(removed), "{removed}");
+    }
+    for retained in [
+        "pub use leselang_command::{MergeWait, NamedEffectRequest, Step, StructuredEffectBatch}",
+        "pub use leselang_command::{DispatchLease, FailedEffect, RetryDisposition, RetrySchedule}",
+        "fn validate_branch_outcome(",
+        "invalid_continuation_sequence_fault",
+        "if sequence == 0 || sequence > MAX_EFFECT_SEQUENCE",
+    ] {
+        assert!(vm.contains(retained), "{retained}");
+    }
+    let identity =
+        fs::read_to_string(root().join("crates/leselang-command/src/continuation_identity.rs"))
+            .unwrap();
+    let continuation =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_continuation.rs"))
+            .unwrap();
+    assert!(continuation.contains("validate_restorable_image(&image)?"));
+    let terminal =
+        fs::read_to_string(root().join("crates/leselang-command/src/terminal_outcome.rs")).unwrap();
+    for source in [&identity, &terminal] {
+        for absent in ["leselang_vm", "rusqlite", "Fuel::", "LSV", "Transaction"] {
+            assert!(!source.contains(absent), "{absent}");
+        }
+    }
+    assert!(identity.contains("pub struct ContinuationToken(String)"));
+    assert!(!identity.contains("pub struct ContinuationToken(pub"));
+    assert!(identity.contains("pub fn from_wire(value: String) -> Self"));
+    assert!(identity.contains("pub fn canonical_merge_sequence("));
+    assert!(terminal.contains("pub enum BranchOutcome"));
+    assert!(terminal.contains("pub enum CancellationReason"));
+    assert!(!terminal.contains("deny_unknown_fields"));
+    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    assert!(
+        journal
+            .contains("leselang_command::continuation_identity::canonical_merge_sequence(token)")
+    );
+    assert!(journal.contains("fn advance_sequence_watermark("));
+    let frozen = fs::read_to_string(
+        root().join("crates/leselang-vm/src/identity_outcome_contract_tests.rs"),
+    )
+    .unwrap();
+    let frozen = frozen.split_once("mod frozen {").unwrap().1;
+    assert!(!frozen.contains("leselang_command"));
+    assert!(frozen.contains("pub struct ContinuationToken(String)"));
+    let consumer =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/ephemeral_profile.rs")).unwrap();
+    assert!(consumer.contains(
+        "identity_and_terminal_data_are_exact_adapter_types_without_cancellation_authority"
+    ));
+    let clocks =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/clock_boundaries.rs")).unwrap();
+    assert!(clocks.contains("use leselang_command::CancellationReason"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Product Identity And Terminal Data Ownership"));
+}
+
+#[test]
+fn bounded_input_decoding_is_shared_but_does_not_replace_product_admission() {
+    let codec =
+        fs::read_to_string(root().join("crates/leselang-command/src/bounded_json.rs")).unwrap();
+    let decode = codec
+        .split_once("pub fn decode<'de, T: Deserialize<'de>>(")
+        .unwrap()
+        .1
+        .split_once("#[derive(Debug)]")
+        .unwrap()
+        .0;
+    assert!(
+        decode.find("bytes.len() > limit").unwrap() < decode.find("from_slice(bytes)").unwrap()
+    );
+    assert!(!decode.contains("DeserializeOwned"));
+    assert!(!codec.contains("disable_recursion_limit"));
+    assert!(codec.contains("pub enum BoundedJsonDecodeError"));
+    let codec =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_continuation.rs"))
+            .unwrap();
+    let continuation = codec
+        .split_once("pub fn decode_continuation(")
+        .unwrap()
+        .1
+        .split_once("fn validate_pending_effect_contract(")
+        .unwrap()
+        .0;
+    assert!(
+        continuation.find("bounded_json::decode(").unwrap()
+            < continuation
+                .find("validate_restorable_image(&image)?")
+                .unwrap()
+    );
+    assert!(!continuation.contains("serde_json::from_slice"));
+    for code in ["LSV3002", "LSV3003"] {
+        assert!(continuation.contains(code));
+    }
+    let plan = fs::read_to_string(root().join("crates/leselang-command/src/lib.rs")).unwrap();
+    let plan = plan
+        .split_once("pub fn decode_plan(")
+        .unwrap()
+        .1
+        .split_once("pub fn lower_effect(")
+        .unwrap()
+        .0;
+    assert!(
+        plan.find("bounded_json::decode(").unwrap() < plan.find("plan.schema_version !=").unwrap()
+    );
+    assert!(
+        plan.find("plan.schema_version !=").unwrap() < plan.find("validate_plan(&plan)?").unwrap()
+    );
+    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let decode = journal
+        .split_once("fn decode_bounded<")
+        .unwrap()
+        .1
+        .split_once("fn validate_terminal_step(")
+        .unwrap()
+        .0;
+    assert!(decode.contains("leselang_command::bounded_json::decode(bytes, limit)"));
+    assert!(!decode.contains("serde_json::from_slice"));
+    for code in ["LSV4006", "LSV4007"] {
+        assert!(decode.contains(code));
+    }
+    let tests =
+        fs::read_to_string(root().join("crates/leselang-vm/src/journal/bounded_decode_tests.rs"))
+            .unwrap();
+    let frozen = tests
+        .split_once("fn frozen_decode<")
+        .unwrap()
+        .1
+        .split_once("fn compare<")
+        .unwrap()
+        .0;
+    assert!(frozen.contains("serde_json::from_slice(bytes)"));
+    assert!(!frozen.contains("bounded_json::decode"));
+    assert!(tests.contains("assert_eq!(snapshot(&connection), before)"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Product Bounded Decode Ownership"));
+}
+
+#[test]
+fn product_scheduler_policy_moves_without_owning_leases_or_journal_admission() {
+    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/scheduling.rs")).unwrap();
+    assert!(
+        vm.contains(
+            "pub use leselang_command::{DispatchClaim, SchedulerLimits, SchedulerPressure}"
+        )
+    );
+    assert!(!vm.contains("pub struct SchedulerLimits"));
+    assert!(!vm.contains("pub struct SchedulerPressure"));
+    let outcomes =
+        fs::read_to_string(root().join("crates/leselang-command/src/execution_outcome.rs"))
+            .unwrap();
+    assert!(outcomes.contains("pub enum DispatchClaim"));
+    assert!(!vm.contains("pub enum DispatchClaim"));
+    assert!(!vm.contains("pub type DispatchClaim"));
+    for delegated in [
+        "validate_scheduler_limits(self)",
+        "check_scheduler_admission(self, pending, additional)",
+        "scheduler_lease_capacity_exhausted(self)",
+    ] {
+        assert!(vm.contains(delegated), "{delegated}");
+    }
+    for code in ["LSV2500", "LSV2501", "LSV2502", "LSV2503"] {
+        assert!(vm.contains(code));
+    }
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/scheduler_policy.rs")).unwrap();
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "Fault",
+        "LSV",
+        "DispatchClaim",
+        "DispatchLease",
+        "Fuel",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    assert!(adapter.contains("use crate::retention_policy::MAX_JOURNAL_RECORDS"));
+    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    assert!(journal.contains("pub use leselang_command::retention_policy::MAX_JOURNAL_RECORDS"));
+    assert!(journal.contains("limits.check_admission("));
+    let frozen =
+        fs::read_to_string(root().join("crates/leselang-vm/src/scheduling_contract_tests.rs"))
+            .unwrap();
+    let frozen = frozen.split_once("mod frozen {").unwrap().1;
+    assert!(!frozen.contains("leselang_command"));
+    assert!(frozen.contains("check_dispatch_admission("));
+    let integration =
+        fs::read_to_string(root().join("crates/leselang-vm/tests/backpressure.rs")).unwrap();
+    assert!(integration.contains("use leselang_command::{SchedulerLimits, SchedulerPressure}"));
+    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
+    assert!(docs.contains("### Product Scheduler Policy Ownership"));
+}
+
+#[test]
 fn product_retention_policy_is_shared_and_memory_compaction_preflights_before_mutation() {
     let vm =
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
@@ -77,12 +666,20 @@ fn product_bounded_json_is_shared_without_moving_admission_or_journal_ownership(
     for required in [
         "leselang_command::bounded_json::encode(value, limit)",
         "leselang_command::bounded_json::measure(value, limit)",
-        "binding.validate_structure()?",
-        "validate_restorable_image(image)?",
         "\"LSV3001\"",
         "\"LSV3002\"",
     ] {
         assert!(vm.contains(required), "{required}");
+    }
+    let codec =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_continuation.rs"))
+            .unwrap();
+    for required in [
+        "crate::validate_result_binding_structure(",
+        "validate_restorable_image(image)?",
+        "bounded_json::measure(image, MAX_CONTINUATION_BYTES)",
+    ] {
+        assert!(codec.contains(required), "{required}");
     }
     let plan = fs::read_to_string(root().join("crates/leselang-command/src/lib.rs")).unwrap();
     let plan = plan
@@ -260,7 +857,8 @@ fn product_debugger_audit_metadata_is_adapter_owned_without_moving_commit_author
     let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/debugger_audit.rs")).unwrap();
-    let observe = fs::read_to_string(root().join("crates/leselang-observe/src/lib.rs")).unwrap();
+    let observe =
+        fs::read_to_string(root().join("crates/leselang-observe/src/vm_bridge.rs")).unwrap();
     for removed in [
         "pub struct DebuggerAuditContext",
         "pub struct DebuggerAuditRecord",
@@ -275,7 +873,7 @@ fn product_debugger_audit_metadata_is_adapter_owned_without_moving_commit_author
     assert!(!journal.contains("fn audit_matches_record("));
     assert!(journal.contains("leselang_command::debugger_audit::parse_command_origin(value)"));
     assert!(observe.contains(
-        "use leselang_command::{CommandPlan, DebuggerAuditContext, DebuggerCancelResult}"
+        "use leselang_command::{\n    CommandPlan, ContinuationImage, DebuggerAuditContext, DebuggerCancelResult, encode_continuation,\n}"
     ));
     assert_eq!(adapter.matches("#[serde(deny_unknown_fields)]").count(), 2);
     for absent in [
@@ -329,15 +927,19 @@ fn product_debugger_audit_metadata_is_adapter_owned_without_moving_commit_author
 fn product_request_codec_is_adapter_owned_and_vm_admission_stays_mandatory() {
     let vm =
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
-    let decode = vm
+    let request =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
+            .unwrap();
+    assert!(vm.contains("pub use leselang_command::{ContinuationImage, EffectRequest}"));
+    let decode = request
         .split("impl<'de> Deserialize<'de> for EffectRequest")
         .nth(1)
         .unwrap()
-        .split("pub type DispatchLease")
+        .split("pub fn result_binding_limits")
         .next()
         .unwrap();
     let parsed = decode
-        .find("leselang_command::decode_effect_request(deserializer)?")
+        .find("crate::decode_effect_request(deserializer)?")
         .unwrap();
     let admitted = decode.find("validate_effect_request(&request)").unwrap();
     let returned = decode.find("Ok(request)").unwrap();
@@ -875,7 +1477,11 @@ fn complete_request_admission_is_one_shared_ordered_gate_without_native_authorit
     }
     let vm =
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
-    let admission = vm
+    assert!(vm.contains("pub use leselang_command::reference_request::{"));
+    let request =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
+            .unwrap();
+    let admission = request
         .split_once("pub fn validate_effect_request(")
         .unwrap()
         .1
@@ -883,7 +1489,7 @@ fn complete_request_admission_is_one_shared_ordered_gate_without_native_authorit
         .unwrap()
         .0;
     for required in [
-        "leselang_command::validate_effect_request(",
+        "crate::validate_effect_request(",
         "continuation_admission_limits()",
         "ContinuationToken::as_str",
         "valid_continuation_token,",
@@ -1072,16 +1678,21 @@ fn request_frame_correspondence_is_shared_without_weakening_checked_deserializat
     }
     let vm =
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
-    assert!(vm.contains("impl<'de> Deserialize<'de> for EffectRequest"));
+    let request =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
+            .unwrap();
+    assert!(!vm.contains("impl<'de> Deserialize<'de> for EffectRequest"));
+    assert!(request.contains("impl<'de> Deserialize<'de> for EffectRequest"));
+    assert!(request.contains("validate_effect_request(&request)"));
     assert!(vm.contains("validate_effect_request(&request)"));
-    let admission = vm
+    let admission = request
         .split_once("pub fn validate_effect_request(")
         .unwrap()
         .1
-        .split_once("fn generated_effect_identity_fault(")
+        .split_once("fn request_correspondence_fault(")
         .unwrap()
         .0;
-    assert!(admission.contains("leselang_command::validate_effect_request("));
+    assert!(admission.contains("crate::validate_effect_request("));
     let complete =
         fs::read_to_string(root().join("crates/leselang-command/src/request_admission.rs"))
             .unwrap();
@@ -1554,7 +2165,12 @@ fn product_capture_replay_policy_is_adapter_owned_without_moving_authority_or_fa
     assert!(!group.contains("validate_capture_correspondence("));
     assert!(group.contains("leselang_command::validate_group_capture_correspondence("));
     assert!(group.contains("crate::result_binding::invalid()"));
-    assert!(group.contains("code: \"LSV1409\""));
+    let request =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
+            .unwrap();
+    assert!(group.contains("leselang_command::reference_request::continuation_admission_fault("));
+    assert!(group.contains("continuation_schema::ContinuationSchemaError::Group"));
+    assert!(request.contains("code: \"LSV1409\""));
     let proofs =
         fs::read_to_string(root().join("crates/leselang-command/tests/capture_replay.rs")).unwrap();
     for proof in [
@@ -2027,8 +2643,12 @@ fn continuation_schema_policy_is_adapter_owned_after_structure_preflight() {
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
     assert!(reference.contains("pub use leselang_command::continuation_schema::{"));
     assert!(!reference.contains("pub const CONTINUATION_SCHEMA_VERSION"));
-    let validation = reference
-        .split_once("fn validate_image(")
+    let request =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
+            .unwrap();
+    assert!(reference.contains("validate_continuation_image as validate_image"));
+    let validation = request
+        .split_once("pub fn validate_continuation_image(")
         .unwrap()
         .1
         .split_once("pub fn validate_effect_request(")
@@ -2059,13 +2679,13 @@ fn continuation_schema_policy_is_adapter_owned_after_structure_preflight() {
             + step.len();
     }
     for required in [
-        "leselang_command::validate_continuation_frame(",
-        "result_binding::result_binding_limits()",
+        "crate::validate_continuation_frame(",
+        "result_binding_limits()",
         "max_group_sequence: MAX_EFFECT_SEQUENCE",
         "ContinuationToken::as_str",
         "valid_continuation_token,",
         "valid_merge_branch_name,",
-        "group_binding::invalid()",
+        "\"LSV1409\"",
         "ContinuationSchemaError::Version { .. })",
         "\"LSV2001\"",
     ] {
@@ -2082,7 +2702,10 @@ fn continuation_schema_policy_is_adapter_owned_after_structure_preflight() {
     ] {
         assert!(!validation.contains(absent), "VM duplicated {absent}");
     }
-    let restore = reference
+    let codec =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_continuation.rs"))
+            .unwrap();
+    let restore = codec
         .split_once("fn validate_restorable_image(")
         .unwrap()
         .1
@@ -2090,7 +2713,7 @@ fn continuation_schema_policy_is_adapter_owned_after_structure_preflight() {
         .unwrap()
         .0;
     let stages = [
-        "validate_image(image)?",
+        "validate_continuation_image(image)?",
         "canonical_continuation_sequence(",
         "validate_pending_effect_contract(image)",
     ]
@@ -2183,13 +2806,18 @@ fn product_capture_access_policy_is_adapter_owned_without_bypassing_vm_admission
                 .find("validate_canonical_binding_type(binding, pending)")
                 .unwrap()
     );
+    let request =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
+            .unwrap();
+    assert!(production.contains("leselang_command::reference_request::result_binding_limits()"));
+    assert!(production.contains(".map_err(projection_fault)"));
+    assert!(production.contains("leselang_command::ContinuationAdmissionError::Binding"));
     for retained in [
         "max_nodes: leselang_hir::computation::MAX_COMPUTATION_NODES",
         "max_depth: MAX_EFFECT_NESTING_DEPTH",
-        ".map_err(projection_fault)",
         "LSV1405",
     ] {
-        assert!(production.contains(retained));
+        assert!(request.contains(retained));
     }
     for absent in [
         "fn field_bit(",
@@ -2254,8 +2882,13 @@ fn product_group_capture_contract_is_adapter_owned_with_explicit_vm_policy() {
     assert!(production.contains(
         "#[cfg(test)]\npub(super) use leselang_command::ProjectedGroupExt as ReferenceProjectedGroup;"
     ));
-    assert!(production.contains("max_members: crate::MAX_MERGE_BRANCHES - 1"));
-    assert!(production.contains("min_members: 1"));
+    let request =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
+            .unwrap();
+    assert!(production.contains("result_binding_limits().groups"));
+    assert!(production.contains("leselang_command::reference_request::result_binding_limits()"));
+    assert!(request.contains("max_members: crate::MAX_MERGE_BRANCHES - 1"));
+    assert!(request.contains("min_members: 1"));
     assert!(production.contains("crate::valid_merge_branch_name"));
     assert!(!production.contains("impl ReferenceProjectedGroup"));
     assert!(!production.contains("fn matches_members("));
@@ -2302,10 +2935,15 @@ fn product_scalar_projection_is_adapter_owned_without_moving_execution_policy() 
         fs::read_to_string(root().join("crates/leselang-command/src/result_view.rs")).unwrap();
     assert!(view.contains(".project_scalar(field)"));
     assert!(view.contains(".ok_or(ResultViewError::InvalidProjection)"));
+    let request =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
+            .unwrap();
+    assert!(request.contains("ContinuationAdmissionError::Binding => \"LSV1405\""));
     for retained in [
         "leselang_command::validate_result_binding_structure(",
         ".map_err(projection_fault)",
-        "code: \"LSV1405\"",
+        "leselang_command::reference_request::continuation_admission_fault(",
+        "leselang_command::ContinuationAdmissionError::Binding",
     ] {
         assert!(
             binding.contains(retained),
@@ -2843,11 +3481,15 @@ fn control_plane_request_correspondence_is_adapter_owned_but_identity_generation
     }
     let vm =
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
-    let admission = vm
+    let request =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
+            .unwrap();
+    assert!(vm.contains("pub use leselang_command::reference_request::{"));
+    let admission = request
         .split_once("pub fn validate_effect_request(")
         .unwrap()
         .1
-        .split_once("fn generated_effect_identity_fault(")
+        .split_once("fn request_correspondence_fault(")
         .unwrap()
         .0;
     for absent in [
@@ -2936,6 +3578,10 @@ fn composed_operation_request_policy_is_vm_free_without_bypassing_reference_admi
     let vm =
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
     assert!(!vm.contains("fn validate_effect_identity("));
+    let request =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
+            .unwrap();
+    assert!(vm.contains("validate_effect_request(&request)"));
     for mapping in [
         "RequestCorrespondenceError::Operation(OperationRequestError::Capability) => \"LSV2011\"",
         "RequestCorrespondenceError::Operation(OperationRequestError::Envelope) => \"LSV2012\"",
@@ -2943,7 +3589,7 @@ fn composed_operation_request_policy_is_vm_free_without_bypassing_reference_admi
         "RequestCorrespondenceError::Budget => \"LSV2013\"",
         "validate_effect_request(&request)",
     ] {
-        assert!(vm.contains(mapping));
+        assert!(request.contains(mapping));
     }
     let tests =
         fs::read_to_string(root().join("crates/leselang-command/tests/host_protocol.rs")).unwrap();
@@ -2989,16 +3635,20 @@ fn presentation_request_payload_checks_are_adapter_owned_without_reordering_vm_a
     }
     let vm =
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
-    let admission = vm
+    let request =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
+            .unwrap();
+    assert!(vm.contains("pub use leselang_command::reference_request::{"));
+    let admission = request
         .split_once("pub fn validate_effect_request(")
         .unwrap()
         .1
-        .split_once("fn generated_effect_identity_fault(")
+        .split_once("fn request_correspondence_fault(")
         .unwrap()
         .0;
     assert!(!admission.contains("Effect::Ui"));
     assert!(!admission.contains("PresentationOperation::"));
-    assert!(admission.contains("leselang_command::validate_effect_request("));
+    assert!(admission.contains("crate::validate_effect_request("));
     let complete =
         fs::read_to_string(root().join("crates/leselang-command/src/request_admission.rs"))
             .unwrap();
@@ -4509,17 +5159,24 @@ fn actual_atomic_and_group_saved_bodies_use_the_shared_hir_entry_without_body_re
 fn saved_frame_is_shared_data_while_reference_restore_and_authority_remain_native() {
     let code =
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    assert!(code.contains("pub use leselang_runtime_core::ResourceBudget;"));
+    assert!(code.contains("pub use leselang_command::{ContinuationImage, EffectRequest}"));
+    let request =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
+            .unwrap();
     for boundary in [
         "pub type ContinuationImage = leselang_runtime_core::ContinuationFrame<",
-        "pub use leselang_runtime_core::ResourceBudget;",
-        "leselang_command::validate_continuation_frame(",
+        "crate::validate_continuation_frame(",
         "budget: ResourceBudgetLimits",
         "ContinuationAdmissionError::Budget(ResourceBudgetError::Fuel)",
         "ContinuationAdmissionError::Budget(ResourceBudgetError::AbsoluteDeadline)",
-        "leselang_command::validate_effect_request(",
+        "crate::validate_effect_request(",
         "budget: &self.budget,",
     ] {
-        assert!(code.contains(boundary), "reference frame lost {boundary}");
+        assert!(
+            request.contains(boundary),
+            "reference frame lost {boundary}"
+        );
     }
     let correspondence =
         fs::read_to_string(root().join("crates/leselang-command/src/request_correspondence.rs"))

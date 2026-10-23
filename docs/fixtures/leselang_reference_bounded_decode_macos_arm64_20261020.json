@@ -1,0 +1,123 @@
+{
+  "kind": "leselang-reference-product-bounded-decode",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "reference_execution_contract": "1.113.0",
+  "native_embedding_contract": "0.171.0",
+  "parser_boundary_comparisons": 60,
+  "plan_comparisons": 240,
+  "continuation_comparisons": 980,
+  "journal_comparisons": 7560,
+  "durable_corruption_refusals": 32,
+  "direct_adapter_tests": 5,
+  "vm_contract_tests": 4,
+  "all_three_production_decoders_use_adapter": true,
+  "size_check_precedes_deserializer_entry": true,
+  "exact_fault_priority_and_parser_diagnostics": true,
+  "borrowed_decode_supported": true,
+  "semantic_and_restore_admission_retained": true,
+  "durable_refusal_preserves_rows": true,
+  "adapter_has_no_vm_or_sqlite_dependency": true,
+  "isolated_consumer_passed": true,
+  "decode_grants_execution_authority": false,
+  "input_limit_is_allocation_or_cpu_quota": false,
+  "wire_or_journal_schema_changed": false,
+  "new_native_api": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "The product adapter owns complete-input byte-bounded JSON decoding shared by command plans, reference continuations and journal payloads. Input length (including whitespace and UTF-8 bytes) is checked before custom deserializer entry; borrowed results, serde recursion bounds, DTO-specific shape rules and exact parser diagnostics are retained. A separate decode error enum leaves exhaustive matches on the released encoding error enum intact. Frozen wrapper comparisons preserve plan schema-before-semantic admission, continuation restorable-image admission and original LSV3002/LSV3003/LSV4006/LSV4007 faults. Durable fixtures cover atomic, sequential, parallel and captured-effect programs in pending and completed states; malformed, oversized, invalid-UTF8 and trailing-data images refuse reopen without changing the original stored rows, and repairing fixture bytes permits reopening again. Parsing is not semantic validation, execution/restore authority, an allocation/CPU quota or a custom-deserializer sandbox. Custom side effects after entry are not rolled back on failure. Journal transactions, graph validation, snapshot publication and native completion gates are unchanged. Product version follows the unchanged Cargo manifest, not the Git commit subject.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/bounded_json.rs",
+      "sha256": "5d54d60657544fd097d529dd9682497f76124b108f1087029dbf954b346758ea"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "b9a042079ba9863b0b964860dffba78174cbff09be72e8f2861fe58d997e5956"
+    },
+    {
+      "path": "crates/leselang-command/tests/bounded_decode.rs",
+      "sha256": "88798d4d95916b4e6ebccd32f0e1638f979210b9bc1f56a70165f83fd799afdf"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "b723585faac0aa0b119d823cca5db59c369a5f95dfb40b14a6af4293b3a4ed9d"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "1dc517f74ea4647e9a36d138f14e4011ae729c88cba6a7545259a648a03474aa"
+    },
+    {
+      "path": "crates/leselang-vm/src/bounded_decode_tests.rs",
+      "sha256": "e7e8140892e619bc08a834f57cb833bbe99587fbb953e80d093508ba2ee545b3"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/bounded_decode_tests.rs",
+      "sha256": "d9fb4eddbe8b40e14cd72f4edbbb74ac1635838189213f0c8b1bd9b516b58391"
+    }
+  ],
+  "verification": [
+    {
+      "name": "default-command-vm-and-observe",
+      "path": "/private/tmp/leselang-bounded-decode-runtime.log",
+      "passed": 1083,
+      "sha256": "0839d29fbb635da1600d4ffa7488db41e2eb8b052dbfc2e1a4c4d4de67664410"
+    },
+    {
+      "name": "no-sqlite-reference-ephemeral-and-audit",
+      "path": "/private/tmp/leselang-bounded-decode-memory.log",
+      "passed": 115,
+      "sha256": "039dcbd1276f941c578f76461d905073dac11511e4bfd73c297ddd5b17bc76a7"
+    },
+    {
+      "name": "command-vm-observe-strict-clippy",
+      "path": "/private/tmp/leselang-bounded-decode-clippy.log",
+      "passed": true,
+      "sha256": "74ae2ccd849ad11bea232b7a02cdf9e13c25ff26733652505dc93164ae93ff87"
+    },
+    {
+      "name": "isolated-source-tests-and-strict-clippy",
+      "path": "/private/tmp/leselang-bounded-decode-export.log",
+      "passed": 2564,
+      "sha256": "9c85dea1fd3a3d2466d8a553632ccdab2de3eb10782749f69288d2f190679d8a"
+    },
+    {
+      "name": "native-dependency-tree",
+      "path": "/private/tmp/leselang-bounded-decode-native-tree.log",
+      "passed": true,
+      "sha256": "3e1138f8aaf196de58ac8dd1ab6ad9cfb108de50447d72ef85da3299ca53eb4b"
+    },
+    {
+      "name": "adapter-dependency-tree",
+      "path": "/private/tmp/leselang-bounded-decode-adapter-tree.log",
+      "passed": true,
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "name": "four-root-guards-strict-clippy",
+      "path": "/private/tmp/leselang-bounded-decode-guard-clippy.log",
+      "passed": true,
+      "sha256": "b34ce6452a07db28cd6002b906b2f18edaa969c919076668b9397b7874322209"
+    },
+    {
+      "name": "workspace-and-included-profile-format",
+      "path": "/private/tmp/leselang-bounded-decode-fmt.log",
+      "passed": true,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-bounded-decode-2.4.0",
+    "manifest_sha256": "38667700c703537892dc55f29894ca6512e8268c7a1f7c47f3b39a8e30f82617",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2017,
+    "consumer_tests": 547,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}

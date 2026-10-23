@@ -1360,8 +1360,8 @@ mod tests {
     use std::thread;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use leselang_command::PresentationOperation;
     use leselang_hir::CAPABILITY_UI_PRESENTATION;
-    use leselang_vm::PresentationOperation;
     use leserpent_adapters::{
         GewyvernTargetCatalog, MutableSecretStore, SecretKey, SecretStore, SecretStoreError,
         SecretValue,

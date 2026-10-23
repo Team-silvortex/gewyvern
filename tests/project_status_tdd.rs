@@ -14,6 +14,510 @@ fn repository_root() -> PathBuf {
 }
 
 #[test]
+fn static_continuation_codec_status_does_not_claim_restore_or_complete_native_recovery() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let reference = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
+        .unwrap();
+    assert_eq!(reference.contract.version, "1.118.0");
+    assert!(
+        reference
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface
+                == "adapter-owned-bounded-continuation-codec-and-static-admission")
+    );
+    let native = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.171.0");
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.completion, 10);
+    let path = "docs/fixtures/leselang_reference_continuation_codec_macos_arm64_20261023.json";
+    for evidence in [
+        path,
+        "crates/leselang-command/src/reference_continuation.rs",
+        "crates/leselang-command/tests/reference_continuation.rs",
+        "crates/leselang-vm/src/continuation_codec_contract_tests.rs",
+        "crates/leselang-vm/tests/ephemeral_profile.rs",
+    ] {
+        assert!(
+            reference
+                .evidence
+                .iter()
+                .any(|entry| entry.path == evidence && entry.state == EvidenceState::Present),
+            "{evidence}"
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(repository_root().join(path)).unwrap()).unwrap();
+    assert_eq!(proof["kind"], "leselang-reference-continuation-codec");
+    assert_eq!(proof["reference_execution_contract"], "1.118.0");
+    assert_eq!(proof["native_embedding_contract"], "0.171.0");
+    assert_eq!(proof["operation_codec_comparisons"], 7560);
+    assert_eq!(proof["schema_binding_comparisons"], 2652);
+    assert_eq!(proof["direct_adapter_tests"], 4);
+    for flag in [
+        "exact_vm_codec_reexports",
+        "original_fault_order_and_wire_retained",
+        "recursive_preflight_before_serializer",
+        "raw_input_bound_before_deserializer",
+        "adapter_has_no_vm_or_sqlite_dependency",
+        "live_and_consumed_conflicts_remain_vm_owned",
+        "incomplete_group_restore_does_not_reserve_identity",
+        "daemon_protocol_imports_use_adapter",
+        "isolated_consumer_passed",
+    ] {
+        assert_eq!(proof[flag], true, "{flag}");
+    }
+    for flag in [
+        "decoding_grants_restoration",
+        "wire_or_journal_schema_changed",
+        "new_native_api",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+}
+
+#[test]
+fn observation_dependency_split_retains_product_scope_and_live_mutation_authority() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let reference = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
+        .unwrap();
+    assert_eq!(reference.contract.version, "1.118.0");
+    assert!(
+        reference
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface
+                == "vm-optional-read-only-observation-with-audited-mutation-bridge")
+    );
+    let native = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.171.0");
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.completion, 10);
+    let path = "docs/fixtures/leselang_reference_observe_boundary_macos_arm64_20261023.json";
+    for evidence in [
+        path,
+        "crates/leselang-observe/Cargo.toml",
+        "crates/leselang-observe/src/lib.rs",
+        "crates/leselang-observe/src/vm_bridge.rs",
+        "crates/leselang-observe/tests/projection_profile.rs",
+    ] {
+        assert!(
+            reference
+                .evidence
+                .iter()
+                .any(|entry| entry.path == evidence && entry.state == EvidenceState::Present),
+            "{evidence}"
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(repository_root().join(path)).unwrap()).unwrap();
+    assert_eq!(proof["kind"], "leselang-reference-observe-boundary");
+    assert_eq!(proof["reference_execution_contract"], "1.117.0");
+    assert_eq!(proof["native_embedding_contract"], "0.171.0");
+    assert_eq!(proof["read_only_tests"], 5);
+    assert_eq!(proof["memory_bridge_tests"], 18);
+    for flag in [
+        "read_only_has_no_vm_or_sqlite_including_dev_dependencies",
+        "memory_bridge_has_no_sqlite",
+        "default_vm_and_sqlite_preserved",
+        "original_mutation_body_unchanged",
+        "original_static_request_admission_retained",
+        "unknown_and_forged_images_refused_without_audit",
+        "dry_run_encoding_and_replay_timestamp_retained",
+        "daemon_debugger_tests_passed",
+    ] {
+        assert_eq!(proof[flag], true, "{flag}");
+    }
+    for flag in [
+        "features_are_authorization",
+        "projection_grants_cancellation",
+        "host_neutral_observer",
+        "wire_or_journal_schema_changed",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+}
+
+#[test]
+fn execution_observation_migration_does_not_promote_native_recovery_or_state_authority() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let reference = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
+        .unwrap();
+    assert_eq!(reference.contract.version, "1.118.0");
+    assert!(
+        reference
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "adapter-owned-execution-observations-and-dispatch-data")
+    );
+    let native = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.171.0");
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.completion, 10);
+    let path = "docs/fixtures/leselang_reference_execution_outcome_macos_arm64_20261023.json";
+    for evidence in [
+        path,
+        "crates/leselang-command/src/execution_outcome.rs",
+        "crates/leselang-command/tests/execution_outcome.rs",
+        "crates/leselang-vm/src/execution_outcome_contract_tests.rs",
+        "crates/leselang-vm/tests/ephemeral_profile.rs",
+    ] {
+        assert!(
+            reference
+                .evidence
+                .iter()
+                .any(|entry| entry.path == evidence && entry.state == EvidenceState::Present),
+            "{evidence}"
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(repository_root().join(path)).unwrap()).unwrap();
+    assert_eq!(proof["kind"], "leselang-reference-execution-outcome");
+    assert_eq!(proof["reference_execution_contract"], "1.116.0");
+    assert_eq!(proof["native_embedding_contract"], "0.171.0");
+    assert_eq!(proof["wire_debug_comparisons"], 46224);
+    assert_eq!(proof["nested_request_admission_comparisons"], 630);
+    assert_eq!(proof["journal_terminal_admission_cases"], 12);
+    assert_eq!(proof["exact_type_identity_checks"], 9);
+    for flag in [
+        "released_types_are_exact_reexports",
+        "concrete_enum_variant_imports_retained",
+        "per_type_unknown_field_policy_retained",
+        "nested_request_admission_retained",
+        "original_terminal_and_lease_authority_retained",
+        "adapter_has_no_vm_or_sqlite_dependency",
+        "isolated_consumer_passed",
+    ] {
+        assert_eq!(proof[flag], true, "{flag}");
+    }
+    for flag in [
+        "decoding_grants_completion_or_dispatch",
+        "wire_or_journal_schema_changed",
+        "new_native_api",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+}
+
+#[test]
+fn concrete_request_migration_keeps_full_native_and_durable_gates_incomplete() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let reference = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
+        .unwrap();
+    assert_eq!(reference.contract.version, "1.118.0");
+    assert!(
+        reference
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "adapter-owned-concrete-request-and-static-admission")
+    );
+    let native = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.171.0");
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.completion, 10);
+    let path = "docs/fixtures/leselang_reference_concrete_request_macos_arm64_20261023.json";
+    for evidence in [
+        path,
+        "crates/leselang-command/src/reference_request.rs",
+        "crates/leselang-command/tests/reference_request.rs",
+        "crates/leselang-vm/src/request_codec_tests.rs",
+        "crates/leselang-vm/tests/ephemeral_profile.rs",
+    ] {
+        assert!(
+            reference
+                .evidence
+                .iter()
+                .any(|entry| entry.path == evidence && entry.state == EvidenceState::Present),
+            "{evidence}"
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(repository_root().join(path)).unwrap()).unwrap();
+    assert_eq!(proof["kind"], "leselang-reference-concrete-request");
+    assert_eq!(proof["reference_execution_contract"], "1.115.0");
+    assert_eq!(proof["native_embedding_contract"], "0.171.0");
+    assert_eq!(proof["frozen_valid_wire_cases"], 74);
+    assert_eq!(proof["frozen_malformed_wire_cases"], 1332);
+    assert_eq!(proof["frozen_semantic_decode_cases"], 592);
+    for flag in [
+        "released_types_are_exact_reexports",
+        "checked_decode_retains_full_ordered_admission",
+        "restore_rechecks_mutable_data",
+        "adapter_has_no_vm_or_sqlite_dependency",
+        "isolated_consumer_passed",
+    ] {
+        assert_eq!(proof[flag], true, "{flag}");
+    }
+    for flag in [
+        "decode_grants_execution_authority",
+        "wire_or_journal_schema_changed",
+        "new_native_api",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+}
+
+#[test]
+fn product_identity_data_migration_keeps_native_and_recovery_gates_incomplete() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let reference = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
+        .unwrap();
+    assert_eq!(reference.contract.version, "1.118.0");
+    assert!(
+        reference
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "adapter-owned-continuation-identity-and-terminal-data")
+    );
+    let native = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.171.0");
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.completion, 10);
+    let path = "docs/fixtures/leselang_reference_identity_outcome_macos_arm64_20261020.json";
+    for evidence in [
+        path,
+        "crates/leselang-command/src/continuation_identity.rs",
+        "crates/leselang-command/src/terminal_outcome.rs",
+        "crates/leselang-command/tests/identity_outcome.rs",
+        "crates/leselang-vm/src/identity_outcome_contract_tests.rs",
+    ] {
+        assert!(
+            reference
+                .evidence
+                .iter()
+                .any(|entry| entry.path == evidence && entry.state == EvidenceState::Present),
+            "{evidence}"
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(repository_root().join(path)).unwrap()).unwrap();
+    assert_eq!(proof["kind"], "leselang-reference-product-identity-outcome");
+    assert_eq!(proof["reference_execution_contract"], "1.114.0");
+    assert_eq!(proof["native_embedding_contract"], "0.171.0");
+    assert_eq!(proof["identity_cases"], 65);
+    assert_eq!(proof["ordering_pairs"], 4225);
+    assert_eq!(proof["wire_comparisons"], 16232);
+    for flag in [
+        "released_types_are_exact_reexports",
+        "concrete_enum_variant_imports_retained",
+        "private_token_field_retained",
+        "legacy_ordering_distinct_from_canonical_admission",
+        "raw_construction_moves_original_string",
+        "restore_and_terminal_validation_retained",
+        "journal_allocation_and_watermark_authority_retained",
+        "adapter_has_no_vm_or_sqlite_dependency",
+        "isolated_consumer_passed",
+    ] {
+        assert_eq!(proof[flag], true, "{flag}");
+    }
+    for flag in [
+        "wire_data_grants_execution_authority",
+        "wire_or_journal_schema_changed",
+        "new_native_api",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+}
+
+#[test]
+fn bounded_decode_migration_retains_native_completion_and_recovery_authority_gates() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let reference = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
+        .unwrap();
+    assert_eq!(reference.contract.version, "1.118.0");
+    assert!(
+        reference
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "adapter-owned-bounded-json-decoding")
+    );
+    let native = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.171.0");
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.completion, 10);
+    let path = "docs/fixtures/leselang_reference_bounded_decode_macos_arm64_20261020.json";
+    for evidence in [
+        path,
+        "crates/leselang-command/src/bounded_json.rs",
+        "crates/leselang-command/tests/bounded_decode.rs",
+        "crates/leselang-vm/src/bounded_decode_tests.rs",
+        "crates/leselang-vm/src/journal/bounded_decode_tests.rs",
+    ] {
+        assert!(
+            reference
+                .evidence
+                .iter()
+                .any(|entry| entry.path == evidence && entry.state == EvidenceState::Present),
+            "{evidence}"
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(repository_root().join(path)).unwrap()).unwrap();
+    assert_eq!(proof["kind"], "leselang-reference-product-bounded-decode");
+    assert_eq!(proof["reference_execution_contract"], "1.113.0");
+    assert_eq!(proof["native_embedding_contract"], "0.171.0");
+    assert_eq!(proof["plan_comparisons"], 240);
+    assert_eq!(proof["continuation_comparisons"], 980);
+    assert_eq!(proof["journal_comparisons"], 7560);
+    assert_eq!(proof["durable_corruption_refusals"], 32);
+    for flag in [
+        "all_three_production_decoders_use_adapter",
+        "size_check_precedes_deserializer_entry",
+        "exact_fault_priority_and_parser_diagnostics",
+        "borrowed_decode_supported",
+        "semantic_and_restore_admission_retained",
+        "durable_refusal_preserves_rows",
+        "adapter_has_no_vm_or_sqlite_dependency",
+        "isolated_consumer_passed",
+    ] {
+        assert_eq!(proof[flag], true, "{flag}");
+    }
+    for flag in [
+        "decode_grants_execution_authority",
+        "input_limit_is_allocation_or_cpu_quota",
+        "wire_or_journal_schema_changed",
+        "new_native_api",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+}
+
+#[test]
+fn product_scheduler_migration_keeps_native_and_storage_authority_gates() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let reference = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
+        .unwrap();
+    assert_eq!(reference.contract.version, "1.118.0");
+    assert!(
+        reference
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "adapter-owned-scheduler-policy")
+    );
+    let native = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.171.0");
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.completion, 10);
+    let path = "docs/fixtures/leselang_reference_scheduler_policy_macos_arm64_20261020.json";
+    for evidence in [
+        path,
+        "crates/leselang-command/src/scheduler_policy.rs",
+        "crates/leselang-command/tests/scheduler_policy.rs",
+        "crates/leselang-vm/src/scheduling_contract_tests.rs",
+    ] {
+        assert!(
+            reference
+                .evidence
+                .iter()
+                .any(|entry| entry.path == evidence && entry.state == EvidenceState::Present),
+            "{evidence}"
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(repository_root().join(path)).unwrap()).unwrap();
+    assert_eq!(proof["kind"], "leselang-reference-product-scheduler-policy");
+    assert_eq!(proof["reference_execution_contract"], "1.112.0");
+    assert_eq!(proof["native_embedding_contract"], "0.171.0");
+    assert_eq!(proof["capacity_and_pressure_comparisons"], 3136);
+    assert_eq!(proof["wire_comparisons"], 1044);
+    for flag in [
+        "both_journals_use_adapter_policy",
+        "released_policy_types_are_exact_reexports",
+        "dispatch_claim_enum_retained",
+        "exact_fault_priority_and_wire_parity",
+        "shared_core_capacity_arithmetic_retained",
+        "journal_transactions_and_eligibility_retained",
+        "isolated_consumer_passed",
+    ] {
+        assert_eq!(proof[flag], true, "{flag}");
+    }
+    for flag in [
+        "policy_or_snapshot_grants_authority",
+        "wire_or_journal_schema_changed",
+        "new_native_api",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+}
+
+#[test]
 fn product_retention_migration_keeps_storage_and_native_completion_boundaries() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     let reference = catalog
@@ -21,7 +525,7 @@ fn product_retention_migration_keeps_storage_and_native_completion_boundaries() 
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     assert!(
         reference
             .contract
@@ -92,7 +596,7 @@ fn product_bounded_json_migration_does_not_promote_native_completion() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     assert!(
         reference
             .contract
@@ -160,7 +664,7 @@ fn product_merge_completion_migration_preserves_native_extraction_boundaries() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     assert!(
         reference
             .contract
@@ -229,7 +733,7 @@ fn product_retry_policy_migration_does_not_promote_native_durable_completion() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     assert!(
         reference
             .contract
@@ -300,7 +804,7 @@ fn product_debugger_audit_migration_keeps_commit_policy_out_of_language_core() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     assert!(
         reference
             .contract
@@ -371,7 +875,7 @@ fn product_request_codec_migration_preserves_native_extraction_boundaries() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     assert!(
         reference
             .contract
@@ -1224,7 +1728,7 @@ fn ordered_checkpoint_finalization_tracks_atomic_parity_without_native_vm_promot
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "shared-complete-checkpoint-finalization",
         "dispatch-graph-audit-watermark-commit-before-snapshot-handoff",
@@ -1298,7 +1802,7 @@ fn stored_dispatch_recovery_tracks_parity_without_native_vm_promotion() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "shared-complete-stored-dispatch-recovery",
         "request-image-retry-history-and-completion-before-checkpoint-commit",
@@ -1370,7 +1874,7 @@ fn stored_effect_record_tracks_sqlite_parity_without_native_vm_promotion() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "shared-complete-stored-effect-record-recovery",
         "image-identity-deadline-owner-state-receipt-successor-before-staging",
@@ -1444,7 +1948,7 @@ fn stored_group_batch_tracks_cross_group_parity_without_native_vm_promotion() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "shared-complete-stored-group-batch-recovery",
         "global-reservations-and-ordered-groups-before-checkpoint-commit",
@@ -1513,7 +2017,7 @@ fn stored_group_recovery_tracks_real_sqlite_parity_without_native_vm_promotion()
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "shared-complete-stored-group-recovery-inspection",
         "graph-chain-frontier-receipt-record-order-before-checkpoint-commit",
@@ -1584,7 +2088,7 @@ fn complete_merge_admission_tracks_ordered_graph_parity_without_native_recovery_
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "shared-complete-merge-graph-admission",
         "plan-owner-request-graph-and-binding-recheck-order",
@@ -1652,7 +2156,7 @@ fn complete_successor_admission_tracks_frozen_order_without_native_durable_promo
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "shared-complete-successor-admission",
         "parent-child-value-order-and-native-error-provenance",
@@ -1727,7 +2231,7 @@ fn complete_request_admission_tracks_composed_parity_without_claiming_native_rec
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "shared-complete-request-admission",
         "frame-before-request-policy-and-native-error-provenance",
@@ -1797,7 +2301,7 @@ fn shared_frame_admission_tracks_frozen_parity_without_native_durable_promotion(
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "shared-ordered-continuation-frame-admission",
         "vm-free-wire-frame-admission-and-frozen-fault-parity",
@@ -1868,7 +2372,7 @@ fn successor_pair_correspondence_tracks_source_parity_without_promoting_durable_
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "shared-admitted-successor-pair-correspondence",
         "source-wire-successor-parity-and-opaque-token-hooks",
@@ -1934,7 +2438,7 @@ fn group_request_correspondence_tracks_real_journal_parity_without_native_promot
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "shared-admitted-group-request-correspondence",
         "borrowed-request-context-and-capture-type-parity",
@@ -1998,7 +2502,7 @@ fn request_correspondence_tracks_checked_decoding_without_promoting_native_recov
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "shared-post-image-request-correspondence",
         "opaque-once-only-identity-hook-and-checked-decoder-parity",
@@ -2060,7 +2564,7 @@ fn shared_group_binding_admission_preserves_explicit_encoding_and_native_recover
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "shared-ordered-group-binding-admission",
         "explicit-once-only-native-plan-encoding",
@@ -2124,7 +2628,7 @@ fn group_plan_correspondence_tracks_reference_policy_without_native_recovery_pro
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "adapter-owned-group-plan-correspondence",
         "explicit-group-plan-limits-with-original-vm-gate-order",
@@ -2191,7 +2695,7 @@ fn structured_plan_protocol_tracks_actual_migration_without_native_vm_promotion(
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "adapter-owned-structured-plan-vocabulary",
         "explicit-outer-plan-admission-before-vm-binding-validation",
@@ -2253,7 +2757,7 @@ fn group_protocol_tracks_adapter_data_without_promoting_native_durable_recovery(
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "adapter-owned-group-continuation-data-and-classification",
         "borrowed-successor-version-edge-policy",
@@ -2314,7 +2818,7 @@ fn continuation_schema_tracks_product_protocol_without_native_promotion() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "adapter-owned-continuation-schema-vocabulary",
         "explicit-preflighted-group-version-compatibility",
@@ -2378,7 +2882,7 @@ fn operation_construction_tracks_adapter_ownership_without_independent_vm_promot
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "adapter-owned-operation-construction-policy",
         "lazy-original-command-identity-without-gui-allocation",
@@ -2440,7 +2944,7 @@ fn operation_request_policy_tracks_adapter_convergence_without_native_promotion(
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "adapter-owned-operation-request-admission",
         "borrowed-product-authority-access",
@@ -2556,7 +3060,7 @@ fn pending_retention_status_tracks_lazy_reference_reconciliation_without_native_
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
     let fixture = "docs/fixtures/leselang_reference_pending_retention_macos_arm64_20261015.json";
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     assert!(reference.evidence.iter().any(|entry| entry.path == fixture
         && entry.kind == EvidenceKind::Test
         && entry.state == EvidenceState::Present));
@@ -2624,7 +3128,7 @@ fn debugger_shared_journal_status_keeps_observation_distinct_from_admission() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     assert!(
         reference
             .next_gate
@@ -2694,7 +3198,7 @@ fn debugger_audit_retention_tracks_reference_cleanup_without_native_promotion() 
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     assert!(reference.next_gate.contains("one sweep per deleting batch"));
     let fixture =
         "docs/fixtures/leselang_reference_debugger_audit_retention_macos_arm64_20261015.json";
@@ -2754,7 +3258,7 @@ fn debugger_audit_parity_is_reference_evidence_without_native_promotion() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     assert!(
         reference
             .next_gate
@@ -2824,7 +3328,7 @@ fn continuation_signature_status_records_reference_parity_without_durable_extrac
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.111.0");
+    assert_eq!(reference.contract.version, "1.118.0");
     for surface in [
         "catalog-backed-continuation-result-type-validation",
         "closed-seventy-operation-frame-type-compatibility",
@@ -13798,7 +14302,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.111.0");
+    assert_eq!(vm.contract.version, "1.118.0");
     for surface in [
         "borrowed-shared-reply-acceptance-observation-checkpoint",
         "original-bound-frame-value-pointer-and-fuel-preservation",
@@ -17718,7 +18222,7 @@ fn shared_owned_capture_data_tracks_actual_reference_migration_without_execution
     for (id, version) in [
         ("leselang/language-vm/host-neutral-embedding", "0.171.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
-        ("leserpent-2/language-vm/effect-reentry", "1.111.0"),
+        ("leserpent-2/language-vm/effect-reentry", "1.118.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -17777,7 +18281,7 @@ fn shared_capture_structure_validation_tracks_reference_use_without_authority_or
     for (id, version) in [
         ("leselang/language-vm/host-neutral-embedding", "0.171.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
-        ("leserpent-2/language-vm/effect-reentry", "1.111.0"),
+        ("leserpent-2/language-vm/effect-reentry", "1.118.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -17836,7 +18340,7 @@ fn stateful_capture_reentry_status_tracks_original_meter_and_native_execution_bo
     for (id, version) in [
         ("leselang/language-vm/host-neutral-embedding", "0.171.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
-        ("leserpent-2/language-vm/effect-reentry", "1.111.0"),
+        ("leserpent-2/language-vm/effect-reentry", "1.118.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -17897,7 +18401,7 @@ fn capture_snapshot_status_tracks_real_construction_without_independent_vm_promo
     for (id, version) in [
         ("leselang/language-vm/host-neutral-embedding", "0.171.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
-        ("leserpent-2/language-vm/effect-reentry", "1.111.0"),
+        ("leserpent-2/language-vm/effect-reentry", "1.118.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -17952,7 +18456,7 @@ fn shared_projection_access_status_tracks_real_native_delegation_without_extract
     for (id, version) in [
         ("leselang/language-vm/host-neutral-embedding", "0.171.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
-        ("leserpent-2/language-vm/effect-reentry", "1.111.0"),
+        ("leserpent-2/language-vm/effect-reentry", "1.118.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -18009,7 +18513,7 @@ fn owned_prefix_cleanup_status_tracks_real_shared_control_without_extraction_pro
     for (id, version) in [
         ("leselang/language-vm/host-neutral-embedding", "0.171.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
-        ("leserpent-2/language-vm/effect-reentry", "1.111.0"),
+        ("leserpent-2/language-vm/effect-reentry", "1.118.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -18069,7 +18573,7 @@ fn shared_capture_scope_tracks_actual_nested_reference_entry_and_cleanup_without
     for (id, version) in [
         ("leselang/language-vm/host-neutral-embedding", "0.171.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
-        ("leserpent-2/language-vm/effect-reentry", "1.111.0"),
+        ("leserpent-2/language-vm/effect-reentry", "1.118.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);

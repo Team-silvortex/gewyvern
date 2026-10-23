@@ -130,7 +130,7 @@ pub(super) fn frozen_validate_image(image: &ContinuationImage) -> Result<(), Fau
     Ok(())
 }
 
-fn bindings() -> Vec<Option<ResultBinding>> {
+pub(super) fn bindings() -> Vec<Option<ResultBinding>> {
     use leselang_hir::{computation::Computation, host_call::HostOperation};
     let pure = Computation::Literal {
         value: ScalarValue::None,
@@ -217,17 +217,17 @@ fn continuation_schema_preserves_frozen_selection_and_frame_refusal_order() {
                 for defect in 0..8 {
                     let mut image = base.clone();
                     image.result_binding = binding.clone().map(Box::new);
-                    image.group_result = owner.clone().map(ContinuationToken);
+                    image.group_result = owner.clone().map(ContinuationToken::from_wire);
                     image.schema_version = version;
                     match defect {
                         0 => {}
-                        1 => image.token = ContinuationToken("invalid".into()),
+                        1 => image.token = ContinuationToken::from_wire("invalid".into()),
                         2 => image.program_counter = 0,
                         3 => image.result_type = Type::RuntimeList,
                         4 => image.fuel_remaining = MAX_EXECUTION_FUEL + 1,
                         5 => image.deadline_ms = 0,
                         6 => {
-                            image.token = ContinuationToken("invalid".into());
+                            image.token = ContinuationToken::from_wire("invalid".into());
                             image.result_type = Type::Structured;
                             image.fuel_remaining = MAX_EXECUTION_FUEL + 1;
                         }
@@ -275,7 +275,7 @@ fn continuation_structure_precedes_schema_even_for_oversized_body() {
     }
     image.result_binding = Some(Box::new(binding));
     image.schema_version = u32::MAX;
-    image.group_result = Some(ContinuationToken("invalid".into()));
+    image.group_result = Some(ContinuationToken::from_wire("invalid".into()));
     assert_eq!(validate_image(&image), Err(result_binding::invalid()));
     assert_eq!(validate_image(&image), frozen_validate_image(&image));
 }

@@ -17,19 +17,26 @@ use leselang_host_contract::{
     CAPABILITY_RUNTIME_REFRESH, Confirmation,
 };
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
-use leselang_runtime_core::{
-    Fuel, ResourceBudgetError, ResourceBudgetLimits, SequenceWatermarkRequirement,
-};
+use leselang_runtime_core::{Fuel, SequenceWatermarkRequirement};
+#[cfg(test)]
+use leselang_runtime_core::{ResourceBudgetError, ResourceBudgetLimits};
 use leserpent_domain::{CommandId, IdempotencyKey};
 #[cfg(test)]
 use leserpent_domain::{DOMAIN_SCHEMA_VERSION, QueryEnvelope};
+use serde::Serialize;
+#[cfg(test)]
 use serde::de::Error as _;
-use serde::{Deserialize, Deserializer, Serialize};
+#[cfg(test)]
+use serde::{Deserialize, Deserializer};
 
 mod admission;
 #[cfg(test)]
+mod bounded_decode_tests;
+#[cfg(test)]
 mod bounded_json_tests;
 mod computation;
+#[cfg(test)]
+mod continuation_codec_contract_tests;
 #[cfg(test)]
 mod continuation_contract_tests;
 #[cfg(test)]
@@ -40,8 +47,12 @@ mod control_plane_reply_tests;
 mod control_plane_request_tests;
 #[cfg(test)]
 mod debugger_audit_adapter_tests;
+#[cfg(test)]
+mod execution_outcome_contract_tests;
 mod group_binding;
 mod host_result;
+#[cfg(test)]
+mod identity_outcome_contract_tests;
 mod journal;
 #[cfg(test)]
 mod merge_completion_tests;
@@ -57,6 +68,8 @@ mod result_binding;
 #[cfg(test)]
 mod retry_policy_adapter_tests;
 mod scheduling;
+#[cfg(test)]
+mod scheduling_contract_tests;
 mod successor;
 #[cfg(test)]
 mod value_validation_tests;
@@ -74,6 +87,7 @@ pub use result_binding::{
     ResultBinding, ScalarBinding,
 };
 pub use scheduling::{DispatchClaim, SchedulerLimits, SchedulerPressure};
+use scheduling::{ReferenceSchedulerLimits, ReferenceSchedulerPressure};
 
 use group_binding::ReferenceGroupResultBinding;
 use host_result::{accept_bound_value, validate_bound_value};
@@ -91,12 +105,15 @@ pub use leselang_command::continuation_schema::{
     PARALLEL_GROUP_CONTINUATION_SCHEMA_VERSION, RESULT_BINDING_CONTINUATION_SCHEMA_VERSION,
     SUCCESSOR_CONTINUATION_SCHEMA_VERSION,
 };
-pub const MAX_CONTINUATION_BYTES: usize = 64 * 1024;
+#[cfg(test)]
+use leselang_command::reference_continuation::validate_restorable_image;
+pub(crate) use leselang_command::reference_continuation::{
+    invalid_continuation_sequence_fault, validate_continuation_encoding_size,
+    validate_continuation_size,
+};
+pub use leselang_command::{MAX_CONTINUATION_BYTES, decode_continuation, encode_continuation};
 pub const DEFAULT_FUEL: u64 = 1_000;
-pub const MAX_EXECUTION_FUEL: u64 = 1_000_000;
 pub const DEFAULT_EFFECT_DEADLINE_MS: u64 = 30_000;
-pub const MAX_EFFECT_DEADLINE_MS: u64 = leselang_runtime_core::MAX_EXECUTION_TIMEOUT_MS;
-pub const DEFAULT_MAX_OUTPUT_ITEMS: usize = 10_000;
 pub const DEFAULT_DISPATCH_LEASE_MS: u64 = 30_000;
 pub const MAX_DISPATCH_LEASE_MS: u64 = 5 * 60 * 1_000;
 pub const MAX_DISPATCH_ATTEMPTS: u32 = 100;
@@ -108,41 +125,20 @@ pub use leselang_command::retry_policy::{
     MAX_RETRY_DELAY_MS, MAX_SEMANTIC_RETRIES,
 };
 pub const MAX_STRUCTURED_VALUE_DEPTH: usize = 16;
-const MAX_EFFECT_SEQUENCE: u64 = i64::MAX as u64 - 1;
+pub use leselang_command::ContinuationToken;
+pub(crate) use leselang_command::continuation_identity::{
+    MAX_EFFECT_SEQUENCE, canonical_continuation_sequence, continuation_age_order,
+    valid_continuation_token,
+};
 
-#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
-#[serde(transparent)]
-pub struct ContinuationToken(String);
-
-/// Exact legacy specialization; native saved-frame ownership belongs to runtime-core.
-pub type ContinuationImage = leselang_runtime_core::ContinuationFrame<
-    ContinuationToken,
-    Revision,
-    Type,
-    Effect,
-    ResultBinding,
->;
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-pub struct EffectRequest {
-    pub effect_id: String,
-    pub required_capability: String,
-    pub operation: EffectOperation,
-    pub continuation: ContinuationImage,
-    pub budget: ResourceBudget,
-}
-
-impl EffectRequest {
-    pub(crate) fn as_view(&self) -> leselang_command::EffectRequestView<'_, ContinuationToken> {
-        leselang_command::EffectRequestView {
-            effect_id: &self.effect_id,
-            required_capability: &self.required_capability,
-            operation: &self.operation,
-            continuation: &self.continuation,
-            budget: &self.budget,
-        }
-    }
-}
+pub use leselang_command::reference_request::{
+    DEFAULT_MAX_OUTPUT_ITEMS, MAX_EFFECT_DEADLINE_MS, MAX_EXECUTION_FUEL, validate_effect_request,
+};
+pub(crate) use leselang_command::reference_request::{
+    continuation_admission_limits, request_admission_fault,
+    validate_continuation_image as validate_image,
+};
+pub use leselang_command::{ContinuationImage, EffectRequest};
 
 // Keep released Rust paths as exact aliases, with no wire conversion or duplicate DTOs.
 pub use leselang_command::{
@@ -150,40 +146,8 @@ pub use leselang_command::{
     PresentationEnvelope, PresentationOperation, PresentationResult, StructuredField, Value,
 };
 
-impl<'de> Deserialize<'de> for EffectRequest {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let decoded = leselang_command::decode_effect_request(deserializer)?;
-        let request = Self {
-            effect_id: decoded.effect_id,
-            required_capability: decoded.required_capability,
-            operation: decoded.operation,
-            continuation: decoded.continuation,
-            budget: decoded.budget,
-        };
-        validate_effect_request(&request)
-            .map_err(|fault| D::Error::custom(format!("{}: {}", fault.code, fault.message)))?;
-        Ok(request)
-    }
-}
-
-/// Released specialization of host-neutral owned dispatch data; no wire conversion.
-pub type DispatchLease = leselang_runtime_core::DispatchLease<EffectRequest>;
-
+pub use leselang_command::{DispatchLease, FailedEffect, RetryDisposition, RetrySchedule};
 pub use leselang_command::{EffectError, EffectErrorClass, RetryPolicy};
-
-pub type FailedEffect = leselang_runtime_core::FailedEffect<EffectError>;
-pub type RetrySchedule = leselang_runtime_core::RetrySchedule<EffectError>;
-
-// Keep the released enum (including variant imports); terminal policy stays product-owned.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
-pub enum RetryDisposition {
-    Scheduled(RetrySchedule),
-    Terminal(Step),
-}
 
 pub use leselang_command::{CompactionReport, RetentionPolicy};
 
@@ -191,66 +155,9 @@ pub use leselang_command::{
     ExecutionOrder, MAX_MERGE_BRANCH_NAME_BYTES, MAX_MERGE_BRANCHES, MergePlan,
 };
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct BranchCompletion {
-    pub branch: String,
-    pub outcome: BranchOutcome,
-}
+pub use leselang_command::{BranchCompletion, BranchOutcome, Cancellation, CancellationReason};
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
-pub enum BranchOutcome {
-    Value(Value),
-    Cancelled(Cancellation),
-    Failed(FailedEffect),
-    Fault(Fault),
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct NamedEffectRequest {
-    pub branch: String,
-    pub request: EffectRequest,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct StructuredEffectBatch {
-    pub merge_token: ContinuationToken,
-    pub branches: Vec<NamedEffectRequest>,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct MergeWait {
-    pub merge_token: ContinuationToken,
-    pub completed_branches: usize,
-    pub total_branches: usize,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CancellationReason {
-    Requested,
-    DeadlineExceeded,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct Cancellation {
-    pub continuation: ContinuationToken,
-    pub reason: CancellationReason,
-    pub observed_at_ms: u64,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
-pub enum Step {
-    Done(Value),
-    Effect(Box<EffectRequest>),
-    Effects(Box<StructuredEffectBatch>),
-    Waiting(MergeWait),
-    Yield(ContinuationImage),
-    Cancelled(Cancellation),
-    Failed(FailedEffect),
-    Fault(Fault),
-}
+pub use leselang_command::{MergeWait, NamedEffectRequest, Step, StructuredEffectBatch};
 
 /// A serially entered engine that may own multiple independent suspended roots.
 /// Separate engines can run on different host threads; shared journals coordinate dispatch.
@@ -626,7 +533,7 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
             Ok(sequence) => sequence,
             Err(error) => return Step::Fault(error),
         };
-        let merge_token = ContinuationToken(format!("merge-{group_sequence}"));
+        let merge_token = ContinuationToken::from_wire(format!("merge-{group_sequence}"));
         let mut named = Vec::with_capacity(branches.len());
         for (index, branch) in branches.iter().enumerate() {
             let sequence = match self.allocate_sequence() {
@@ -738,7 +645,7 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
         })?;
         let image = ContinuationImage {
             schema_version: CONTINUATION_SCHEMA_VERSION,
-            token: ContinuationToken(format!("continuation-{sequence}")),
+            token: ContinuationToken::from_wire(format!("continuation-{sequence}")),
             program_counter: 1,
             expected_revision,
             result_type,
@@ -1213,7 +1120,7 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
                 SequenceWatermarkRequirement::after_observation(sequence, u64::MAX)
                     .map_err(|_| effect_sequence_exhausted_fault())?
                     .required_watermark();
-            let token = ContinuationToken(format!("continuation-{sequence}"));
+            let token = ContinuationToken::from_wire(format!("continuation-{sequence}"));
             if !self.pending.contains_key(&token) && !self.completed.contains_key(&token) {
                 return Ok(sequence);
             }
@@ -1252,38 +1159,6 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
     }
 }
 
-impl ContinuationToken {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-pub fn encode_continuation(image: &ContinuationImage) -> Result<Vec<u8>, Fault> {
-    validate_continuation_encoding_size(image)?;
-    validate_restorable_image(image)?;
-    encode_json_capped(image, MAX_CONTINUATION_BYTES, "continuation")
-}
-
-pub(crate) fn validate_continuation_size(image: &ContinuationImage) -> Result<(), Fault> {
-    validate_continuation_encoding_size(image)?;
-    validate_restorable_image(image)
-}
-
-fn validate_restorable_image(image: &ContinuationImage) -> Result<(), Fault> {
-    validate_image(image)?;
-    canonical_continuation_sequence(&image.token)
-        .ok_or_else(invalid_continuation_sequence_fault)?;
-    validate_pending_effect_contract(image)
-}
-
-fn validate_continuation_encoding_size(image: &ContinuationImage) -> Result<(), Fault> {
-    if let Some(binding) = &image.result_binding {
-        // Bound the recursive body before entering the serializer, including native callers.
-        binding.validate_structure()?;
-    }
-    validate_json_size_capped(image, MAX_CONTINUATION_BYTES, "continuation")
-}
-
 fn encode_json_capped<T: Serialize>(
     value: &T,
     limit: usize,
@@ -1319,117 +1194,6 @@ fn bounded_json_fault(
             code: "LSV3001".to_string(),
             message: format!("failed to encode {label}: {error}"),
         },
-    }
-}
-
-pub fn decode_continuation(bytes: &[u8]) -> Result<ContinuationImage, Fault> {
-    if bytes.len() > MAX_CONTINUATION_BYTES {
-        return Err(Fault {
-            code: "LSV3002".to_string(),
-            message: format!("continuation exceeds {MAX_CONTINUATION_BYTES} bytes"),
-        });
-    }
-    let image = serde_json::from_slice(bytes).map_err(|error| Fault {
-        code: "LSV3003".to_string(),
-        message: format!("invalid continuation: {error}"),
-    })?;
-    validate_restorable_image(&image)?;
-    Ok(image)
-}
-
-fn validate_pending_effect_contract(image: &ContinuationImage) -> Result<(), Fault> {
-    canonical_source(&image.pending_effect).map_err(|_| Fault {
-        code: "LSV2017".to_string(),
-        message: "continuation pending effect is not canonical".to_string(),
-    })?;
-    Ok(())
-}
-
-fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
-    leselang_command::validate_continuation_frame(
-        image,
-        continuation_admission_limits(),
-        ContinuationToken::as_str,
-        valid_continuation_token,
-        valid_merge_branch_name,
-    )
-    .map_err(continuation_admission_fault)
-}
-
-fn continuation_admission_limits() -> leselang_command::ContinuationAdmissionLimits {
-    leselang_command::ContinuationAdmissionLimits {
-        binding: result_binding::result_binding_limits(),
-        budget: ResourceBudgetLimits {
-            max_fuel: MAX_EXECUTION_FUEL,
-            max_deadline_ms: MAX_EFFECT_DEADLINE_MS,
-            max_deadline_at_ms: i64::MAX as u64,
-            max_output_items: DEFAULT_MAX_OUTPUT_ITEMS,
-        },
-        max_group_sequence: MAX_EFFECT_SEQUENCE,
-    }
-}
-
-fn continuation_admission_fault(error: leselang_command::ContinuationAdmissionError) -> Fault {
-    use leselang_command::ContinuationAdmissionError;
-    use leselang_command::continuation_schema::ContinuationSchemaError;
-    let code = match error {
-        ContinuationAdmissionError::Binding => return result_binding::invalid(),
-        ContinuationAdmissionError::Schema(ContinuationSchemaError::Group) => {
-            return group_binding::invalid();
-        }
-        ContinuationAdmissionError::Schema(ContinuationSchemaError::Version { .. }) => "LSV2001",
-        ContinuationAdmissionError::Token => "LSV2006",
-        ContinuationAdmissionError::ProgramCounter => "LSV2014",
-        ContinuationAdmissionError::StructuredEffect => "LSV2015",
-        ContinuationAdmissionError::ResultType => "LSV2016",
-        ContinuationAdmissionError::Budget(ResourceBudgetError::Fuel) => "LSV2007",
-        ContinuationAdmissionError::Budget(ResourceBudgetError::Deadline) => "LSV2008",
-        ContinuationAdmissionError::Budget(ResourceBudgetError::AbsoluteDeadline) => "LSV2011",
-        ContinuationAdmissionError::Budget(ResourceBudgetError::Output) => "LSV2009",
-    };
-    Fault {
-        code: code.into(),
-        message: error.to_string(),
-    }
-}
-
-pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
-    leselang_command::validate_effect_request(
-        request.as_view(),
-        continuation_admission_limits(),
-        ContinuationToken::as_str,
-        valid_continuation_token,
-        valid_merge_branch_name,
-        canonical_continuation_sequence,
-    )
-    .map_err(request_admission_fault)
-}
-
-fn request_admission_fault(error: leselang_command::RequestAdmissionError) -> Fault {
-    match error {
-        leselang_command::RequestAdmissionError::Frame(error) => {
-            continuation_admission_fault(error)
-        }
-        leselang_command::RequestAdmissionError::Correspondence(error) => {
-            request_correspondence_fault(error)
-        }
-    }
-}
-
-fn request_correspondence_fault(error: leselang_command::RequestCorrespondenceError) -> Fault {
-    use leselang_command::{OperationRequestError, RequestCorrespondenceError};
-    let code = match error {
-        RequestCorrespondenceError::SuccessorAuthority => "LSV1407",
-        RequestCorrespondenceError::ContinuationIdentity
-        | RequestCorrespondenceError::EffectIdentity => "LSV2010",
-        RequestCorrespondenceError::Operation(OperationRequestError::Capability) => "LSV2011",
-        RequestCorrespondenceError::Operation(OperationRequestError::Envelope) => "LSV2012",
-        RequestCorrespondenceError::Operation(OperationRequestError::Mismatch)
-        | RequestCorrespondenceError::Budget => "LSV2013",
-    };
-    Fault {
-        code: code.into(),
-        message: error.to_string(),
     }
 }
 
@@ -1675,29 +1439,6 @@ fn validate_branch_outcome(outcome: &BranchOutcome) -> Result<usize, Fault> {
     }
 }
 
-pub(crate) fn valid_continuation_token(token: &ContinuationToken) -> bool {
-    !token.as_str().is_empty()
-        && token.as_str().len() <= 128
-        && token
-            .as_str()
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
-}
-
-fn canonical_continuation_sequence(token: &ContinuationToken) -> Option<u64> {
-    let suffix = token.as_str().strip_prefix("continuation-")?;
-    let sequence = suffix.parse::<u64>().ok()?;
-    (sequence > 0 && sequence <= MAX_EFFECT_SEQUENCE && sequence.to_string() == suffix)
-        .then_some(sequence)
-}
-
-fn invalid_continuation_sequence_fault() -> Fault {
-    Fault {
-        code: "LSV2006".to_string(),
-        message: "continuation token has a non-canonical or exhausted sequence".to_string(),
-    }
-}
-
 fn effect_sequence_exhausted_fault() -> Fault {
     Fault {
         code: "LSV1003".to_string(),
@@ -1743,24 +1484,6 @@ fn validate_retention_policy(policy: &RetentionPolicy) -> Result<(), Fault> {
             code: "LSV2301".to_string(),
             message: error.to_string(),
         })
-}
-
-fn continuation_age_order(
-    left: &ContinuationToken,
-    right: &ContinuationToken,
-) -> std::cmp::Ordering {
-    let sequence = |token: &ContinuationToken| {
-        token
-            .as_str()
-            .strip_prefix("continuation-")
-            .and_then(|value| value.parse::<u64>().ok())
-    };
-    match (sequence(left), sequence(right)) {
-        (Some(left), Some(right)) => left.cmp(&right),
-        (Some(_), None) => std::cmp::Ordering::Less,
-        (None, Some(_)) => std::cmp::Ordering::Greater,
-        (None, None) => left.cmp(right),
-    }
 }
 
 fn step_from_effect_result(
@@ -6106,7 +5829,7 @@ mod tests {
             let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
             vm.journal
                 .record_merge_graph(
-                    &ContinuationToken("merge-1".to_string()),
+                    &ContinuationToken::from_wire("merge-1".to_string()),
                     &plan,
                     &[("left", &left), ("right", &right)],
                 )
@@ -6128,7 +5851,7 @@ mod tests {
         let mut vm = Vm::default();
         vm.journal
             .record_merge_graph(
-                &ContinuationToken("merge-1".to_string()),
+                &ContinuationToken::from_wire("merge-1".to_string()),
                 &plan,
                 &[("left", &left), ("right", &right)],
             )
@@ -6147,7 +5870,7 @@ mod tests {
         assert!(vm.claim_effect(10, 100).unwrap().is_none());
         let merged = vm
             .journal
-            .merge_result(&ContinuationToken("merge-1".to_string()))
+            .merge_result(&ContinuationToken::from_wire("merge-1".to_string()))
             .unwrap()
             .unwrap();
         let Step::Done(Value::Structured { fields }) = merged else {
@@ -6167,8 +5890,8 @@ mod tests {
         let mut source = Vm::default();
         let requests = (0..4).map(|_| start(&mut source, None)).collect::<Vec<_>>();
         let plan = MergePlan::new(["left", "right"]).unwrap();
-        let first_token = ContinuationToken("merge-1".to_string());
-        let second_token = ContinuationToken("merge-2".to_string());
+        let first_token = ContinuationToken::from_wire("merge-1".to_string());
+        let second_token = ContinuationToken::from_wire("merge-2".to_string());
         let mut vm = Vm::default();
         vm.journal
             .record_merge_graph(
@@ -6213,7 +5936,7 @@ mod tests {
     fn durable_final_branch_atomically_commits_restart_safe_merge_result() {
         let journal = TempJournal::new("merge-final-completion");
         let (left, right, plan) = merge_branch_requests();
-        let merge_token = ContinuationToken("merge-1".to_string());
+        let merge_token = ContinuationToken::from_wire("merge-1".to_string());
         {
             let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
             vm.journal
@@ -6273,7 +5996,7 @@ mod tests {
     fn durable_merge_failure_rolls_back_the_final_branch_completion() {
         let journal = TempJournal::new("merge-final-rollback");
         let (left, right, plan) = merge_branch_requests();
-        let merge_token = ContinuationToken("merge-1".to_string());
+        let merge_token = ContinuationToken::from_wire("merge-1".to_string());
         {
             let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
             vm.journal
@@ -6331,7 +6054,7 @@ mod tests {
     fn durable_merge_commits_declared_terminal_failure() {
         let journal = TempJournal::new("merge-terminal-failure");
         let (left, right, plan) = merge_branch_requests();
-        let merge_token = ContinuationToken("merge-1".to_string());
+        let merge_token = ContinuationToken::from_wire("merge-1".to_string());
         {
             let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
             vm.journal
@@ -6375,7 +6098,7 @@ mod tests {
     fn retention_keeps_a_completed_merge_graph_within_the_configured_limit() {
         let journal = TempJournal::new("merge-compaction-protection");
         let (left, right, plan) = merge_branch_requests();
-        let merge_token = ContinuationToken("merge-1".to_string());
+        let merge_token = ContinuationToken::from_wire("merge-1".to_string());
         {
             let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
             vm.journal
@@ -6414,8 +6137,8 @@ mod tests {
         let mut source = Vm::default();
         let requests = (0..4).map(|_| start(&mut source, None)).collect::<Vec<_>>();
         let plan = MergePlan::new(["left", "right"]).unwrap();
-        let first_token = ContinuationToken("merge-1".to_string());
-        let second_token = ContinuationToken("merge-2".to_string());
+        let first_token = ContinuationToken::from_wire("merge-1".to_string());
+        let second_token = ContinuationToken::from_wire("merge-2".to_string());
         {
             let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
             vm.journal
@@ -6504,7 +6227,7 @@ mod tests {
         let error = vm
             .journal
             .record_merge_graph(
-                &ContinuationToken("merge-1".to_string()),
+                &ContinuationToken::from_wire("merge-1".to_string()),
                 &plan,
                 &[("left", &left), ("right", &right)],
             )
@@ -6565,7 +6288,7 @@ mod tests {
                 BranchCompletion {
                     branch: "fallback".to_string(),
                     outcome: BranchOutcome::Cancelled(Cancellation {
-                        continuation: ContinuationToken("continuation-3".to_string()),
+                        continuation: ContinuationToken::from_wire("continuation-3".to_string()),
                         reason: CancellationReason::Requested,
                         observed_at_ms: 30,
                     }),
@@ -6719,7 +6442,7 @@ mod tests {
         let mut vm = Vm::default();
         let mut request = start_refresh(&mut vm, Revision(1));
         let suffix = "x".repeat(115);
-        request.continuation.token = ContinuationToken(format!("continuation-{suffix}"));
+        request.continuation.token = ContinuationToken::from_wire(format!("continuation-{suffix}"));
         request.effect_id = format!("effect-{suffix}");
         let encoded = serde_json::to_vec(&request).unwrap();
         let error = serde_json::from_slice::<EffectRequest>(&encoded)
@@ -7101,7 +6824,7 @@ mod tests {
     fn exhausted_restored_sequence_fails_without_spinning() {
         let mut source = Vm::default();
         let mut image = start(&mut source, None).continuation;
-        image.token = ContinuationToken(format!("continuation-{MAX_EFFECT_SEQUENCE}"));
+        image.token = ContinuationToken::from_wire(format!("continuation-{MAX_EFFECT_SEQUENCE}"));
 
         let mut restored = Vm::default();
         restored.restore(image.clone()).unwrap();
@@ -7117,7 +6840,8 @@ mod tests {
             Step::Fault(Fault { ref code, .. }) if code == "LSV1003"
         ));
 
-        image.token = ContinuationToken(format!("continuation-{}", MAX_EFFECT_SEQUENCE + 1));
+        image.token =
+            ContinuationToken::from_wire(format!("continuation-{}", MAX_EFFECT_SEQUENCE + 1));
         let mut rejected = Vm::default();
         assert_eq!(rejected.restore(image).unwrap_err().code, "LSV2006");
     }

@@ -115,7 +115,7 @@ fn stored_dispatch_recovery_preserves_frozen_order_and_original_tables() {
                             let mut request: EffectRequest =
                                 serde_json::from_slice(&bytes).unwrap();
                             request.continuation.token =
-                                ContinuationToken("continuation-999999".into());
+                                ContinuationToken::from_wire("continuation-999999".into());
                             tx.execute(
                                 "UPDATE vm_dispatches SET request = ?2 WHERE rowid = ?1",
                                 params![id, serde_json::to_vec(&request).unwrap()],

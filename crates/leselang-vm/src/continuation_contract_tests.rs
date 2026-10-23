@@ -227,7 +227,7 @@ fn continuation_type_refusals_do_not_mutate_live_state_or_advance_identity() {
 fn continuation_signature_faults_keep_frame_before_type_before_budget_order() {
     let mut image = requests().remove(0).continuation;
     image.schema_version = 99;
-    image.token = ContinuationToken("invalid token".into());
+    image.token = ContinuationToken::from_wire("invalid token".into());
     image.program_counter = 2;
     image.result_type = Type::Structured;
     image.fuel_remaining = MAX_EXECUTION_FUEL + 1;
@@ -236,7 +236,7 @@ fn continuation_signature_faults_keep_frame_before_type_before_budget_order() {
     let token_fault = validate_image(&image).unwrap_err();
     assert_eq!(token_fault.code, "LSV2006");
     assert_eq!(token_fault.message, "invalid continuation token");
-    image.token = ContinuationToken("continuation-1".into());
+    image.token = ContinuationToken::from_wire("continuation-1".into());
     assert_eq!(validate_image(&image).unwrap_err().code, "LSV2014");
     image.program_counter = 1;
     assert_eq!(validate_image(&image), Err(mismatch_fault()));
@@ -281,7 +281,7 @@ fn continuation_signature_lookup_leaves_canonical_validation_at_the_restore_boun
     image.pending_effect = Effect::UiFocus {
         node_id: String::new(),
     };
-    image.token = ContinuationToken("continuation-01".into());
+    image.token = ContinuationToken::from_wire("continuation-01".into());
     assert_eq!(validate_image(&image), Ok(()));
     image.result_type = Type::Structured;
     assert_eq!(validate_restorable_image(&image), Err(mismatch_fault()));
@@ -290,7 +290,7 @@ fn continuation_signature_lookup_leaves_canonical_validation_at_the_restore_boun
         validate_restorable_image(&image).unwrap_err(),
         invalid_continuation_sequence_fault()
     );
-    image.token = ContinuationToken("continuation-1".into());
+    image.token = ContinuationToken::from_wire("continuation-1".into());
     assert_eq!(validate_image(&image), Ok(()));
     let error = validate_restorable_image(&image).unwrap_err();
     assert_eq!(error.code, "LSV2017");

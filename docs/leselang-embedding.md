@@ -8794,9 +8794,290 @@ request and retry-error encoding. A red/green test demonstrates the former
 partial mutation and the corrected whole-batch refusal; these private fixtures
 do not claim that invalid payloads can pass normal public admission.
 
-Reference execution advances to `1.111.0`; native embedding remains `0.171.0`,
+That migration advanced reference execution to `1.111.0`; native embedding remains `0.171.0`,
 Developing/Draft at completion 10. Product version stays `2.4.0`; full extraction
 and complete native durable recovery remain separate, unsatisfied gates.
+
+### Product Scheduler Policy Ownership
+
+`leselang_command::scheduler_policy` owns `SchedulerLimits`, `SchedulerPressure`,
+policy admission and the product-facing capacity checks. The VM's released type
+paths are exact re-exports; its private bridge retains `LSV2500` through `LSV2503`
+and their exact messages. `DispatchClaim` stays a concrete VM enum, including
+variant imports and its existing owned lease payload, rather than becoming a
+generic alias with incompatible Rust usage.
+
+Journal storage, retention and default scheduler limits now share one product
+`MAX_JOURNAL_RECORDS` constant, re-exported from the original VM path. The adapter
+delegates arithmetic to the existing runtime-core dispatch-capacity functions:
+oversized batches take precedence over transient pressure, full-width addition
+cannot wrap, and lowering a limit does not revoke an existing lease.
+
+These structs and checks provide no current-state certificate, reservation,
+queue or lease. Policy admission is separate from decoding. Journals still count
+outstanding work, decide eligibility before reporting idle/backpressure, and
+check capacity under their original owner or SQLite transaction before
+publishing. A stale or constructed pressure snapshot grants no dispatch authority.
+
+The [scheduler-policy proof](fixtures/leselang_reference_scheduler_policy_macos_arm64_20261020.json)
+records 49 policy-admission comparisons, 3,136 capacity/pressure combinations
+with exact faults and serialized snapshots, and 1,044 closed-shape/claim-wire
+comparisons including all 70 released operation requests. Direct adapter tests
+cover zero/full-width limits and observation-only behavior. The existing
+backpressure integration suite now imports adapter policy types directly and
+exercises both journals, stale workers, global capacity, lease fencing, lowered
+limits, idle eligibility, retries, restoration and rollback.
+
+That migration advanced reference execution to `1.112.0`; native embedding remains `0.171.0`,
+Developing/Draft at completion 10. The Cargo product version remains `2.4.0`.
+No native API, wire/journal schema, new scheduler or full durable-extraction
+claim is introduced.
+
+### Product Bounded Decode Ownership
+
+`leselang_command::bounded_json::decode` completes the product codec boundary:
+command plans, reference continuations and SQLite journal payloads now delegate
+their byte-limited JSON parsing to the same adapter implementation. The generic
+result may borrow from the input buffer. The separate `BoundedJsonDecodeError`
+does not add variants to the released encoding-error enum.
+
+The full input length, including whitespace and UTF-8 bytes, is checked before
+any deserializer runs. The existing serde recursion limit, complete-input
+requirement, DTO-specific field rules and parser diagnostics are preserved.
+The plan wrapper still checks schema before semantic admission; the continuation
+wrapper still validates the restorable image after decoding; journal recovery
+still owns graph validation, transactions and snapshot publication. Existing
+`PlanCodecError`, `LSV3002`/`LSV3003` and `LSV4006`/`LSV4007` mappings are unchanged.
+
+This is a byte boundary, not an allocation/CPU quota or a sandbox for custom
+deserializers. Successful parsing is not evidence of semantic validity,
+authorization or recoverability. A custom deserializer's side effects after
+entry are not rolled back, including when trailing input is later rejected.
+
+The [bounded-decode proof](fixtures/leselang_reference_bounded_decode_macos_arm64_20261020.json)
+records 240 frozen command-plan comparisons, 980 continuation comparisons over
+all 70 released operations, and 7,560 journal payload comparisons. Direct codec
+tests cover borrowed output, pre-serde size refusal, exact parser diagnostics,
+recursion rejection and UTF-8/whitespace accounting. Thirty-two corrupt-image
+reopen cases cover atomic, sequential, parallel and captured-effect programs
+in pending and completed states: rejected reopen leaves the original stored
+rows unchanged, and repairing the test fixture permits reopening again.
+
+That migration advanced reference execution to `1.113.0`; native embedding remains `0.171.0`,
+Developing/Draft at completion 10. The Cargo product version remains `2.4.0`.
+There is no new native API or wire/journal schema change; this migration does
+not complete host-neutral durable recovery or the full extraction gate.
+
+### Product Identity And Terminal Data Ownership
+
+The product adapter now owns `ContinuationToken`, `CancellationReason`,
+`Cancellation`, `BranchOutcome` and `BranchCompletion`. Released `leselang_vm`
+paths are exact reexports, not wrapper conversions or generic enum aliases:
+`use leselang_vm::BranchOutcome::Cancelled` and cancellation-reason variant
+imports remain valid. String/terminal wire layouts, Debug output and the
+original per-type unknown-field policy are preserved.
+
+`leselang_command::continuation_identity` also owns lexical token checks,
+canonical continuation/merge sequence observations, the product sequence ceiling
+and legacy scheduling/retention age ordering. These are distinct rules:
+`continuation-01` is not a canonical restorable identity, but its legacy age
+ordering still compares equal to `continuation-1`; derived `Ord` remains lexical.
+Journal group reservation still combines canonical observations with the saved
+binding reservations under its original recovery policy.
+
+The token's inner field stays private. `ContinuationToken::from_wire(String)`
+moves raw wire/storage data without normalization or semantic admission, like
+the existing transparent deserializer. It can retain invalid data so callers
+reject it at the original boundary and preserve error priority. Neither raw
+construction, canonical parsing nor terminal data grants execution, cancellation,
+lease or restore authority. The reference VM retains full request/restore/outcome
+admission, allocation and cancellation; execution observations move in the later
+section below. Journals
+retain transactional sequence watermarks, graph checks and finalization.
+
+The [identity/outcome proof](fixtures/leselang_reference_identity_outcome_macos_arm64_20261020.json)
+records 65 identity cases, 4,225 pairs comparing both legacy and lexical order,
+and 16,232 frozen wire/field-policy comparisons across all five moved types.
+Direct adapter tests check 640 ASCII/length combinations, original string-buffer ownership,
+numeric boundaries and concrete variant imports. Public memory-profile tests
+use adapter types with exact VM type identity and demonstrate that constructing
+or decoding cancellation data does not cancel live work. Clock-boundary tests
+import adapter cancellation reasons across both memory and SQLite paths.
+
+That migration advanced reference execution to `1.114.0`; native embedding remains `0.171.0`,
+Developing/Draft at completion 10. Product version remains the Cargo workspace's
+`2.4.0`; no native API, wire/journal schema or completed durable-extraction claim
+is introduced by this product ownership move.
+
+### Concrete Product Request Ownership
+
+`leselang_command` now owns the concrete `EffectRequest` and the exact
+`ContinuationImage` specialization. Existing `leselang_vm` paths reexport the
+same Rust types. There is no wrapper, wire translation or buffer copy. Product
+consumers can decode and inspect requests without depending on the VM or SQLite.
+`EffectRequest::as_view` borrows the original fields, not a validation certificate.
+
+`leselang_command::reference_request` also owns the released static ceilings,
+binding/frame consistency policy and its original LSV diagnostics. The generic
+`leselang_command::validate_effect_request` entry still takes explicit host
+policy; it is not replaced by product defaults. The concrete deserializer uses
+the unchanged current/legacy closed codec, then checks the full frame before
+cold successor authority, canonical request identity, operation correspondence
+and equal budgets. Both semantic refusal order and serde diagnostics are retained.
+
+Checked decoding is not bounded ingress, authentic capability grants, live clock
+admission, canonical source admission or recovery permission. The plain image
+alias still decodes raw data. Request fields remain mutable; VM restore rechecks
+them through adapter-owned bounded/canonical admission, then retains existing-state
+conflicts, journal transactions and sequence allocation. No decoding operation
+creates a pending task or changes the source VM. Hosts must supply trustworthy
+authority and decide when to call restore.
+
+The [concrete-request proof](fixtures/leselang_reference_concrete_request_macos_arm64_20261023.json)
+reuses the independent frozen semantic validator for all 74 valid current/legacy
+wire cases, 1,332 malformed shapes and 592 semantic decode refusals. Direct
+adapter tests exercise no-copy views, conflicting-fault priority, mutable-data
+revalidation, raw-frame versus checked-request admission and explicit byte limits.
+The public memory-profile test uses adapter-owned requests through actual VM
+restore/resume, including refusal after a decoded budget is changed.
+
+That migration advanced reference execution to `1.115.0`; native embedding remains `0.171.0`,
+Developing/Draft at completion 10. Product version stays `2.4.0`. This is removal
+of a product ownership dependency, not a new native API, schema migration,
+complete host-neutral durable VM or completed extraction gate.
+
+### Execution Observation Ownership
+
+The product adapter owns `NamedEffectRequest`, `StructuredEffectBatch`,
+`MergeWait`, `Step`, `RetryDisposition` and `DispatchClaim`, plus the existing
+runtime-core specializations `DispatchLease`, `FailedEffect` and `RetrySchedule`.
+Released `leselang_vm` paths reexport exactly the same types. The three enums
+remain concrete, so imports such as `use leselang_vm::Step::Done` continue to
+work; neither wrapper conversions nor generic-enum aliases are introduced.
+Owned boxes, request buffers and payloads move without copies.
+
+`leselang_command::execution_outcome` describes observations, not execution
+permissions. Serialization preserves field order, tagged variant names, omitted
+lease retry defaults and each type's original unknown-field policy. In particular,
+`DispatchClaim` remains closed while the other outer observation types retain
+their existing permissive fields. Nested requests still use full checked request
+decoding. Raw yield images, terminal data, group counters and batch names do not
+gain new semantic validation or state-transition authority merely by decoding.
+
+The reference VM and journals still own group membership, output bounds, original
+terminal admission, cancellation, live lease attempts, clocks, retry decisions and
+atomic completion. Journal terminal checks and merge-outcome checks retain their
+distinct legacy policies; this migration does not silently unify or tighten them.
+An apparent `Done`, `Cancelled`, `Scheduled` or `Leased` value is not proof that
+any corresponding transition occurred. Hosts must authenticate and correlate
+observations and bound ingress before using them.
+
+The [execution-observation proof](fixtures/leselang_reference_execution_outcome_macos_arm64_20261023.json)
+records 46,224 frozen wire/Debug/error comparisons across all 70 operations,
+including empty/oversized batches, invalid counts and all execution variants.
+Another 630 comparisons check nested request refusals versus raw yield data.
+Twelve journal cases preserve terminal-admission differences. Direct adapter tests
+check concrete variant imports, box/buffer identity, field policy and legacy lease
+defaults. The actual memory VM test proves all nine old/new type identities, then
+decodes a claimed completion and a forged delivery attempt: neither settles live
+work, and only the original current lease can complete it.
+
+That migration advanced reference execution to `1.116.0`; native embedding stays `0.171.0`,
+Developing/Draft at completion 10. Product version remains `2.4.0`. No wire or
+journal schema, native API, complete durable VM or full extraction gate changes.
+
+### Optional Observation VM Bridge
+
+`leselang-observe` no longer needs to link an evaluator to project received
+requests, sanitize runtime logs or inspect a debugger cancellation plan. Those
+read-only paths use the exact adapter-owned `EffectRequest` and its original
+static validator, plus the shared `Fault` type. Mutation-result DTOs and all
+existing diagnostic variants remain available without the executor.
+
+| Configuration | Available Behavior | Dependency Boundary |
+| --- | --- | --- |
+| `default-features = false` | Waiting debugger/log projections, cancellation-plan inspection and observation DTOs | No VM or SQLite, including test dependencies |
+| `default-features = false, features = ["vm-bridge"]` | The above plus the existing audited cancellation functions | Reference VM with memory journal; no SQLite |
+| Defaults, or `features = ["sqlite-journal"]` | Existing released behavior | Reference VM with optional durable storage enabled |
+
+The default is intentionally unchanged for existing consumers such as
+`leserpentd`. The public `execute_debugger_cancel` and
+`execute_debugger_cancel_effect` paths reexport the feature-gated bridge; there
+is no stub or silent mutation fallback when the bridge is absent. A read-only
+consumer should depend on the crate with `default-features = false` explicitly.
+Cargo features are additive, not an authorization boundary: another dependency
+can enable the bridge or SQLite for the same package in a shared build.
+
+The bridge retains the original order: plan inspection, bounded/canonical
+continuation encoding, projection/image correspondence, dry-run handling, then
+the VM's audited cancellation. Even dry runs still validate the original image;
+an effect-level dry run still refuses to masquerade as a completed cancellation.
+Original pending state, trusted clocks, journal commit and audit replay remain
+authoritative. Successful request decoding, UI projection, plan inspection or
+decoding an `Applied` observation does not authenticate a caller, establish a
+live continuation or grant cancellation permission.
+
+The [observation-boundary proof](fixtures/leselang_reference_observe_boundary_macos_arm64_20261023.json)
+records separate read-only, memory-bridge and default test/lint runs, dependency
+closure checks and the actual daemon debugger tests. Read-only tests construct
+received data without a VM and preserve sanitation, mutable-request rejection,
+deadline saturation and revision/confirmation checks. Bridge tests additionally
+reject unknown and altered continuations without creating audit records, then
+cancel the original live request and replay its original audit timestamp.
+
+That migration advanced reference execution to `1.117.0`; native embedding remains `0.171.0`,
+Developing/Draft at completion 10. This is a product observation boundary, not a
+host-neutral UI adapter or complete standalone VM. Product version stays `2.4.0`;
+native durable recovery and the full extraction gate remain incomplete.
+
+### Static Continuation Codec Ownership
+
+The product adapter now owns `encode_continuation`, `decode_continuation` and
+the unchanged 64 KiB `MAX_CONTINUATION_BYTES` ceiling. The old `leselang_vm`
+paths reexport those exact functions. Protocol consumers can read, check and
+write product continuation data without linking an evaluator or SQLite.
+`reference_continuation` also supplies the separate static preflight stages used
+by the VM and its journal, without turning those stages into an execution API.
+
+The original ordering is preserved rather than unified:
+
+- Encoding checks recursive result-binding structure, measures bounded JSON,
+  validates the complete frame, checks canonical identity and pending-effect
+  source, then emits bounded bytes.
+- Decoding checks raw input length before JSON parsing, retains serde recursion,
+  unknown/duplicate-field and legacy-schema policies, then performs the static
+  frame/identity/source checks. Exact-limit whitespace remains valid.
+- Size-only journal preflight still stops before later request admission; it must
+  not be treated as a validated request. Full size validation omits the output
+  buffer but retains all encoding admission checks.
+
+All original LSV codes, messages and wire bytes remain unchanged. The name
+`validate_restorable_image` denotes the released **static** gate only: a decoded
+group member still lacks a complete group journal, and an otherwise valid image
+may conflict with live or already-consumed state. VM restore still checks those
+conditions, records pending state and advances the identity watermark only at
+its original boundary. Hosts must authenticate inputs and decide whether to
+invoke restoration; neither successful decoding nor canonical source is a grant.
+
+The observation mutation bridge imports encoding from the product adapter and
+only `Vm` from the evaluator. `leserpentd` imports operation/result/step/scheduler
+data from the adapter, including its test consumers; its VM import is limited to
+`Vm` and the engine's `DEFAULT_FUEL`. Existing cancellation and replay behavior
+is not reimplemented in those consumers.
+
+The [continuation-codec proof](fixtures/leselang_reference_continuation_codec_macos_arm64_20261023.json)
+records 7,560 independent frozen comparisons across 70 operations and 2,652
+schema/group/binding comparisons, plus byte-limit and recursive-preflight cases.
+Four direct adapter tests run without a VM. A public memory-runtime test uses
+the adapter codec, rejects conflicting live images and incomplete group restore
+without reserving identities, and preserves consumed-state refusal after actual
+completion. Existing malformed-decode tests now use the independent frozen
+static-admission oracle rather than calling the migrated validator as expected output.
+
+Reference execution advances to `1.118.0`; native embedding stays `0.171.0`,
+Developing/Draft at completion 10. Product version remains `2.4.0`. This does not
+introduce a native codec, change a wire/journal schema, complete host-neutral
+durable recovery or satisfy the full repository-extraction gate.
 
 **The current 2.3.0-and-later phase closes acceptance gates; physical extraction is deferred.**
 It is not an automatic version-triggered move. No replacement extraction version

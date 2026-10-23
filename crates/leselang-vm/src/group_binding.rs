@@ -20,10 +20,11 @@ pub(super) enum CaptureProgress {
 }
 
 pub(super) fn invalid() -> Fault {
-    Fault {
-        code: "LSV1409".into(),
-        message: "invalid group-result binding or missing complete group journal".into(),
-    }
+    leselang_command::reference_request::continuation_admission_fault(
+        leselang_command::ContinuationAdmissionError::Schema(
+            leselang_command::continuation_schema::ContinuationSchemaError::Group,
+        ),
+    )
 }
 
 pub(super) fn admission_limits() -> leselang_command::GroupBindingLimits {

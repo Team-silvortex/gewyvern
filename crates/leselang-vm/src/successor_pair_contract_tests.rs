@@ -142,14 +142,14 @@ fn mutate(request: &mut EffectRequest, result: &mut Step, defect: usize) {
     match defect {
         0 => {}
         1 => image.schema_version = 0,
-        2 => image.token = ContinuationToken("continuation-01".into()),
+        2 => image.token = ContinuationToken::from_wire("continuation-01".into()),
         3 => image.fuel_remaining = 0,
         4 => image.fuel_remaining = 1000,
         5 => image.deadline_ms += 1,
         6 => image.deadline_at_ms = Some(1),
         7 => image.max_output_items = 0,
         8 => image.expected_revision = None,
-        9 => image.group_result = Some(ContinuationToken("merge-999".into())),
+        9 => image.group_result = Some(ContinuationToken::from_wire("merge-999".into())),
         10 => image.result_binding = None,
         11 => image.result_type = Type::Structured,
         12 => image.program_counter = 0,

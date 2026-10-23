@@ -51,10 +51,22 @@ jobs:
           package leselang --output "$RUNNER_TEMP/leselang-native-source" --verify
 
       - name: Test reference protocol and capture execution without linking the VM
-        run: cargo +1.98.0 test -p leselang-command --locked --test captured_execution --test capture_scope --test structured_value --test result_domain --test host_protocol --test result_binding --test merge_plan --test continuation_admission
+        run: cargo +1.98.0 test -p leselang-command --locked --test captured_execution --test capture_scope --test structured_value --test result_domain --test host_protocol --test result_binding --test merge_plan --test continuation_admission --test reference_continuation
 
       - name: Test reference VM with the SQLite backend disabled
         run: cargo +1.98.0 test -p leselang-vm --locked --no-default-features --features leserpent-profile
+
+      - name: Test read-only projections without the VM or SQLite
+        run: cargo +1.98.0 test -p leselang-observe --locked --no-default-features
+
+      - name: Lint read-only projections and their consumers
+        run: cargo +1.98.0 clippy -p leselang-observe --locked --no-default-features --all-targets -- -D warnings
+
+      - name: Test debugger mutation bridge without SQLite
+        run: cargo +1.98.0 test -p leselang-observe --locked --no-default-features --features vm-bridge
+
+      - name: Lint debugger mutation bridge without SQLite
+        run: cargo +1.98.0 clippy -p leselang-observe --locked --no-default-features --features vm-bridge --all-targets -- -D warnings
 
       - name: Lint database-free reference VM and its tests
         run: cargo +1.98.0 clippy -p leselang-vm --locked --no-default-features --features leserpent-profile --all-targets -- -D warnings

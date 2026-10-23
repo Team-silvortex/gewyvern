@@ -1,0 +1,177 @@
+{
+  "kind": "leselang-reference-product-identity-outcome",
+  "validated_on": "2026-10-20",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "reference_execution_contract": "1.114.0",
+  "native_embedding_contract": "0.171.0",
+  "identity_cases": 65,
+  "ordering_pairs": 4225,
+  "wire_comparisons": 16232,
+  "ascii_length_comparisons": 640,
+  "direct_adapter_tests": 4,
+  "private_constructor_compile_fail_tests": 1,
+  "vm_contract_tests": 3,
+  "public_memory_profile_tests": 13,
+  "both_journal_clock_boundary_tests": 10,
+  "released_types_are_exact_reexports": true,
+  "concrete_enum_variant_imports_retained": true,
+  "private_token_field_retained": true,
+  "legacy_ordering_distinct_from_canonical_admission": true,
+  "raw_construction_moves_original_string": true,
+  "restore_and_terminal_validation_retained": true,
+  "journal_allocation_and_watermark_authority_retained": true,
+  "adapter_has_no_vm_or_sqlite_dependency": true,
+  "isolated_consumer_passed": true,
+  "wire_data_grants_execution_authority": false,
+  "wire_or_journal_schema_changed": false,
+  "new_native_api": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "The product adapter owns ContinuationToken, CancellationReason, Cancellation, BranchOutcome and BranchCompletion with exact released VM reexports, concrete enum variant imports and the original serde field policy. Token lexical checks, canonical continuation/merge sequence observations, the product sequence ceiling and legacy age ordering move with the data. Frozen comparisons cover 65 identities, 4,225 lexical/age-order pairs and 16,232 decode/wire cases across the five DTOs, preserving invalid/noncanonical wire data for original caller admission. from_wire moves an existing String without normalization, allocation of an execution identity or semantic admission; the token field remains private, with compile-fail coverage. Public memory tests verify exact Rust type identity and show that constructing/decoding a cancellation does not cancel pending work; the formal VM cancellation entry is still required. Existing clock-boundary tests now use adapter cancellation reasons in memory and SQLite paths. VM request/restore/outcome admission, faults, Step, RetryDisposition, allocation, cancellation and journal transactions/watermarks/recovery remain authoritative. Numeric age order is not canonical identity validation, and a lexical token or terminal DTO is not an authentic receipt. Native hosts retain their own identity schemas. No complete native durable recovery, new native API, schema migration or completed extraction gate is claimed. Product version follows the unchanged Cargo manifest.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/continuation_identity.rs",
+      "sha256": "5a530a239c3e7ab76abd6bfcfed66acaec4b459e15bf42cf0486d8494c7d6e6b"
+    },
+    {
+      "path": "crates/leselang-command/src/terminal_outcome.rs",
+      "sha256": "acc24c059cff43088a41afc6b5cc5a07d7edde9321a4b18020a705dfaa7d92db"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "15df74f2f453dbb9f27a25755821a5e8c192801e0bc75b2dac734df80d77335a"
+    },
+    {
+      "path": "crates/leselang-command/tests/identity_outcome.rs",
+      "sha256": "d75a32a5e4b88e9737ec97af93d9e9b98d4969c3abf2e1fd8aa0040428085068"
+    },
+    {
+      "path": "crates/leselang-vm/tests/ephemeral_profile.rs",
+      "sha256": "2b639cbeea28d72e1db10fc5834513cd56c81a91768ccd5cb4339bb147f32fa7"
+    },
+    {
+      "path": "crates/leselang-vm/tests/clock_boundaries.rs",
+      "sha256": "3619889b96bec96c7a99bc8fcb5df412154bae8563f8d00801270887cc363b4b"
+    },
+    {
+      "path": "crates/leselang-vm/src/bounded_decode_tests.rs",
+      "sha256": "43b663c2f7ad99689a6d5d262abb2b194832f368dccffad33b4a0332f084e5bc"
+    },
+    {
+      "path": "crates/leselang-vm/src/continuation_contract_tests.rs",
+      "sha256": "7e200a10449a9dc5de6c5abdda911e15459a140c9995d77fb646af8f7ce076f2"
+    },
+    {
+      "path": "crates/leselang-vm/src/continuation_schema_tests.rs",
+      "sha256": "de5df235c1a1edf5ba059a78902fb67636e4aebfa7a87299c122505fb4ba2591"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_request_contract_tests.rs",
+      "sha256": "2a5f93c6336636171df165ebf120aa62df9bb9d65f7ca566ad71e623e5a86f61"
+    },
+    {
+      "path": "crates/leselang-vm/src/identity_outcome_contract_tests.rs",
+      "sha256": "a31fee5beb2ab762c2bd1d05fe7af3e0359aa0c4b263c4942a5b7f9afa000de4"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/dispatch_recovery_contract_tests.rs",
+      "sha256": "2cca507e8b7ffa91aa8c06ad4c62a917ee6a879ed1b8901ca9e29b70ad9c16ee"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_recovery_contract_tests.rs",
+      "sha256": "7fa13c09b275cff2884f09e905b0be8e4ab86f0c007754a0f8a17980f95d29d0"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/retention_tests.rs",
+      "sha256": "7a351aacc1b7b1acf64cc105a93762cc498d9e66a555d79d13a397eeb199499c"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/successor.rs",
+      "sha256": "0835a2209a2c832cbe88a6bd2cee6597485a006285a3e9b3f6894fa41a7d727c"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "4e8c4dbd52aeef40d117c8ddc4bac258afb63317c46915c35b4f0eb6c2c18e4a"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "fd3356bc0160aad5ba10de817a5cd319f3c474fd338edfe357963b6b7855426a"
+    },
+    {
+      "path": "crates/leselang-vm/src/merge_completion_tests.rs",
+      "sha256": "3f144074b2125f4c21b72e341356562f2419b9a554c7d69c2ba20a8335bf7250"
+    },
+    {
+      "path": "crates/leselang-vm/src/operation_request_tests.rs",
+      "sha256": "b4fcd020846474f2a892a446a9c40f837e6e21290befe5fb60b07443eb68fa82"
+    },
+    {
+      "path": "crates/leselang-vm/src/successor_pair_contract_tests.rs",
+      "sha256": "9595b1a3104468034428e1bef4d2469881f0eedc467471e575ef8177a86eafdf"
+    }
+  ],
+  "verification": [
+    {
+      "name": "default-command-vm-and-observe",
+      "path": "/private/tmp/leselang-identity-outcome-verified-runtime.log",
+      "passed": 1092,
+      "sha256": "3f2058106040fcc64a867ec64849039a418e4d6d61d7d9d9e426377824bac659"
+    },
+    {
+      "name": "no-sqlite-reference-ephemeral-and-audit",
+      "path": "/private/tmp/leselang-identity-outcome-memory.log",
+      "passed": 119,
+      "sha256": "4c16b9d4b1ce37c121563fdbf69eac01be6bcce4b7da5f2e1d347d611329f23d"
+    },
+    {
+      "name": "command-vm-observe-strict-clippy",
+      "path": "/private/tmp/leselang-identity-outcome-clippy.log",
+      "passed": true,
+      "sha256": "36e2a67086585734b324fac09f85b4c97990ea44e6d53c643da1f9040bdce78a"
+    },
+    {
+      "name": "isolated-source-tests-and-strict-clippy",
+      "path": "/private/tmp/leselang-identity-outcome-export.log",
+      "passed": 2564,
+      "sha256": "98b7250a2ec45fa4caf09c842ba9563a69e2e28261c5c1052522c09061eea8de"
+    },
+    {
+      "name": "native-dependency-tree",
+      "path": "/private/tmp/leselang-identity-outcome-native-tree.log",
+      "passed": true,
+      "sha256": "bce104b90864de1db4724a163104dc044b66e178920943eb91e09ec6b181015a"
+    },
+    {
+      "name": "adapter-dependency-tree",
+      "path": "/private/tmp/leselang-identity-outcome-adapter-tree.log",
+      "passed": true,
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "name": "four-root-guards-strict-clippy",
+      "path": "/private/tmp/leselang-identity-outcome-guard-clippy.log",
+      "passed": true,
+      "sha256": "975ce598b95956e047e24b67d10b875367ca7948562ee6323a03f832aa8b0f22"
+    },
+    {
+      "name": "workspace-and-included-profile-format",
+      "path": "/private/tmp/leselang-identity-outcome-fmt.log",
+      "passed": true,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-identity-outcome-2.4.0",
+    "manifest_sha256": "38667700c703537892dc55f29894ca6512e8268c7a1f7c47f3b39a8e30f82617",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2017,
+    "consumer_tests": 547,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}

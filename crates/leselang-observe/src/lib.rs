@@ -1,22 +1,31 @@
 #![forbid(unsafe_code)]
 
-use leselang_command::{CommandPlan, DebuggerAuditContext, DebuggerCancelResult};
+//! Sanitized Leserpent projections and read-only debugger plan inspection.
+//! Disable default features to omit the VM; `vm-bridge` adds live mutation and
+//! `sqlite-journal` (the compatible default) forwards durable VM storage.
+//! Cargo features are additive, not an authorization boundary.
+
+use leselang_command::reference_request::validate_effect_request;
+use leselang_command::{CommandPlan, EffectRequest};
 use leselang_hir::Effect;
 use leselang_host_contract::{Confirmation, Revision, RuntimeId};
+use leselang_runtime_core::Fault;
 use leselang_ui::{
     DebuggerEffectKind, DebuggerFrame, DebuggerPendingEffect, DebuggerProjection, DebuggerState,
     MAX_RUNTIME_LOG_DISPLAY_BYTES, MAX_RUNTIME_LOG_ENTRIES, MAX_UI_TEXT_BYTES, RuntimeLogEntry,
     RuntimeLogLevel as UiRuntimeLogLevel, RuntimeLogProjection, UiError, debugger_document,
     runtime_log_document,
 };
-use leselang_vm::{
-    ContinuationImage, EffectRequest, Fault, Vm, encode_continuation, validate_effect_request,
-};
 use leserpent_domain::{
     Command, CommandPlanError, MAX_RUNTIME_LOG_MESSAGE_BYTES, PlannedOperation, RuntimeLogLevel,
     RuntimeLogRecord,
 };
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "vm-bridge")]
+mod vm_bridge;
+#[cfg(feature = "vm-bridge")]
+pub use vm_bridge::{execute_debugger_cancel, execute_debugger_cancel_effect};
 
 const PENDING_FRAME_ID: &str = "pending-effect";
 pub const MAX_RUNTIME_LOG_SOURCE_ENTRIES: usize = 4_096;
@@ -95,84 +104,6 @@ pub fn inspect_debugger_cancel_plan(
         session_id: session_id.clone(),
         expected_revision,
         dry_run: command.dry_run,
-    })
-}
-
-pub fn execute_debugger_cancel(
-    plan: &CommandPlan,
-    projection: &DebuggerProjection,
-    image: &ContinuationImage,
-    vm: &mut Vm,
-    now_ms: u64,
-) -> Result<DebuggerMutationResult, ObserveError> {
-    let inspection = inspect_debugger_cancel_plan(plan, projection)?;
-    encode_continuation(image).map_err(ObserveError::InvalidDebuggerContinuation)?;
-    let effect_id = image
-        .token
-        .as_str()
-        .strip_prefix("continuation-")
-        .map(|sequence| format!("effect-{sequence}"));
-    if image.program_counter != projection.program_counter
-        || image.fuel_remaining != projection.fuel_remaining
-        || projection
-            .pending_effect
-            .as_ref()
-            .map(|effect| effect.effect_id.as_str())
-            != effect_id.as_deref()
-    {
-        return Err(ObserveError::DebuggerSessionMismatch);
-    }
-    if inspection.dry_run {
-        return Ok(DebuggerMutationResult {
-            inspection,
-            status: DebuggerMutationStatus::Planned,
-            state: projection.state,
-            audited_at_ms: None,
-        });
-    }
-
-    let PlannedOperation::Command(command) = &plan.operation else {
-        return Err(ObserveError::DebuggerSessionMismatch);
-    };
-    let audit = DebuggerAuditContext {
-        command_id: command.command_id.clone(),
-        idempotency_key: command.idempotency_key.clone(),
-        principal: command.principal.clone(),
-        origin: command.origin,
-        session_id: inspection.session_id.clone(),
-        expected_revision: inspection.expected_revision,
-    };
-    let record = vm
-        .cancel_effect_audited(image, now_ms, &audit)
-        .map_err(ObserveError::InvalidDebuggerContinuation)?;
-    Ok(DebuggerMutationResult {
-        inspection,
-        status: DebuggerMutationStatus::Applied,
-        state: DebuggerState::Cancelled,
-        audited_at_ms: Some(record.observed_at_ms),
-    })
-}
-
-pub fn execute_debugger_cancel_effect(
-    plan: &CommandPlan,
-    projection: &DebuggerProjection,
-    image: &ContinuationImage,
-    vm: &mut Vm,
-    now_ms: u64,
-) -> Result<DebuggerCancelResult, ObserveError> {
-    let mutation = execute_debugger_cancel(plan, projection, image, vm, now_ms)?;
-    if mutation.status != DebuggerMutationStatus::Applied {
-        return Err(ObserveError::UnexpectedDebuggerStep);
-    }
-    let PlannedOperation::Command(command) = &plan.operation else {
-        return Err(ObserveError::DebuggerSessionMismatch);
-    };
-    Ok(DebuggerCancelResult {
-        command_id: command.command_id.clone(),
-        session_id: mutation.inspection.session_id,
-        observed_at_ms: mutation
-            .audited_at_ms
-            .ok_or(ObserveError::UnexpectedDebuggerStep)?,
     })
 }
 
@@ -593,9 +524,11 @@ pub fn waiting_debugger_projection(
     Ok(projection)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "vm-bridge"))]
 mod tests {
-    use leselang_command::{LoweringContext, LoweringError, plan_debugger_cancel};
+    use leselang_command::{
+        DebuggerCancelResult, LoweringContext, LoweringError, plan_debugger_cancel,
+    };
     use leselang_hir::lower;
     use leselang_syntax::parse;
     use leselang_vm::{EffectOperation, Step, Vm};

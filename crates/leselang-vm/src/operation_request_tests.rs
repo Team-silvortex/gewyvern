@@ -21,7 +21,7 @@ fn frozen_build_effect_request(
     })?;
     let image = ContinuationImage {
         schema_version: CONTINUATION_SCHEMA_VERSION,
-        token: ContinuationToken(format!("continuation-{sequence}")),
+        token: ContinuationToken::from_wire(format!("continuation-{sequence}")),
         program_counter: 1,
         expected_revision,
         result_type,
@@ -489,7 +489,7 @@ fn complete_request_admission_preserves_frozen_frame_before_correspondence_and_d
                         }));
                     }
                     2 => image.schema_version = 0,
-                    3 => image.token = ContinuationToken("private/invalid".into()),
+                    3 => image.token = ContinuationToken::from_wire("private/invalid".into()),
                     4 => image.program_counter = 0,
                     5 => image.result_type = Type::Structured,
                     6 => image.fuel_remaining = MAX_EXECUTION_FUEL + 1,

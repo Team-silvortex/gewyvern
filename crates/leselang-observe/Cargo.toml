@@ -2,15 +2,22 @@
 name = "leselang-observe"
 version.workspace = true
 edition.workspace = true
-description = "Sanitized VM-to-UI projections for Leserpent"
+description = "Sanitized Leserpent UI projections with an optional reference-VM mutation bridge"
 license.workspace = true
+
+[features]
+# Retain released behavior; read-only consumers opt out explicitly.
+default = ["sqlite-journal"]
+vm-bridge = ["dep:leselang-vm"]
+sqlite-journal = ["vm-bridge", "leselang-vm/sqlite-journal"]
 
 [dependencies]
 leselang-command = { path = "../leselang-command" }
 leselang-hir = { path = "../leselang-hir" }
 leselang-host-contract = { path = "../leselang-host-contract" }
+leselang-runtime-core = { path = "../leselang-runtime-core" }
 leselang-ui = { path = "../leselang-ui" }
-leselang-vm = { path = "../leselang-vm" }
+leselang-vm = { path = "../leselang-vm", optional = true, default-features = false, features = ["leserpent-profile"] }
 leserpent-domain = { path = "../leserpent-domain" }
 serde.workspace = true
 

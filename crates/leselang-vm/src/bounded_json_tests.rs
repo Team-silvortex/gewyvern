@@ -2,7 +2,7 @@ use super::*;
 use std::io::{self, Write};
 
 // Frozen pre-migration encoders; independent of the shared product codec.
-fn frozen_encode_json_capped<T: Serialize>(
+pub(super) fn frozen_encode_json_capped<T: Serialize>(
     value: &T,
     limit: usize,
     label: &str,
@@ -23,7 +23,7 @@ fn frozen_encode_json_capped<T: Serialize>(
     Ok(writer.output)
 }
 
-fn frozen_validate_json_size_capped<T: Serialize>(
+pub(super) fn frozen_validate_json_size_capped<T: Serialize>(
     value: &T,
     limit: usize,
     label: &str,

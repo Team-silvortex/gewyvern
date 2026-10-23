@@ -74,7 +74,7 @@ fn complete_merge_graph_admission_preserves_frozen_plan_owner_request_and_corres
                             mutate(&mut candidate, 0, plan_defect);
                             mutate(&mut candidate, 0, request_defect);
                             if bad_owner {
-                                candidate.0 = ContinuationToken(String::new());
+                                candidate.0 = ContinuationToken::from_wire(String::new());
                             }
                             let bytes = serde_json::to_vec(&candidate).unwrap();
                             let rows = candidate
@@ -277,7 +277,7 @@ fn mutate(snapshot: &mut Snapshot, index: usize, defect: usize) {
                 value: ScalarValue::None,
             }),
         30 => requests.push(requests[0].clone()),
-        31 => *owner = ContinuationToken("merge-999".into()),
+        31 => *owner = ContinuationToken::from_wire("merge-999".into()),
         32 => plan.result_binding.as_mut().unwrap().successor_sequence = None,
         _ => {}
     }
@@ -293,7 +293,7 @@ fn mutate(snapshot: &mut Snapshot, index: usize, defect: usize) {
             }
         }
         5 => image.result_type = Type::Structured,
-        6 => image.group_result = Some(ContinuationToken("merge-999".into())),
+        6 => image.group_result = Some(ContinuationToken::from_wire("merge-999".into())),
         7 => image.schema_version = 0,
         8 | 35 => image.fuel_remaining += 1,
         9 => image.deadline_ms += 1,
@@ -311,7 +311,7 @@ fn mutate(snapshot: &mut Snapshot, index: usize, defect: usize) {
                     crate::CapabilitySet::new(["ui.presentation", "runtime.read"]);
             }
         }
-        15 => image.token = ContinuationToken("continuation-01".into()),
+        15 => image.token = ContinuationToken::from_wire("continuation-01".into()),
         16 => request.effect_id = "wrong-effect".into(),
         17 => request.budget.fuel_remaining += 1,
         18 => image.result_binding = None,
@@ -336,7 +336,7 @@ fn mutate(snapshot: &mut Snapshot, index: usize, defect: usize) {
             }
         }
         24 => {
-            image.token = ContinuationToken(format!(
+            image.token = ContinuationToken::from_wire(format!(
                 "continuation-{}",
                 plan.result_binding
                     .as_ref()

@@ -1,0 +1,238 @@
+{
+  "kind": "leselang-reference-continuation-codec",
+  "validated_on": "2026-10-23",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "reference_execution_contract": "1.118.0",
+  "native_embedding_contract": "0.171.0",
+  "operation_codec_comparisons": 7560,
+  "schema_binding_comparisons": 2652,
+  "existing_malformed_decode_comparisons": 980,
+  "direct_adapter_tests": 4,
+  "public_memory_profile_tests": 16,
+  "daemon_library_tests": 170,
+  "exact_vm_codec_reexports": true,
+  "original_fault_order_and_wire_retained": true,
+  "recursive_preflight_before_serializer": true,
+  "raw_input_bound_before_deserializer": true,
+  "adapter_has_no_vm_or_sqlite_dependency": true,
+  "live_and_consumed_conflicts_remain_vm_owned": true,
+  "incomplete_group_restore_does_not_reserve_identity": true,
+  "daemon_protocol_imports_use_adapter": true,
+  "isolated_consumer_passed": true,
+  "decoding_grants_restoration": false,
+  "wire_or_journal_schema_changed": false,
+  "new_native_api": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "The product adapter owns the released 64 KiB continuation encode/decode and static size/restorability gates. VM public codecs are exact reexports; journal and restore callers retain original ordered private-stage aliases. Six legacy/adapter entry comparisons over 70 operations and 18 defects produce 7560 comparisons; 17 binding forms, versions 0 through 12 and two group-owner states produce 2652 comparisons. Expected outputs use independent frozen frame admission, canonical token checks, canonical source checks and pre-existing frozen capped writers, not the migrated codec. Existing 980 malformed-decode cases now also use the frozen static-admission oracle. Four direct adapter tests verify exact wire round trips, mutable-data revalidation, size/JSON order, exact-limit whitespace, recursive native preflight and static group metadata without a VM. The memory consumer rejects changed live images, refuses a decoded group member without complete journal ownership and preserves the next allocated effect identity; actual completion still fences restore of consumed state. Observe imports its encoding function from the adapter. Daemon production and test consumers use adapter protocol DTOs with an explicit direct dependency; only Vm and DEFAULT_FUEL remain imported from the evaluator in its debugger. All 170 daemon library tests pass after permitting the temporary local HTTPS/Unix socket listeners blocked by the sandbox; no remote server deployment is involved. The native source export is unchanged and reverified. Native durable recovery and full extraction remain incomplete, and decoding never authenticates or executes a saved image.",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_continuation.rs",
+      "sha256": "dc9e229c6880201cad2c22983644984622e40b81c19d7e440bb9690bf8066815"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "95b8f657caaca2e6f191c395e454f29574846a25d384d41dbf649ef98cc6e200"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_continuation.rs",
+      "sha256": "8d1b12b8b2a4303a3ccb1a08075559a302c66065ab87bafbda642ac5237a5d83"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "b880345be18f8b67e9d2e2bc1dd7a7f4227d35c8bf4198344554897fb9fb3b77"
+    },
+    {
+      "path": "crates/leselang-vm/src/continuation_codec_contract_tests.rs",
+      "sha256": "18547f6ae49e37110a265f67cfe2a11020aec5feee22b95179d85884844b7bb3"
+    },
+    {
+      "path": "crates/leselang-vm/src/bounded_decode_tests.rs",
+      "sha256": "2e32dd6206078545b5f6fa2512b4566e3a17f7ba424a238d21b64318654cfb87"
+    },
+    {
+      "path": "crates/leselang-vm/src/bounded_json_tests.rs",
+      "sha256": "e211dff8c87fa5e33bf8f5bf038be5a53b9af9507bdb24046b6b14a065c4ee38"
+    },
+    {
+      "path": "crates/leselang-vm/src/continuation_schema_tests.rs",
+      "sha256": "ae92de91b9d2ba7a2007da3674a9ae5fb3e6291ae89bc8ce81ea7abbc7c0b825"
+    },
+    {
+      "path": "crates/leselang-vm/src/result_binding.rs",
+      "sha256": "99890b130470ff6a33af822ce9c8928a07f3ebe59b3c813aaa61c47531d42d08"
+    },
+    {
+      "path": "crates/leselang-vm/tests/ephemeral_profile.rs",
+      "sha256": "c0771cb91a27c6708e018437036a6e0a4899c87d1adf5486310c6d24a8aef15e"
+    },
+    {
+      "path": "crates/leselang-observe/src/vm_bridge.rs",
+      "sha256": "ccbe40303d242c3901957733c60e6b22c35e25e336f22b2271a1aafbe2bd4c85"
+    },
+    {
+      "path": "crates/leserpentd/Cargo.toml",
+      "sha256": "4e32d8613031e8d46257e553853ca1a1ee071ba172fff3c6807866a037c94f6b"
+    },
+    {
+      "path": "crates/leserpentd/src/debugger.rs",
+      "sha256": "b98903d935bd8f33b9a09a91b8e225d4566ebcf3e79b451b85e767dcfe9a91f2"
+    },
+    {
+      "path": "crates/leserpentd/src/remote.rs",
+      "sha256": "3dfe6875cdfd3a1f37d240c49604ec0afb829f766421604936b09987c9059d2c"
+    },
+    {
+      "path": "crates/leserpentd/src/wire.rs",
+      "sha256": "1618f797a395a46f4180512e29e9ef669cc7c1654a8db1a220051adccaa0866f"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "ffdc6dfae3b2a33d6c5f0080d42e2def0a3676c6db92647be256af156b418681"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "077fd0ef87e74f573727dac4806bfa85e322ff880118d2bf0961f6516b85d977"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "231768c583a738473daf61e169b7896f5ffe6eb808fd381e3e04334c1bd35d44"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "d32139a9ef5a67f1d22711742022111cd35e53a9d03ea4128300973c0a92d777"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "9388929afc7a1704f01d924ec6f0852ab1e2bfb82cb951119624e9b5c717290a"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "9114bdaf98d6f2cc138f5d016f1adc2b0ce1ed518cde6dcadf484c33d3d98ffd"
+    }
+  ],
+  "verification": [
+    {
+      "name": "default-command-vm-and-observe",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-runtime.log",
+      "passed": 1120,
+      "sha256": "2203dec20e1eb7645345b804ee072e128bf599883142cfbd152199eecdd468a8"
+    },
+    {
+      "name": "no-sqlite-reference-vm",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-memory.log",
+      "passed": 128,
+      "sha256": "dc2e86db644e2bd778e7336de7354bb35a4412418af500054e42b85333c3a6a7"
+    },
+    {
+      "name": "complete-daemon-with-local-tls-and-ipc-listeners",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-local-socket-daemon.log",
+      "passed": 170,
+      "sha256": "85fcff945c2668753a28d44721179433dba5ffe3cf135441c3924faa5183a1d3"
+    },
+    {
+      "name": "direct-adapter-without-vm",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-adapter.log",
+      "passed": 4,
+      "sha256": "bd32bae16c47774fd7bef1af31c25a1f66c7fb126283ac93bfed2350d6487cd3"
+    },
+    {
+      "name": "read-only-observation-profile",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-read-only.log",
+      "passed": 5,
+      "sha256": "68c463efa8e439af508b494f4a81ebcfe1d10b8331193135e79e4a1874a3972b"
+    },
+    {
+      "name": "memory-observation-bridge",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-bridge.log",
+      "passed": 18,
+      "sha256": "70592a486771bb53d8957a399d0bb1e6fd2f4e66c3206e204e79b2edf66e8152"
+    },
+    {
+      "name": "default-all-targets-strict-clippy",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-clippy.log",
+      "passed": true,
+      "sha256": "dbd95f309a262c196277d01cf791a955614d6c1e62b8a8a05b149d5c5bba0f82"
+    },
+    {
+      "name": "no-sqlite-vm-strict-clippy",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-memory-clippy.log",
+      "passed": true,
+      "sha256": "c2eed376448e00891f2d9d4dca23470337b53c1a52d55b1f5153e92a95ade7b8"
+    },
+    {
+      "name": "read-only-strict-clippy",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-read-only-clippy.log",
+      "passed": true,
+      "sha256": "9d098b2e57563f683d2d258d2988c31b4af4ccc78f25d3817ebe0b3a88adc8f4"
+    },
+    {
+      "name": "memory-bridge-strict-clippy",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-bridge-clippy.log",
+      "passed": true,
+      "sha256": "d312baaf1f081d0ed9b31e1c2db699868224a2b07d7f69cd56ccfb84906acdee"
+    },
+    {
+      "name": "four-root-guards-strict-clippy",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-guard-clippy.log",
+      "passed": true,
+      "sha256": "e13ac2eccc0cac2b319631c1928bd9b1936de3d5b0211cd987015d156d3ea545"
+    },
+    {
+      "name": "workspace-format",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-final-fmt.log",
+      "passed": true,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "included-profile-format",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-profile-fmt.log",
+      "passed": true,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "adapter-dependency-closure-including-dev",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-adapter-tree.log",
+      "passed": true,
+      "sha256": "ce60daed6f8484fc55e503aa2f4b097e268afe75c528b90ef00682b0f790cc6e"
+    },
+    {
+      "name": "read-only-dependency-closure-including-dev",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-read-only-tree.log",
+      "passed": true,
+      "sha256": "a1638a4f03e397dd1379aa6c0b6b576ba1a457bc5f6b39770bb00a4b75711a15"
+    },
+    {
+      "name": "native-dependency-closure",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-native-tree.log",
+      "passed": true,
+      "sha256": "0d24643afb2a4ed63e83ee259124ce56f993535d530698caa4aa737d05d67bf8"
+    },
+    {
+      "name": "native-and-reference-profile-guards",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-verified-profile-guards.log",
+      "passed": 113,
+      "sha256": "2a508798adc2505b27c565aa65c560e3f5b083fe0a883bc918840f5192735e55"
+    },
+    {
+      "name": "isolated-source-and-independent-consumer",
+      "path": "/private/tmp/leselang-continuation-codec-20261023-export.log",
+      "passed": 2564,
+      "sha256": "11a10a3fefb19f5c634334f7f60b7dca08e575bfe208207e7a45524777ccf70b"
+    }
+  ],
+  "source_export": {
+    "path": "/private/tmp/leselang-continuation-codec-20261023-2.4.0",
+    "manifest_sha256": "38667700c703537892dc55f29894ca6512e8268c7a1f7c47f3b39a8e30f82617",
+    "files": 280,
+    "source_copies_byte_matched": 270,
+    "verified": true,
+    "workspace_tests": 2017,
+    "consumer_tests": 547,
+    "product_free_dependency_tree": true,
+    "temporary_build_target_removed": true
+  }
+}

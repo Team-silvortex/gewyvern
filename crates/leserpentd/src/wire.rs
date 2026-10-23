@@ -824,9 +824,9 @@ mod tests {
     use std::path::PathBuf;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+    use leselang_command::PresentationOperation;
     use leselang_hir::CAPABILITY_UI_PRESENTATION;
     use leselang_ui::DebuggerState;
-    use leselang_vm::PresentationOperation;
     use leserpent_domain::bootstrap::{
         BOOTSTRAP_SESSION_PROTOCOL_VERSION, BootstrapId, BootstrapPhase, BootstrapTarget,
         BootstrapTransport, CredentialHandle, DaemonId, DeploymentBootstrapSnapshot,
