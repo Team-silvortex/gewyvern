@@ -1,0 +1,226 @@
+{
+  "kind": "leselang-claim-entry-policy",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.145.0",
+  "atomic_operations": 70,
+  "claim_routes": 2,
+  "fault_scenarios": 20,
+  "whole_vm_comparisons": 2800,
+  "baseline_leases": 280,
+  "sqlite_flow_shapes": 8,
+  "sqlite_write_failure_sites": 3,
+  "sqlite_scenarios": 11,
+  "sqlite_restart_comparisons": 176,
+  "direct_adapter_tests": 5,
+  "adapter_owned_claim_entries": true,
+  "clock_and_lease_preflight_before_cleanup": true,
+  "idle_and_backpressure_remain_distinct": true,
+  "original_lease_box_and_payload_owners": true,
+  "native_single_entry_cache_adoption": true,
+  "post_commit_local_conflict_retains_lease": true,
+  "native_fairness_capacity_and_counter_authority": true,
+  "no_hook_retry_or_native_rollback": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Both public claim entry coordinators, local-image correspondence diagnostics and optional-lease backpressure mapping move to the product adapter. Native owners retain atomic issuance, fairness, live capacity and counters, plus single-entry cache adoption after commit.",
+  "limitations": [
+    "Trusted product policy, not raw ingress or the standalone generic VM. Caller permissions, bounded input, clock provenance and consistent worker limits remain native obligations. Cache correspondence does not grant a lease.",
+    "A local cache conflict may be returned after the journal has committed a lease. The coordinator never retries hooks, refunds delivery attempts or rolls back prior native effects; journal transactions retain their own rollback boundaries.",
+    "The frozen entries share the existing clock kernels, diagnostic mappings and journal machinery. This proves coordinator compatibility, not independent implementation of the scheduler or storage layers.",
+    "Native result conversion/settlement, journal ownership, complete host-neutral durable recovery, vertical compatibility and physical extraction remain open. Native completion and maturity are unchanged.",
+    "Local macOS Rust/SQLite verification only; no Linux, GUI or remote CI run. The existing 280-file standalone checkpoint was integrity-checked, not freshly exported or retested."
+  ],
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_claim.rs",
+      "sha256": "40a0e1a8e72470c8cf7fb5f8df4762864b666f999c1c3a5209d018d03e5be287"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_dispatch.rs",
+      "sha256": "b62f9b90c51eb675e9e35433ebcb48fa6fd3b448d6575f377653d59d374b286b"
+    },
+    {
+      "path": "crates/leselang-command/src/scheduler_policy.rs",
+      "sha256": "08a061323f787873a4fb00379e6faf3dabce869ef87063c3cc89003b1d490e40"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "a0e32f5b5c5e46dd50e2fd20d2567fea4d6f2c8e894a3c904c73a396ec77b6be"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_claim.rs",
+      "sha256": "cff2fa87d4f646a29d508c4ea3dc53d7d2162c43103169350f2f192c6456e72b"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "f008e8349c7234c990823e8ecc5b622898163d58cbd7bd54e0d1829591875104"
+    },
+    {
+      "path": "crates/leselang-vm/src/claim_contract_tests.rs",
+      "sha256": "153bb7b4c3eb1fbb4b90f540bd95c7a83713530805d0cab79cbc75d3091cc82c"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "29d01b5b01544142cdceb6eeb36c4cbbcf54edbbca8d264174a7cbdb5df7b316"
+    },
+    {
+      "path": "crates/leselang-vm/src/scheduling.rs",
+      "sha256": "2121aa833ea351577a313eda02a2f4d184ed3bfffa8e8ee2023f1177010a7509"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/dispatch_plan.rs",
+      "sha256": "281d2fcd78ad9fef31fc640cb36c30aa92993e925393a5b633bcca08fe39c258"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "277d6663925d4057bcba101b61e8c1c615992bd3fadcdf4273a9fe32845236c6"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "80c85c9fa8d62775a53f59c6bf23e6422b95d91fc1a64f85b573178ae8ceb93d"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "b33421434614d980bae761995104ce5b95f15e77914c36d28786b6c00d6272a3"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "7394aea6666b8da266840c23a007dd7b8827fa7c3b989b2549e0a3b3b1b42efb"
+    },
+    {
+      "path": "tests/leselang_native_profile_tdd.rs",
+      "sha256": "a2b9171e22cf2d6eb5313ad7c2aeead3111a7573818a855be854c7add7960265"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "ac7e70e7f72903253d2386f5894e28aac57956a41e94214df6f93317332b4b40"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "63a5a4c9988e97ae2247832a22ba6702d1ad05e5391c290d448a2c6579eea204"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "adapter",
+      "log": "/private/tmp/leselang-claim-entry-20261024-adapter.log",
+      "sha256": "e55fddef8129857005a26ccb095602f4910f36a8ce55381d9d9f81504a6502c6"
+    },
+    {
+      "stage": "oracle",
+      "log": "/private/tmp/leselang-claim-entry-20261024-oracle.log",
+      "sha256": "85acde50e7c7cd934cf7668d2bedfd76767ea7df0c12339ebd5b5ac9a18edb04"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-claim-entry-20261024-default.log",
+      "sha256": "3d0ce1e4b2ff23b3331b7e8b477662374377b931799d16b8be1ed0c4f42c05f8"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-claim-entry-20261024-memory.log",
+      "sha256": "38dec2f500a372058d00e4c794b8f95ad1d98c4bc1c46a08e259407d2763b75f"
+    },
+    {
+      "stage": "gates-sealed",
+      "log": "/private/tmp/leselang-claim-entry-20261024-gates-sealed.log",
+      "sha256": "3eac90eab27990a17c6664e1ac0dfe814b2c0f35c722a7ff1e5c9bd1a273db26"
+    },
+    {
+      "stage": "workspace-clippy",
+      "log": "/private/tmp/leselang-claim-entry-20261024-workspace-clippy.log",
+      "sha256": "71b8071cd6dd3f1908d3434738062e76a938040736d4c9f6608ef460dc3a0d41"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-claim-entry-20261024-memory-clippy.log",
+      "sha256": "5c83ccb7ebe528e988689f7094824d1d5b57cb011286e9bf9c8541aeb45c4677"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-claim-entry-20261024-native-check.log",
+      "sha256": "6c9a93b709d70b97abb02cb00823887d60b5c99c51e73ea1ae9635a26f949d2e"
+    },
+    {
+      "stage": "native-checkpoint",
+      "log": "/private/tmp/leselang-claim-entry-20261024-native-checkpoint.log",
+      "sha256": "a1616e1b6bcf0154d246acc50f1a333d171969c102aaf9418d6e759d5b0bbfda"
+    },
+    {
+      "stage": "dependencies",
+      "log": "/private/tmp/leselang-claim-entry-20261024-dependencies.log",
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "stage": "source-parity",
+      "log": "/private/tmp/leselang-claim-entry-20261024-source-parity.log",
+      "sha256": "982d9dcaf6880411efecc59481d073b05bd3d4794daf0c6c68b47d5d622a829c"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-claim-entry-20261024-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "include-format",
+      "log": "/private/tmp/leselang-claim-entry-20261024-include-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "default_runtime_tests": 1857,
+  "memory_vm_tests": 280,
+  "root_architecture_tests": 562,
+  "adapter_external_tests": 5,
+  "whole_vm_oracle_tests": 2,
+  "adapter_dependency_closure_excludes_vm_and_sqlite": true,
+  "strict_workspace_lints_passed": true,
+  "memory_all_target_lints_passed": true,
+  "native_no_default_check_passed": true,
+  "format_checks_passed": true,
+  "native_checkpoint_reused": true,
+  "new_native_export_performed": false,
+  "native_checkpoint": {
+    "reused_checkpoint": "/private/tmp/gewyvern-ci-native-20261023/export-manifest.json",
+    "verified": true,
+    "complete_vm": false,
+    "full_extraction_gate": false,
+    "total_files": 280,
+    "copied_sources": 270,
+    "source_and_export_mismatches": [],
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "new_export_performed": false
+  },
+  "source_parity": {
+    "frozen_optional_claim_matches_pre_migration": true,
+    "frozen_structured_claim_matches_pre_migration": true,
+    "native_cache_entry_and_clone_boundaries_unchanged": true,
+    "local_correspondence_diagnostic_unchanged": true,
+    "backpressure_diagnostic_unchanged": true,
+    "native_journal_implementation_unchanged": true,
+    "journal_import_is_now_test_only": true,
+    "native_expire_due_unchanged": true,
+    "native_replay_completed_unchanged": true,
+    "native_reconcile_completed_unchanged": true,
+    "native_visible_step_unchanged": true,
+    "native_finish_cancellation_unchanged": true,
+    "dispatch_policy_unchanged": true,
+    "dispatch_capacity_policy_unchanged": true,
+    "dispatch_numeric_kernels_unchanged": true,
+    "baseline_git_commit": "cbb86ba89943a1793c01dd84cb0aeaeb50d96c47",
+    "normalization": [
+      "Explicit VM receiver and self-to-vm spelling; optional frozen entry invokes the frozen structured entry",
+      "Occupied-entry equality/diagnostic moved unchanged to the product adapter",
+      "Pressure diagnostic receiver spelling; test-only facade/import gates",
+      "Whitespace and formatting-only trailing commas"
+    ]
+  }
+}

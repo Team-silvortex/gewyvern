@@ -1579,7 +1579,12 @@ fn semantic_retry_planning_reuses_numeric_kernels_and_stays_outside_host_storage
     }
     let profile =
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
-    assert!(profile.contains("leselang_command::retry_policy::plan_effect_retry("));
+    assert!(profile.contains("leselang_command::reference_retry::report_effect_error("));
+    let entry =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_retry.rs")).unwrap();
+    assert!(entry.contains("crate::retry_policy::plan_effect_retry("));
+    assert!(!entry.contains("plan_retry_schedule("));
+    assert!(!entry.contains("rusqlite"));
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/retry_policy.rs")).unwrap();
     assert!(adapter.contains("plan_retry_schedule("));
@@ -1639,9 +1644,14 @@ fn dispatch_capacity_is_shared_without_moving_storage_or_product_policy_into_cor
         "dispatch_lease_capacity_exhausted(pressure.active_leases, pressure.limits.max_active_leases)"
     ));
     assert!(!scheduling.contains("pending.saturating_add"));
-    for code in ["LSV2500", "LSV2501", "LSV2502", "LSV2503"] {
+    for code in ["LSV2500", "LSV2501", "LSV2503"] {
         assert!(scheduling.contains(code));
     }
+    assert!(scheduling.contains("leselang_command::reference_claim::lease_capacity_fault(self)"));
+    let claim =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_claim.rs")).unwrap();
+    assert!(claim.contains("LSV2502"));
+    assert!(!claim.contains("dispatch_lease_capacity_exhausted("));
     let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
     assert!(journal.contains("Ok(dispatch_lease_capacity_exhausted(active, limit))"));
     let bounded_query = journal

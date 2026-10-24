@@ -1,0 +1,187 @@
+{
+  "kind": "leselang-interruption-settlement-policy",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.148.0",
+  "direct_adapter_tests": 6,
+  "settlement_routes": 3,
+  "whole_vm_cancellation_comparisons": 2240,
+  "whole_vm_retry_comparisons": 1680,
+  "sqlite_cancellation_comparisons": 96,
+  "sqlite_retry_comparisons": 192,
+  "adapter_owned_cancellation_and_retry_settlement": true,
+  "native_commit_before_cache_publication": true,
+  "three_distinct_failure_return_layers": true,
+  "audit_publication_only_for_cancelled_winner": true,
+  "scheduled_retry_retains_original_owner_without_publication": true,
+  "borrowed_terminal_retry_preserves_native_copy_order": true,
+  "no_hook_retry_or_rollback_after_native_side_effects": true,
+  "frozen_ordinary_cancellation_includes_original_settlement": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Ordinary and audited cancellation plus retry settlement move under the existing product settlement module. Native journals keep authority and transactions; native owners retain cache publication, exact terminal retry copy order and visible group selection.",
+  "limitations": [
+    "Trusted composition after caller-owned admission. No raw ingress validation, authentication, lease authority or native durable recovery is granted by these adapters.",
+    "A visible fault can follow a successful commit. Ordinary cancellation, audited cancellation and terminal retry retain their distinct return shapes without retries or compensation.",
+    "Frozen coordinators share existing journal and group-visibility kernels. Native completion/maturity and complete extraction gates remain unchanged.",
+    "Group visibility, cache reconciliation, journal ownership, complete host-neutral durable recovery, vertical compatibility and physical extraction remain open.",
+    "Local macOS Rust/SQLite verification only; no Linux, GUI runtime or remote CI run, and no freshly exported standalone checkpoint."
+  ],
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_settlement/interruption.rs",
+      "sha256": "4ac5afc9a6f2bc50a879e181d624b318a27513a58cf3681ed9f032f5033a2710"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_settlement.rs",
+      "sha256": "a6f4079b7e9f6407429fdd073190f5a26577ae7e5b4548c475e59bc2aeaddae1"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_interruption_settlement.rs",
+      "sha256": "4af4fe7086af5eacdf29ac9aef348bc27de1fe9d161334cec450cb75e64c191f"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_cancellation.rs",
+      "sha256": "c31721d660aef78d7d642125cdb6e74af7c8398fad8e2793fa182e4ddcb2b874"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_retry.rs",
+      "sha256": "d0800a6d4b1e429423543b60370b5cdbaa0665e0dc62b4cd0ba7b5104556faed"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "3b050666f929b855ab3baafcd0c416d1a905b7189442bc4830ffb674f85ecfbf"
+    },
+    {
+      "path": "crates/leselang-vm/src/successor.rs",
+      "sha256": "995bc58a237d68d919ec254e40a925174a9c23e5f9ef9216d339487c8d91b79b"
+    },
+    {
+      "path": "crates/leselang-vm/src/cancellation_contract_tests.rs",
+      "sha256": "1b2fe07f12cbf7ad6234815522eb9f0b25030fd82f9a7e5cf64b7f65dbcaf80e"
+    },
+    {
+      "path": "crates/leselang-vm/src/retry_contract_tests.rs",
+      "sha256": "75b66a785dfb90dccc7dd66133a1da1c6fbe4edf7f9c8b18acbb98ea45470265"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "29d01b5b01544142cdceb6eeb36c4cbbcf54edbbca8d264174a7cbdb5df7b316"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/successor.rs",
+      "sha256": "0835a2209a2c832cbe88a6bd2cee6597485a006285a3e9b3f6894fa41a7d727c"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "b0373e530cc8872237ff2245b51f399dc19468ed547e4f9cfa5961d86bfc3daf"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "cf8f2d8233900d9356093ac15f11216a8151cfc1caf8be6dda9918194007c5e4"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "6226fe9a12d2de317962df3fda5993f27f2cdede40021ed2d83c1b43a8b681ba"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "c1dfebbc9d53dd58066d7e08b0bd0aed347ac95cda4c55c649b436728ecb7741"
+    },
+    {
+      "path": "project/release/leserpent-gui-function-chain.json",
+      "sha256": "575de1b55c35f291b2e2553340aa5a4ed252ae1b2c69f4904584feeef1cbbd13"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "f004c450cd33cf98ec81c77e1beac22ec8e7fabed65be7d4db08393113fb810d"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "cdc48a2fee744cdfa6f70c28f98a420143c5f744a1439c7a00353a2e49c158fe"
+    },
+    {
+      "path": "tests/language_independence_tdd.rs",
+      "sha256": "70708d5697ab91df42734bac2bc7f3e43b7d6447e6ea701c676aa9f4a7a4dc4f"
+    },
+    {
+      "path": "tests/gui_function_chain_tdd.rs",
+      "sha256": "d1edb86846882982c373389b798ae763fb1aaaf8fa04c36c1d50b526ab6a82ed"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "adapter",
+      "log": "/private/tmp/leselang-interruption-settlement-20261024-adapter.log",
+      "sha256": "aa4071cf02e5e2bedf4608042504eeb4cf4a6b2c93b465e92497cd734bb3a8e4"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-interruption-settlement-20261024-default.log",
+      "sha256": "4a62ddd760d441d9bbde7a2cd39689b29ece5b1dcfa5054a0ecd91b38c46036b"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-interruption-settlement-20261024-memory.log",
+      "sha256": "aa1ff7611d97a7b8e69e22a449e2add9bda3fcfe7ce189f816b082adab3b7ab3"
+    },
+    {
+      "stage": "gates-sealed",
+      "log": "/private/tmp/leselang-interruption-settlement-20261024-gates-sealed.log",
+      "sha256": "a42af32f6b4c65f63c7b158f456010cc92953dc99a8389c6780d605380530a6f"
+    },
+    {
+      "stage": "workspace-clippy",
+      "log": "/private/tmp/leselang-interruption-settlement-20261024-workspace-clippy.log",
+      "sha256": "c196703d6d604ec4705a7831117d90fe9e96e1253d772a3ea609b474feb470e9"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-interruption-settlement-20261024-memory-clippy.log",
+      "sha256": "076fdb3b06de781606783d1e733d97443a83ed97c4f9465a992d2da81bfd9955"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-interruption-settlement-20261024-native-check.log",
+      "sha256": "6c9a93b709d70b97abb02cb00823887d60b5c99c51e73ea1ae9635a26f949d2e"
+    },
+    {
+      "stage": "dependencies",
+      "log": "/private/tmp/leselang-interruption-settlement-20261024-dependencies.log",
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-interruption-settlement-20261024-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "included-format",
+      "log": "/private/tmp/leselang-interruption-settlement-20261024-included-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "diff",
+      "log": "/private/tmp/leselang-interruption-settlement-20261024-diff.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "status",
+      "log": "/private/tmp/leselang-interruption-settlement-20261024-status.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "verification_counts": {
+    "default_tests": 1876,
+    "memory_tests": 281,
+    "architecture_documentation_status_gui_tests": 578
+  }
+}

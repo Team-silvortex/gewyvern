@@ -42,6 +42,7 @@ impl ReferenceSchedulerLimits for SchedulerLimits {
 
 pub(crate) trait ReferenceSchedulerPressure {
     fn lease_capacity_exhausted(self) -> bool;
+    #[cfg(test)]
     fn lease_fault(self) -> Fault;
 }
 
@@ -50,13 +51,8 @@ impl ReferenceSchedulerPressure for SchedulerPressure {
         scheduler_lease_capacity_exhausted(self)
     }
 
+    #[cfg(test)]
     fn lease_fault(self) -> Fault {
-        Fault {
-            code: "LSV2502".into(),
-            message: format!(
-                "dispatch leasing is backpressured: {} active leases, limit {}",
-                self.active_leases, self.limits.max_active_leases
-            ),
-        }
+        leselang_command::reference_claim::lease_capacity_fault(self)
     }
 }

@@ -19,7 +19,9 @@ use leselang_host_contract::{
     CAPABILITY_RUNTIME_REFRESH, Confirmation,
 };
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
-use leselang_runtime_core::{Fuel, SequenceWatermarkRequirement};
+#[cfg(test)]
+use leselang_runtime_core::Fuel;
+use leselang_runtime_core::SequenceWatermarkRequirement;
 #[cfg(test)]
 use leselang_runtime_core::{ResourceBudgetError, ResourceBudgetLimits};
 use leserpent_domain::CommandId;
@@ -38,6 +40,10 @@ mod admission;
 mod bounded_decode_tests;
 #[cfg(test)]
 mod bounded_json_tests;
+#[cfg(test)]
+mod cancellation_contract_tests;
+#[cfg(test)]
+mod claim_contract_tests;
 mod computation;
 #[cfg(test)]
 mod continuation_codec_contract_tests;
@@ -64,6 +70,8 @@ mod host_result;
 mod identity_outcome_contract_tests;
 mod journal;
 #[cfg(test)]
+mod maintenance_contract_tests;
+#[cfg(test)]
 mod merge_completion_tests;
 #[cfg(test)]
 mod merge_plan_contract_tests;
@@ -81,6 +89,10 @@ mod request_codec_tests;
 mod restore_contract_tests;
 mod result_binding;
 #[cfg(test)]
+mod result_conversion_contract_tests;
+#[cfg(test)]
+mod retry_contract_tests;
+#[cfg(test)]
 mod retry_policy_adapter_tests;
 mod scheduling;
 #[cfg(test)]
@@ -90,6 +102,8 @@ mod start_contract_tests;
 mod successor;
 #[cfg(test)]
 mod value_validation_tests;
+#[cfg(test)]
+mod visibility_contract_tests;
 
 pub use admission::{
     AdmissionEnd, AdmissionPolicy, AdmissionPoll, AdmissionStatus, AdmissionWait,
@@ -103,11 +117,13 @@ pub use result_binding::{
     ProjectedBinding, ProjectedField, ProjectedGroup, ProjectedGroupBinding, ProjectedResult,
     ResultBinding, ScalarBinding,
 };
+use scheduling::ReferenceSchedulerLimits;
+#[cfg(test)]
+use scheduling::ReferenceSchedulerPressure;
 pub use scheduling::{DispatchClaim, SchedulerLimits, SchedulerPressure};
-use scheduling::{ReferenceSchedulerLimits, ReferenceSchedulerPressure};
 
 use group_binding::ReferenceGroupResultBinding;
-use host_result::{accept_bound_value, validate_bound_value};
+use host_result::validate_bound_value;
 use journal::{EffectObservation, Journal, MergeProgress};
 pub use journal::{
     JOURNAL_SCHEMA_VERSION, MAX_JOURNAL_ENTRY_BYTES, MAX_JOURNAL_RECORDS, MAX_JOURNAL_TOTAL_BYTES,
@@ -144,9 +160,9 @@ pub use leselang_command::reference_dispatch::{
 pub use leselang_command::reference_value::MAX_STRUCTURED_VALUE_DEPTH;
 #[cfg(test)]
 pub(crate) use leselang_command::reference_value::validate_branch_outcome;
-pub(crate) use leselang_command::reference_value::{
-    validate_value, value_bounds_fault, value_validation_limits,
-};
+pub(crate) use leselang_command::reference_value::validate_value;
+#[cfg(test)]
+pub(crate) use leselang_command::reference_value::{value_bounds_fault, value_validation_limits};
 pub use leselang_command::retention_policy::{
     DEFAULT_COMPACTION_BATCH, DEFAULT_COMPLETED_RETENTION, MAX_COMPACTION_BATCH,
 };
@@ -467,41 +483,34 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
         now_ms: u64,
         lease_ms: u64,
     ) -> Result<Option<DispatchLease>, Fault> {
-        match self.try_claim_effect(now_ms, lease_ms)? {
-            DispatchClaim::Leased(lease) => Ok(Some(*lease)),
-            DispatchClaim::Idle => Ok(None),
-            DispatchClaim::Backpressured(pressure) => Err(pressure.lease_fault()),
-        }
+        leselang_command::reference_claim::claim_effect(
+            now_ms,
+            lease_ms,
+            &mut ReferenceClaimOwner(self),
+        )
     }
 
     /// Distinguishes an idle outbox from eligible work waiting for a host lease slot.
     /// Invalid clock/lease parameters fail before deadline cleanup or journal entry.
     pub fn try_claim_effect(&mut self, now_ms: u64, lease_ms: u64) -> Result<DispatchClaim, Fault> {
-        validate_scheduler_time(now_ms)?;
-        journal::validate_lease_clock(now_ms, lease_ms)?;
-        self.expire_due(now_ms)?;
-        let claim = self
-            .journal
-            .claim_dispatch(now_ms, lease_ms, self.scheduler_limits)?;
-        if let DispatchClaim::Leased(lease) = &claim {
-            let image = &lease.request.continuation;
-            match self.pending.entry(image.token.clone()) {
-                std::collections::btree_map::Entry::Occupied(entry) => {
-                    if entry.get() != image {
-                        return Err(Fault {
-                            code: "LSV2005".into(),
-                            message: "claimed continuation conflicts with local pending state"
-                                .into(),
-                        });
-                    }
-                }
-                std::collections::btree_map::Entry::Vacant(entry) => {
-                    // Another engine may have admitted this request after our startup snapshot.
-                    entry.insert(image.clone());
-                }
+        leselang_command::reference_claim::try_claim_effect(
+            now_ms,
+            lease_ms,
+            &mut ReferenceClaimOwner(self),
+        )
+    }
+
+    fn adopt_claimed_image(&mut self, image: &ContinuationImage) -> Result<(), Fault> {
+        match self.pending.entry(image.token.clone()) {
+            std::collections::btree_map::Entry::Occupied(entry) => {
+                leselang_command::reference_claim::validate_claimed_image(entry.get(), image)?;
+            }
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                // Another engine may have admitted this request after our startup snapshot.
+                entry.insert(image.clone());
             }
         }
-        Ok(claim)
+        Ok(())
     }
 
     pub fn acknowledge_effect(
@@ -525,62 +534,41 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
         error: EffectError,
         policy: &RetryPolicy,
     ) -> Result<RetryDisposition, Fault> {
-        validate_scheduler_time(now_ms)?;
-        self.expire_due(now_ms)?;
-        if let Some(completed) = self.replay_completed(&lease.request.continuation.token)? {
-            return Ok(RetryDisposition::Terminal(
-                self.visible_step(&lease.request.continuation.token, completed),
-            ));
-        }
-        let schedule = leselang_command::retry_policy::plan_effect_retry(
-            lease.retry_count,
+        leselang_command::reference_retry::report_effect_error(
+            lease,
             now_ms,
-            &error,
+            error,
             policy,
+            &mut ReferenceRetryOwner(self),
         )
-        .map_err(effect_retry_fault)?;
-        let disposition = match schedule {
-            None => RetryDisposition::Terminal(Step::Failed(FailedEffect {
-                error,
-                retry_count: lease.retry_count,
-            })),
-            Some(point) => RetryDisposition::Scheduled(RetrySchedule {
-                retry_count: point.retry_count,
-                ready_at_ms: point.ready_at_ms,
-                error,
-            }),
-        };
-        let authoritative = self.journal.report_error(lease, now_ms, &disposition)?;
-        if let RetryDisposition::Terminal(step) = &authoritative {
-            let image = &lease.request.continuation;
-            self.pending.remove(&image.token);
-            self.completed.insert(image.token.clone(), step.clone());
-            return Ok(RetryDisposition::Terminal(
-                self.visible_step(&image.token, step.clone()),
-            ));
-        }
-        Ok(authoritative)
+    }
+
+    fn settle_effect_error(
+        &mut self,
+        lease: &DispatchLease,
+        now_ms: u64,
+        disposition: &RetryDisposition,
+    ) -> Result<RetryDisposition, Fault> {
+        leselang_command::reference_settlement::interruption::settle_effect_error(
+            lease,
+            now_ms,
+            disposition,
+            &mut ReferenceInterruptionSettlementOwner(self),
+        )
+    }
+
+    fn publish_retry_terminal(&mut self, image: &ContinuationImage, step: &Step) -> Step {
+        self.pending.remove(&image.token);
+        self.completed.insert(image.token.clone(), step.clone());
+        self.visible_step(&image.token, step.clone())
     }
 
     pub fn cancel_effect(&mut self, image: &ContinuationImage, now_ms: u64) -> Step {
-        if let Err(error) = validate_scheduler_time(now_ms) {
-            return Step::Fault(error);
-        }
-        if let Err(error) = self.expire_due(now_ms) {
-            return Step::Fault(error);
-        }
-        match self.replay_completed(&image.token) {
-            Ok(Some(completed)) => return self.visible_step(&image.token, completed),
-            Ok(None) => {}
-            Err(error) => return Step::Fault(error),
-        }
-        let Some(stored) = self.pending.get(&image.token) else {
-            return fault("LSV2004", "unknown continuation token");
-        };
-        if stored != image {
-            return fault("LSV2005", "continuation image does not match pending state");
-        }
-        self.finish_cancellation(image, CancellationReason::Requested, now_ms)
+        leselang_command::reference_cancellation::cancel_effect(
+            image,
+            now_ms,
+            &mut ReferenceCancellationOwner(self),
+        )
     }
 
     pub fn cancel_effect_audited(
@@ -589,53 +577,28 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
         now_ms: u64,
         audit: &DebuggerAuditContext,
     ) -> Result<DebuggerAuditRecord, Fault> {
-        validate_debugger_audit(audit)?;
-        validate_scheduler_time(now_ms)?;
-        self.expire_due(now_ms)?;
-        // Reconcile peer completion/retention just like ordinary cancellation.
-        if let Some(completed) = self.reconcile_completed(&image.token)? {
-            if !matches!(
-                completed,
-                Step::Cancelled(Cancellation {
-                    reason: CancellationReason::Requested,
-                    ..
-                })
-            ) {
-                return Err(Fault {
-                    code: "LSV2014".to_string(),
-                    message: "completed effect cannot accept debugger cancellation audit"
-                        .to_string(),
-                });
-            }
-        } else {
-            let Some(stored) = self.pending.get(&image.token) else {
-                return Err(Fault {
-                    code: "LSV2004".to_string(),
-                    message: "unknown continuation token".to_string(),
-                });
-            };
-            if stored != image {
-                return Err(Fault {
-                    code: "LSV2005".to_string(),
-                    message: "continuation image does not match pending state".to_string(),
-                });
-            }
-        }
-        let step = Step::Cancelled(Cancellation {
-            continuation: image.token.clone(),
-            reason: CancellationReason::Requested,
-            observed_at_ms: now_ms,
-        });
-        let (authoritative, record) = self.journal.cancel_audited(image, &step, audit, now_ms)?;
-        if matches!(authoritative, Step::Cancelled(_)) {
-            self.pending.remove(&image.token);
-            self.completed
-                .insert(image.token.clone(), authoritative.clone());
-            if let Step::Fault(error) = self.visible_step(&image.token, authoritative) {
-                return Err(error);
-            }
-        }
-        Ok(record)
+        leselang_command::reference_cancellation::cancel_effect_audited(
+            image,
+            now_ms,
+            audit,
+            &mut ReferenceCancellationOwner(self),
+        )
+    }
+
+    fn finish_audited_cancellation(
+        &mut self,
+        image: &ContinuationImage,
+        step: &Step,
+        audit: &DebuggerAuditContext,
+        now_ms: u64,
+    ) -> Result<DebuggerAuditRecord, Fault> {
+        leselang_command::reference_settlement::interruption::finish_audited_cancellation(
+            image,
+            step,
+            audit,
+            now_ms,
+            &mut ReferenceInterruptionSettlementOwner(self),
+        )
     }
 
     pub fn debugger_audit(
@@ -663,22 +626,10 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
     }
 
     pub fn compact_journal(&mut self, policy: &RetentionPolicy) -> Result<CompactionReport, Fault> {
-        validate_retention_policy(policy)?;
-        let mut local_completed = self
-            .completed
-            .iter()
-            .map(|(token, step)| (token.clone(), step.clone()))
-            .collect::<Vec<_>>();
-        local_completed.sort_by(|(left, _), (right, _)| continuation_age_order(left, right));
-        let compacted = self.journal.compact_completed(&local_completed, policy)?;
-        for token in &compacted.pruned_tokens {
-            self.completed.remove(token);
-        }
-        Ok(CompactionReport {
-            removed_records: compacted.removed_records,
-            remaining_completed: compacted.remaining_completed,
-            reclaimed_logical_bytes: compacted.reclaimed_logical_bytes,
-        })
+        leselang_command::reference_settlement::maintenance::compact_journal(
+            policy,
+            &mut ReferenceMaintenanceOwner(self),
+        )
     }
 
     fn replay_completed(&mut self, token: &ContinuationToken) -> Result<Option<Step>, Fault> {
@@ -686,73 +637,19 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
     }
 
     fn reconcile_completed(&mut self, token: &ContinuationToken) -> Result<Option<&Step>, Fault> {
-        if self.completed.contains_key(token) {
-            if !self.journal.completed_exists(token)? {
-                self.completed.remove(token);
-            }
-        } else {
-            match self.journal.observe_effect(token)? {
-                #[cfg(feature = "sqlite-journal")]
-                EffectObservation::Missing => {
-                    self.pending.remove(token);
-                }
-                EffectObservation::Untracked | EffectObservation::Pending => {}
-                EffectObservation::Completed(step) => {
-                    self.pending.remove(token);
-                    self.completed.insert(token.clone(), *step);
-                }
-            }
-        }
+        leselang_command::reference_settlement::visibility::reconcile_completed(
+            token,
+            &mut ReferenceVisibilityOwner(self),
+        )?;
         Ok(self.completed.get(token))
     }
 
     fn visible_step(&mut self, branch_token: &ContinuationToken, branch_step: Step) -> Step {
-        match self.journal.merge_progress(branch_token) {
-            Ok(MergeProgress::Standalone) => branch_step,
-            Ok(MergeProgress::Next {
-                request,
-                completed_tokens,
-            }) => {
-                for token in completed_tokens {
-                    self.pending.remove(&token);
-                }
-                self.pending.insert(
-                    request.continuation.token.clone(),
-                    request.continuation.clone(),
-                );
-                Step::Effect(request)
-            }
-            Ok(MergeProgress::Pending {
-                merge_token,
-                completed_branches,
-                total_branches,
-            }) => Step::Waiting(MergeWait {
-                merge_token,
-                completed_branches,
-                total_branches,
-            }),
-            Ok(MergeProgress::Completed {
-                merge_token,
-                step,
-                branch_tokens,
-            }) => {
-                let step = *step;
-                for token in branch_tokens {
-                    if self.pending.remove(&token).is_some() {
-                        self.completed.entry(token).or_insert_with(|| step.clone());
-                    }
-                }
-                debug_assert!(
-                    self.journal
-                        .merge_result(&merge_token)
-                        .ok()
-                        .flatten()
-                        .is_some()
-                );
-                step
-            }
-            Err(error) => Step::Fault(error),
-        }
+        leselang_command::reference_settlement::visibility::visible_step(
+            branch_token,
+            branch_step,
+            &mut ReferenceVisibilityOwner(self),
+        )
     }
 
     fn allocate_sequence(&mut self) -> Result<u64, Fault> {
@@ -773,13 +670,10 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
     }
 
     fn expire_due(&mut self, now_ms: u64) -> Result<(), Fault> {
-        validate_scheduler_time(now_ms)?;
-        let expired = self.journal.expire_due(now_ms)?;
-        for (image, step) in expired {
-            self.pending.remove(&image.token);
-            self.completed.insert(image.token, step);
-        }
-        Ok(())
+        leselang_command::reference_settlement::maintenance::expire_due(
+            now_ms,
+            &mut ReferenceMaintenanceOwner(self),
+        )
     }
 
     fn finish_cancellation(
@@ -788,22 +682,228 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
         reason: CancellationReason,
         observed_at_ms: u64,
     ) -> Step {
-        let step = Step::Cancelled(Cancellation {
-            continuation: image.token.clone(),
+        leselang_command::reference_settlement::interruption::finish_cancellation(
+            image,
             reason,
             observed_at_ms,
-        });
-        let authoritative = match self.journal.cancel(image, &step) {
-            Ok(step) => step,
-            Err(error) => return Step::Fault(error),
-        };
-        self.pending.remove(&image.token);
-        self.completed
-            .insert(image.token.clone(), authoritative.clone());
-        self.visible_step(&image.token, authoritative)
+            &mut ReferenceInterruptionSettlementOwner(self),
+        )
     }
 }
 
+struct ReferenceInterruptionSettlementOwner<'a>(&'a mut Vm);
+
+struct ReferenceVisibilityOwner<'a>(&'a mut Vm);
+
+impl leselang_command::reference_settlement::visibility::ReferenceCompletionCacheHost
+    for ReferenceVisibilityOwner<'_>
+{
+    fn has_completed(&self, token: &ContinuationToken) -> bool {
+        self.0.completed.contains_key(token)
+    }
+    fn completed_exists(&mut self, token: &ContinuationToken) -> Result<bool, Fault> {
+        self.0.journal.completed_exists(token)
+    }
+    fn observe_effect(&mut self, token: &ContinuationToken) -> Result<EffectObservation, Fault> {
+        self.0.journal.observe_effect(token)
+    }
+    fn remove_completed(&mut self, token: &ContinuationToken) {
+        self.0.completed.remove(token);
+    }
+    fn remove_pending(&mut self, token: &ContinuationToken) {
+        self.0.pending.remove(token);
+    }
+    fn insert_completed(&mut self, token: &ContinuationToken, step: Step) {
+        self.0.completed.insert(token.clone(), step);
+    }
+}
+
+impl leselang_command::reference_settlement::visibility::ReferenceGroupVisibilityHost
+    for ReferenceVisibilityOwner<'_>
+{
+    fn merge_progress(&mut self, token: &ContinuationToken) -> Result<MergeProgress, Fault> {
+        self.0.journal.merge_progress(token)
+    }
+    fn remove_pending(&mut self, token: &ContinuationToken) -> bool {
+        self.0.pending.remove(token).is_some()
+    }
+    fn cache_next(&mut self, request: &EffectRequest) {
+        self.0.pending.insert(
+            request.continuation.token.clone(),
+            request.continuation.clone(),
+        );
+    }
+    fn cache_merged_if_absent(&mut self, token: ContinuationToken, step: &Step) {
+        self.0
+            .completed
+            .entry(token)
+            .or_insert_with(|| step.clone());
+    }
+    fn debug_assert_merge_result(&mut self, merge_token: &ContinuationToken) {
+        debug_assert!(
+            self.0
+                .journal
+                .merge_result(merge_token)
+                .ok()
+                .flatten()
+                .is_some()
+        );
+    }
+}
+
+impl leselang_command::reference_settlement::interruption::ReferenceCancellationSettlementHost
+    for ReferenceInterruptionSettlementOwner<'_>
+{
+    fn cancel(&mut self, image: &ContinuationImage, proposed: &Step) -> Result<Step, Fault> {
+        self.0.journal.cancel(image, proposed)
+    }
+    fn cancel_audited(
+        &mut self,
+        image: &ContinuationImage,
+        proposed: &Step,
+        audit: &DebuggerAuditContext,
+        now_ms: u64,
+    ) -> Result<(Step, DebuggerAuditRecord), Fault> {
+        self.0
+            .journal
+            .cancel_audited(image, proposed, audit, now_ms)
+    }
+    fn publish_cancellation(&mut self, image: &ContinuationImage, authoritative: Step) -> Step {
+        self.0.publish_completed(image, authoritative)
+    }
+}
+
+impl leselang_command::reference_settlement::interruption::ReferenceRetrySettlementHost
+    for ReferenceInterruptionSettlementOwner<'_>
+{
+    fn report_error(
+        &mut self,
+        lease: &DispatchLease,
+        now_ms: u64,
+        proposed: &RetryDisposition,
+    ) -> Result<RetryDisposition, Fault> {
+        self.0.journal.report_error(lease, now_ms, proposed)
+    }
+    fn publish_retry_terminal(&mut self, image: &ContinuationImage, authoritative: &Step) -> Step {
+        self.0.publish_retry_terminal(image, authoritative)
+    }
+}
+
+struct ReferenceClaimOwner<'a>(&'a mut Vm);
+
+struct ReferenceMaintenanceOwner<'a>(&'a mut Vm);
+
+impl leselang_command::reference_settlement::maintenance::ReferenceRetentionHost
+    for ReferenceMaintenanceOwner<'_>
+{
+    fn completed_snapshot(&self) -> Vec<(ContinuationToken, Step)> {
+        self.0
+            .completed
+            .iter()
+            .map(|(token, step)| (token.clone(), step.clone()))
+            .collect()
+    }
+    fn compact_completed(
+        &mut self,
+        local_completed: &[(ContinuationToken, Step)],
+        policy: &RetentionPolicy,
+    ) -> Result<journal::JournalCompaction, Fault> {
+        self.0.journal.compact_completed(local_completed, policy)
+    }
+    fn remove_completed(&mut self, token: &ContinuationToken) {
+        self.0.completed.remove(token);
+    }
+}
+
+impl leselang_command::reference_settlement::maintenance::ReferenceExpirationHost
+    for ReferenceMaintenanceOwner<'_>
+{
+    fn expire_due(&mut self, now_ms: u64) -> Result<Vec<(ContinuationImage, Step)>, Fault> {
+        self.0.journal.expire_due(now_ms)
+    }
+    fn remove_pending(&mut self, token: &ContinuationToken) {
+        self.0.pending.remove(token);
+    }
+    fn insert_expired(&mut self, token: ContinuationToken, step: Step) {
+        self.0.completed.insert(token, step);
+    }
+}
+
+impl leselang_command::reference_claim::ReferenceClaimHost for ReferenceClaimOwner<'_> {
+    fn expire_due(&mut self, now_ms: u64) -> Result<(), Fault> {
+        self.0.expire_due(now_ms)
+    }
+    fn claim_dispatch(&mut self, now_ms: u64, lease_ms: u64) -> Result<DispatchClaim, Fault> {
+        self.0
+            .journal
+            .claim_dispatch(now_ms, lease_ms, self.0.scheduler_limits)
+    }
+    fn adopt_claimed_image(&mut self, image: &ContinuationImage) -> Result<(), Fault> {
+        self.0.adopt_claimed_image(image)
+    }
+}
+
+struct ReferenceRetryOwner<'a>(&'a mut Vm);
+
+impl leselang_command::reference_retry::ReferenceRetryHost for ReferenceRetryOwner<'_> {
+    fn expire_due(&mut self, now_ms: u64) -> Result<(), Fault> {
+        self.0.expire_due(now_ms)
+    }
+    fn replay_completed(&mut self, token: &ContinuationToken) -> Result<Option<Step>, Fault> {
+        self.0.replay_completed(token)
+    }
+    fn visible_step(&mut self, token: &ContinuationToken, completed: Step) -> Step {
+        self.0.visible_step(token, completed)
+    }
+    fn settle_error(
+        &mut self,
+        lease: &DispatchLease,
+        now_ms: u64,
+        disposition: &RetryDisposition,
+    ) -> Result<RetryDisposition, Fault> {
+        self.0.settle_effect_error(lease, now_ms, disposition)
+    }
+}
+
+struct ReferenceCancellationOwner<'a>(&'a mut Vm);
+
+impl leselang_command::reference_cancellation::ReferenceCancellationHost
+    for ReferenceCancellationOwner<'_>
+{
+    fn expire_due(&mut self, now_ms: u64) -> Result<(), Fault> {
+        self.0.expire_due(now_ms)
+    }
+    fn replay_completed(&mut self, token: &ContinuationToken) -> Result<Option<Step>, Fault> {
+        self.0.replay_completed(token)
+    }
+    fn reconcile_completed(&mut self, token: &ContinuationToken) -> Result<Option<&Step>, Fault> {
+        self.0.reconcile_completed(token)
+    }
+    fn visible_step(&mut self, token: &ContinuationToken, completed: Step) -> Step {
+        self.0.visible_step(token, completed)
+    }
+    fn pending(&self, token: &ContinuationToken) -> Option<&ContinuationImage> {
+        self.0.pending.get(token)
+    }
+    fn finish_cancellation(
+        &mut self,
+        image: &ContinuationImage,
+        reason: CancellationReason,
+        now_ms: u64,
+    ) -> Step {
+        self.0.finish_cancellation(image, reason, now_ms)
+    }
+    fn finish_audited_cancellation(
+        &mut self,
+        image: &ContinuationImage,
+        step: &Step,
+        audit: &DebuggerAuditContext,
+        now_ms: u64,
+    ) -> Result<DebuggerAuditRecord, Fault> {
+        self.0
+            .finish_audited_cancellation(image, step, audit, now_ms)
+    }
+}
 struct ReferenceReplyOwner<'a>(&'a mut Vm);
 
 impl leselang_command::reference_reply::ReferenceReplyHost for ReferenceReplyOwner<'_> {
@@ -920,6 +1020,7 @@ fn encode_json_capped<T: Serialize>(
         .map_err(|error| bounded_json_fault(error, label))
 }
 
+#[cfg(test)]
 fn validate_json_size_capped<T: Serialize>(
     value: &T,
     limit: usize,
@@ -957,15 +1058,14 @@ fn generated_effect_identity_fault() -> Fault {
     }
 }
 
+#[cfg(test)]
 fn validate_scheduler_time(now_ms: u64) -> Result<(), Fault> {
     leselang_runtime_core::validate_clock(now_ms)
 }
 
+#[cfg(any(test, feature = "sqlite-journal"))]
 fn validate_debugger_audit(audit: &DebuggerAuditContext) -> Result<(), Fault> {
-    leselang_command::debugger_audit::validate_debugger_audit(audit).map_err(|error| Fault {
-        code: "LSV2015".to_string(),
-        message: error.to_string(),
-    })
+    leselang_command::reference_cancellation::validate_audit(audit)
 }
 
 fn validate_effect_clock(now_ms: u64, timeout_ms: u64) -> Result<u64, Fault> {
@@ -977,17 +1077,9 @@ fn validate_effect_error(error: &EffectError) -> Result<(), Fault> {
     leselang_command::retry_policy::validate_effect_error(error).map_err(effect_retry_fault)
 }
 
+#[cfg(any(test, feature = "sqlite-journal"))]
 fn effect_retry_fault(error: leselang_command::retry_policy::EffectRetryError) -> Fault {
-    use leselang_command::retry_policy::EffectRetryError;
-    Fault {
-        code: match error {
-            EffectRetryError::Metadata => "LSV2202",
-            EffectRetryError::Policy => "LSV2201",
-            EffectRetryError::Clock => "LSV2203",
-        }
-        .into(),
-        message: error.to_string(),
-    }
+    leselang_command::reference_retry::effect_retry_fault(error)
 }
 
 pub fn merge_declared(
@@ -1050,6 +1142,7 @@ fn effect_sequence_exhausted_fault() -> Fault {
     }
 }
 
+#[cfg(test)]
 fn validate_retention_policy(policy: &RetentionPolicy) -> Result<(), Fault> {
     leselang_command::retention_policy::validate_retention_policy(policy, MAX_JOURNAL_RECORDS)
         .map_err(|error| Fault {
@@ -1063,26 +1156,7 @@ fn step_from_effect_result(
     operation: Option<&EffectOperation>,
     result: EffectResult,
 ) -> Step {
-    let step = atomic_step_from_effect_result(image, operation, result);
-    let Some(binding) = &image.result_binding else {
-        return step;
-    };
-    let Step::Done(value) = step else {
-        return step;
-    };
-    let (image, value) = match accept_bound_value(image, &value) {
-        Ok(accepted) => accepted,
-        Err(error) => return Step::Fault(error),
-    };
-    let mut fuel = Fuel::new(image.fuel_remaining);
-    let Some(operation) = leselang_hir::host_call::HostOperation::for_effect(&image.pending_effect)
-    else {
-        return Step::Fault(result_binding::invalid());
-    };
-    match computation::resume(binding, value, operation, &mut fuel) {
-        Ok(value) => Step::Done(Value::Scalar { value }),
-        Err(error) => Step::Fault(error),
-    }
+    leselang_command::reference_result::step_from_effect_result(image, operation, result)
 }
 
 fn atomic_step_from_effect_result(
@@ -1090,31 +1164,10 @@ fn atomic_step_from_effect_result(
     operation: Option<&EffectOperation>,
     result: EffectResult,
 ) -> Step {
-    match result.into_effect_value(leselang_command::EffectValueContext {
-        effect: &image.pending_effect,
-        result_type: image.result_type,
-        operation,
-        expected_revision: image.expected_revision,
-        max_output_items: image.max_output_items,
-    }) {
-        Ok(value) => Step::Done(value),
-        Err(leselang_command::EffectValueError::Mismatch) => {
-            fault("LSV2103", "effect result does not match pending effect")
-        }
-        Err(leselang_command::EffectValueError::RevisionConflict { expected, actual }) => fault(
-            "LSV2101",
-            format!(
-                "effect revision conflict: expected {}, actual {}",
-                expected.0, actual.0
-            ),
-        ),
-        Err(leselang_command::EffectValueError::OutputLimit { count, limit }) => fault(
-            "LSV2102",
-            format!("effect returned {count} items, limit is {limit}"),
-        ),
-    }
+    leselang_command::reference_result::atomic_step_from_effect_result(image, operation, result)
 }
 
+#[cfg(test)]
 fn fault(code: &str, message: impl Into<String>) -> Step {
     Step::Fault(Fault {
         code: code.to_string(),

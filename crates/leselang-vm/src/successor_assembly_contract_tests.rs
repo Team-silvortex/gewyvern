@@ -1,3 +1,4 @@
+use super::settlement_contract_tests::frozen_record_result;
 use super::*;
 
 fn program(effect: Effect, kind: usize) -> HirProgram {
@@ -512,11 +513,11 @@ fn frozen_complete_result(
     } else {
         step_from_effect_result(image, operation, result)
     };
-    vm.record_result(image, lease, step)
+    frozen_record_result(vm, image, lease, step)
 }
 
 // Frozen whole successor assembly and settlement before policy extraction.
-fn frozen_complete_successor(
+pub(super) fn frozen_complete_successor(
     vm: &mut Vm,
     image: &ContinuationImage,
     lease: CompletionLease<'_>,
@@ -536,7 +537,7 @@ fn frozen_complete_successor(
     };
     let (principal, capabilities) = authority(&parent.operation);
     let Some(operation) = leselang_hir::host_call::HostOperation::for_effect(&effect) else {
-        return vm.record_result(image, lease, Step::Fault(invalid()));
+        return frozen_record_result(vm, image, lease, Step::Fault(invalid()));
     };
     let mut next = match Vm::build_effect_request(
         &effect,
@@ -550,7 +551,7 @@ fn frozen_complete_successor(
         fuel,
     ) {
         Ok(request) => request,
-        Err(error) => return vm.record_result(image, lease, Step::Fault(error)),
+        Err(error) => return frozen_record_result(vm, image, lease, Step::Fault(error)),
     };
     next.continuation.max_output_items = image.max_output_items;
     next.budget.max_output_items = image.max_output_items;
@@ -561,7 +562,7 @@ fn frozen_complete_successor(
     if let Err(error) =
         validate_effect_request(&next).and_then(|()| validate_continuation_size(&next.continuation))
     {
-        return vm.record_result(image, lease, Step::Fault(error));
+        return frozen_record_result(vm, image, lease, Step::Fault(error));
     }
     let step = Step::Done(value);
     let authoritative = match vm.journal.record_successor(&parent, &step, &next, lease) {

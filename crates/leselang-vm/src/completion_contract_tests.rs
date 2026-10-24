@@ -358,6 +358,9 @@ fn frozen_complete_result(
     lease: CompletionLease<'_>,
     result: EffectResult,
 ) -> Step {
+    use crate::result_conversion_contract_tests::frozen::{
+        atomic_step_from_effect_result, step_from_effect_result,
+    };
     let operation = lease.map(|(lease, _)| &lease.request.operation);
     let step = if matches!(
         image.schema_version,
@@ -377,7 +380,9 @@ fn frozen_complete_result(
                     binding,
                     fuel,
                 }) => {
-                    return vm.complete_successor(image, lease, value, effect, binding, fuel);
+                    return super::assembly_contract_tests::frozen_complete_successor(
+                        vm, image, lease, value, effect, binding, fuel,
+                    );
                 }
                 Ok(PreparedResult::Scalar(value)) => Step::Done(Value::Scalar { value }),
                 Err(error) => Step::Fault(error),
@@ -396,5 +401,5 @@ fn frozen_complete_result(
     } else {
         step_from_effect_result(image, operation, result)
     };
-    vm.record_result(image, lease, step)
+    super::settlement_contract_tests::frozen_record_result(vm, image, lease, step)
 }

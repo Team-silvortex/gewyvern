@@ -23,6 +23,7 @@ use leselang_command::reference_completion::{
     deadline_cancellation, sequence_stop, terminal_step_outcome, validate_cancellation_step,
     validate_terminal_step,
 };
+#[cfg(test)]
 pub(super) use leselang_command::reference_dispatch::validate_lease_clock;
 use leselang_command::reference_dispatch::{
     lease_expiration, next_attempt, validate_dispatch_clock, validate_observed_lease,
@@ -105,39 +106,11 @@ pub(crate) struct JournalSnapshot {
     pub next_sequence: u64,
 }
 
-pub(crate) struct JournalCompaction {
-    pub removed_records: usize,
-    pub pruned_tokens: Vec<ContinuationToken>,
-    pub remaining_completed: usize,
-    pub reclaimed_logical_bytes: usize,
-}
+pub(crate) use leselang_command::reference_settlement::maintenance::JournalCompaction;
 
-pub(crate) enum EffectObservation {
-    // Image-only memory restores have no outbox row; the VM remains authoritative.
-    Untracked,
-    #[cfg(feature = "sqlite-journal")]
-    Missing,
-    Pending,
-    Completed(Box<Step>),
-}
-
-pub(crate) enum MergeProgress {
-    Standalone,
-    Next {
-        request: Box<EffectRequest>,
-        completed_tokens: Vec<ContinuationToken>,
-    },
-    Pending {
-        merge_token: ContinuationToken,
-        completed_branches: usize,
-        total_branches: usize,
-    },
-    Completed {
-        merge_token: ContinuationToken,
-        step: Box<Step>,
-        branch_tokens: Vec<ContinuationToken>,
-    },
-}
+pub(crate) use leselang_command::reference_settlement::visibility::{
+    EffectObservation, MergeProgress,
+};
 
 pub(crate) enum Journal {
     Ephemeral(EphemeralJournal),

@@ -10001,11 +10001,315 @@ context, refusal precedence and once-only failure/unwind without VM or SQLite.
 The frozen coordinator shares the existing evaluator, builder and journal, rather
 than claiming an independent implementation of those trusted layers.
 
-Reference execution is now `1.142.0`; native embedding `0.172.0`, HIR `0.184.0`,
+At reference execution `1.142.0`, native embedding `0.172.0`, HIR `0.184.0`,
 product version, wire formats and journal schema 10 are unchanged. Native result
 conversion/settlement, cancellation/retry coordination, journal ownership, full
 host-neutral durable recovery, complete vertical compatibility and physical
 extraction remain open. Native completion and maturity are not promoted.
+
+### Product Cancellation Entries
+
+`leselang-command::reference_cancellation` owns ordinary and audited cancellation
+entry coordination. Ordinary cancellation checks time, expires due work and replays
+authoritative completion before checking the local image. Audited cancellation
+validates attribution first, then checks time and expiration, borrows reconciled
+terminal state and permits only requested cancellation to reach native audit
+settlement. A completed ordinary cancellation still cannot acquire an audit after
+the fact. Original image/audit borrows, replay/record payload ownership, refusal
+precedence and requested-cancellation timestamps are preserved.
+
+`ReferenceCancellationHost` delegates expiration, reconciliation, group visibility
+and terminal settlement to the trusted native owner. Journal identity/idempotency
+checks, transactions and commit-before-publication remain native. Visibility can
+fail after commit; the adapter does not retry callbacks or roll back prior native
+effects. Metadata validity and matching local state are not authorization: bounded
+input, provenance, debugger authority and trusted time remain caller obligations.
+
+The [cancellation proof](fixtures/leselang_cancellation_policy_macos_arm64_20261024.json)
+compares 2,240 whole-VM cases across 70 operations, two cancellation routes and
+sixteen refusal/replay scenarios, including 140 clean baseline completions.
+Another 96 SQLite cases cover eight flow shapes, four write-failure sites, peer
+competition, restart and cancellation drain. Five adapter-only tests check original
+borrows, payload owners, refusal ordering and once-only failure/unwind without
+linking the VM or SQLite. Frozen entry coordinators share the existing metadata
+validators, state machinery and journals; this is coordinator compatibility proof,
+not an independent implementation of those trusted layers.
+
+At reference execution `1.143.0`, native embedding `0.172.0`, HIR `0.184.0`,
+product version, wire formats and journal schema 10 remain unchanged. Retry
+coordination, native result conversion/settlement, journal ownership, complete
+host-neutral durable recovery, vertical compatibility and physical extraction
+remain open. Native completion, maturity and extraction gates are not promoted.
+
+### Product Retry Entry
+
+`leselang-command::reference_retry` owns error-report entry coordination and
+scheduled/terminal proposal assembly. Clock validation and expiration precede
+terminal replay; replay still bypasses late invalid error metadata or policy.
+Only pending work reaches the existing planner. Metadata admission precedes
+classification, permanent failures bypass policy validation, and transient
+failures validate policy even when the retry allowance is exhausted. The shared
+backoff arithmetic and diagnostic codes are unchanged.
+
+`ReferenceRetryHost` retains the original borrowed lease and moves the original
+error buffers into the proposal without cloning. Native settlement checks the
+live request/lease, commits the authoritative disposition, and publishes terminal
+state before selecting group-visible output. The authoritative outcome may differ
+from the proposal. Visibility faults remain terminal observations, not outer
+reporting errors. Neither hooks nor earlier native effects are retried or rolled
+back by the adapter; the original journal transaction retains its own rollback
+boundary. Retry scheduling does not replenish fuel, extend the execution deadline
+or grant dispatch permission. Input bounds, provenance, reporting authority and
+trusted time remain caller obligations.
+
+The [retry-entry proof](fixtures/leselang_retry_entry_policy_macos_arm64_20261024.json)
+compares 1,680 whole-VM cases across 70 operations and 24 admission, replay and
+lease scenarios, including 210 clean scheduled/permanent/exhausted outcomes.
+Another 192 SQLite cases exercise eight flow shapes, three outcomes, three
+write-failure sites and four peer races, followed by replay, restart with zero
+default fuel and cancellation drain. Five adapter-only tests cover ownership,
+refusal precedence, authoritative replacement and once-only hook failures/unwind.
+The frozen entry shares the existing planner, validators and journal machinery;
+this is coordinator compatibility proof, not an independent implementation of
+those lower layers.
+
+At reference execution `1.144.0`, native embedding `0.172.0`, HIR `0.184.0`,
+product version, wire formats and journal schema 10 remain unchanged. Native
+result conversion/settlement, dispatch-claim coordination, journal ownership,
+complete host-neutral durable recovery, vertical compatibility and physical
+extraction remain open. Native completion, maturity and extraction gates are not
+promoted.
+
+### Product Claim Entries
+
+`leselang-command::reference_claim` owns both dispatch-claim entry coordinators,
+local-image correspondence diagnostics and the optional-lease API's backpressure
+mapping. Clock, lease-duration and expiry-overflow checks still precede timeout
+cleanup. Only a successfully committed lease reaches local-cache adoption; idle
+and backpressure remain distinct native outcomes. The structured API returns the
+original lease box, while the optional API unwraps that box without copying its
+payloads or changing diagnostic codes.
+
+`ReferenceClaimHost` delegates fairness, sequence barriers, not-before clocks,
+capacity observation, delivery-attempt accounting and transactional issuance to
+the existing native journal. Native cache adoption retains its single map-entry
+lookup: an occupied equal image is untouched, and a vacant image is cloned only
+after lease commit. A local conflict remains `LSV2005` after commit; the issued
+lease and consumed delivery attempt are not rolled back or automatically retried.
+Cache correspondence is not lease authority. Caller permissions, bounded ingress,
+clock provenance and consistent limits across workers remain owner obligations.
+
+The [claim-entry proof](fixtures/leselang_claim_entry_policy_macos_arm64_20261024.json)
+compares 2,800 whole-VM cases across 70 operations, both public APIs and twenty
+clock, capacity, retry, replay, counter-exhaustion and cache scenarios. It includes
+280 baseline leases with occupied/vacant cache handling. Another 176 SQLite cases
+cover eight flow shapes, three write-failure sites, peer admission/claim/completion,
+not-before waiting, expired leases and post-commit cache conflicts, followed by
+restart with zero default fuel and cancellation drain. Five adapter-only tests
+check original box/payload ownership, once-only hooks and exact refusal precedence.
+Frozen entries share the original clock kernels, diagnostics and journal machinery;
+this proves coordinator compatibility, not an independent scheduler implementation.
+
+At reference execution `1.145.0`, native embedding `0.172.0`, HIR `0.184.0`,
+product version, wire formats and journal schema 10 remain unchanged. Native
+result conversion/settlement, journal ownership, complete host-neutral durable
+recovery, vertical compatibility and physical extraction remain open. Native
+completion, maturity and extraction gates are not promoted.
+
+### Product Result Conversion
+
+`leselang-command::reference_result` now owns atomic reply diagnostic mapping,
+bound-result observation and scalar-binding resumption. The VM keeps thin bridges.
+Conversion still uses the original `EffectValueContext` and consuming projection;
+successful unbound results retain their payload allocations. Bound observation
+borrows the original frame and value through `PendingReply` and `ResultValueDomain`:
+type, recursive value bounds, item limit and capped encoded size remain ordered.
+Only a successful bound value reaches the shared scalar evaluator, using exactly
+the frame's saved fuel. No new fuel, interpreter or successor scheduler is added.
+
+These are trusted composition functions, not raw continuation ingress or completion
+authority. The caller still validates bindings and owns authentication, live leases,
+deadlines and durable receipts. Query revision checks retain their original order;
+legacy unbound empty queries may pass a zero item ceiling, whereas bound observation
+rejects zero. Observation alone does not validate an image's token or grant authority.
+Journal settlement, successor routing, transaction rollback and local completion
+publication remain with their existing native owners.
+
+The [result-conversion proof](fixtures/leselang_result_conversion_policy_macos_arm64_20261024.json)
+checks six adapter-only tests and 6,720 frozen conversion cases across 70 operations,
+six binding shapes, optional saved operations and eight competing-fault scenarios.
+The existing completion oracle now uses frozen pre-migration conversion as well:
+5,600 whole-VM cases and 64 SQLite scenarios compare settlement, injected write
+failures, peer replay, restart and successor drain. Existing bound-value and full
+reply-projection oracles remain active. Shared value gates, evaluator and journal
+kernels are not independently reimplemented by these tests.
+
+At reference execution `1.146.0`, native embedding `0.172.0`, HIR `0.184.0`,
+product version, wire formats and journal schema 10 remain unchanged. Native result
+settlement and journal ownership, complete host-neutral durable recovery, vertical
+compatibility and physical extraction remain open. Completion and maturity are not
+promoted by this product-policy migration.
+
+### Product Settlement Routing
+
+`leselang-command::reference_settlement` owns ordinary/leased result settlement
+routing and successor settlement coordination. It invokes exactly one native
+commit hook, returns its original fault without publication on refusal, and moves
+only the commit's authoritative result into the native publication hook. Original
+image, lease, parent, proposed result and successor inputs are not reconstructed.
+The native journal still owns validation, authority checks, transactions and peer
+winner selection. Its in-memory and SQLite replay semantics are not normalized by
+this adapter.
+
+The VM's native `publish_completed` helper preserves the original order: remove
+the pending cache entry, clone the authoritative result into the completion cache,
+then discover the visible group/successor result. Publication may fail or unwind
+after a successful commit; that does not roll back the journal or trigger a retry.
+These are trusted owner hooks after admission, not a new untrusted completion API.
+Cancellation/retry settlement and group visibility remain separate native paths.
+
+The GUI function-chain manifest follows this adapter-to-native boundary, anchoring
+both ordinary and leased commits plus native publication rather than the removed
+inlined call site. This changes evidence locations, not GUI capabilities.
+
+The [settlement proof](fixtures/leselang_settlement_policy_macos_arm64_20261024.json)
+adds five adapter-only tests across four routing modes, checking original borrows,
+owned payloads/faults, commit refusal and commit/publication unwinds. Four SQLite
+cases prove that stale local caches publish a peer's committed value or fault,
+not the current proposal, and retain that winner across restart. The strengthened
+frozen completion and successor oracles cover 5,600 and 7,280 whole-VM cases plus
+64 and 112 SQLite scenarios. Their ordinary settlement fallback now uses frozen
+pre-migration routing; successor settlement retains its original frozen path.
+Native journal and group-visibility kernels remain shared, not independently
+reimplemented by these compatibility tests.
+
+At reference execution `1.147.0`, native embedding `0.172.0`, HIR `0.184.0`,
+product version, wire formats and journal schema 10 remain unchanged. Cancellation
+and retry settlement, group visibility, journal ownership, complete host-neutral
+durable recovery, vertical compatibility and physical extraction remain open.
+Native completion, maturity and extraction gates are not promoted.
+
+### Cancellation And Retry Settlement
+
+`leselang-command::reference_settlement::interruption` now owns ordinary
+cancellation, audited cancellation and retry settlement coordination. Two narrow
+owner traits keep cancellation/audit commits separate from retry commits; existing
+result/successor host implementations acquire no new required methods. The native
+journal retains image/lease validation, audit identity and idempotency, clock fences,
+transactions and authoritative winner selection. The adapter adds no raw ingress,
+authentication certificate, retry loop or compensation of native side effects.
+
+The three return contracts remain distinct. Ordinary cancellation constructs the
+original reason/time proposal and publishes the journal's winner. Audited cancellation
+publishes only a `Cancelled` winner; a non-cancellation winner returns its original
+audit record without publication. A publication fault replaces that call's return
+record with `Err(Fault)`, but does not undo the audit commit. Retry settlement returns
+a scheduled disposition intact without updating completion caches. A terminal result
+is borrowed from the committed disposition for native publication; a visible fault
+remains `Ok(Terminal(Fault))`, not a commit error.
+
+Owned cancellation results reuse the existing native `publish_completed` helper.
+Retry publication preserves its original copy order: pending removal, completion
+cache copy, then the separate visible-step copy. It does not move that last copy
+ahead of cache publication merely to reuse the owned helper.
+
+The [interruption-settlement proof](fixtures/leselang_interruption_settlement_policy_macos_arm64_20261024.json)
+adds six adapter-only tests for original borrows, owned records and schedules,
+reason/time preservation, native winner selection, exact failure layers and hook
+unwinds. Cancellation's frozen ordinary path now includes its original settlement
+instead of calling the migrated VM method. Existing cancellation and retry oracles
+cover 2,240 and 1,680 whole-VM cases plus 96 and 192 SQLite scenarios, including
+write failures, peer races, replay and restart. Journal and visible-group kernels
+remain shared; these are compatibility proofs, not independent storage engines.
+
+At reference execution `1.148.0`, native embedding `0.172.0`, HIR `0.184.0`,
+product version, wire formats and journal schema 10 remain unchanged. Group result
+visibility, cache reconciliation, journal ownership, complete host-neutral durable
+recovery, vertical compatibility and physical extraction remain open. Native
+completion, maturity and extraction gates are not promoted.
+
+### Group Visibility And Cache Reconciliation
+
+`leselang-command::reference_settlement::visibility` now owns completion-cache
+reconciliation and visible group-result selection. Its two narrow host traits are
+implemented by a private VM owner, not on the public `Vm`: extraction adds no
+public cache-mutation bypass. `EffectObservation` and `MergeProgress` are the same
+owned observations, relocated and aliased by the journal; they have no serde/wire
+contract and grant no admission, lease, durable receipt or execution authority.
+`Missing` is available to the storage-independent adapter, but memory journals
+still return `Untracked` for absent outbox rows, preserving image-only restores.
+
+A cached result checks only native existence. Eviction does not fall through to
+another observation or remove pending work in that call. An uncached terminal
+removes pending first and moves the original result into the cache; an absent
+durable row removes stale pending work, while `Pending` and `Untracked` leave it
+alone. The VM returns its original cache borrow after successful reconciliation.
+
+Visibility keeps standalone and waiting outcomes cache-free. A next request
+removes the completed tokens in original order, then copies its continuation into
+the native pending cache and returns the original request allocation. Completed
+groups fill only branches actually removed from pending; lazy entry insertion
+preserves an existing branch result without copying or overwriting it. The original
+debug-only receipt assertion remains after publication. Faults and hook unwinds
+do not retry or roll back earlier cache effects. Native bounded reads, snapshots,
+transactions, commit authority and physical cache ownership remain unchanged.
+
+The [visibility/cache proof](fixtures/leselang_visibility_policy_macos_arm64_20261024.json)
+adds seven adapter-only tests, 350 completion-cache comparisons across 70 operation
+shapes, and 72 in-memory group scenarios. Another 85 SQLite scenarios cover stale
+owners observing peer completions/successors, retention, corrupted reads, cache
+non-mutation on read faults, no persistent writes and restart. Frozen reconciliation
+and visibility functions contain the original policies; they share native journal
+reads with production, not the migrated adapter. These are local macOS compatibility
+proofs, not a new independent storage engine or a fresh standalone source export.
+
+At reference execution `1.149.0`, native embedding `0.172.0`, HIR `0.184.0`,
+product version, wire formats and journal schema 10 remain unchanged. Native journal
+ownership, retention/expiry coordination, complete host-neutral durable recovery,
+vertical compatibility and physical extraction remain open. Native completion,
+maturity and extraction gates are not promoted.
+
+### Retention And Expiration Coordination
+
+`leselang-command::reference_settlement::maintenance` owns the released retention
+and expiry entry policies through two narrow traits on a private VM owner. Policy
+admission keeps the same limits and `LSV2301` diagnostic before any local snapshot;
+expiry uses the same shared clock check before entering the journal. Existing host
+traits acquire no new required methods, and public `Vm` gains no cache-mutation
+bypass. `JournalCompaction` is relocated and aliased, not a new serialized receipt.
+
+Retention copies the original native cache once, then uses the released stable age
+ordering, including equal numeric suffixes and legacy opaque tokens. The journal
+retains selection, live-group protection, audit cascade, byte accounting and
+transaction authority. Only its returned token list is evicted, in original order;
+zero logical deletions can still prune stale local cache entries after a peer's
+compaction. Report fields come directly from the native result, not from token
+count or local cache size. A completed group can represent one logical unit and
+several pruned tokens.
+
+Expiry first obtains the complete native batch, then removes each pending entry
+and moves its original token/result into completion storage. It does not reconstruct
+cancellation records, deduplicate results, invoke per-effect cancellation or select
+visible group results. Errors skip local publication; unwinds do not compensate
+earlier effects or retry hooks. Native backend semantics are deliberately retained:
+SQLite owns transactional rollback, while a failing memory hook may already have
+changed native state. This migration does not promise new cross-backend atomicity.
+
+The [maintenance proof](fixtures/leselang_maintenance_policy_macos_arm64_20261024.json)
+adds seven adapter tests for validation precedence, stable ordering, original
+ownership, report authority, zero-delete pruning and fault/unwind behavior.
+Frozen VM policies cover 84 in-memory retention configurations, 420 expiry cases
+across 70 operation shapes, 12 SQLite retention scenarios and 40 SQLite expiry
+scenarios. They include protected live groups, whole-group removal, sparse/stale
+owners, peer maintenance, late transaction failures, malformed later batch images,
+replay and restart. Native journal kernels remain shared; these local macOS tests
+are compatibility evidence, not a fresh source export or independent storage engine.
+
+Reference execution is now `1.150.0`; native embedding `0.172.0`, HIR `0.184.0`,
+product version, wire formats and journal schema 10 remain unchanged. Native journal
+ownership, sequence allocation and startup/recovery lifecycle, complete host-neutral
+durable recovery, vertical compatibility and physical extraction remain open.
+Native completion, maturity and extraction gates are not promoted.
 
 **The current 2.3.0-and-later phase closes acceptance gates; physical extraction is deferred.**
 It is not an automatic version-triggered move. No replacement extraction version

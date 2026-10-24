@@ -1514,7 +1514,8 @@ fn actual_result_validation_is_product_free_and_shared_by_reference_raw_value_bi
             < source.find(".validate_value(reply)").unwrap()
     );
     let reference =
-        std::fs::read_to_string(root.join("crates/leselang-vm/src/host_result.rs")).unwrap();
+        std::fs::read_to_string(root.join("crates/leselang-command/src/reference_result.rs"))
+            .unwrap();
     assert!(reference.contains("impl ResultValueHost for BoundResultHost"));
     assert!(reference.contains("let declaration = ResultValueDomain {"));
     assert!(reference.contains("PendingReply::new(image.token.as_str(), image, &declaration)"));
@@ -1529,8 +1530,14 @@ fn actual_result_validation_is_product_free_and_shared_by_reference_raw_value_bi
     assert!(adapter.contains("reply.result_type() == self.result_type"));
     let vm =
         std::fs::read_to_string(root.join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
-    assert!(vm.contains("use host_result::{accept_bound_value, validate_bound_value};"));
-    assert!(vm.contains("match accept_bound_value(image, &value)"));
+    assert!(vm.contains("use host_result::validate_bound_value;"));
+    assert!(vm.contains("leselang_command::reference_result::step_from_effect_result("));
+    assert!(reference.contains("match accept_bound_value(image, &value)"));
+    let bridge =
+        std::fs::read_to_string(root.join("crates/leselang-vm/src/host_result.rs")).unwrap();
+    assert!(
+        bridge.contains("pub(super) use leselang_command::reference_result::validate_bound_value;")
+    );
     assert!(!vm.contains("fn validate_bound_value("));
 }
 

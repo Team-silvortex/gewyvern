@@ -17,6 +17,48 @@ fn load_catalog() -> GuiFunctionChainCatalog {
         .expect("GUI function-chain catalog must decode")
 }
 
+#[test]
+fn product_automation_evidence_tracks_adapter_routing_native_commit_and_publication() {
+    let catalog = load_catalog();
+    catalog.validate(root()).unwrap();
+    let chain = catalog
+        .chains
+        .iter()
+        .find(|c| c.id == "product-leselang-automation")
+        .unwrap();
+    let coverage = chain
+        .coverage
+        .iter()
+        .find(|c| c.surface == "avalonia-desktop")
+        .unwrap();
+    for (path, contains) in [
+        (
+            "crates/leselang-command/src/reference_settlement.rs",
+            "host.publish_completed(image, authoritative)",
+        ),
+        (
+            "crates/leselang-vm/src/successor.rs",
+            "self.0.journal.record_completed(image, proposed)",
+        ),
+        (
+            "crates/leselang-vm/src/successor.rs",
+            "self.0.journal.acknowledge_dispatch(lease, now_ms, proposed)",
+        ),
+        (
+            "crates/leselang-vm/src/successor.rs",
+            "self.visible_step(&image.token, authoritative)",
+        ),
+    ] {
+        assert!(
+            coverage
+                .evidence
+                .iter()
+                .any(|e| e.stage == "persistence" && e.path == path && e.contains == contains),
+            "{path}: {contains}"
+        );
+    }
+}
+
 fn ids_for_owner(catalog: &GuiFunctionChainCatalog, owner: GuiOperationOwner) -> BTreeSet<&str> {
     catalog
         .operations

@@ -1,0 +1,187 @@
+{
+  "kind": "leselang-group-visibility-cache-policy-parity",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.149.0",
+  "direct_adapter_tests": 7,
+  "whole_vm_cache_comparisons": 350,
+  "whole_vm_group_scenarios": 72,
+  "sqlite_cache_scenarios": 9,
+  "sqlite_group_scenarios": 72,
+  "sqlite_group_read_failure_scenarios": 4,
+  "adapter_owned_group_visibility_and_cache_reconciliation": true,
+  "private_owner_without_public_vm_cache_mutators": true,
+  "cached_existence_without_refresh_or_fallthrough": true,
+  "untracked_memory_distinct_from_missing_durable_rows": true,
+  "original_cached_borrow_and_owned_result_preserved": true,
+  "ordered_pending_removal_before_next_continuation_copy": true,
+  "lazy_merged_entry_preserves_existing_results": true,
+  "read_faults_leave_cache_and_durable_state_unchanged": true,
+  "hook_unwind_without_retry_or_rollback": true,
+  "frozen_cache_and_visibility_policies": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Local adapter, frozen VM, memory and SQLite parity; native journal kernels remain shared.",
+  "limitations": [
+    "No remote CI, Linux, live GUI, standalone source export or checkpoint rerun.",
+    "Reference adapter extraction, not a complete host-neutral VM or durable storage owner."
+  ],
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_settlement/visibility.rs",
+      "sha256": "739225583a5205c1500997da34b886bdfcbce5d86a5a25357815526b691a5b5c"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_settlement.rs",
+      "sha256": "7c8c9397514eb156c871f4aa07f74daf108b9a2690ea25f3ca1fc3caa10c21b7"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_visibility.rs",
+      "sha256": "2c4720f16c4cd93583f4fe97acc6c5d29354b47264a8afff09c2aff770d1db02"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "65875a9aa02e1d3486674eb81bbe36ebd3dc8b0c048d1fd30d55c0be9c2afa80"
+    },
+    {
+      "path": "crates/leselang-vm/src/visibility_contract_tests.rs",
+      "sha256": "7491e1e5ee0e8f77b696ff917d0e6edde9ee416b716ae3b7559c6806da9684ed"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "9bf5a5107b6c780ec510d4bfdd170a08a26d113a8a01254ea1c2f4b00c43cd05"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/successor.rs",
+      "sha256": "0835a2209a2c832cbe88a6bd2cee6597485a006285a3e9b3f6894fa41a7d727c"
+    },
+    {
+      "path": "crates/leselang-vm/src/successor.rs",
+      "sha256": "995bc58a237d68d919ec254e40a925174a9c23e5f9ef9216d339487c8d91b79b"
+    },
+    {
+      "path": "crates/leselang-vm/src/cancellation_contract_tests.rs",
+      "sha256": "1b2fe07f12cbf7ad6234815522eb9f0b25030fd82f9a7e5cf64b7f65dbcaf80e"
+    },
+    {
+      "path": "crates/leselang-vm/src/retry_contract_tests.rs",
+      "sha256": "75b66a785dfb90dccc7dd66133a1da1c6fbe4edf7f9c8b18acbb98ea45470265"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "9f9e53c48caf62f062022e078b41632df447160b8f403fea3d6faba5f68fe58b"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "6a105d980e0500fda9998ba327947ad2499ba84ea17330ced20727ab04d1502e"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "13586ee8ed345db2fa55480d87030437935e0cf7ea816823689a97e20f4ea9ac"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "905b650e648b272d48956d4692277be0b88efc5c2d597a6a0fd526dd0acad706"
+    },
+    {
+      "path": "project/release/leserpent-gui-function-chain.json",
+      "sha256": "575de1b55c35f291b2e2553340aa5a4ed252ae1b2c69f4904584feeef1cbbd13"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "4f7406e3f3f76863267eb4894c07d9856b806b327de9c476b4ed393327195c49"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "862ba4da943c6d08808ebad83fbc4bd8a7238514fe316a8d0c2446e8c8e69be8"
+    },
+    {
+      "path": "tests/language_independence_tdd.rs",
+      "sha256": "70708d5697ab91df42734bac2bc7f3e43b7d6447e6ea701c676aa9f4a7a4dc4f"
+    },
+    {
+      "path": "tests/gui_function_chain_tdd.rs",
+      "sha256": "d1edb86846882982c373389b798ae763fb1aaaf8fa04c36c1d50b526ab6a82ed"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "adapter",
+      "log": "/private/tmp/leselang-visibility-20261024-adapter.log",
+      "sha256": "32a5c632fd45321ff22a6cb9985e950a8fb8228c79a84ede0642e651b238461a"
+    },
+    {
+      "stage": "parity",
+      "log": "/private/tmp/leselang-visibility-20261024-parity.log",
+      "sha256": "f54029ffafa63f44b8bbecc87e22bacee1eea3d5fb763da5d5b56dce00ccba59"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-visibility-20261024-default.log",
+      "sha256": "9c5ecbaa7620145b41d74f5347c4815c9acf3bcde941ba3ecac08522d8707346"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-visibility-20261024-memory.log",
+      "sha256": "28ebaa639cd5be37cc09c8b5226eb9c2560606f2a6f5f7b5c3bdba5b8a35a216"
+    },
+    {
+      "stage": "gates-sealed",
+      "log": "/private/tmp/leselang-visibility-20261024-gates-sealed.log",
+      "sha256": "124cba05c76cdc342ddb79fc11a32f50446fb5efffda26fb85309e7f362c44bd"
+    },
+    {
+      "stage": "workspace-clippy",
+      "log": "/private/tmp/leselang-visibility-20261024-workspace-clippy.log",
+      "sha256": "0c79b48d7187186e2f73a270cdee7ce714acc28e30f6f058dfff855cd7ecf6bf"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-visibility-20261024-memory-clippy.log",
+      "sha256": "26edc47d2468d9c6ec26a486bc057a4794fd81c817ad33824bc757727843a2b5"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-visibility-20261024-native-check.log",
+      "sha256": "6c9a93b709d70b97abb02cb00823887d60b5c99c51e73ea1ae9635a26f949d2e"
+    },
+    {
+      "stage": "dependencies",
+      "log": "/private/tmp/leselang-visibility-20261024-dependencies.log",
+      "sha256": "2aa3528997c7c9640dc072977067c24f67ca4ff21ee912b534ce599bf644ac56"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-visibility-20261024-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "included-format",
+      "log": "/private/tmp/leselang-visibility-20261024-included-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "diff",
+      "log": "/private/tmp/leselang-visibility-20261024-diff.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "status",
+      "log": "/private/tmp/leselang-visibility-20261024-status.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "verification_counts": {
+    "default_tests": 1888,
+    "memory_tests": 283,
+    "architecture_documentation_status_gui_tests": 580
+  }
+}

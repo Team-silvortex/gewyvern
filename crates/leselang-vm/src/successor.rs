@@ -15,6 +15,10 @@ mod completion_contract_tests;
 mod assembly_contract_tests;
 
 #[cfg(test)]
+#[path = "settlement_contract_tests.rs"]
+mod settlement_contract_tests;
+
+#[cfg(test)]
 fn validate_extension(
     prior: &ResultBinding,
     binding: &ResultBinding,
@@ -209,6 +213,42 @@ impl leselang_command::reference_successor::ReferenceSuccessorHost for Reference
     }
 }
 
+struct ReferenceSettlementOwner<'a>(&'a mut Vm);
+
+impl leselang_command::reference_settlement::ReferenceSettlementHost
+    for ReferenceSettlementOwner<'_>
+{
+    fn record_completed(
+        &mut self,
+        image: &ContinuationImage,
+        proposed: &Step,
+    ) -> Result<Step, Fault> {
+        self.0.journal.record_completed(image, proposed)
+    }
+    fn acknowledge_dispatch(
+        &mut self,
+        lease: &DispatchLease,
+        now_ms: u64,
+        proposed: &Step,
+    ) -> Result<Step, Fault> {
+        self.0.journal.acknowledge_dispatch(lease, now_ms, proposed)
+    }
+    fn record_successor(
+        &mut self,
+        parent: &EffectRequest,
+        proposed: &Step,
+        next: &EffectRequest,
+        lease: CompletionLease<'_>,
+    ) -> Result<Step, Fault> {
+        self.0
+            .journal
+            .record_successor(parent, proposed, next, lease)
+    }
+    fn publish_completed(&mut self, image: &ContinuationImage, authoritative: Step) -> Step {
+        self.0.publish_completed(image, authoritative)
+    }
+}
+
 impl Vm {
     pub(super) fn complete_result(
         &mut self,
@@ -252,15 +292,14 @@ impl Vm {
         step: &Step,
         next: &EffectRequest,
     ) -> Step {
-        let authoritative = match self.journal.record_successor(parent, step, next, lease) {
-            Ok(step) => step,
-            Err(error) => return Step::Fault(error),
-        };
-        self.pending.remove(&image.token);
-        self.completed
-            .insert(image.token.clone(), authoritative.clone());
-        // The journal may have accepted a competing acknowledgement, so discover its winner.
-        self.visible_step(&image.token, authoritative)
+        leselang_command::reference_settlement::commit_successor(
+            image,
+            lease,
+            parent,
+            step,
+            next,
+            &mut ReferenceSettlementOwner(self),
+        )
     }
 
     fn record_result(
@@ -269,17 +308,23 @@ impl Vm {
         lease: CompletionLease<'_>,
         step: Step,
     ) -> Step {
-        let recorded = match lease {
-            Some((lease, now_ms)) => self.journal.acknowledge_dispatch(lease, now_ms, &step),
-            None => self.journal.record_completed(image, &step),
-        };
-        let authoritative = match recorded {
-            Ok(step) => step,
-            Err(error) => return Step::Fault(error),
-        };
+        leselang_command::reference_settlement::record_result(
+            image,
+            lease,
+            step,
+            &mut ReferenceSettlementOwner(self),
+        )
+    }
+
+    pub(super) fn publish_completed(
+        &mut self,
+        image: &ContinuationImage,
+        authoritative: Step,
+    ) -> Step {
         self.pending.remove(&image.token);
         self.completed
             .insert(image.token.clone(), authoritative.clone());
+        // The journal may have accepted a competing acknowledgement, so discover its winner.
         self.visible_step(&image.token, authoritative)
     }
 }

@@ -98,6 +98,53 @@ jobs:
       - name: Test successor assembly parity and native transaction boundaries
         run: cargo +1.98.0 test -p leselang-vm --locked --lib assembly_contract_tests::successor_assembly
 
+      - name: Test cancellation entry policy without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_cancellation
+
+      - name: Test cancellation parity and native audit boundaries
+        run: cargo +1.98.0 test -p leselang-vm --locked --lib cancellation_contract_tests::cancellation_entries
+
+      - name: Test retry entry policy without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_retry
+
+      - name: Test retry parity and native lease transaction boundaries
+        run: cargo +1.98.0 test -p leselang-vm --locked --lib retry_contract_tests::retry_entry
+
+      - name: Test claim entry policy without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_claim
+
+      - name: Test claim parity and native cache publication boundaries
+        run: cargo +1.98.0 test -p leselang-vm --locked --lib claim_contract_tests::claim_entries
+
+      - name: Test result conversion without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_result
+
+      - name: Test frozen result conversion and native settlement parity
+        run: |
+          cargo +1.98.0 test -p leselang-vm --locked --lib result_conversion_contract_tests::conversion_matches
+          cargo +1.98.0 test -p leselang-vm --locked --lib completion_contract_tests::result_completion
+
+      - name: Test settlement routing without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_settlement
+
+      - name: Test cancellation and retry settlement without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_interruption_settlement
+
+      - name: Test group visibility and cache policy without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_visibility
+
+      - name: Test frozen group visibility and cache reconciliation parity
+        run: cargo +1.98.0 test -p leselang-vm --locked --lib visibility_contract_tests
+
+      - name: Test retention and expiry coordination without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_maintenance
+
+      - name: Test frozen retention and expiry cache publication parity
+        run: cargo +1.98.0 test -p leselang-vm --locked --lib maintenance_contract_tests
+
+      - name: Test native settlement peer-winner publication
+        run: cargo +1.98.0 test -p leselang-vm --locked --lib settlement_contract_tests::settlement_sqlite
+
       - name: Test read-only projections without the VM or SQLite
         run: cargo +1.98.0 test -p leselang-observe --locked --no-default-features
 

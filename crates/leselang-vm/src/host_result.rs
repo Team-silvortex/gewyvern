@@ -1,74 +1,8 @@
-use std::convert::Infallible;
-
-use leselang_command::{ResultValueDomain, ResultValueError, ResultValueHost};
-use leselang_runtime_core::{HostResultError, PendingReply, ReplyAcceptanceError, ReplyAuthority};
-
+#[cfg(test)]
 use crate::{ContinuationImage, Fault, MAX_JOURNAL_ENTRY_BYTES, Value};
-
-struct BoundResultHost;
-
-impl ResultValueHost for BoundResultHost {
-    type Error = Fault;
-
-    fn valid_field_name(&self, name: &str) -> bool {
-        crate::valid_merge_branch_name(name)
-    }
-
-    fn validate_encoded_value(&self, reply: &Value) -> Result<(), Fault> {
-        crate::validate_json_size_capped(reply, MAX_JOURNAL_ENTRY_BYTES, "bound host result")
-    }
-}
-
-struct ResultObservation;
-
-impl ReplyAuthority<&str> for ResultObservation {
-    type Error = Infallible;
-
-    fn authorize(&self, _: &&str) -> Result<(), Infallible> {
-        // Durable identity/lease/revision checks precede raw result construction.
-        // This observation-only checkpoint grants no new execution authority.
-        Ok(())
-    }
-}
-
-pub(super) fn accept_bound_value<'a>(
-    image: &'a ContinuationImage,
-    value: &'a Value,
-) -> Result<(&'a ContinuationImage, &'a Value), Fault> {
-    let declaration = ResultValueDomain {
-        result_type: image.result_type,
-        value_limits: crate::value_validation_limits(),
-        max_output_items: image.max_output_items,
-        host: &BoundResultHost,
-    };
-    let mut pending = PendingReply::new(image.token.as_str(), image, &declaration);
-    let accepted = pending
-        .try_accept(&image.token.as_str(), value, &ResultObservation)
-        .map_err(|rejected| match rejected.error {
-            ReplyAcceptanceError::Result(HostResultError::TypeMismatch) => Fault {
-                code: "LSV2103".into(),
-                message: "effect result does not match pending effect".into(),
-            },
-            ReplyAcceptanceError::Result(HostResultError::InvalidValue(error)) => match error {
-                ResultValueError::Bounds(error) => crate::value_bounds_fault(error),
-                ResultValueError::OutputLimit { .. } => Fault {
-                    code: "LSV2102".into(),
-                    message: "bound result exceeds the output item limit".into(),
-                },
-                ResultValueError::Encoding(error) => error,
-            },
-            ReplyAcceptanceError::Authority(error) => match error {},
-            ReplyAcceptanceError::Closed(_) | ReplyAcceptanceError::IdentityMismatch => {
-                crate::result_binding::invalid()
-            }
-        })?;
-    let (_, image, _, value) = accepted.into_parts();
-    Ok((image, value))
-}
-
-pub(super) fn validate_bound_value(image: &ContinuationImage, value: &Value) -> Result<(), Fault> {
-    accept_bound_value(image, value).map(|_| ())
-}
+#[cfg(test)]
+pub(super) use leselang_command::reference_result::accept_bound_value;
+pub(super) use leselang_command::reference_result::validate_bound_value;
 
 #[cfg(test)]
 mod tests {

@@ -1,0 +1,216 @@
+{
+  "kind": "leselang-retry-entry-policy",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.144.0",
+  "atomic_operations": 70,
+  "report_outcomes": 3,
+  "fault_scenarios": 24,
+  "whole_vm_comparisons": 1680,
+  "baseline_completions": 210,
+  "sqlite_flow_shapes": 8,
+  "sqlite_write_failure_sites": 3,
+  "sqlite_peer_race_scenarios": 4,
+  "sqlite_restart_comparisons": 192,
+  "direct_adapter_tests": 5,
+  "adapter_owned_retry_entry": true,
+  "terminal_replay_precedes_metadata": true,
+  "existing_planner_and_backoff_unchanged": true,
+  "original_lease_and_error_owners": true,
+  "native_authoritative_disposition_owner": true,
+  "native_lease_fences_retained": true,
+  "native_commit_before_publication": true,
+  "no_hook_retry_or_budget_refill": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Error-report entry coordination and retry/terminal proposal assembly move to the product adapter; live lease admission, authoritative journal commit, terminal publication and group visibility retain native owners.",
+  "limitations": [
+    "Trusted product policy, not raw ingress or the standalone generic VM. Input bounds, provenance, reporting authority and trusted time remain caller obligations; a retry plan is not dispatch authority.",
+    "Callbacks run once without coordinator retry or rollback. Journal transactions retain their original rollback boundaries. Visibility may fail after commit, and its fault remains a terminal observation.",
+    "The frozen entry shares the existing retry planner, metadata validators, state machinery and journals; it proves coordinator compatibility rather than independent implementation of those lower layers.",
+    "Native result conversion/settlement, dispatch-claim coordination, journal ownership, complete host-neutral durable recovery, vertical compatibility and physical extraction remain open. Native completion and maturity are unchanged.",
+    "Local macOS Rust/SQLite verification only; no Linux, GUI or remote CI run. The existing 280-file standalone checkpoint was integrity-checked, not freshly exported or retested."
+  ],
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_retry.rs",
+      "sha256": "d0800a6d4b1e429423543b60370b5cdbaa0665e0dc62b4cd0ba7b5104556faed"
+    },
+    {
+      "path": "crates/leselang-command/src/retry_policy.rs",
+      "sha256": "434a46218c5e729aafd5eec22a9ded4c5df2deb3846f16a0037659a5f7601625"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "ea703f18ebc19e115e44387457767ecdb362b9bfdcb660787d9f6354ba7853d7"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_retry.rs",
+      "sha256": "1d0fa1864cc38ea1054fef4a445ed16b702eb8495130bb9b3b628042875f2800"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "876fcacb1eb48c6cbedc0993ef4fe029e18aae65dad4234fdff96112253da16f"
+    },
+    {
+      "path": "crates/leselang-vm/src/retry_contract_tests.rs",
+      "sha256": "75b66a785dfb90dccc7dd66133a1da1c6fbe4edf7f9c8b18acbb98ea45470265"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "7d208005d17520fcd3c91db5b8ca70dfb522f2f92d8bc1cb2a1145683509a580"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/retry_schedule.rs",
+      "sha256": "21321604782dff9bab0c5e63a9ae28e2e50402285ff8745a51cb255045251c6b"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "03556de33553df2478f6a0edeb90372ad6184a049c980194c450b8d3ed69b70b"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "c3ea0af55ede8017bd3c12617938a54e6bd8b90d51d4e02fca36e0c92be90504"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "0c80abf02ee07e7c043359175db1f00b48a4348d87860860bc37327d34a507ae"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "af728391a0560559945e181f841d05cede89f3a9a16fb6e8cb7534b6f658bbe8"
+    },
+    {
+      "path": "tests/leselang_native_profile_tdd.rs",
+      "sha256": "1eb0df76410a4e1c6539a5f8abad9e670744f4166a6dea6bee0ff14703cfd06c"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "6daf06510d04349156eb03d712102054eff1acbe0bb8a5536ebcdb826dad33af"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "bd337f129badd007618d3f80157898b9aaca4aa6aae7ff950db3bc280a3e3a86"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "adapter",
+      "log": "/private/tmp/leselang-retry-entry-20261024-adapter.log",
+      "sha256": "5e45fb3cc59535b99ec23feed61c37aa7186e21e1d3e51e16cb809dacdd5ab82"
+    },
+    {
+      "stage": "oracle",
+      "log": "/private/tmp/leselang-retry-entry-20261024-oracle.log",
+      "sha256": "d2917034ab76abba218301dd076e8104d4df54d25a5947f07591ca53940773c2"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-retry-entry-20261024-default.log",
+      "sha256": "e2948bae3518ede4152278b2c0360c5c9f6b849a3023d2c2d17ae13a690d3d93"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-retry-entry-20261024-memory.log",
+      "sha256": "63e2b500b1fccf39797450baba397854d890e8013326ed6dabb345bf3c1f296a"
+    },
+    {
+      "stage": "gates-sealed",
+      "log": "/private/tmp/leselang-retry-entry-20261024-gates-sealed.log",
+      "sha256": "9c572100083b88988d623750dc13dd9a6632322b012eb5c0bfac5cb546601f22"
+    },
+    {
+      "stage": "workspace-clippy",
+      "log": "/private/tmp/leselang-retry-entry-20261024-workspace-clippy.log",
+      "sha256": "6bc4befa829b9d94184e2bc9f9adab387c63fedf39bd1315ba2ed276c8653732"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-retry-entry-20261024-memory-clippy.log",
+      "sha256": "51044d9a104245f887569af9e65fd7df00ff08cf2ffcc8005b6a1f1bc1829c64"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-retry-entry-20261024-native-check.log",
+      "sha256": "a2e5d712936e6d5744ed33dcd59bce4ffae472fc312afc305717f57fc1e2d1dd"
+    },
+    {
+      "stage": "native-checkpoint",
+      "log": "/private/tmp/leselang-retry-entry-20261024-native-checkpoint.log",
+      "sha256": "a1616e1b6bcf0154d246acc50f1a333d171969c102aaf9418d6e759d5b0bbfda"
+    },
+    {
+      "stage": "dependencies",
+      "log": "/private/tmp/leselang-retry-entry-20261024-dependencies.log",
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "stage": "source-parity",
+      "log": "/private/tmp/leselang-retry-entry-20261024-source-parity.log",
+      "sha256": "833ea382ab5c7f245da7299184d7421aa9a272dfdb9a3a3cf5aecb689cd97a0e"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-retry-entry-20261024-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "include-format",
+      "log": "/private/tmp/leselang-retry-entry-20261024-include-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "default_runtime_tests": 1850,
+  "memory_vm_tests": 279,
+  "root_architecture_tests": 560,
+  "adapter_external_tests": 5,
+  "whole_vm_oracle_tests": 2,
+  "adapter_dependency_closure_excludes_vm_and_sqlite": true,
+  "strict_workspace_lints_passed": true,
+  "memory_all_target_lints_passed": true,
+  "native_no_default_check_passed": true,
+  "format_checks_passed": true,
+  "native_checkpoint_reused": true,
+  "new_native_export_performed": false,
+  "native_checkpoint": {
+    "reused_checkpoint": "/private/tmp/gewyvern-ci-native-20261023/export-manifest.json",
+    "verified": true,
+    "complete_vm": false,
+    "full_extraction_gate": false,
+    "total_files": 280,
+    "copied_sources": 270,
+    "source_and_export_mismatches": [],
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "new_export_performed": false
+  },
+  "source_parity": {
+    "frozen_report_matches_pre_migration": true,
+    "native_retry_commit_tail_unchanged": true,
+    "retry_diagnostic_mapping_unchanged": true,
+    "native_expire_due_unchanged": true,
+    "native_replay_completed_unchanged": true,
+    "native_reconcile_completed_unchanged": true,
+    "native_visible_step_unchanged": true,
+    "native_finish_cancellation_unchanged": true,
+    "native_claim_effect_unchanged": true,
+    "native_try_claim_effect_unchanged": true,
+    "native_journal_unchanged": true,
+    "existing_retry_planner_unchanged": true,
+    "shared_backoff_arithmetic_unchanged": true,
+    "baseline_git_commit": "cbb86ba89943a1793c01dd84cb0aeaeb50d96c47",
+    "normalization": [
+      "Explicit VM receiver and self-to-vm spelling in frozen body",
+      "Native settlement borrows the existing disposition parameter instead of the original local owner",
+      "Product diagnostic namespace changes only",
+      "Whitespace and formatting-only trailing commas"
+    ]
+  }
+}

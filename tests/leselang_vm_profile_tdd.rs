@@ -5,6 +5,920 @@ fn root() -> &'static Path {
 }
 
 #[test]
+fn maintenance_policy_preserves_admission_sort_commit_and_native_cache_mutations() {
+    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let vm = read("crates/leselang-vm/src/leserpent_profile.rs");
+    let adapter = read("crates/leselang-command/src/reference_settlement/maintenance.rs");
+    for (from, to, delegation) in [
+        (
+            "pub fn compact_journal(",
+            "fn replay_completed(",
+            "maintenance::compact_journal(",
+        ),
+        (
+            "fn expire_due(",
+            "fn finish_cancellation(",
+            "maintenance::expire_due(",
+        ),
+    ] {
+        let bridge = vm.split_once(from).unwrap().1.split_once(to).unwrap().0;
+        assert!(bridge.contains(delegation));
+        assert!(bridge.contains("&mut ReferenceMaintenanceOwner(self)"));
+        for absent in [
+            "self.journal",
+            "self.pending",
+            "self.completed",
+            ".clone()",
+            "validate_",
+            "sort_by",
+        ] {
+            assert!(!bridge.contains(absent));
+        }
+    }
+    let owner = vm
+        .split_once("struct ReferenceMaintenanceOwner")
+        .unwrap()
+        .1
+        .split_once("impl leselang_command::reference_claim")
+        .unwrap()
+        .0
+        .split_whitespace()
+        .collect::<String>();
+    for required in [
+        ".map(|(token,step)|(token.clone(),step.clone()))",
+        "self.0.journal.compact_completed(local_completed,policy)",
+        "self.0.completed.remove(token)",
+        "self.0.journal.expire_due(now_ms)",
+        "self.0.pending.remove(token)",
+        "self.0.completed.insert(token,step)",
+    ] {
+        assert!(owner.contains(required), "{required}");
+    }
+    assert_eq!(owner.matches(".clone()").count(), 2);
+    let compact_vm = vm.split_whitespace().collect::<String>();
+    for forbidden in [
+        "ReferenceRetentionHostforVm",
+        "ReferenceExpirationHostforVm",
+    ] {
+        assert!(!compact_vm.contains(forbidden));
+    }
+    assert!(vm.contains("#[cfg(test)]\nfn validate_scheduler_time("));
+    assert!(vm.contains("#[cfg(test)]\nfn validate_retention_policy("));
+    for forbidden in [
+        ".clone()",
+        "sort_unstable",
+        "visible_step",
+        "rusqlite",
+        "std::fs",
+        "std::time",
+        "deadline_cancellation(",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    for (from, stages) in [
+        (
+            "pub fn compact_journal",
+            vec![
+                "validate_retention_policy(policy, MAX_JOURNAL_RECORDS)",
+                "host.completed_snapshot()",
+                "local_completed.sort_by(",
+                "host.compact_completed(&local_completed, policy)?",
+                "for token in &compacted.pruned_tokens",
+                "host.remove_completed(token)",
+                "removed_records: compacted.removed_records",
+            ],
+        ),
+        (
+            "pub fn expire_due",
+            vec![
+                "validate_clock(now_ms)?",
+                "host.expire_due(now_ms)?",
+                "for (image, step) in expired",
+                "host.remove_pending(&image.token)",
+                "host.insert_expired(image.token, step)",
+            ],
+        ),
+    ] {
+        let flow = adapter.split_once(from).unwrap().1;
+        let mut offset = 0;
+        for stage in stages {
+            offset += flow[offset..]
+                .find(stage)
+                .unwrap_or_else(|| panic!("missing/out of order {stage}"))
+                + stage.len();
+        }
+    }
+    let journal = read("crates/leselang-vm/src/journal.rs");
+    assert!(journal.contains(
+        "pub(crate) use leselang_command::reference_settlement::maintenance::JournalCompaction"
+    ));
+    assert!(!journal.contains("struct JournalCompaction"));
+    let frozen = read("crates/leselang-vm/src/maintenance_contract_tests.rs");
+    let frozen = frozen
+        .split_once("// Frozen pre-extraction coordination")
+        .unwrap()
+        .1;
+    assert!(!frozen.contains("reference_settlement"));
+    assert!(!frozen.contains("vm.compact_journal("));
+    assert!(!frozen.contains("vm.expire_due("));
+    assert!(frozen.contains("vm.journal.compact_completed(&local_completed, policy)?"));
+    assert!(frozen.contains("vm.journal.expire_due(now_ms)?"));
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_maintenance"));
+    assert!(ci.contains("--lib maintenance_contract_tests"));
+}
+
+#[test]
+fn group_visibility_and_completion_cache_policy_keep_native_storage_and_borrowing() {
+    let root = root();
+    let read = |path| std::fs::read_to_string(root.join(path)).unwrap();
+    let vm = read("crates/leselang-vm/src/leserpent_profile.rs");
+    let adapter = read("crates/leselang-command/src/reference_settlement/visibility.rs");
+    let journal = read("crates/leselang-vm/src/journal.rs");
+    let frozen = read("crates/leselang-vm/src/visibility_contract_tests.rs");
+    let wrappers = vm
+        .split_once("    fn reconcile_completed(")
+        .unwrap()
+        .1
+        .split_once("    fn allocate_sequence(")
+        .unwrap()
+        .0;
+    for delegation in [
+        "visibility::reconcile_completed(",
+        "visibility::visible_step(",
+        "&mut ReferenceVisibilityOwner(self)",
+        "Ok(self.completed.get(token))",
+    ] {
+        assert!(wrappers.contains(delegation), "{delegation}");
+    }
+    for forbidden in [
+        "self.journal",
+        ".clone()",
+        ".remove(",
+        ".insert(",
+        "MergeProgress::",
+        "EffectObservation::",
+    ] {
+        assert!(!wrappers.contains(forbidden), "{forbidden}");
+    }
+    assert!(vm.contains("struct ReferenceVisibilityOwner<'a>(&'a mut Vm)"));
+    assert!(!vm.contains("ReferenceCompletionCacheHost for Vm"));
+    assert!(!vm.contains("ReferenceGroupVisibilityHost for Vm"));
+    let owner = vm
+        .split_once("struct ReferenceVisibilityOwner")
+        .unwrap()
+        .1
+        .split_once("impl leselang_command::reference_settlement::interruption")
+        .unwrap()
+        .0
+        .split_whitespace()
+        .collect::<String>();
+    for operation in [
+        "self.0.completed.contains_key(token)",
+        "self.0.journal.completed_exists(token)",
+        "self.0.journal.observe_effect(token)",
+        "self.0.completed.remove(token)",
+        "self.0.completed.insert(token.clone(), step)",
+        "self.0.journal.merge_progress(token)",
+        "self.0.pending.remove(token).is_some()",
+        "self.0.completed.entry(token).or_insert_with(|| step.clone())",
+        "request.continuation.token.clone()",
+        "request.continuation.clone()",
+        "debug_assert!(",
+    ] {
+        assert!(
+            owner.contains(&operation.split_whitespace().collect::<String>()),
+            "{operation}"
+        );
+    }
+    assert_eq!(owner.matches(".clone()").count(), 4);
+    assert!(!adapter.contains(".clone()"));
+    assert!(adapter.contains("EffectObservation::Untracked | EffectObservation::Pending => {}"));
+    assert!(adapter.contains("EffectObservation::Missing => host.remove_pending(token)"));
+    assert!(adapter.contains("if host.remove_pending(&token)"));
+    assert!(adapter.contains("host.cache_merged_if_absent(token, &step)"));
+    assert!(adapter.contains("host.debug_assert_merge_result(&merge_token)"));
+    let next = adapter
+        .split_once("Ok(MergeProgress::Next {")
+        .unwrap()
+        .1
+        .split_once("Ok(MergeProgress::Pending")
+        .unwrap()
+        .0;
+    assert!(next.find("host.remove_pending").unwrap() < next.find("host.cache_next").unwrap());
+    let reconcile = adapter
+        .split_once("pub fn reconcile_completed")
+        .unwrap()
+        .1
+        .split_once("pub trait ReferenceGroupVisibilityHost")
+        .unwrap()
+        .0;
+    assert!(
+        reconcile.find("host.remove_pending(token);").unwrap()
+            < reconcile
+                .find("host.insert_completed(token, *step)")
+                .unwrap()
+    );
+    assert!(
+        journal.contains("pub(crate) use leselang_command::reference_settlement::visibility::{")
+    );
+    assert!(!journal.contains("enum MergeProgress"));
+    assert!(!journal.contains("enum EffectObservation"));
+    let oracles = frozen
+        .split_once("// Frozen before visibility/cache policy extraction")
+        .unwrap()
+        .1;
+    assert!(oracles.contains("vm.journal.observe_effect(token)?"));
+    assert!(oracles.contains("vm.journal.merge_progress(branch_token)"));
+    for migrated in [
+        "visibility::",
+        "vm.visible_step(",
+        "vm.reconcile_completed(",
+    ] {
+        assert!(!oracles.contains(migrated));
+    }
+}
+
+fn assert_interruption_settlement_boundary(vm: &str) {
+    for (from, to, delegation) in [
+        (
+            "fn settle_effect_error(",
+            "fn publish_retry_terminal(",
+            "interruption::settle_effect_error(",
+        ),
+        (
+            "fn finish_audited_cancellation(",
+            "pub fn debugger_audit(",
+            "interruption::finish_audited_cancellation(",
+        ),
+        (
+            "fn finish_cancellation(",
+            "struct ReferenceInterruptionSettlementOwner",
+            "interruption::finish_cancellation(",
+        ),
+    ] {
+        let bridge = vm.split_once(from).unwrap().1.split_once(to).unwrap().0;
+        assert!(bridge.contains(delegation));
+        for absent in [
+            "self.journal",
+            "self.pending",
+            "self.completed",
+            "self.visible_step",
+            ".clone()",
+        ] {
+            assert!(!bridge.contains(absent), "{from}: {absent}");
+        }
+    }
+    let owner = vm
+        .split_once("struct ReferenceInterruptionSettlementOwner")
+        .unwrap()
+        .1
+        .split_once("struct ReferenceClaimOwner")
+        .unwrap()
+        .0
+        .split_whitespace()
+        .collect::<String>();
+    for hook in [
+        "self.0.journal.cancel(image,proposed)",
+        "self.0.journal.cancel_audited(image,proposed,audit,now_ms)",
+        "self.0.journal.report_error(lease,now_ms,proposed)",
+        "self.0.publish_completed(image,authoritative)",
+        "self.0.publish_retry_terminal(image,authoritative)",
+    ] {
+        assert!(owner.contains(hook), "{hook}");
+    }
+    let publication = vm
+        .split_once("fn publish_retry_terminal(")
+        .unwrap()
+        .1
+        .split_once("pub fn cancel_effect(")
+        .unwrap()
+        .0;
+    let mut offset = 0;
+    for stage in [
+        "self.pending.remove(&image.token)",
+        "self.completed.insert(image.token.clone(), step.clone())",
+        "self.visible_step(&image.token, step.clone())",
+    ] {
+        offset += publication[offset..].find(stage).unwrap() + stage.len();
+    }
+    assert_eq!(publication.matches(".clone()").count(), 3);
+    let adapter = fs::read_to_string(
+        root().join("crates/leselang-command/src/reference_settlement/interruption.rs"),
+    )
+    .unwrap();
+    let audited = adapter
+        .split_once("pub fn finish_audited_cancellation<")
+        .unwrap()
+        .1
+        .split_once("pub fn settle_effect_error<")
+        .unwrap()
+        .0;
+    let retry = adapter.split_once("pub fn settle_effect_error<").unwrap().1;
+    for (flow, stages) in [
+        (
+            audited,
+            vec![
+                "host.cancel_audited(image, step, audit, now_ms)?",
+                "matches!(authoritative, Step::Cancelled(_))",
+                "host.publish_cancellation(image, authoritative)",
+                "return Err(error)",
+                "Ok(record)",
+            ],
+        ),
+        (
+            retry,
+            vec![
+                "host.report_error(lease, now_ms, disposition)?",
+                "RetryDisposition::Terminal(step) = &authoritative",
+                "Ok(RetryDisposition::Terminal(",
+                "host.publish_retry_terminal(&lease.request.continuation, step)",
+                "Ok(authoritative)",
+            ],
+        ),
+    ] {
+        let mut offset = 0;
+        for stage in stages {
+            offset += flow[offset..].find(stage).unwrap() + stage.len();
+        }
+    }
+}
+
+#[test]
+fn cancellation_and_retry_settlement_keep_distinct_returns_and_native_publication() {
+    let adapter = fs::read_to_string(
+        root().join("crates/leselang-command/src/reference_settlement/interruption.rs"),
+    )
+    .unwrap();
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "std::fs",
+        "std::time",
+        "Fuel",
+        "BTreeMap",
+        "LSV",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    assert_eq!(adapter.matches(".clone()").count(), 1);
+    assert!(adapter.contains("continuation: image.token.clone()"));
+    for name in [
+        "ReferenceCancellationSettlementHost + ?Sized",
+        "ReferenceRetrySettlementHost + ?Sized",
+    ] {
+        assert!(adapter.contains(name));
+    }
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    assert_interruption_settlement_boundary(&vm);
+    let successor = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    assert!(successor.contains("pub(super) fn publish_completed("));
+    assert_settlement_commit_before_publication(&successor);
+    let cancellation =
+        fs::read_to_string(root().join("crates/leselang-vm/src/cancellation_contract_tests.rs"))
+            .unwrap();
+    let retry =
+        fs::read_to_string(root().join("crates/leselang-vm/src/retry_contract_tests.rs")).unwrap();
+    assert!(!cancellation.contains("vm.finish_cancellation("));
+    assert!(
+        cancellation.contains(
+            "frozen_finish_cancellation(vm, image, CancellationReason::Requested, now_ms)"
+        )
+    );
+    for oracle in [&cancellation, &retry] {
+        assert!(!oracle.contains("reference_settlement"));
+        assert!(!oracle.contains("vm.publish_completed("));
+        assert!(!oracle.contains("vm.publish_retry_terminal("));
+    }
+    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(ci.contains("--test reference_interruption_settlement"));
+}
+
+fn assert_settlement_commit_before_publication(vm: &str) {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_settlement.rs"))
+            .unwrap();
+    let result = adapter
+        .split_once("pub fn record_result<")
+        .unwrap()
+        .1
+        .split_once("pub fn commit_successor<")
+        .unwrap()
+        .0;
+    for commit in [
+        "host.acknowledge_dispatch(lease, now_ms, &step)",
+        "host.record_completed(image, &step)",
+    ] {
+        assert!(
+            result.find(commit).unwrap()
+                < result.find("let authoritative = match recorded").unwrap()
+        );
+    }
+    for flow in [
+        result,
+        adapter.split_once("pub fn commit_successor<").unwrap().1,
+    ] {
+        assert!(
+            flow.find("Err(error) => return Step::Fault(error)")
+                .unwrap()
+                < flow
+                    .find("host.publish_completed(image, authoritative)")
+                    .unwrap()
+        );
+        assert_eq!(flow.matches("host.publish_completed(").count(), 1);
+    }
+    let owner = vm
+        .split_once("struct ReferenceSettlementOwner")
+        .unwrap()
+        .1
+        .split_once("impl Vm {")
+        .unwrap()
+        .0
+        .split_whitespace()
+        .collect::<String>();
+    for call in [
+        "self.0.journal.record_completed(image,proposed)",
+        "self.0.journal.acknowledge_dispatch(lease,now_ms,proposed)",
+        "self.0.journal.record_successor(parent,proposed,next,lease)",
+        "self.0.publish_completed(image,authoritative)",
+    ] {
+        assert!(owner.contains(call), "{call}");
+    }
+    let native = vm.split_once("impl Vm {").unwrap().1;
+    let bridges = native
+        .split_once("fn commit_successor(")
+        .unwrap()
+        .1
+        .split_once("fn publish_completed(")
+        .unwrap()
+        .0;
+    for call in [
+        "reference_settlement::commit_successor(",
+        "reference_settlement::record_result(",
+    ] {
+        assert!(bridges.contains(call));
+    }
+    for absent in [
+        "self.journal",
+        "self.pending",
+        "self.completed",
+        "self.visible_step",
+        ".clone()",
+    ] {
+        assert!(!bridges.contains(absent));
+    }
+    let publication = native
+        .split_once("fn publish_completed(")
+        .unwrap()
+        .1
+        .split_once("#[cfg(test)]")
+        .unwrap()
+        .0;
+    let mut offset = 0;
+    for stage in [
+        "self.pending.remove(&image.token)",
+        "self.completed",
+        ".insert(image.token.clone(), authoritative.clone())",
+        "self.visible_step(&image.token, authoritative)",
+    ] {
+        offset += publication[offset..].find(stage).unwrap() + stage.len();
+    }
+    assert_eq!(publication.matches(".clone()").count(), 2);
+}
+
+#[test]
+fn product_settlement_routes_preserve_native_commit_before_publication_and_peer_winners() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_settlement.rs"))
+            .unwrap();
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "std::fs",
+        "std::time",
+        "Fuel",
+        ".clone()",
+        "BTreeMap",
+        "LSV",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    assert!(adapter.contains("ReferenceSettlementHost + ?Sized"));
+    assert!(adapter.contains("Backend-specific replay semantics are not normalized here"));
+    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    assert_settlement_commit_before_publication(&vm);
+    let frozen =
+        fs::read_to_string(root().join("crates/leselang-vm/src/settlement_contract_tests.rs"))
+            .unwrap();
+    assert!(!frozen.contains("reference_settlement"));
+    assert!(!frozen.contains("vm.publish_completed("));
+    assert!(frozen.contains("assert_eq!(comparisons, 4)"));
+    let completion =
+        fs::read_to_string(root().join("crates/leselang-vm/src/completion_contract_tests.rs"))
+            .unwrap();
+    let assembly = fs::read_to_string(
+        root().join("crates/leselang-vm/src/successor_assembly_contract_tests.rs"),
+    )
+    .unwrap();
+    for source in [&completion, &assembly] {
+        assert!(source.contains("frozen_record_result("));
+        assert!(!source.contains("vm.record_result("));
+    }
+    assert!(completion.contains("assembly_contract_tests::frozen_complete_successor("));
+    assert!(assembly.contains("vm.journal.record_successor(&parent, &step, &next, lease)"));
+    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(ci.contains("--test reference_settlement"));
+    assert!(ci.contains("--lib settlement_contract_tests::settlement_sqlite"));
+}
+
+#[test]
+fn result_conversion_and_bound_observation_are_product_owned_without_settlement_authority() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_result.rs")).unwrap();
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "std::fs",
+        "std::time",
+        ".clone()",
+        "record_completed",
+        "acknowledge_dispatch",
+        "BTreeMap",
+        "impl HostResultDomain",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    assert_eq!(adapter.matches("Fuel::new(").count(), 1);
+    let entry = adapter
+        .split_once("pub fn step_from_effect_result(")
+        .unwrap()
+        .1;
+    let mut offset = 0;
+    for ordered in [
+        "atomic_step_from_effect_result(image, operation, result)",
+        "let Some(binding) = &image.result_binding",
+        "let Step::Done(value) = step",
+        "accept_bound_value(image, &value)",
+        "Fuel::new(image.fuel_remaining)",
+        "HostOperation::for_effect(&image.pending_effect)",
+        "reference_computation::resume(binding, value, operation, &mut fuel)",
+    ] {
+        offset += entry[offset..].find(ordered).unwrap() + ordered.len();
+    }
+    for required in [
+        "PendingReply::new(image.token.as_str(), image, &declaration)",
+        "accepted.into_parts()",
+        "observation-only checkpoint grants no new execution authority",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    let bridge = vm
+        .split_once("fn step_from_effect_result(")
+        .unwrap()
+        .1
+        .split_once("fn fault(code:")
+        .unwrap()
+        .0;
+    for required in [
+        "reference_result::step_from_effect_result(",
+        "reference_result::atomic_step_from_effect_result(",
+    ] {
+        assert!(bridge.contains(required));
+    }
+    for absent in [
+        "LSV",
+        "Fuel::new",
+        "result_binding",
+        "into_effect_value",
+        "accept_bound_value",
+    ] {
+        assert!(!bridge.contains(absent));
+    }
+    let oracle = fs::read_to_string(
+        root().join("crates/leselang-vm/src/result_conversion_contract_tests.rs"),
+    )
+    .unwrap();
+    assert!(oracle.contains("assert_eq!(comparisons, 6720)"));
+    assert!(
+        !oracle
+            .split_once("pub(crate) mod frozen")
+            .unwrap()
+            .1
+            .contains("reference_result")
+    );
+    let completion =
+        fs::read_to_string(root().join("crates/leselang-vm/src/completion_contract_tests.rs"))
+            .unwrap();
+    assert!(completion.contains("use crate::result_conversion_contract_tests::frozen::{"));
+    for count in [5600, 64] {
+        assert!(completion.contains(&format!("assert_eq!(comparisons, {count})")));
+    }
+    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(ci.contains("--test reference_result"));
+    assert!(ci.contains("--lib result_conversion_contract_tests::conversion_matches"));
+    assert!(ci.contains("--lib completion_contract_tests::result_completion"));
+}
+
+#[test]
+fn claim_entries_preserve_native_issuance_and_post_commit_cache_adoption() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_claim.rs")).unwrap();
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "std::fs",
+        "std::time",
+        "std::collections",
+        "Fuel::new",
+        ".clone()",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    assert!(adapter.contains("ReferenceClaimHost + ?Sized"));
+    let entry = adapter.split_once("pub fn try_claim_effect<").unwrap().1;
+    let mut offset = 0;
+    for ordered in [
+        "validate_clock(now_ms)?",
+        "validate_lease_clock(now_ms, lease_ms)?",
+        "host.expire_due(now_ms)?",
+        "host.claim_dispatch(now_ms, lease_ms)?",
+        "DispatchClaim::Leased(lease)",
+        "host.adopt_claimed_image(&lease.request.continuation)?",
+        "Ok(claim)",
+    ] {
+        offset += entry[offset..].find(ordered).unwrap() + ordered.len();
+    }
+    assert!(adapter.contains("Err(lease_capacity_fault(pressure))"));
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    let bridges = vm
+        .split_once("pub fn claim_effect(")
+        .unwrap()
+        .1
+        .split_once("fn adopt_claimed_image(")
+        .unwrap()
+        .0;
+    for required in [
+        "reference_claim::claim_effect(",
+        "reference_claim::try_claim_effect(",
+    ] {
+        assert!(bridges.contains(required));
+    }
+    for absent in ["self.journal", "self.pending", "LSV", "self.expire_due"] {
+        assert!(!bridges.contains(absent));
+    }
+    let adoption = vm
+        .split_once("fn adopt_claimed_image(")
+        .unwrap()
+        .1
+        .split_once("pub fn acknowledge_effect(")
+        .unwrap()
+        .0;
+    assert!(adoption.contains("self.pending.entry(image.token.clone())"));
+    assert!(adoption.contains("reference_claim::validate_claimed_image(entry.get(), image)?"));
+    assert!(adoption.contains("entry.insert(image.clone())"));
+    assert_eq!(adoption.matches(".clone()").count(), 2);
+    let owner = vm
+        .split_once("struct ReferenceClaimOwner")
+        .unwrap()
+        .1
+        .split_once("struct ReferenceRetryOwner")
+        .unwrap()
+        .0
+        .split_whitespace()
+        .collect::<String>();
+    for hook in [
+        "self.0.expire_due(now_ms)",
+        "self.0.journal.claim_dispatch(now_ms,lease_ms,self.0.scheduler_limits)",
+        "self.0.adopt_claimed_image(image)",
+    ] {
+        assert!(owner.contains(hook), "{hook}");
+    }
+    let oracle =
+        fs::read_to_string(root().join("crates/leselang-vm/src/claim_contract_tests.rs")).unwrap();
+    assert!(
+        !oracle
+            .split_once("// Frozen complete claim entries")
+            .unwrap()
+            .1
+            .contains("reference_claim")
+    );
+    for count in [2800, 176] {
+        assert!(oracle.contains(&format!("assert_eq!(comparisons, {count})")));
+    }
+    assert!(oracle.contains("assert_eq!(observed_write_failures, BTreeSet::from([1, 2, 3]))"));
+    assert!(oracle.contains("lease is committed before local conflict"));
+    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(ci.contains("--test reference_claim"));
+    assert!(ci.contains("--lib claim_contract_tests::claim_entries"));
+}
+
+#[test]
+fn retry_entry_preserves_replay_order_and_native_settlement_authority() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_retry.rs")).unwrap();
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "std::fs",
+        "std::time",
+        "Fuel::new",
+        ".clone()",
+        "report_error(",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    assert!(adapter.contains("ReferenceRetryHost + ?Sized"));
+    assert!(adapter.contains("lease: &DispatchLease"));
+    assert!(adapter.contains("disposition: &RetryDisposition"));
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    let bridge = vm
+        .split_once("pub fn report_effect_error(")
+        .unwrap()
+        .1
+        .split_once("fn settle_effect_error(")
+        .unwrap()
+        .0;
+    assert!(bridge.contains("reference_retry::report_effect_error("));
+    for absent in [
+        "self.journal",
+        "self.pending",
+        "LSV",
+        "plan_effect_retry(",
+        "self.replay_completed",
+    ] {
+        assert!(!bridge.contains(absent), "{absent}");
+    }
+    assert_interruption_settlement_boundary(&vm);
+    let owner = vm
+        .split_once("struct ReferenceRetryOwner")
+        .unwrap()
+        .1
+        .split_once("struct ReferenceCancellationOwner")
+        .unwrap()
+        .0
+        .split_whitespace()
+        .collect::<String>();
+    for hook in [
+        "self.0.expire_due(now_ms)",
+        "self.0.replay_completed(token)",
+        "self.0.visible_step(token,completed)",
+        "self.0.settle_effect_error(lease,now_ms,disposition)",
+    ] {
+        assert!(owner.contains(hook), "{hook}");
+    }
+    assert!(vm.contains("leselang_command::reference_retry::effect_retry_fault(error)"));
+    let oracle =
+        fs::read_to_string(root().join("crates/leselang-vm/src/retry_contract_tests.rs")).unwrap();
+    assert!(
+        !oracle
+            .split_once("// Frozen complete retry entry")
+            .unwrap()
+            .1
+            .contains("reference_retry")
+    );
+    for count in [1680, 192] {
+        assert!(oracle.contains(&format!("assert_eq!(comparisons, {count})")));
+    }
+    assert!(oracle.contains("assert_eq!(observed_write_failures, BTreeSet::from([1, 2, 3]))"));
+    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(ci.contains("--test reference_retry"));
+    assert!(ci.contains("--lib retry_contract_tests::retry_entry"));
+}
+
+#[test]
+fn cancellation_entries_preserve_distinct_replay_and_native_commit_boundaries() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_cancellation.rs"))
+            .unwrap();
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "std::fs",
+        "std::time",
+        "Fuel::new",
+        "record_completed(",
+        "cancel_audited(",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    assert!(adapter.contains("ReferenceCancellationHost + ?Sized"));
+    assert!(adapter.contains("Result<Option<&Step>, Fault>"));
+    let ordinary = adapter
+        .split_once("pub fn cancel_effect<")
+        .unwrap()
+        .1
+        .split_once("pub fn cancel_effect_audited<")
+        .unwrap()
+        .0
+        .split_whitespace()
+        .collect::<String>();
+    let mut offset = 0;
+    for stage in [
+        "validate_clock(now_ms)",
+        "host.expire_due(now_ms)",
+        "host.replay_completed(&image.token)",
+        "host.visible_step(&image.token,completed)",
+        "host.pending(&image.token)",
+        "stored!=image",
+        "host.finish_cancellation(image,CancellationReason::Requested,now_ms)",
+    ] {
+        offset += ordinary[offset..]
+            .find(stage)
+            .unwrap_or_else(|| panic!("missing/out-of-order {stage}"))
+            + stage.len();
+    }
+    let audited = adapter
+        .split_once("pub fn cancel_effect_audited<")
+        .unwrap()
+        .1
+        .split_once("pub fn validate_audit(")
+        .unwrap()
+        .0
+        .split_whitespace()
+        .collect::<String>();
+    let mut offset = 0;
+    for stage in [
+        "validate_audit(audit)?",
+        "validate_clock(now_ms)?",
+        "host.expire_due(now_ms)?",
+        "host.reconcile_completed(&image.token)?",
+        "CancellationReason::Requested",
+        "host.pending(&image.token)",
+        "letstep=Step::Cancelled(",
+        "host.finish_audited_cancellation(image,&step,audit,now_ms)",
+    ] {
+        offset += audited[offset..]
+            .find(stage)
+            .unwrap_or_else(|| panic!("missing/out-of-order {stage}"))
+            + stage.len();
+    }
+    assert!(!ordinary.contains(".clone()"));
+    assert_eq!(audited.matches(".clone()").count(), 1);
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    let bridges = vm
+        .split_once("pub fn cancel_effect(")
+        .unwrap()
+        .1
+        .split_once("fn finish_audited_cancellation(")
+        .unwrap()
+        .0;
+    assert!(bridges.contains("reference_cancellation::cancel_effect("));
+    assert!(bridges.contains("reference_cancellation::cancel_effect_audited("));
+    for absent in [
+        "LSV",
+        "self.pending",
+        "self.journal",
+        "self.expire_due",
+        "self.replay_completed",
+    ] {
+        assert!(!bridges.contains(absent), "{absent}");
+    }
+    let owner = vm
+        .split_once("struct ReferenceCancellationOwner")
+        .unwrap()
+        .1
+        .split_once("struct ReferenceReplyOwner")
+        .unwrap()
+        .0
+        .split_whitespace()
+        .collect::<String>();
+    for hook in [
+        "self.0.expire_due(now_ms)",
+        "self.0.replay_completed(token)",
+        "self.0.reconcile_completed(token)",
+        "self.0.visible_step(token,completed)",
+        "self.0.pending.get(token)",
+        "self.0.finish_cancellation(image,reason,now_ms)",
+        "self.0.finish_audited_cancellation(image,step,audit,now_ms)",
+    ] {
+        assert!(owner.contains(hook), "{hook}");
+    }
+    assert_interruption_settlement_boundary(&vm);
+    let oracle =
+        fs::read_to_string(root().join("crates/leselang-vm/src/cancellation_contract_tests.rs"))
+            .unwrap();
+    assert!(
+        !oracle
+            .split_once("// Frozen complete cancellation")
+            .unwrap()
+            .1
+            .contains("reference_cancellation")
+    );
+    for count in [2240, 96] {
+        assert!(oracle.contains(&format!("assert_eq!(comparisons, {count})")));
+    }
+    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(ci.contains("--test reference_cancellation"));
+    assert!(ci.contains("--lib cancellation_contract_tests::cancellation_entries"));
+}
+
+#[test]
 fn product_result_completion_keeps_native_authority_and_saved_fuel_boundaries() {
     let adapter = fs::read_to_string(
         root().join("crates/leselang-command/src/reference_result_completion.rs"),
@@ -96,23 +1010,7 @@ fn product_result_completion_keeps_native_authority_and_saved_fuel_boundaries() 
     ] {
         assert!(compact.contains(hook), "{hook}");
     }
-    let native = vm.split_once("impl Vm {").unwrap().1;
-    let successor = native
-        .split_once("fn commit_successor(")
-        .unwrap()
-        .1
-        .split_once("fn record_result(")
-        .unwrap()
-        .0;
-    let ordered = [
-        "self.journal.record_successor(",
-        "self.pending.remove(",
-        "self.visible_step(",
-    ];
-    let mut offset = 0;
-    for stage in ordered {
-        offset += successor[offset..].find(stage).unwrap() + stage.len();
-    }
+    assert_settlement_commit_before_publication(&vm);
     assert!(!vm.contains("fn materialize("));
     let oracle =
         fs::read_to_string(root().join("crates/leselang-vm/src/completion_contract_tests.rs"))
@@ -209,22 +1107,7 @@ fn successor_assembly_is_product_owned_but_native_reservation_and_commit_stay_au
     ] {
         assert!(!bridge.contains(absent), "{absent}");
     }
-    let commit = native
-        .split_once("fn commit_successor(")
-        .unwrap()
-        .1
-        .split_once("fn record_result(")
-        .unwrap()
-        .0;
-    let mut offset = 0;
-    for stage in [
-        "self.journal.record_successor(",
-        "self.pending.remove(",
-        "self.completed",
-        "self.visible_step(",
-    ] {
-        offset += commit[offset..].find(stage).unwrap() + stage.len();
-    }
+    assert_settlement_commit_before_publication(&vm);
     let oracle = fs::read_to_string(
         root().join("crates/leselang-vm/src/successor_assembly_contract_tests.rs"),
     )
@@ -337,21 +1220,7 @@ fn product_reply_entries_preserve_distinct_replay_order_and_native_settlement() 
     assert!(
         successor.contains("pub(super) use leselang_command::reference_reply::CompletionLease;")
     );
-    let commit = successor
-        .split_once("impl Vm {")
-        .unwrap()
-        .1
-        .split_once("fn record_result(")
-        .unwrap()
-        .1;
-    assert!(
-        commit.find("self.journal.acknowledge_dispatch(").unwrap()
-            < commit.find("self.pending.remove(").unwrap()
-    );
-    assert!(
-        commit.find("self.journal.record_completed(").unwrap()
-            < commit.find("self.pending.remove(").unwrap()
-    );
+    assert_settlement_commit_before_publication(&successor);
     let oracle =
         fs::read_to_string(root().join("crates/leselang-vm/src/reply_contract_tests.rs")).unwrap();
     assert!(
@@ -646,15 +1515,18 @@ fn complete_product_computation_policy_is_adapter_owned_over_the_original_evalua
     let vm = fs::read_to_string(root().join("crates/leselang-vm/src/computation.rs")).unwrap();
     let bridge = vm.split_once("#[cfg(test)]").unwrap().0;
     assert!(bridge.contains("pub(super) use leselang_command::reference_computation::{"));
-    for entry in [
-        "resume",
-        "resume_group",
-        "resume_outcome",
-        "resume_group_outcome",
-    ] {
+    for entry in ["resume_group", "resume_outcome", "resume_group_outcome"] {
         assert!(bridge.contains(entry));
     }
-    assert!(vm.contains("pub(super) use leselang_command::reference_computation::evaluate;"));
+    assert!(
+        vm.contains("pub(super) use leselang_command::reference_computation::{evaluate, resume};")
+    );
+    let result =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_result.rs")).unwrap();
+    assert!(
+        result
+            .contains("crate::reference_computation::resume(binding, value, operation, &mut fuel)")
+    );
     for forbidden in ["fn ", "Fuel", "LSV", "ScopeFrame", "ReferenceCaptureHost"] {
         assert!(!bridge.contains(forbidden), "{forbidden}");
     }
@@ -2018,9 +2890,13 @@ fn product_scheduler_policy_moves_without_owning_leases_or_journal_admission() {
     ] {
         assert!(vm.contains(delegated), "{delegated}");
     }
-    for code in ["LSV2500", "LSV2501", "LSV2502", "LSV2503"] {
+    for code in ["LSV2500", "LSV2501", "LSV2503"] {
         assert!(vm.contains(code));
     }
+    assert!(vm.contains("leselang_command::reference_claim::lease_capacity_fault(self)"));
+    let claim =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_claim.rs")).unwrap();
+    assert!(claim.contains("LSV2502"));
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/scheduler_policy.rs")).unwrap();
     for absent in [
@@ -2058,7 +2934,11 @@ fn product_retention_policy_is_shared_and_memory_compaction_preflights_before_mu
     assert!(vm.contains("pub use leselang_command::{CompactionReport, RetentionPolicy}"));
     assert!(!vm.contains("pub struct RetentionPolicy"));
     assert!(!vm.contains("pub struct CompactionReport"));
-    assert!(vm.contains("leselang_command::retention_policy::validate_retention_policy("));
+    let maintenance = fs::read_to_string(
+        root().join("crates/leselang-command/src/reference_settlement/maintenance.rs"),
+    )
+    .unwrap();
+    assert!(maintenance.contains("validate_retention_policy(policy, MAX_JOURNAL_RECORDS)"));
     let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
     assert_eq!(
         journal
@@ -2258,7 +3138,7 @@ fn product_merge_completion_moves_ordering_without_moving_vm_finalization() {
 }
 
 #[test]
-fn product_retry_policy_is_adapter_owned_but_replay_and_journal_fencing_stay_in_vm() {
+fn product_retry_policy_is_adapter_owned_but_replay_and_journal_fencing_keep_native_owners() {
     let vm =
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
     for removed in [
@@ -2272,21 +3152,20 @@ fn product_retry_policy_is_adapter_owned_but_replay_and_journal_fencing_stay_in_
     }
     assert!(vm.contains("pub use leselang_command::{EffectError, EffectErrorClass, RetryPolicy}"));
     assert!(vm.contains("leselang_command::retry_policy::validate_effect_error(error)"));
-    let reporting = vm
-        .split_once("pub fn report_effect_error(")
+    let coordination =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_retry.rs")).unwrap();
+    let reporting = coordination
+        .split_once("pub fn report_effect_error<")
         .unwrap()
-        .1
-        .split_once("pub fn cancel_effect(")
-        .unwrap()
-        .0;
+        .1;
     let mut offset = 0;
     for ordered in [
-        "validate_scheduler_time(now_ms)?",
-        "self.expire_due(now_ms)?",
-        "self.replay_completed(",
-        "leselang_command::retry_policy::plan_effect_retry(",
+        "validate_clock(now_ms)?",
+        "host.expire_due(now_ms)?",
+        "host.replay_completed(",
+        "crate::retry_policy::plan_effect_retry(",
         "RetryDisposition::Terminal(Step::Failed(",
-        "self.journal.report_error(",
+        "host.settle_error(",
     ] {
         offset += reporting[offset..].find(ordered).unwrap() + ordered.len();
     }
@@ -2343,7 +3222,7 @@ fn product_debugger_audit_metadata_is_adapter_owned_without_moving_commit_author
     ] {
         assert!(!vm.contains(removed), "{removed}");
     }
-    assert!(vm.contains("leselang_command::debugger_audit::validate_debugger_audit(audit)"));
+    assert!(vm.contains("leselang_command::reference_cancellation::validate_audit(audit)"));
     assert!(journal.contains("use leselang_command::debugger_audit::command_origin_label"));
     assert!(journal.contains("use leselang_command::debugger_audit::{"));
     assert!(!journal.contains("fn debugger_audit_record("));
@@ -2364,20 +3243,23 @@ fn product_debugger_audit_metadata_is_adapter_owned_without_moving_commit_author
     }
     assert!(adapter.contains("A match is not replay permission"));
     assert!(adapter.contains("A returned record is not evidence"));
-    let cancel = vm
-        .split_once("pub fn cancel_effect_audited(")
+    let coordination =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_cancellation.rs"))
+            .unwrap();
+    let cancel = coordination
+        .split_once("pub fn cancel_effect_audited<")
         .unwrap()
         .1
-        .split_once("pub fn debugger_audit(")
+        .split_once("pub fn validate_audit(")
         .unwrap()
         .0;
     let mut offset = 0;
     for ordered in [
-        "validate_debugger_audit(audit)?",
-        "validate_scheduler_time(now_ms)?",
-        "self.expire_due(now_ms)?",
-        "self.reconcile_completed(&image.token)?",
-        "self.journal.cancel_audited(image, &step, audit, now_ms)?",
+        "validate_audit(audit)?",
+        "validate_clock(now_ms)?",
+        "host.expire_due(now_ms)?",
+        "host.reconcile_completed(&image.token)?",
+        "host.finish_audited_cancellation(image, &step, audit, now_ms)",
     ] {
         offset += cancel[offset..].find(ordered).unwrap() + ordered.len();
     }
@@ -4752,7 +5634,7 @@ fn control_plane_reply_identity_rules_are_adapter_owned_but_context_fences_stay_
             "VM retained reply product predicate {absent}"
         );
     }
-    assert!(projection.contains("result.into_effect_value(leselang_command::EffectValueContext"));
+    assert!(projection.contains("reference_result::atomic_step_from_effect_result("));
     let projection =
         fs::read_to_string(root().join("crates/leselang-command/src/effect_value.rs")).unwrap();
     assert_eq!(
@@ -5006,6 +5888,13 @@ fn complete_effect_value_conversion_is_adapter_owned_with_explicit_original_cont
         .split_once("fn fault(code:")
         .unwrap()
         .0;
+    assert!(boundary.contains("reference_result::atomic_step_from_effect_result("));
+    let product =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_result.rs")).unwrap();
+    let boundary = product
+        .split_once("pub fn atomic_step_from_effect_result(")
+        .unwrap()
+        .1;
     for required in [
         "effect: &image.pending_effect",
         "result_type: image.result_type",
@@ -5488,15 +6377,19 @@ fn received_result_domain_is_adapter_owned_with_explicit_native_policy_and_pendi
         );
     }
     let vm = fs::read_to_string(root().join("crates/leselang-vm/src/host_result.rs")).unwrap();
-    let production = vm.split_once("#[cfg(test)]").unwrap().0;
+    let production =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_result.rs")).unwrap();
+    assert!(vm.contains("use leselang_command::reference_result::validate_bound_value"));
+    assert!(!vm.contains("impl ResultValueHost"));
     for required in [
         "result_type: image.result_type",
-        "value_limits: crate::value_validation_limits()",
+        "value_limits: crate::reference_value::value_validation_limits()",
         "max_output_items: image.max_output_items",
         "host: &BoundResultHost",
-        "crate::valid_merge_branch_name(name)",
-        "crate::validate_json_size_capped(reply, MAX_JOURNAL_ENTRY_BYTES",
-        "ResultValueError::Bounds(error) => crate::value_bounds_fault(error)",
+        "crate::valid_merge_branch_name(name, crate::MAX_MERGE_BRANCH_NAME_BYTES)",
+        "crate::bounded_json::measure(reply, MAX_JOURNAL_ENTRY_BYTES)",
+        "ResultValueError::Bounds(error) => {",
+        "crate::reference_value::value_bounds_fault(error)",
         "ResultValueError::Encoding(error) => error",
     ] {
         assert!(
@@ -5695,7 +6588,7 @@ fn request_construction_is_static_policy_not_live_journal_authority() {
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
     assert!(vm.contains("self.journal.allocate_sequence(self.next_effect_id)?"));
     assert!(vm.contains(".record_pending(&image, request, self.0.scheduler_limits)?"));
-    assert!(vm.contains(".claim_dispatch(now_ms, lease_ms, self.scheduler_limits)?"));
+    assert!(vm.contains(".claim_dispatch(now_ms, lease_ms, self.0.scheduler_limits)"));
     let oracle =
         fs::read_to_string(root().join("crates/leselang-vm/src/operation_request_tests.rs"))
             .unwrap();

@@ -1,0 +1,192 @@
+{
+  "kind": "leselang-result-settlement-policy",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.147.0",
+  "direct_adapter_tests": 5,
+  "settlement_routes": 4,
+  "whole_vm_completion_comparisons": 5600,
+  "whole_vm_successor_comparisons": 7280,
+  "sqlite_completion_comparisons": 64,
+  "sqlite_successor_comparisons": 112,
+  "sqlite_peer_winner_comparisons": 4,
+  "adapter_owned_result_and_successor_settlement_routing": true,
+  "commit_before_native_cache_publication": true,
+  "native_commit_winner_not_proposed_result_is_published": true,
+  "original_borrows_payloads_and_faults": true,
+  "no_hook_retry_or_rollback_after_native_side_effects": true,
+  "backend_specific_replay_semantics_unchanged": true,
+  "frozen_oracles_use_frozen_settlement": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Ordinary, leased and successor result-settlement routing moves to the product adapter. Native journals retain transaction/lease authority; local cache updates and visible group/successor discovery stay with the VM owner.",
+  "limitations": [
+    "Trusted composition after admission, not raw ingress or standalone generic VM completion authority. Caller and native journal validate context, leases and receipts.",
+    "Publication can fail after the journal commits. The adapter neither retries hooks nor rolls back native side effects. Existing ephemeral and SQLite replay semantics remain distinct.",
+    "Frozen coordinators retain shared journal, evaluator and group-visibility kernels. The tests establish routing compatibility, not independent implementations of those layers.",
+    "Cancellation/retry settlement, group visibility, journal ownership, complete host-neutral durable recovery and physical extraction remain open; native maturity and completion stay unchanged.",
+    "Local macOS Rust/SQLite verification only; no Linux, GUI or remote CI run, and no freshly exported standalone checkpoint."
+  ],
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_settlement.rs",
+      "sha256": "97ab593999a205bee723088f00cda7b7e73d9f736e8e9d5b677609c1ab327c80"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_settlement.rs",
+      "sha256": "4037d779c3e16fadc6a6e8252f2634b26c29789a02b799edbb79526cd866543c"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_result_completion.rs",
+      "sha256": "d7f81dc7d575468d820f59a7ab1287ad6a82cc519f85f9b14647c2afa99f94da"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_successor.rs",
+      "sha256": "33f4f945a5fe09706d89feb2fdce977f60a896c1cfe85dd3800016510bf517eb"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "4c58a00eeafa79ad956d02f408b66d5b6d6a956e42d0292fcc9f8ca782270481"
+    },
+    {
+      "path": "crates/leselang-vm/src/successor.rs",
+      "sha256": "00079f31990f0c9aa247de627acf20f623c37be082a33cd2652a31cb1a26ad45"
+    },
+    {
+      "path": "crates/leselang-vm/src/settlement_contract_tests.rs",
+      "sha256": "4367dea9732f2032fe03da1c432d36779cd72661a0e963ced5f5874d41575114"
+    },
+    {
+      "path": "crates/leselang-vm/src/completion_contract_tests.rs",
+      "sha256": "d9d6f3da6bf67a9f6d7a00f8ef81c8678a11ab0ce22b016c3a59035eb509c60f"
+    },
+    {
+      "path": "crates/leselang-vm/src/successor_assembly_contract_tests.rs",
+      "sha256": "6533fac7f0846a336bd256659ccecf7333f1a11308480c701e1fdc171214774c"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "29d01b5b01544142cdceb6eeb36c4cbbcf54edbbca8d264174a7cbdb5df7b316"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/successor.rs",
+      "sha256": "0835a2209a2c832cbe88a6bd2cee6597485a006285a3e9b3f6894fa41a7d727c"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "a1005956b82a8bd8c983f244d1be7d7e4cae6003a466c06516469f1074ac138c"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "a31bac5a88a87fbcd1a07a7592b3ae46e8df6942078dbb0e842d1ea338d0c659"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "0e335c219359611c576bb79cf425e2c7d25fdc3af7452639ca483749a12044fc"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "e5e02ee546872326a1152307aa1dbcef8a13d438712886e6fb113f0aef031b1e"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "8d0722e795fdf0996cd2c19dd4c44153f45fdc9cd2a61c0af3cab7aa850aa5e9"
+    },
+    {
+      "path": "project/release/leserpent-gui-function-chain.json",
+      "sha256": "575de1b55c35f291b2e2553340aa5a4ed252ae1b2c69f4904584feeef1cbbd13"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "b0d32ba83e1d654bb261311ce036872e18a0e0cdcceb77d1559a567f0800cc52"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "22a255c4b7953e003b8ccba7ac0253431ac8dac0453bc781a8627b95849e07fd"
+    },
+    {
+      "path": "tests/gui_function_chain_tdd.rs",
+      "sha256": "d1edb86846882982c373389b798ae763fb1aaaf8fa04c36c1d50b526ab6a82ed"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "adapter",
+      "log": "/private/tmp/leselang-settlement-20261024-adapter.log",
+      "sha256": "3f9bfaff7783c318a8355ea5f37fb1e88a91119d04dada69d37f170d674d689c"
+    },
+    {
+      "stage": "peer",
+      "log": "/private/tmp/leselang-settlement-20261024-peer.log",
+      "sha256": "edfbd3893a821803219dda7eb65e7b06df2fdbee77a665d74269b1d171163d5f"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-settlement-20261024-default.log",
+      "sha256": "c5bd065813e6f3f7f5a316c6bc67445c9c941545eed9e52e2d2325ae1291e9ee"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-settlement-20261024-memory.log",
+      "sha256": "e9fc92b4e1d35359bafc7a5eef1cbfc79bb397f6baf25bafb14ea07e893c5b30"
+    },
+    {
+      "stage": "gates-sealed",
+      "log": "/private/tmp/leselang-settlement-20261024-gates-sealed.log",
+      "sha256": "1c20354abb80e82d279b3196e92104448a49704f8986640ee498debde50e9796"
+    },
+    {
+      "stage": "workspace-clippy",
+      "log": "/private/tmp/leselang-settlement-20261024-workspace-clippy.log",
+      "sha256": "ed709c266fdbff9aa0a78d6335cda5ba37b8f2bf9d52cc147f316bb0209d5671"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-settlement-20261024-memory-clippy.log",
+      "sha256": "b66a6f6dcf1bb4eeebacf01569fd4e0c6c48dd36ac1fca65300176a405a2bc4d"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-settlement-20261024-native-check.log",
+      "sha256": "6c9a93b709d70b97abb02cb00823887d60b5c99c51e73ea1ae9635a26f949d2e"
+    },
+    {
+      "stage": "dependencies",
+      "log": "/private/tmp/leselang-settlement-20261024-dependencies.log",
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-settlement-20261024-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "included-format",
+      "log": "/private/tmp/leselang-settlement-20261024-included-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "diff",
+      "log": "/private/tmp/leselang-settlement-20261024-diff.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "status",
+      "log": "/private/tmp/leselang-settlement-20261024-status.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "verification_counts": {
+    "default_tests": 1870,
+    "memory_tests": 281,
+    "architecture_documentation_status_gui_tests": 576
+  }
+}
