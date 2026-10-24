@@ -1,0 +1,221 @@
+{
+  "kind": "leselang-result-completion-policy",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.141.0",
+  "atomic_operations": 70,
+  "binding_shapes": 5,
+  "completion_routes": 2,
+  "fault_scenarios": 8,
+  "whole_vm_comparisons": 5600,
+  "baseline_completions": 680,
+  "baseline_missing_operation_refusals": 20,
+  "continuation_schemas": 11,
+  "sqlite_flow_shapes": 8,
+  "sqlite_restart_comparisons": 64,
+  "direct_adapter_tests": 5,
+  "adapter_owned_result_completion": true,
+  "raw_output_admitted_before_evaluation": true,
+  "saved_fuel_without_refill": true,
+  "original_borrowed_images_and_leases": true,
+  "original_raw_reply_and_fault_owners": true,
+  "native_successor_authority_and_settlement": true,
+  "native_settlement_before_publication": true,
+  "no_hook_retry_or_native_rollback": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Complete schema-based result coordination and saved-fuel materialization move to the product adapter. Native result-domain conversion, successor authority and request assembly, lease fences, journal settlement and winner publication remain with the original owner.",
+  "limitations": [
+    "This is trusted Leserpent product policy, not the standalone generic VM or an untrusted-input entry. The caller owns bounded image/body admission, reply provenance and original authority. Static consistency does not authenticate receipts or leases.",
+    "Callbacks execute once. Earlier native side effects are not rolled back and faults/unwinds are not retried. Raw group results remain subject to the original group coordinator.",
+    "The frozen coordinator and materializer share the original evaluator, converters and journals. These comparisons prove coordinator parity, not an independent implementation of those layers.",
+    "The private completion matrix deliberately checks four mutating operations without their original operation context; all 20 baseline shape combinations retain LSV2103 refusal. Public reply-entry mutation guards remain unchanged.",
+    "Native successor assembly, result conversion/settlement, cancellation/retry coordination, journal ownership, full host-neutral durable recovery, complete vertical compatibility and physical extraction remain open. Native completion and maturity are not promoted.",
+    "Local macOS Rust/SQLite verification only; no Linux, GUI or remote CI run. The existing 280-file standalone checkpoint was integrity-checked, not freshly exported or retested."
+  ],
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_result_completion.rs",
+      "sha256": "d7f81dc7d575468d820f59a7ab1287ad6a82cc519f85f9b14647c2afa99f94da"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "a8efe99edddd2b4f120d6f892d3b478a997289f472f72a991839595d7757eeaf"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_result_completion.rs",
+      "sha256": "7f68e1bc7f9f802cd0fa3fdda4cbc48877f3fecf8fc10ff604eb708913911d50"
+    },
+    {
+      "path": "crates/leselang-command/tests/support/group_start_fixture.rs",
+      "sha256": "784a107454b0db3728a1329e25fa40dbdd9d0c7f0cc29fb9a49867036193d47c"
+    },
+    {
+      "path": "crates/leselang-vm/src/successor.rs",
+      "sha256": "7f850dc6f92a54299e6e2e7ece52560d1dc82d26ad9e4d44842747e28f7f760e"
+    },
+    {
+      "path": "crates/leselang-vm/src/completion_contract_tests.rs",
+      "sha256": "93053b2c7461e91552e5c07875bc3e971a15e143bb6bfa99fb51f8e736725d86"
+    },
+    {
+      "path": "crates/leselang-vm/src/reply_contract_tests.rs",
+      "sha256": "4d4f9eab78a4b4054970f3008ee7fca1661255c4c156451a5234a5d613bfe861"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "882a998cf55b3dc95b65c5dd0ff8ed2ce682c6344202326179497b690a0889cc"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "7d208005d17520fcd3c91db5b8ca70dfb522f2f92d8bc1cb2a1145683509a580"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "660a4aab747b10321a0aa50271412f84681289b216395dc79ab87e50013757e2"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "01b410797703d3e22ce8c93939fa464260e78603227b9ce2a95b10b6bfb8ff17"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "8906ba5ff7a9546db2a135ad5f83d441ccf179bf77b976f14edc4814b84fc924"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "94bda02d9c0d0efe32cb082a34883908a15eca6d336121475bdec060813280fe"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "241ab8535399432cbbc7c50c38c748d16b0fad4434decce2ac721481cd548727"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "41bff84d6ac3a34374c09de00934f4435222f9157663e6075c18fb8684919877"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "adapter",
+      "log": "/private/tmp/leselang-result-completion-20261024-adapter.log",
+      "sha256": "acc30eaeee8af94aa7ac581452729f707b8158e9286d70b2f75f6cf20cc4088b"
+    },
+    {
+      "stage": "oracle",
+      "log": "/private/tmp/leselang-result-completion-20261024-oracle.log",
+      "sha256": "14c618dddeea4c27b6f64da533e41d36b2cb38d92c19c78ae00a5ffcb8c3d509"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-result-completion-20261024-memory.log",
+      "sha256": "8d3f48ca56e49543ffd872644bb2d0105c5819bed3bd9645e5568bbad1d403e8"
+    },
+    {
+      "stage": "gates-complete",
+      "log": "/private/tmp/leselang-result-completion-20261024-gates-complete.log",
+      "sha256": "c39f86461799e9531e028155ce9d41ce1141e3a6af6f0af825baedb1f2df26c4"
+    },
+    {
+      "stage": "workspace-clippy",
+      "log": "/private/tmp/leselang-result-completion-20261024-workspace-clippy.log",
+      "sha256": "2884e0235933fbba6eeceb5dbfbb9c86280afcae8d4dac54be0efb875da19c89"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-result-completion-20261024-memory-clippy.log",
+      "sha256": "6be47317c3e80975caa716f188367a9293456d1030a2be18612aaf493f948bab"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-result-completion-20261024-native-check.log",
+      "sha256": "aa1fd95db731f9f03242b09d5c0f5c67318dc2009f03d364fff2fc45d6dd0a64"
+    },
+    {
+      "stage": "native-checkpoint",
+      "log": "/private/tmp/leselang-result-completion-20261024-native-checkpoint.log",
+      "sha256": "a1616e1b6bcf0154d246acc50f1a333d171969c102aaf9418d6e759d5b0bbfda"
+    },
+    {
+      "stage": "dependencies",
+      "log": "/private/tmp/leselang-result-completion-20261024-dependencies.log",
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "stage": "source-parity",
+      "log": "/private/tmp/leselang-result-completion-20261024-source-parity.log",
+      "sha256": "df03b8edd088b31b44c86ced56a283ea8c2e39bbed9486e19ead590161717354"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-result-completion-20261024-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "include-format",
+      "log": "/private/tmp/leselang-result-completion-20261024-include-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "default-final",
+      "log": "/private/tmp/leselang-result-completion-20261024-default-final.log",
+      "sha256": "52a34a4fc414cf50a284d7e6ac290c6ba2dd653c86e7197832fec4dc3897ba44"
+    }
+  ],
+  "memory_vm_tests": 276,
+  "root_architecture_tests": 554,
+  "adapter_external_tests": 5,
+  "whole_vm_oracle_tests": 2,
+  "adapter_dependency_closure_excludes_vm_and_sqlite": true,
+  "strict_workspace_lints_passed": true,
+  "memory_all_target_lints_passed": true,
+  "native_no_default_check_passed": true,
+  "format_checks_passed": true,
+  "native_checkpoint_reused": true,
+  "new_native_export_performed": false,
+  "native_checkpoint": {
+    "reused_checkpoint": "/private/tmp/gewyvern-ci-native-20261023/export-manifest.json",
+    "verified": true,
+    "complete_vm": false,
+    "full_extraction_gate": false,
+    "total_files": 280,
+    "copied_sources": 270,
+    "source_and_export_mismatches": [],
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "new_export_performed": false
+  },
+  "source_parity": {
+    "frozen_materialize_matches_pre_migration": true,
+    "frozen_complete_result_matches_pre_migration": true,
+    "native_complete_successor_unchanged": true,
+    "native_record_result_unchanged": true,
+    "native_atomic_step_from_effect_result_unchanged": true,
+    "native_step_from_effect_result_unchanged": true,
+    "native_expire_due_unchanged": true,
+    "native_replay_completed_unchanged": true,
+    "native_reconcile_completed_unchanged": true,
+    "native_visible_step_unchanged": true,
+    "terminal_receipt_policy_unchanged": true,
+    "normalization": [
+      "test function name and explicit VM receiver",
+      "whitespace and formatting-only trailing commas"
+    ]
+  },
+  "default_runtime_tests": 1829,
+  "verification_notes": [
+    {
+      "initial_log": "/private/tmp/leselang-result-completion-20261024-default.log",
+      "sha256": "a2ea0bc3e7c5c1d41d56d8597db8dce7e22de737e1f8d1414f4c1babd08d3244",
+      "failure": "The first default run reached the VM doctest with E0460 (compiled dependency version mismatch) after other builds used the shared target. No runtime test failed. A serialized full default rerun completed successfully.",
+      "successful_rerun": "/private/tmp/leselang-result-completion-20261024-default-final.log"
+    }
+  ]
+}

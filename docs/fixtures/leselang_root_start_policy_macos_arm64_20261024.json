@@ -1,0 +1,213 @@
+{
+  "kind": "leselang-root-start-policy",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.138.0",
+  "atomic_operations": 70,
+  "entry_routes": 6,
+  "fault_scenarios": 20,
+  "whole_vm_comparisons": 8400,
+  "pure_lazy_comparisons": 320,
+  "sqlite_restart_comparisons": 24,
+  "direct_adapter_tests": 4,
+  "adapter_owned_root_start": true,
+  "original_preflight_and_fuel_order": true,
+  "original_shared_computation": true,
+  "native_clock_and_expiration_retained": true,
+  "original_capacity_and_reservation_owner": true,
+  "native_commit_before_publication": true,
+  "no_hook_retry_or_reservation_refund": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Complete product root-start coordination moves to the adapter while the same native owner keeps live admission, identity reservations, group startup and atomic commit-before-publication. The frozen pre-migration root independently compares coordinator order and native state; SQLite fault injection compares journal tables, consumed identities and restart behavior.",
+  "limitations": [
+    "This remains a Leserpent product adapter, not the generic standalone runtime core. Callers must bound ingress, enforce quotas and supply a real principal/capability snapshot and remaining budget. Static authorization is not a live grant.",
+    "Host hooks are trusted, stateful and once-only. Earlier successful reservations are not refunded on later refusal or unwind; native side effects are not rolled back by the adapter. Native journal admission must be rechecked before commit.",
+    "The root oracle retains the whole previous entry and shares previously verified HIR authorization, computation, request construction and group implementation. It proves coordinator parity, not independent implementations of every lower-level validator.",
+    "Timed clock validation and due-work expiration remain in the native wrapper. Restore/reply admission, native journals, full host-neutral durable recovery, complete vertical compatibility and physical extraction remain open. No native maturity promotion is claimed.",
+    "Local macOS Rust/SQLite verification only; no new Linux, GUI or remote CI execution.",
+    "The previous standalone checkpoint was reused after rechecking 270 copied sources and 280 exported files. No new standalone export or standalone test run was performed."
+  ],
+  "default_runtime_tests": 1810,
+  "memory_vm_tests": 272,
+  "root_architecture_tests": 548,
+  "adapter_external_tests": 4,
+  "whole_vm_oracle_tests": 3,
+  "adapter_dependency_closure_excludes_vm_and_sqlite": true,
+  "strict_workspace_lints_passed": true,
+  "memory_all_target_lints_passed": true,
+  "native_no_default_check_passed": true,
+  "format_checks_passed": true,
+  "native_checkpoint_reused": true,
+  "new_native_export_performed": false,
+  "native_checkpoint": {
+    "reused_checkpoint": "/private/tmp/gewyvern-ci-native-20261023/export-manifest.json",
+    "verified": true,
+    "complete_vm": false,
+    "full_extraction_gate": false,
+    "total_files": 280,
+    "copied_sources": 270,
+    "source_and_export_mismatches": [],
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "new_export_performed": false
+  },
+  "source_parity": {
+    "frozen_whole_root_matches_pre_migration": true,
+    "original_timed_wrapper_unchanged": true,
+    "original_atomic_commit_and_publication_unchanged": true,
+    "normalization": [
+      "test function name, explicit VM receiver and indentation",
+      "whitespace and formatting-only trailing commas",
+      "original atomic commit receiver forwarded through the shared native owner"
+    ]
+  },
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_start.rs",
+      "sha256": "347536b1ebccad90644831babe56dd81fdd445d8d9e78040e220047e0dea6f16"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_group_start.rs",
+      "sha256": "ed5d6068a2f4bd659e08bd22bc1103c71776e68b126eab4b7ccdcfe4e4d2e117"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "bb3e0b99e65fa09db253c4c207cbba09def668cd7a667e74f917e225200b165f"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_computation.rs",
+      "sha256": "c20c526c22e22ca55ff6d13221b1bf3ca3fb74494aa56040c7a1e75f2fc8bd6d"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_request_build.rs",
+      "sha256": "3f174735a575ed7dd964a0ed1e984fd215011c7a50384e90045c262efc9d0d36"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_start.rs",
+      "sha256": "a4c93752f6cb4909edb128b85f8cb17709060203a12448554593d06f59767919"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "02f42e785743e3753b40b5c701626d1c61f3fb82cf7b1fb9a8ff7574a872261a"
+    },
+    {
+      "path": "crates/leselang-vm/src/start_contract_tests.rs",
+      "sha256": "d11951a199869a3a2ca504fc4034985f4608b721f2467370e8c934c8b0dd8e0d"
+    },
+    {
+      "path": "crates/leselang-vm/src/computation.rs",
+      "sha256": "c8fcbca27327da6a15c32eb2371812d4d6521910b216e45b48a430e4267a1cbd"
+    },
+    {
+      "path": "crates/leselang-vm/src/result_binding.rs",
+      "sha256": "f6e3ae8666143da5832761f78cc686e252136a1e7d495683ac57524b566278da"
+    },
+    {
+      "path": "crates/leselang-vm/src/successor.rs",
+      "sha256": "d2b7b0bcd41194994604329a4c0a3feda339399570a1a0c52576e571dd05c1a7"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "7d208005d17520fcd3c91db5b8ca70dfb522f2f92d8bc1cb2a1145683509a580"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "759c052162fd567ffeb2454af062bb832746538a4d44449de4c34e1e282ab9c1"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "0db0918103406bc0b6c2b1e48814fb6b0c8577c9e3cd1b7ef7011ce6538360cc"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "57693900f4ddd8bd58d43d92da3ca8c4310fae74acca5e3099d071f3ffc0d44a"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "ba21c136f10527eef9da6be2eabf86ef9475f045f3c3f829c72ec6fb8eb70cc2"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "17b9e930fdec4e92574168c30231d6ead2cae061751a93cc4164be4bbb65a404"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "3902c4861c1f83d9e648559950e5478cb247a505ec4e7b82c40872f733efd51c"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "adapter",
+      "log": "/private/tmp/leselang-root-start-20261024-adapter.log",
+      "sha256": "733a9ddbcd93a6a85b57b9f12510a848efe4fb9cf33221d64bcc4e725ab29ee6"
+    },
+    {
+      "stage": "oracle",
+      "log": "/private/tmp/leselang-root-start-20261024-oracle.log",
+      "sha256": "915066880275c7d1dffe93a4232e9ba940c2a1a8c7d8d970a6e725677ff2127e"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-root-start-20261024-default.log",
+      "sha256": "1c163e2a931db88ac9cd03cc27c1c63d78ed87a683ad9ed1830b9ddaddd43c6e"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-root-start-20261024-memory.log",
+      "sha256": "cce11c36ee6ec356f138d0692dd3f786681ebb3ed04f445ad67471d80df81584"
+    },
+    {
+      "stage": "gates-final",
+      "log": "/private/tmp/leselang-root-start-20261024-gates-final.log",
+      "sha256": "4d013cd9a4787bb06f0ccf3020620a43c5122cfb5ca20959de27b77720be34a2"
+    },
+    {
+      "stage": "workspace-clippy",
+      "log": "/private/tmp/leselang-root-start-20261024-workspace-clippy.log",
+      "sha256": "4c684c6f8ba6367d8e9b11ea27c286b4b0647b0dff4701a30b752ec6bfb1c769"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-root-start-20261024-memory-clippy.log",
+      "sha256": "bf45dfd70def21e711963f868380e869c07ee70f0f060d28ca80e9a97e0ea6bb"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-root-start-20261024-native-check.log",
+      "sha256": "e0208da8020d446dded2ca3d66e4f6ad2148eff10c1e57ea0cf18ff3058d587c"
+    },
+    {
+      "stage": "native-checkpoint",
+      "log": "/private/tmp/leselang-root-start-20261024-native-checkpoint.log",
+      "sha256": "a1616e1b6bcf0154d246acc50f1a333d171969c102aaf9418d6e759d5b0bbfda"
+    },
+    {
+      "stage": "dependencies",
+      "log": "/private/tmp/leselang-root-start-20261024-dependencies.log",
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "stage": "source-parity",
+      "log": "/private/tmp/leselang-root-start-20261024-source-parity.log",
+      "sha256": "92282f4334985e01061a8562b11d8ea4a3224034c366ed74437a544a6ea26274"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-root-start-20261024-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "include-format",
+      "log": "/private/tmp/leselang-root-start-20261024-include-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

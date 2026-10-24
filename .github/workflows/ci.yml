@@ -59,8 +59,44 @@ jobs:
       - name: Test product request construction and live dispatch authority
         run: cargo +1.98.0 test -p leselang-command -p leselang-vm --locked request_construction --no-fail-fast
 
+      - name: Test group-start assembly without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_group_start
+
+      - name: Test group-start parity and transactional restart boundaries
+        run: cargo +1.98.0 test -p leselang-vm --locked --lib group_start
+
+      - name: Test root-start coordination without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_start
+
+      - name: Test root-start parity and atomic admission boundaries
+        run: cargo +1.98.0 test -p leselang-vm --locked --lib start_contract_tests::root_start
+
+      - name: Test continuation import policy without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_restore
+
+      - name: Test import parity and durable rollback boundaries
+        run: cargo +1.98.0 test -p leselang-vm --locked --lib restore_contract_tests::
+
       - name: Test reference VM with the SQLite backend disabled
         run: cargo +1.98.0 test -p leselang-vm --locked --no-default-features --features leserpent-profile
+
+      - name: Test reply entry policy without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_reply
+
+      - name: Test reply parity and durable completion boundaries
+        run: cargo +1.98.0 test -p leselang-vm --locked --lib reply_contract_tests::reply_entries
+
+      - name: Test result completion policy without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_result_completion
+
+      - name: Test result completion parity and native settlement boundaries
+        run: cargo +1.98.0 test -p leselang-vm --locked --lib completion_contract_tests::result_completion
+
+      - name: Test successor assembly without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_successor
+
+      - name: Test successor assembly parity and native transaction boundaries
+        run: cargo +1.98.0 test -p leselang-vm --locked --lib assembly_contract_tests::successor_assembly
 
       - name: Test read-only projections without the VM or SQLite
         run: cargo +1.98.0 test -p leselang-observe --locked --no-default-features

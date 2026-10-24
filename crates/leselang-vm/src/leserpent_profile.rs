@@ -8,7 +8,9 @@ use std::path::Path;
 
 #[cfg(test)]
 use leselang_hir::CAPABILITY_UI_PRESENTATION;
-use leselang_hir::{Effect, HirProgram, Type, authorize, canonical_source};
+use leselang_hir::{Effect, HirProgram, Type};
+#[cfg(test)]
+use leselang_hir::{authorize, canonical_source};
 #[cfg(test)]
 use leselang_host_contract::CommandOrigin;
 #[cfg(test)]
@@ -52,6 +54,11 @@ mod debugger_audit_adapter_tests;
 #[cfg(test)]
 mod execution_outcome_contract_tests;
 mod group_binding;
+#[cfg(test)]
+mod group_start_contract_tests;
+#[cfg(test)]
+#[path = "../../leselang-command/tests/support/group_start_fixture.rs"]
+mod group_start_fixture;
 mod host_result;
 #[cfg(test)]
 mod identity_outcome_contract_tests;
@@ -67,13 +74,19 @@ mod presentation_request_tests;
 #[cfg(test)]
 mod reference_value_contract_tests;
 #[cfg(test)]
+mod reply_contract_tests;
+#[cfg(test)]
 mod request_codec_tests;
+#[cfg(test)]
+mod restore_contract_tests;
 mod result_binding;
 #[cfg(test)]
 mod retry_policy_adapter_tests;
 mod scheduling;
 #[cfg(test)]
 mod scheduling_contract_tests;
+#[cfg(test)]
+mod start_contract_tests;
 mod successor;
 #[cfg(test)]
 mod value_validation_tests;
@@ -99,6 +112,7 @@ use journal::{EffectObservation, Journal, MergeProgress};
 pub use journal::{
     JOURNAL_SCHEMA_VERSION, MAX_JOURNAL_ENTRY_BYTES, MAX_JOURNAL_RECORDS, MAX_JOURNAL_TOTAL_BYTES,
 };
+#[cfg(test)]
 use result_binding::ReferenceResultBinding;
 
 pub use leselang_command::continuation_schema::{
@@ -109,11 +123,12 @@ pub use leselang_command::continuation_schema::{
     PARALLEL_GROUP_CONTINUATION_SCHEMA_VERSION, RESULT_BINDING_CONTINUATION_SCHEMA_VERSION,
     SUCCESSOR_CONTINUATION_SCHEMA_VERSION,
 };
+pub(crate) use leselang_command::reference_continuation::validate_continuation_encoding_size;
 #[cfg(test)]
-use leselang_command::reference_continuation::validate_restorable_image;
-pub(crate) use leselang_command::reference_continuation::{
-    invalid_continuation_sequence_fault, validate_continuation_encoding_size,
-    validate_continuation_size,
+pub(crate) use leselang_command::reference_continuation::validate_continuation_size;
+#[cfg(test)]
+use leselang_command::reference_continuation::{
+    invalid_continuation_sequence_fault, validate_restorable_image,
 };
 pub use leselang_command::{MAX_CONTINUATION_BYTES, decode_continuation, encode_continuation};
 pub const DEFAULT_FUEL: u64 = 1_000;
@@ -140,12 +155,13 @@ pub use leselang_command::retry_policy::{
     MAX_RETRY_DELAY_MS, MAX_SEMANTIC_RETRIES,
 };
 
+#[cfg(any(test, feature = "sqlite-journal"))]
+pub(crate) use leselang_command::reference_request::validate_continuation_image as validate_image;
 pub use leselang_command::reference_request::{
     DEFAULT_MAX_OUTPUT_ITEMS, MAX_EFFECT_DEADLINE_MS, MAX_EXECUTION_FUEL, validate_effect_request,
 };
 pub(crate) use leselang_command::reference_request::{
     continuation_admission_limits, request_admission_fault,
-    validate_continuation_image as validate_image,
 };
 pub use leselang_command::{ContinuationImage, EffectRequest};
 
@@ -307,115 +323,18 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
         deadline_ms: u64,
         deadline_at_ms: Option<u64>,
     ) -> Step {
-        if self.fuel_limit == 0 {
-            return fault("LSV1001", "execution fuel exhausted");
-        }
-        if let Err(error) = authorize(program, &capabilities) {
-            return fault(&error.code, error.message);
-        }
-        let mut fuel = Fuel::new(self.fuel_limit);
-        let (effect, result_binding) = if let Effect::Compute { expression } =
-            &program.function.effect
-        {
-            if !principal.is_valid() {
-                return fault("LSV1402", "invalid computation principal");
-            }
-            match computation::evaluate(expression, &mut fuel) {
-                Ok(computation::Outcome::Scalar(value)) => {
-                    return Step::Done(Value::Scalar { value });
-                }
-                Ok(computation::Outcome::Host(effect)) => (effect, None),
-                Ok(computation::Outcome::BoundHost { effect, binding }) => (effect, Some(binding)),
-                Ok(computation::Outcome::Result) => {
-                    return fault("LSV1402", "unexpected unprojected result");
-                }
-                Err(error) => return Step::Fault(error),
-            }
-        } else {
-            (std::borrow::Cow::Borrowed(&program.function.effect), None)
-        };
-        let fuel_remaining = fuel.remaining();
-        let effect = effect.as_ref();
-        let effect_result_type = if let Some(binding) = &result_binding {
-            if let Err(error) = binding.validate(effect) {
-                return Step::Fault(error);
-            }
-            match leselang_hir::host_call::HostOperation::for_effect(effect) {
-                Some(operation) => operation.result_type(),
-                None if matches!(effect, Effect::All { .. } | Effect::Sequence { .. }) => {
-                    Type::Structured
-                }
-                None => return Step::Fault(result_binding::invalid()),
-            }
-        } else {
-            program.function.result_type
-        };
-        if fuel_remaining == 0 {
-            return fault("LSV1001", "execution fuel exhausted before host operation");
-        }
-        if let Effect::Sequence { .. } = effect
-            && canonical_source(effect).is_err()
-        {
-            return fault("LSV1002", "invalid sequential control flow");
-        }
-        if let Effect::All { branches } | Effect::Sequence { steps: branches } = effect {
-            return self.start_group(
-                branches,
-                if matches!(effect, Effect::Sequence { .. }) {
-                    ExecutionOrder::Sequential
-                } else {
-                    ExecutionOrder::Parallel
-                },
+        leselang_command::reference_start::start(
+            program,
+            leselang_command::reference_start::StartContext {
                 principal,
                 capabilities,
                 expected_revision,
                 deadline_ms,
                 deadline_at_ms,
-                fuel_remaining,
-                result_binding,
-            );
-        }
-
-        if let Err(error) = self.journal.check_admission(1, self.scheduler_limits) {
-            return Step::Fault(error);
-        }
-        let sequence = match self.allocate_sequence() {
-            Ok(sequence) => sequence,
-            Err(error) => return Step::Fault(error),
-        };
-        let mut request = match Self::build_effect_request(
-            effect,
-            effect_result_type,
-            sequence,
-            principal,
-            capabilities,
-            expected_revision,
-            deadline_ms,
-            deadline_at_ms,
-            fuel_remaining,
-        ) {
-            Ok(request) => request,
-            Err(error) => return Step::Fault(error),
-        };
-        if let Some(binding) = result_binding {
-            request.continuation.schema_version = binding.schema_version();
-            request.continuation.result_binding = Some(binding);
-            if let Err(error) = validate_effect_request(&request) {
-                return Step::Fault(error);
-            }
-        }
-        if let Err(error) = self.journal.record_pending(
-            &request.continuation,
-            Some(&request),
-            self.scheduler_limits,
-        ) {
-            return Step::Fault(error);
-        }
-        self.pending.insert(
-            request.continuation.token.clone(),
-            request.continuation.clone(),
-        );
-        Step::Effect(Box::new(request))
+                fuel_remaining: self.fuel_limit,
+            },
+            &mut ReferenceStartOwner(self),
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -431,183 +350,32 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
         fuel_remaining: u64,
         result_binding: Option<Box<ResultBinding>>,
     ) -> Step {
-        if branches.iter().any(|branch| {
-            matches!(
-                branch.effect,
-                Effect::All { .. } | Effect::Sequence { .. } | Effect::Compute { .. }
-            )
-        }) {
-            return fault(
-                "LSV1002",
-                "nested structured execution is not yet supported",
-            );
-        }
-        let (order, result_binding) = if let Some(binding) = result_binding {
-            let mut body_fuel = Fuel::new(fuel_remaining);
-            if body_fuel.charge(branches.len() as u64).is_err() {
-                return fault("LSV1001", "bound group exceeds execution fuel");
-            }
-            let (order, pending) = if order.is_sequential() {
-                (
-                    ExecutionOrder::BoundSequential,
-                    Effect::Sequence {
-                        steps: branches.to_vec(),
-                    },
-                )
-            } else {
-                (
-                    ExecutionOrder::BoundParallel,
-                    Effect::All {
-                        branches: branches.to_vec(),
-                    },
-                )
-            };
-            (
-                order,
-                Some(Box::new(GroupResultBinding {
-                    pending,
-                    // Only a shape/size marker here; reserve the real identity after all prefix IDs.
-                    successor_sequence: if binding.body.is_pure() {
-                        None
-                    } else {
-                        Some(1)
-                    },
-                    additional_successor_sequences: (2..=binding
-                        .body
-                        .atomic_flow_bound()
-                        .unwrap_or(0)
-                        as u64)
-                        .collect(),
-                    binding,
-                    fuel_remaining: body_fuel.remaining(),
-                })),
-            )
-        } else {
-            (order, None)
+        use leselang_command::reference_group_start::{
+            GroupStartContext, PreparedGroupStart, prepare_group_start,
         };
-        let order = if result_binding
-            .as_ref()
-            .is_some_and(|binding| binding.successor_sequence.is_some())
-        {
-            let captures = result_binding
-                .as_ref()
-                .is_some_and(|binding| binding.binding.body.is_atomic_capture());
-            if result_binding
-                .as_ref()
-                .is_some_and(|binding| binding.is_conditional())
-            {
-                if order.is_parallel() {
-                    ExecutionOrder::ParallelGroupConditional
-                } else {
-                    ExecutionOrder::GroupConditional
-                }
-            } else if result_binding
-                .as_ref()
-                .is_some_and(|binding| binding.is_dataflow())
-            {
-                if order.is_parallel() {
-                    ExecutionOrder::ParallelGroupDataflow
-                } else {
-                    ExecutionOrder::GroupDataflow
-                }
-            } else {
-                match (order.is_parallel(), captures) {
-                    (false, false) => ExecutionOrder::GroupTail,
-                    (false, true) => ExecutionOrder::GroupCapture,
-                    (true, false) => ExecutionOrder::ParallelGroupTail,
-                    (true, true) => ExecutionOrder::ParallelGroupCapture,
-                }
-            }
-        } else {
-            order
-        };
-        let mut plan = MergePlan {
-            branches: branches.iter().map(|branch| branch.name.clone()).collect(),
+
+        let PreparedGroupStart {
+            merge_token,
+            plan,
+            branches: mut named,
+        } = match prepare_group_start(
+            branches,
             order,
-            result_binding,
-        };
-        if let Err(error) = validate_merge_plan(&plan) {
-            return Step::Fault(error);
-        }
-        if order.is_sequential() && branches.len() as u64 > fuel_remaining {
-            return fault("LSV1001", "sequential control flow exceeds execution fuel");
-        }
-        if let Err(error) = self
-            .journal
-            .check_admission(branches.len(), self.scheduler_limits)
-        {
-            return Step::Fault(error);
-        }
-        let group_sequence = match self.allocate_sequence() {
-            Ok(sequence) => sequence,
-            Err(error) => return Step::Fault(error),
-        };
-        let merge_token = ContinuationToken::from_wire(format!("merge-{group_sequence}"));
-        let mut named = Vec::with_capacity(branches.len());
-        for (index, branch) in branches.iter().enumerate() {
-            let sequence = match self.allocate_sequence() {
-                Ok(sequence) => sequence,
-                Err(error) => return Step::Fault(error),
-            };
-            let mut request = match Self::build_effect_request(
-                &branch.effect,
-                branch.result_type,
-                sequence,
-                principal.clone(),
-                capabilities.clone(),
+            GroupStartContext {
+                principal,
+                capabilities,
                 expected_revision,
                 deadline_ms,
                 deadline_at_ms,
                 fuel_remaining,
-            ) {
-                Ok(request) => request,
-                Err(error) => return Step::Fault(error),
-            };
-            if order.is_sequential() {
-                let mut fuel = Fuel::new(request.continuation.fuel_remaining);
-                if fuel.charge(index as u64).is_err() {
-                    return fault("LSV1001", "sequential control flow exceeds execution fuel");
-                }
-                request.continuation.fuel_remaining = fuel.remaining();
-                request.budget.fuel_remaining = request.continuation.fuel_remaining;
-            }
-            if plan.result_binding.is_some() {
-                request.continuation.schema_version = match order {
-                    ExecutionOrder::GroupConditional | ExecutionOrder::ParallelGroupConditional => {
-                        GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION
-                    }
-                    ExecutionOrder::GroupDataflow | ExecutionOrder::ParallelGroupDataflow => {
-                        GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION
-                    }
-                    ExecutionOrder::ParallelGroupTail | ExecutionOrder::ParallelGroupCapture => {
-                        PARALLEL_GROUP_CONTINUATION_SCHEMA_VERSION
-                    }
-                    ExecutionOrder::GroupCapture => GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION,
-                    ExecutionOrder::GroupTail => GROUP_TAIL_CONTINUATION_SCHEMA_VERSION,
-                    _ => GROUP_RESULT_CONTINUATION_SCHEMA_VERSION,
-                };
-                request.continuation.group_result = Some(merge_token.clone());
-            }
-            named.push(NamedEffectRequest {
-                branch: branch.name.clone(),
-                request,
-            });
-        }
-        if order.has_group_successor() {
-            let sequence = match self.allocate_sequence() {
-                Ok(sequence) => sequence,
-                Err(error) => return Step::Fault(error),
-            };
-            if let Some(binding) = &mut plan.result_binding {
-                binding.successor_sequence = Some(sequence);
-                for reserved in &mut binding.additional_successor_sequences {
-                    *reserved = match self.allocate_sequence() {
-                        Ok(sequence) => sequence,
-                        Err(error) => return Step::Fault(error),
-                    };
-                }
-            }
-        }
+            },
+            result_binding,
+            &mut ReferenceStartOwner(self),
+        ) {
+            Ok(prepared) => prepared,
+            Err(error) => return Step::Fault(error),
+        };
+        let order = plan.order;
         let graph = named
             .iter()
             .map(|branch| (branch.branch.as_str(), &branch.request))
@@ -663,71 +431,19 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
     }
 
     pub fn restore(&mut self, image: ContinuationImage) -> Result<(), Fault> {
-        self.restore_inner(image, None)
+        leselang_command::reference_restore::restore(image, &mut ReferenceRestoreOwner(self))
     }
 
     /// Restores a continuation together with its original host-owned authority envelope.
     pub fn restore_request(&mut self, request: EffectRequest) -> Result<(), Fault> {
-        validate_effect_request(&request)?;
-        self.restore_inner(request.continuation.clone(), Some(&request))
-    }
-
-    fn restore_inner(
-        &mut self,
-        image: ContinuationImage,
-        request: Option<&EffectRequest>,
-    ) -> Result<(), Fault> {
-        validate_continuation_size(&image)?;
-        if image.group_result.is_some() {
-            return Err(group_binding::invalid());
-        }
-        if matches!(
-            image.schema_version,
-            SUCCESSOR_CONTINUATION_SCHEMA_VERSION
-                | DATAFLOW_CONTINUATION_SCHEMA_VERSION
-                | CONDITIONAL_CONTINUATION_SCHEMA_VERSION
-        ) && request.is_none()
-        {
-            return Err(successor::invalid());
-        }
-        if let Some(current) = self.pending.get(&image.token) {
-            return if current == &image {
-                self.journal
-                    .record_pending(&image, request, self.scheduler_limits)?;
-                Ok(())
-            } else {
-                Err(Fault {
-                    code: "LSV2002".to_string(),
-                    message: "continuation token conflicts with pending state".to_string(),
-                })
-            };
-        }
-        if self.completed.contains_key(&image.token) {
-            return Err(Fault {
-                code: "LSV2003".to_string(),
-                message: "continuation was already consumed".to_string(),
-            });
-        }
-        let sequence = canonical_continuation_sequence(&image.token)
-            .ok_or_else(invalid_continuation_sequence_fault)?;
-        let next_sequence = SequenceWatermarkRequirement::after_observation(sequence, u64::MAX)
-            .map_err(|_| effect_sequence_exhausted_fault())?
-            .required_watermark();
-        self.journal
-            .record_pending(&image, request, self.scheduler_limits)?;
-        self.next_effect_id = self.next_effect_id.max(next_sequence);
-        self.pending.insert(image.token.clone(), image);
-        Ok(())
+        leselang_command::reference_restore::restore_request(
+            request,
+            &mut ReferenceRestoreOwner(self),
+        )
     }
 
     pub fn resume(&mut self, image: &ContinuationImage, result: EffectResult) -> Step {
-        if image.deadline_at_ms.is_some() {
-            return fault(
-                "LSV2111",
-                "timed effects require resume_at with trusted scheduler time",
-            );
-        }
-        self.resume_inner(image, result)
+        leselang_command::reference_reply::resume(image, result, &mut ReferenceReplyOwner(self))
     }
 
     pub fn resume_at(
@@ -736,44 +452,12 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
         now_ms: u64,
         result: EffectResult,
     ) -> Step {
-        if let Err(error) = validate_scheduler_time(now_ms) {
-            return Step::Fault(error);
-        }
-        if let Err(error) = self.expire_due(now_ms) {
-            return Step::Fault(error);
-        }
-        self.resume_inner(image, result)
-    }
-
-    fn resume_inner(&mut self, image: &ContinuationImage, result: EffectResult) -> Step {
-        match self.replay_completed(&image.token) {
-            Ok(Some(completed)) => return self.visible_step(&image.token, completed),
-            Ok(None) => {}
-            Err(error) => return Step::Fault(error),
-        }
-        if let Err(error) = validate_image(image) {
-            return Step::Fault(error);
-        }
-        let Some(stored) = self.pending.get(&image.token) else {
-            return fault("LSV2004", "unknown continuation token");
-        };
-        if stored != image {
-            return fault("LSV2005", "continuation image does not match pending state");
-        }
-        if matches!(
-            image.pending_effect,
-            Effect::RuntimeRefresh { .. }
-                | Effect::RuntimeCapabilitiesRefresh { .. }
-                | Effect::RuntimeDeploy { .. }
-                | Effect::DebuggerCancel { .. }
-        ) {
-            return fault(
-                "LSV2110",
-                "mutating effects must be completed through dispatch acknowledgement",
-            );
-        }
-
-        self.complete_result(image, None, result)
+        leselang_command::reference_reply::resume_at(
+            image,
+            now_ms,
+            result,
+            &mut ReferenceReplyOwner(self),
+        )
     }
 
     /// Lease an eligible effect with the fewest delivery attempts, breaking ties
@@ -826,25 +510,12 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
         now_ms: u64,
         result: EffectResult,
     ) -> Step {
-        if let Err(error) = self.expire_due(now_ms) {
-            return Step::Fault(error);
-        }
-        if let Err(error) = validate_effect_request(&lease.request) {
-            return Step::Fault(error);
-        }
-        let image = &lease.request.continuation;
-        match self.replay_completed(&image.token) {
-            Ok(Some(completed)) => return self.visible_step(&image.token, completed),
-            Ok(None) => {}
-            Err(error) => return Step::Fault(error),
-        }
-        let Some(stored) = self.pending.get(&image.token) else {
-            return fault("LSV2004", "unknown continuation token");
-        };
-        if stored != image {
-            return fault("LSV2005", "continuation image does not match pending state");
-        }
-        self.complete_result(image, Some((lease, now_ms)), result)
+        leselang_command::reference_reply::acknowledge_effect(
+            lease,
+            now_ms,
+            result,
+            &mut ReferenceReplyOwner(self),
+        )
     }
 
     pub fn report_effect_error(
@@ -1130,6 +801,113 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
         self.completed
             .insert(image.token.clone(), authoritative.clone());
         self.visible_step(&image.token, authoritative)
+    }
+}
+
+struct ReferenceReplyOwner<'a>(&'a mut Vm);
+
+impl leselang_command::reference_reply::ReferenceReplyHost for ReferenceReplyOwner<'_> {
+    fn expire_due(&mut self, now_ms: u64) -> Result<(), Fault> {
+        self.0.expire_due(now_ms)
+    }
+    fn replay_completed(&mut self, token: &ContinuationToken) -> Result<Option<Step>, Fault> {
+        self.0.replay_completed(token)
+    }
+    fn visible_step(&mut self, token: &ContinuationToken, completed: Step) -> Step {
+        self.0.visible_step(token, completed)
+    }
+    fn pending(&self, token: &ContinuationToken) -> Option<&ContinuationImage> {
+        self.0.pending.get(token)
+    }
+    fn complete_result(
+        &mut self,
+        image: &ContinuationImage,
+        lease: leselang_command::reference_reply::CompletionLease<'_>,
+        result: EffectResult,
+    ) -> Step {
+        self.0.complete_result(image, lease, result)
+    }
+}
+
+struct ReferenceRestoreOwner<'a>(&'a mut Vm);
+
+impl leselang_command::reference_restore::ReferenceRestoreHost for ReferenceRestoreOwner<'_> {
+    fn pending(&self, token: &ContinuationToken) -> Option<&ContinuationImage> {
+        self.0.pending.get(token)
+    }
+    fn is_completed(&self, token: &ContinuationToken) -> bool {
+        self.0.completed.contains_key(token)
+    }
+    fn commit_existing(
+        &mut self,
+        image: &ContinuationImage,
+        request: Option<&EffectRequest>,
+    ) -> Result<(), Fault> {
+        self.0
+            .journal
+            .record_pending(image, request, self.0.scheduler_limits)
+    }
+    fn commit_new(
+        &mut self,
+        image: ContinuationImage,
+        request: Option<&EffectRequest>,
+        next_sequence: u64,
+    ) -> Result<(), Fault> {
+        self.0
+            .journal
+            .record_pending(&image, request, self.0.scheduler_limits)?;
+        self.0.next_effect_id = self.0.next_effect_id.max(next_sequence);
+        self.0.pending.insert(image.token.clone(), image);
+        Ok(())
+    }
+}
+
+struct ReferenceStartOwner<'a>(&'a mut Vm);
+
+impl leselang_command::reference_group_start::ReferenceGroupStartHost for ReferenceStartOwner<'_> {
+    fn check_admission(&mut self, additional: usize) -> Result<(), Fault> {
+        self.0
+            .journal
+            .check_admission(additional, self.0.scheduler_limits)
+    }
+    fn allocate_sequence(&mut self) -> Result<u64, Fault> {
+        self.0.allocate_sequence()
+    }
+}
+
+impl leselang_command::reference_start::ReferenceStartHost for ReferenceStartOwner<'_> {
+    fn start_group(
+        &mut self,
+        branches: &[leselang_hir::HirBranch],
+        order: ExecutionOrder,
+        context: leselang_command::reference_start::StartContext,
+        binding: Option<Box<ResultBinding>>,
+    ) -> Step {
+        self.0.start_group(
+            branches,
+            order,
+            context.principal,
+            context.capabilities,
+            context.expected_revision,
+            context.deadline_ms,
+            context.deadline_at_ms,
+            context.fuel_remaining,
+            binding,
+        )
+    }
+    fn commit_atomic(&mut self, request: EffectRequest) -> Step {
+        if let Err(error) = self.0.journal.record_pending(
+            &request.continuation,
+            Some(&request),
+            self.0.scheduler_limits,
+        ) {
+            return Step::Fault(error);
+        }
+        self.0.pending.insert(
+            request.continuation.token.clone(),
+            request.continuation.clone(),
+        );
+        Step::Effect(Box::new(request))
     }
 }
 

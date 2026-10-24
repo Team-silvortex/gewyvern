@@ -9786,11 +9786,226 @@ ownership, one debit, checked wire round-trips and the legacy input type path.
 Memory and SQLite tests prove that a constructed request neither reserves an
 identity nor bypasses the live lease, including after reopening the journal.
 
-Reference execution is now `1.136.0`. Native embedding `0.172.0`, HIR `0.184.0`,
+At reference execution `1.136.0`, native embedding `0.172.0`, HIR `0.184.0`,
 product version, wire formats and journal schema 10 are unchanged. Native
 sequence allocation and journal admission/settlement, complete vertical
 compatibility, host-neutral durable recovery and physical extraction remain open.
 This policy migration does not promote native maturity or complete the VM gate.
+
+### Product Group Start
+
+`leselang-command::reference_group_start` now owns the complete group-start
+assembly policy: nested-group refusal, bound-body budgeting, execution-order
+classification, plan validation, prefix request construction, sequential fuel
+adjustment, continuation schema selection and successor reservation ordering.
+It reuses the existing request builder and original binding allocation; it does
+not introduce another evaluator, protocol or binding clone.
+
+Preparation is not side-effect-free: `ReferenceGroupStartHost` calls the original
+capacity observer and sequence allocator, after static preflight and in the
+released order. Successful reservations remain consumed if a later request,
+reservation or commit fails. A hook error or unwind stops the pass without a
+retry, refund or partial publication. Inputs must already be bounded/authorized.
+
+`PreparedGroupStart` is data, not an admission certificate. The VM still validates
+and atomically commits the entire graph through its original journal, including
+the live capacity recheck, before inserting pending continuations or returning
+visible work. Neither fabricated prepared data nor a permissive host can bypass
+that native transaction. Leases, settlement and receipts remain native-owned.
+
+The [group-start proof](fixtures/leselang_group_start_policy_macos_arm64_20261024.json)
+records 15,120 comparisons against the frozen whole VM start implementation:
+70 operations, 12 group shapes and 18 fault/state scenarios. It checks exact
+steps, wire bytes, pending/completed maps, watermarks, scheduler pressure and
+real lease claims. Another 36 SQLite cases compare all journal tables before
+and after reopening, including group/dispatch insertion failures. Adapter-only
+tests cover moved binding identity, each admission/reservation failure and unwind
+position, sequential budgets, invalid prefixes and retained partial reservations.
+
+At reference execution `1.137.0`, native embedding `0.172.0`, HIR `0.184.0`,
+product version, wire formats and journal schema 10 remain unchanged. Root entry
+coordination and native journal ownership still need convergence; full
+host-neutral durable recovery, complete vertical compatibility and physical
+extraction remain open, with no native maturity promotion.
+
+### Product Root Start
+
+`leselang-command::reference_start` owns the complete root-start coordinator over
+the original HIR authorizer and computation facade. It preserves zero-fuel
+refusal before static capability checks, computation principal validation,
+evaluation, captured-result typing, remaining-fuel and sequence checks, group
+routing, atomic construction and binding decoration. No new evaluator or wire
+format is introduced. `StartContext` reuses the group context type and carries
+the caller's actual remaining budget, not an implicit fresh grant.
+
+`ReferenceStartHost` extends the existing capacity/reservation hooks with native
+group startup and atomic commit. The VM's private shared owner forwards these
+hooks to the original journal and allocator. Atomic requests enter pending state
+only after a successful journal write. Group work retains the whole-graph commit
+boundary above. Pure results and early refusals never enter these hooks. Hook
+failure or unwind is never retried or refunded; native side effects remain with
+their original owner. Timed-start clock validation and expiration remain in the
+VM, before the coordinator. Callers bound ingress, enforce quotas and supply the
+real authority snapshot; static capability validation cannot grant live authority.
+
+The [root-start proof](fixtures/leselang_root_start_policy_macos_arm64_20261024.json)
+records 8,400 whole-VM comparisons across 70 operations, six entry routes and
+20 fault/state scenarios, plus 320 pure/lazy budget and refusal comparisons.
+The pre-migration entry is retained as an independent coordinator oracle over
+the same previously verified computation and group implementation. Outcomes,
+wire bytes, pending/completed maps, watermarks, pressure and lease claims match.
+Another 24 SQLite cases cover atomic/group writes, injected effect/dispatch row
+failures, pure no-write paths and restart snapshots. Adapter tests verify borrowed
+group branches, original GUI authority buffers, exact hook order and refusal or
+unwind at every native boundary.
+
+At reference execution `1.138.0`, native embedding `0.172.0`, HIR `0.184.0`,
+product version and journal schema 10 remain unchanged. Restore/reply admission,
+native journal ownership, full host-neutral durable recovery, complete vertical
+compatibility and physical extraction remain open, without native maturity promotion.
+
+### Product Continuation Import
+
+`leselang-command::reference_restore` now owns both complete import entries:
+bare continuation and original request envelope. Request admission still precedes
+image cloning and bounded image validation. Group frames remain ineligible for
+individual import, and successor/dataflow/conditional frames still require their
+original request. Pending-image equality is checked before consumed-state lookup;
+duplicate imports still enter the journal rather than becoming a local no-op.
+
+`ReferenceRestoreHost` borrows the original local image for observation and splits
+duplicate commit from new import. The VM's private owner retains the original
+journal transaction, live capacity and durable conflict/authority checks. New
+imports update the local watermark and move the original image into pending state
+only after successful commit. Duplicates neither replace the local image nor
+advance its local watermark. Callbacks run once; native failure or unwind is not
+permission to retry or roll back native side effects. These are trusted host
+interfaces, not provenance authentication or standalone durable recovery.
+
+The [import proof](fixtures/leselang_restore_policy_macos_arm64_20261024.json)
+compares the frozen previous whole VM entries across 70 operations, two import
+modes and 16 state/fault scenarios (2,240 comparisons), plus 66 cases covering all
+11 released continuation schemas. Another 24 real SQLite cases compare new and
+duplicate imports, missing durable dispatch refusal, injected effect/dispatch/
+watermark write failures, unchanged tables on refusal, restart, actual dispatch
+completion and subsequent allocation. In particular, importing an envelope over
+a bare durable record still refuses with `LSV4011`; it does not manufacture missing
+dispatch authority. Adapter-only tests preserve owned images, original authority
+buffers, error ownership and once-only failure/unwind behavior without linking VM
+or SQLite. The oracle shares the existing static validators and native journals;
+it is independent coordinator code, not a second implementation of those layers.
+
+At reference execution `1.139.0`, native embedding `0.172.0`, HIR `0.184.0`,
+product version, wire formats and journal schema 10 remain unchanged. Reply-entry
+coordination, native journal ownership, full host-neutral durable recovery,
+complete vertical compatibility and physical extraction remain open.
+
+### Product Reply Entries
+
+`leselang-command::reference_reply` owns the complete `resume`, `resume_at` and
+`acknowledge_effect` entry policies. Their intentional ordering differs: ordinary
+re-entry observes authoritative completion before image validation; dispatch
+acknowledgement expires due work, validates the original request, then observes
+completion. Untimed entry rejects timed images first, and timed ordinary entry
+validates the explicit clock before expiration. These differences are preserved,
+not normalized into a weaker shared shortcut.
+
+`ReferenceReplyHost` forwards expiration, reconciled replay, local image lookup,
+visible group/successor selection and result completion to the original native
+owner. The existing completion lease type is reexported rather than converted.
+Images and leases stay borrowed, replies and authoritative replay steps move
+without another clone. Four mutating operations still require acknowledgement;
+even non-mutating work that already has a dispatch lease cannot bypass native
+settlement through ordinary resume (`LSV4024`). Hooks run once with no automatic
+retry, native rollback or replacement receipt authority. Local equality and static
+request validation do not authenticate a lease or settle a result. Callers still
+own ingress bounds, provenance and trusted scheduler time.
+
+The [reply-entry proof](fixtures/leselang_reply_policy_macos_arm64_20261024.json)
+retains all four previous entry functions as an independent coordinator oracle
+over the original lower-level validators and journals. It compares 3,360 cases:
+70 operations, three public routes and 16 state/fault scenarios, including valid
+ordinary and leased completion, stale leases, authoritative replay, conflicting
+images, malformed replies and clock/expiry precedence. Another 64 SQLite cases
+cover eight atomic/bound/sequence/parallel flows, two entry routes and four write
+scenarios. They compare full journal tables, peer replay, restart, successor drain
+and subsequent allocation. Adapter-only tests check original buffers and borrows,
+callback order, native error ownership and unwind without linking VM or SQLite.
+
+At reference execution `1.140.0`, native embedding `0.172.0`, HIR `0.184.0`,
+product version, journal schema 10 and wire formats remain unchanged. Native
+result materialization/settlement, cancellation/retry coordination, journal
+ownership, full host-neutral durable recovery, complete vertical compatibility
+and physical extraction remain open; this does not promote native maturity.
+
+### Product Result Completion
+
+`leselang-command::reference_result_completion` now owns the whole result-completion
+coordinator and successor materialization policy. It selects raw or bound conversion
+by the original continuation schema, validates raw output before evaluating the
+binding, uses exactly the saved fuel, and chooses scalar settlement or successor
+handoff. Group replies remain raw for the existing group coordinator. Successor
+handoff retains the original raw value, rather than substituting a projected result.
+
+`ReferenceCompletionHost` is a trusted, synchronous completion boundary entered
+after reply admission. It forwards result conversion and raw-output checks to the
+original native owner. That owner still retrieves original authority, reserves the
+sequence, constructs and validates the next request, enforces the lease fence and
+commits the journal before publishing pending/completed state. The borrowed lease
+and image are unchanged; replies and errors move without another clone. Callback
+errors and unwinds are not retried, and prior native side effects are not rolled back.
+Neither this interface nor a structurally valid image authenticates a caller.
+
+The [result-completion proof](fixtures/leselang_result_completion_policy_macos_arm64_20261024.json)
+compares the frozen pre-extraction coordinator and materializer against 5,600 native
+cases: 70 operations, five binding shapes, ordinary/leased completion and eight
+fuel/reply/lease/allocator/replay scenarios. A further 64 SQLite cases cover native
+write failures, peer replay, restart and successor draining across eight flow shapes.
+Five adapter-only tests cover all eleven schema routes, saved-fuel boundaries, raw
+reply ownership, error precedence and once-only hooks without VM or SQLite linkage.
+The oracle shares the original evaluator, converters and journals; it is independent
+coordinator code, not an independent implementation of those trusted layers.
+
+At reference execution `1.141.0`, native embedding `0.172.0`, HIR `0.184.0`,
+product version, journal schema 10 and wire formats remain unchanged. Native
+successor assembly, result conversion/settlement, cancellation/retry coordination,
+journal ownership, full host-neutral durable recovery, complete vertical compatibility
+and physical extraction remain open. Native maturity and extraction gates are not promoted.
+
+### Product Successor Assembly
+
+`leselang-command::reference_successor` owns atomic-successor request assembly.
+Original-parent lookup and exact image equality precede sequence reservation;
+operation selection, inherited principal/capabilities, deadlines, revision, saved
+fuel, output limits and binding schema retain the original ordering. The existing
+request builder still charges exactly once. Missing/mismatched parents and failed
+reservations return directly; operation/build/static-admission failures instead
+enter native terminal settlement, without refunding an already reserved sequence.
+
+`ReferenceSuccessorHost` forwards live reads, reservations, the request builder,
+terminal settlement and successor commit to the trusted native owner. Commit still
+checks the complete parent/child pair and dispatch lease transactionally, writes
+the journal before local publication, and returns the authoritative winner of
+competing acknowledgements. The raw value, binding allocation and borrowed lease
+are preserved. No callback is retried and no earlier native side effect is rolled
+back. The interface requires bounded/admitted execution input; it is not receipt,
+reservation or authentication authority and must not be exposed as raw ingress.
+
+The [successor-assembly proof](fixtures/leselang_successor_assembly_policy_macos_arm64_20261024.json)
+compares 7,280 whole-VM cases across 70 successor operations, four computation
+shapes, ordinary/leased settlement and thirteen refusal/replay scenarios. Another
+112 SQLite cases inject failures at six effect/dispatch/group write sites and
+compare complete tables, local state, peer replay, restart, successor drain and
+subsequent allocation. Five adapter-only tests exercise ownership, inherited
+context, refusal precedence and once-only failure/unwind without VM or SQLite.
+The frozen coordinator shares the existing evaluator, builder and journal, rather
+than claiming an independent implementation of those trusted layers.
+
+Reference execution is now `1.142.0`; native embedding `0.172.0`, HIR `0.184.0`,
+product version, wire formats and journal schema 10 are unchanged. Native result
+conversion/settlement, cancellation/retry coordination, journal ownership, full
+host-neutral durable recovery, complete vertical compatibility and physical
+extraction remain open. Native completion and maturity are not promoted.
 
 **The current 2.3.0-and-later phase closes acceptance gates; physical extraction is deferred.**
 It is not an automatic version-triggered move. No replacement extraction version

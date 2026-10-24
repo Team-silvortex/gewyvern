@@ -1,0 +1,210 @@
+{
+  "kind": "leselang-reply-policy",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.140.0",
+  "atomic_operations": 70,
+  "entry_routes": 3,
+  "fault_scenarios": 16,
+  "whole_vm_comparisons": 3360,
+  "baseline_completed_routes": 202,
+  "sqlite_flow_shapes": 8,
+  "sqlite_restart_comparisons": 64,
+  "direct_adapter_tests": 4,
+  "adapter_owned_reply_entries": true,
+  "distinct_replay_and_validation_order": true,
+  "original_borrowed_images_and_leases": true,
+  "original_reply_and_replay_owners": true,
+  "native_lease_and_mutation_fences_retained": true,
+  "native_settlement_before_publication": true,
+  "no_hook_retry_or_native_rollback": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Complete ordinary, timed and dispatch reply-entry coordination moves to the product adapter. Deliberately distinct clock, expiration, static admission, authoritative replay and local image ordering is preserved. Native owners retain completion reconciliation, result calculation, group visibility, transactional lease checks and settlement before publication.",
+  "limitations": [
+    "This remains Leserpent product policy rather than the standalone generic VM. Callers bound ingress, authenticate provenance and provide trusted scheduler time. Static request or local image equality does not authenticate a reply or lease.",
+    "Host callbacks are trusted and once-only. Expiration must validate time before native state changes; replay must reconcile authoritative completion and retention. Earlier native side effects are not rolled back, and no callback failure or unwind is automatically retried.",
+    "The frozen oracle retains all four old entry functions and shares original validation, computation and journal implementations. It proves coordinator parity, not independent implementation of the entire execution stack.",
+    "Ordinary entry keeps completed replay before image validation; acknowledgement keeps request validation before replay. Mutating control-plane operations still require acknowledgement, and leased ordinary work still refuses bypass through LSV4024.",
+    "Native result materialization/settlement, cancellation/retry coordination, journal ownership, full host-neutral durable recovery, complete vertical compatibility and physical extraction remain open. Native completion and maturity are not promoted.",
+    "Local macOS Rust/SQLite verification only; no new Linux, GUI or remote CI execution. The previous standalone checkpoint was integrity-checked again, not freshly exported or retested."
+  ],
+  "default_runtime_tests": 1822,
+  "memory_vm_tests": 275,
+  "root_architecture_tests": 552,
+  "adapter_external_tests": 4,
+  "whole_vm_oracle_tests": 2,
+  "adapter_dependency_closure_excludes_vm_and_sqlite": true,
+  "strict_workspace_lints_passed": true,
+  "memory_all_target_lints_passed": true,
+  "native_no_default_check_passed": true,
+  "format_checks_passed": true,
+  "native_checkpoint_reused": true,
+  "new_native_export_performed": false,
+  "native_checkpoint": {
+    "reused_checkpoint": "/private/tmp/gewyvern-ci-native-20261023/export-manifest.json",
+    "verified": true,
+    "complete_vm": false,
+    "full_extraction_gate": false,
+    "total_files": 280,
+    "copied_sources": 270,
+    "source_and_export_mismatches": [],
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "new_export_performed": false
+  },
+  "source_parity": {
+    "frozen_resume_matches_pre_migration": true,
+    "frozen_resume_at_matches_pre_migration": true,
+    "frozen_resume_inner_matches_pre_migration": true,
+    "frozen_acknowledge_effect_matches_pre_migration": true,
+    "native_expire_due_unchanged": true,
+    "native_replay_completed_unchanged": true,
+    "native_reconcile_completed_unchanged": true,
+    "native_visible_step_unchanged": true,
+    "native_materialize_unchanged": true,
+    "native_complete_result_unchanged": true,
+    "native_complete_successor_unchanged": true,
+    "native_record_result_unchanged": true,
+    "normalization": [
+      "test function names and explicit VM receiver",
+      "whitespace and formatting-only trailing commas"
+    ]
+  },
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_reply.rs",
+      "sha256": "657a349578f0ad05686faca82dffb8c45c742aa74a081e6d6c3e9b1960ae2a16"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "85b65bf331b4c97a5e01eb78e2f612f8d8e3e04d332e252ba8b133e62582bbb6"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_request.rs",
+      "sha256": "a2a15bd906d324bb17a1d8628079eec72e9ff3c659f8879f40f4425fc1a493c5"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_reply.rs",
+      "sha256": "5676c843b95baa61121e9d416e71f8fa557abfe797785a3524090a74bd87c858"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "882a998cf55b3dc95b65c5dd0ff8ed2ce682c6344202326179497b690a0889cc"
+    },
+    {
+      "path": "crates/leselang-vm/src/reply_contract_tests.rs",
+      "sha256": "6d27143773231690e7cf9d288bea6a5968f49e70b3a4f0aaf3a4cdb9e7c6062c"
+    },
+    {
+      "path": "crates/leselang-vm/src/control_plane_reply_tests.rs",
+      "sha256": "f2b9eca87e7a4a5fa6ceb3d770eed7285c6da5976af45b988af3d43ed794ad80"
+    },
+    {
+      "path": "crates/leselang-vm/src/successor.rs",
+      "sha256": "4e16b038a0077bddd615d1fa3d97515c2644af6ed9de61627bf14b3f59fcb034"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "7d208005d17520fcd3c91db5b8ca70dfb522f2f92d8bc1cb2a1145683509a580"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "7b00d8c66c52402f1a6984ec7173e8d64f1d7c222021ed8849dab442acb57b61"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "ce1e7395ef0eb3a29c9be2c207c8bfd30d1564c69b65f39b1d3a4c3b236bfc26"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "af1d3816021166286527d359aeafe196a535e68ddc6a31a69164403297150624"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "e913f0cfea1eea870b58797e09a4c4fc1a96c273b23069402af761aac1542360"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "43cd64b6b62ded83185025d1ea411c8929b70a7b16395d35f42fba743d74dd6d"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "90530c3a47dae46a2f4056d0a31e532cadf1ae0c2d4cb11a2a2cd2a952b42af9"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "adapter",
+      "log": "/private/tmp/leselang-reply-20261024-adapter.log",
+      "sha256": "56f32f2228a3ec1475a297e838e82e419de4c9ef80840782c4ce02f32740cd21"
+    },
+    {
+      "stage": "oracle-final",
+      "log": "/private/tmp/leselang-reply-20261024-oracle-final.log",
+      "sha256": "4ce1f8e114769913fa0c3cf74ebb55ab00ec42616726d56895ba5a23a93fe76f"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-reply-20261024-default.log",
+      "sha256": "276ade3aece6840e6b0ed68e37d097b963d225cd3641ed2216a4037834b161ba"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-reply-20261024-memory.log",
+      "sha256": "40b4d640a890a034c4dab0e8b880912b077d000d43c369df2ccbd1fde840458e"
+    },
+    {
+      "stage": "gates-final",
+      "log": "/private/tmp/leselang-reply-20261024-gates-final.log",
+      "sha256": "137783c3e6548de51ce3d2120b7846e3d065e754614b96718db3f2d774a6c89e"
+    },
+    {
+      "stage": "workspace-clippy-final",
+      "log": "/private/tmp/leselang-reply-20261024-workspace-clippy-final.log",
+      "sha256": "6173997f929f17225921e743db101cbf5b7fcd93587f94cf927c505e5a6c3b54"
+    },
+    {
+      "stage": "memory-clippy-fixed",
+      "log": "/private/tmp/leselang-reply-20261024-memory-clippy-fixed.log",
+      "sha256": "133a53b9dc9b9a611e737d10a76e5671d5041f3d5df432c91c17bade75b4476f"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-reply-20261024-native-check.log",
+      "sha256": "d7f224b2f35c45c4e5724dbd780543fae2737a0aa166558efaf1acf8341c0e2e"
+    },
+    {
+      "stage": "native-checkpoint",
+      "log": "/private/tmp/leselang-reply-20261024-native-checkpoint.log",
+      "sha256": "a1616e1b6bcf0154d246acc50f1a333d171969c102aaf9418d6e759d5b0bbfda"
+    },
+    {
+      "stage": "dependencies",
+      "log": "/private/tmp/leselang-reply-20261024-dependencies.log",
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "stage": "source-parity",
+      "log": "/private/tmp/leselang-reply-20261024-source-parity.log",
+      "sha256": "79b6a82dd3fb630f32ee50ace0ea45058abb171c52098d826585adc3f80ed1bd"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-reply-20261024-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "include-format",
+      "log": "/private/tmp/leselang-reply-20261024-include-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

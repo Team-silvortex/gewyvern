@@ -1,8 +1,18 @@
 use super::*;
+#[cfg(test)]
+use crate::result_binding::ReferenceResultBinding;
 
 #[cfg(test)]
 #[path = "successor_pair_contract_tests.rs"]
 mod pair_contract_tests;
+
+#[cfg(test)]
+#[path = "completion_contract_tests.rs"]
+mod completion_contract_tests;
+
+#[cfg(test)]
+#[path = "successor_assembly_contract_tests.rs"]
+mod assembly_contract_tests;
 
 #[cfg(test)]
 fn validate_extension(
@@ -24,7 +34,7 @@ fn validate_extension(
     })
 }
 
-pub(super) type CompletionLease<'a> = Option<(&'a DispatchLease, u64)>;
+pub(super) use leselang_command::reference_reply::CompletionLease;
 
 pub(super) fn invalid() -> Fault {
     Fault {
@@ -33,6 +43,7 @@ pub(super) fn invalid() -> Fault {
     }
 }
 
+#[cfg(test)]
 pub(super) fn authority(operation: &EffectOperation) -> (&Principal, &CapabilitySet) {
     operation.authority()
 }
@@ -103,41 +114,99 @@ pub(super) fn validate_pair(
     })
 }
 
-enum PreparedResult {
-    Scalar(ScalarValue),
-    Host {
+struct ReferenceCompletionOwner<'a>(&'a mut Vm);
+
+impl leselang_command::reference_result_completion::ReferenceCompletionHost
+    for ReferenceCompletionOwner<'_>
+{
+    fn atomic_step_from_effect_result(
+        &mut self,
+        image: &ContinuationImage,
+        operation: Option<&EffectOperation>,
+        result: EffectResult,
+    ) -> Step {
+        atomic_step_from_effect_result(image, operation, result)
+    }
+    fn step_from_effect_result(
+        &mut self,
+        image: &ContinuationImage,
+        operation: Option<&EffectOperation>,
+        result: EffectResult,
+    ) -> Step {
+        step_from_effect_result(image, operation, result)
+    }
+    fn validate_result_output(
+        &mut self,
+        image: &ContinuationImage,
+        value: &Value,
+    ) -> Result<(), Fault> {
+        self.0.journal.validate_result_output(image, value)
+    }
+    fn complete_successor(
+        &mut self,
+        image: &ContinuationImage,
+        lease: CompletionLease<'_>,
+        value: Value,
         effect: Effect,
         binding: Option<Box<ResultBinding>>,
         fuel: u64,
-    },
+    ) -> Step {
+        self.0
+            .complete_successor(image, lease, value, effect, binding, fuel)
+    }
+    fn record_result(
+        &mut self,
+        image: &ContinuationImage,
+        lease: CompletionLease<'_>,
+        step: Step,
+    ) -> Step {
+        self.0.record_result(image, lease, step)
+    }
 }
 
-fn materialize(image: &ContinuationImage, value: &Value) -> Result<PreparedResult, Fault> {
-    let binding = image.result_binding.as_ref().ok_or_else(invalid)?;
-    let mut fuel = Fuel::new(image.fuel_remaining);
-    let operation = leselang_hir::host_call::HostOperation::for_effect(&image.pending_effect)
-        .ok_or_else(invalid)?;
-    let (effect, binding) = match computation::resume_outcome(binding, value, operation, &mut fuel)?
-    {
-        computation::Outcome::Scalar(value) => return Ok(PreparedResult::Scalar(value)),
-        computation::Outcome::Host(effect) => (effect, None),
-        computation::Outcome::BoundHost { effect, binding } => (effect, Some(binding)),
-        computation::Outcome::Result => return Err(invalid()),
-    };
-    if fuel.remaining() == 0 {
-        return Err(Fault {
-            code: "LSV1001".into(),
-            message: "execution fuel exhausted before successor".into(),
-        });
+struct ReferenceSuccessorOwner<'a>(&'a mut Vm);
+
+impl leselang_command::reference_successor::ReferenceSuccessorHost for ReferenceSuccessorOwner<'_> {
+    fn effect_request(&mut self, token: &ContinuationToken) -> Result<EffectRequest, Fault> {
+        self.0.journal.effect_request(token)
     }
-    if leselang_hir::host_call::HostOperation::for_effect(&effect).is_none() {
-        return Err(invalid());
+    fn allocate_sequence(&mut self) -> Result<u64, Fault> {
+        self.0.allocate_sequence()
     }
-    Ok(PreparedResult::Host {
-        effect: effect.into_owned(),
-        binding,
-        fuel: fuel.remaining(),
-    })
+    fn build_effect_request(
+        &mut self,
+        input: leselang_command::reference_successor::ReservedEffectInput<'_>,
+    ) -> Result<EffectRequest, Fault> {
+        Vm::build_effect_request(
+            input.effect,
+            input.result_type,
+            input.sequence,
+            input.principal,
+            input.capabilities,
+            input.expected_revision,
+            input.deadline_ms,
+            input.deadline_at_ms,
+            input.fuel_remaining,
+        )
+    }
+    fn record_result(
+        &mut self,
+        image: &ContinuationImage,
+        lease: CompletionLease<'_>,
+        step: Step,
+    ) -> Step {
+        self.0.record_result(image, lease, step)
+    }
+    fn commit_successor(
+        &mut self,
+        image: &ContinuationImage,
+        lease: CompletionLease<'_>,
+        parent: &EffectRequest,
+        step: &Step,
+        next: &EffectRequest,
+    ) -> Step {
+        self.0.commit_successor(image, lease, parent, step, next)
+    }
 }
 
 impl Vm {
@@ -147,45 +216,12 @@ impl Vm {
         lease: CompletionLease<'_>,
         result: EffectResult,
     ) -> Step {
-        let operation = lease.map(|(lease, _)| &lease.request.operation);
-        let step = if matches!(
-            image.schema_version,
-            SUCCESSOR_CONTINUATION_SCHEMA_VERSION
-                | DATAFLOW_CONTINUATION_SCHEMA_VERSION
-                | CONDITIONAL_CONTINUATION_SCHEMA_VERSION
-        ) {
-            let raw = atomic_step_from_effect_result(image, operation, result);
-            if let Step::Done(value) = raw {
-                match self
-                    .journal
-                    .validate_result_output(image, &value)
-                    .and_then(|()| materialize(image, &value))
-                {
-                    Ok(PreparedResult::Host {
-                        effect,
-                        binding,
-                        fuel,
-                    }) => {
-                        return self.complete_successor(image, lease, value, effect, binding, fuel);
-                    }
-                    Ok(PreparedResult::Scalar(value)) => Step::Done(Value::Scalar { value }),
-                    Err(error) => Step::Fault(error),
-                }
-            } else {
-                raw
-            }
-        } else if matches!(
-            image.schema_version,
-            GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION
-                | PARALLEL_GROUP_CONTINUATION_SCHEMA_VERSION
-                | GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION
-                | GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION
-        ) {
-            atomic_step_from_effect_result(image, operation, result)
-        } else {
-            step_from_effect_result(image, operation, result)
-        };
-        self.record_result(image, lease, step)
+        leselang_command::reference_result_completion::complete_result(
+            image,
+            lease,
+            result,
+            &mut ReferenceCompletionOwner(self),
+        )
     }
 
     fn complete_successor(
@@ -197,46 +233,26 @@ impl Vm {
         binding: Option<Box<ResultBinding>>,
         fuel: u64,
     ) -> Step {
-        let parent = match self.journal.effect_request(&image.token) {
-            Ok(request) if request.continuation == *image => request,
-            Ok(_) => return Step::Fault(invalid()),
-            Err(error) => return Step::Fault(error),
-        };
-        let sequence = match self.allocate_sequence() {
-            Ok(sequence) => sequence,
-            Err(error) => return Step::Fault(error),
-        };
-        let (principal, capabilities) = authority(&parent.operation);
-        let Some(operation) = leselang_hir::host_call::HostOperation::for_effect(&effect) else {
-            return self.record_result(image, lease, Step::Fault(invalid()));
-        };
-        let mut next = match Self::build_effect_request(
-            &effect,
-            operation.result_type(),
-            sequence,
-            principal.clone(),
-            capabilities.clone(),
-            image.expected_revision,
-            image.deadline_ms,
-            image.deadline_at_ms,
+        leselang_command::reference_successor::complete_successor(
+            image,
+            lease,
+            value,
+            effect,
+            binding,
             fuel,
-        ) {
-            Ok(request) => request,
-            Err(error) => return self.record_result(image, lease, Step::Fault(error)),
-        };
-        next.continuation.max_output_items = image.max_output_items;
-        next.budget.max_output_items = image.max_output_items;
-        if let Some(binding) = binding {
-            next.continuation.schema_version = binding.schema_version();
-            next.continuation.result_binding = Some(binding);
-        }
-        if let Err(error) = validate_effect_request(&next)
-            .and_then(|()| validate_continuation_size(&next.continuation))
-        {
-            return self.record_result(image, lease, Step::Fault(error));
-        }
-        let step = Step::Done(value);
-        let authoritative = match self.journal.record_successor(&parent, &step, &next, lease) {
+            &mut ReferenceSuccessorOwner(self),
+        )
+    }
+
+    fn commit_successor(
+        &mut self,
+        image: &ContinuationImage,
+        lease: CompletionLease<'_>,
+        parent: &EffectRequest,
+        step: &Step,
+        next: &EffectRequest,
+    ) -> Step {
+        let authoritative = match self.journal.record_successor(parent, step, next, lease) {
             Ok(step) => step,
             Err(error) => return Step::Fault(error),
         };

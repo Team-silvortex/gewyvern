@@ -1,3 +1,4 @@
+#[cfg(any(test, feature = "sqlite-journal"))]
 use leselang_hir::{Effect, Type};
 #[cfg(test)]
 use leselang_runtime_core::GroupCaptureLimits;
@@ -18,6 +19,7 @@ pub(super) fn group_capture_limits() -> GroupCaptureLimits {
     result_binding_limits().groups
 }
 
+#[cfg(any(test, feature = "sqlite-journal"))]
 pub(super) fn projection_fault(_: leselang_command::InvalidProjectedResult) -> Fault {
     invalid()
 }
@@ -28,18 +30,24 @@ pub(super) fn invalid() -> Fault {
     )
 }
 
+#[cfg(any(test, feature = "sqlite-journal"))]
 pub(super) fn result_binding_limits() -> leselang_command::ResultBindingLimits {
     leselang_command::reference_request::result_binding_limits()
 }
 
+#[cfg(any(test, feature = "sqlite-journal"))]
 pub(super) trait ReferenceResultBinding {
+    #[cfg(test)]
     fn schema_version(&self) -> u32;
     #[cfg(test)]
     fn validate_structure(&self) -> Result<(), Fault>;
+    #[cfg(any(test, feature = "sqlite-journal"))]
     fn validate(&self, pending: &Effect) -> Result<Type, Fault>;
 }
 
+#[cfg(any(test, feature = "sqlite-journal"))]
 impl ReferenceResultBinding for ResultBinding {
+    #[cfg(test)]
     fn schema_version(&self) -> u32 {
         leselang_command::continuation_schema::preflighted_result_binding_schema_version(self)
     }
@@ -56,6 +64,7 @@ impl ReferenceResultBinding for ResultBinding {
         .map_err(projection_fault)
     }
 
+    #[cfg(any(test, feature = "sqlite-journal"))]
     fn validate(&self, pending: &Effect) -> Result<Type, Fault> {
         leselang_command::validate_result_binding(
             self,

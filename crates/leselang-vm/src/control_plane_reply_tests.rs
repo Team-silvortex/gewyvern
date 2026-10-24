@@ -40,6 +40,13 @@ fn log() -> RuntimeLogRecord {
     }
 }
 
+pub(super) fn reply_entry_cases() -> Vec<(EffectRequest, EffectResult)> {
+    cases()
+        .into_iter()
+        .map(|case| (case.request, case.reply))
+        .collect()
+}
+
 fn cases() -> Vec<Case> {
     [
         "runtime.list()",

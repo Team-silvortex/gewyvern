@@ -5,12 +5,648 @@ fn root() -> &'static Path {
 }
 
 #[test]
+fn product_result_completion_keeps_native_authority_and_saved_fuel_boundaries() {
+    let adapter = fs::read_to_string(
+        root().join("crates/leselang-command/src/reference_result_completion.rs"),
+    )
+    .unwrap();
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "std::fs",
+        "std::time",
+        ".clone()",
+        "allocate_sequence(",
+        "record_completed(",
+        "acknowledge_dispatch(",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    assert!(adapter.contains("ReferenceCompletionHost + ?Sized"));
+    let coordination = adapter
+        .split_once("pub fn complete_result<")
+        .unwrap()
+        .1
+        .split_once("enum PreparedResult")
+        .unwrap()
+        .0
+        .split_whitespace()
+        .collect::<String>();
+    let ordered = [
+        "let operation = lease.map(",
+        "host.atomic_step_from_effect_result(",
+        "host.validate_result_output(",
+        "materialize(image, &value)",
+        "host.complete_successor(",
+        "GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION",
+        "host.step_from_effect_result(",
+        "host.record_result(",
+    ];
+    let mut offset = 0;
+    for stage in ordered {
+        let stage = stage.split_whitespace().collect::<String>();
+        offset += coordination[offset..]
+            .find(&stage)
+            .unwrap_or_else(|| panic!("missing/out-of-order {stage}"))
+            + stage.len();
+    }
+    let materialize = adapter.split_once("fn materialize(").unwrap().1;
+    let ordered = [
+        "image.result_binding.as_ref()",
+        "Fuel::new(image.fuel_remaining)",
+        "HostOperation::for_effect(&image.pending_effect)",
+        "computation::resume_outcome(",
+        "fuel.remaining() == 0",
+        "HostOperation::for_effect(&effect)",
+        "effect.into_owned()",
+    ];
+    let mut offset = 0;
+    for stage in ordered {
+        offset += materialize[offset..]
+            .find(stage)
+            .unwrap_or_else(|| panic!("missing/out-of-order {stage}"))
+            + stage.len();
+    }
+    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let bridge = vm
+        .split_once("pub(super) fn complete_result(")
+        .unwrap()
+        .1
+        .split_once("fn complete_successor(")
+        .unwrap()
+        .0;
+    assert!(bridge.contains("reference_result_completion::complete_result("));
+    for absent in ["schema_version", "Fuel::", "journal", "materialize", "LSV"] {
+        assert!(!bridge.contains(absent));
+    }
+    let owner = vm
+        .split_once("struct ReferenceCompletionOwner")
+        .unwrap()
+        .1
+        .split_once("impl Vm {")
+        .unwrap()
+        .0;
+    let compact = owner.split_whitespace().collect::<String>();
+    for hook in [
+        "atomic_step_from_effect_result(image,operation,result)",
+        "step_from_effect_result(image,operation,result)",
+        "self.0.journal.validate_result_output(image,value)",
+        "self.0.complete_successor(image,lease,value,effect,binding,fuel)",
+        "self.0.record_result(image,lease,step)",
+    ] {
+        assert!(compact.contains(hook), "{hook}");
+    }
+    let native = vm.split_once("impl Vm {").unwrap().1;
+    let successor = native
+        .split_once("fn commit_successor(")
+        .unwrap()
+        .1
+        .split_once("fn record_result(")
+        .unwrap()
+        .0;
+    let ordered = [
+        "self.journal.record_successor(",
+        "self.pending.remove(",
+        "self.visible_step(",
+    ];
+    let mut offset = 0;
+    for stage in ordered {
+        offset += successor[offset..].find(stage).unwrap() + stage.len();
+    }
+    assert!(!vm.contains("fn materialize("));
+    let oracle =
+        fs::read_to_string(root().join("crates/leselang-vm/src/completion_contract_tests.rs"))
+            .unwrap();
+    let frozen = oracle.split_once("// Frozen result coordinator").unwrap().1;
+    assert!(!frozen.contains("reference_result_completion"));
+    for count in [5600, 64] {
+        assert!(oracle.contains(&format!("assert_eq!(comparisons, {count})")));
+    }
+    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(ci.contains("--test reference_result_completion"));
+    assert!(ci.contains("--lib completion_contract_tests::result_completion"));
+}
+
+#[test]
+fn successor_assembly_is_product_owned_but_native_reservation_and_commit_stay_authoritative() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_successor.rs"))
+            .unwrap();
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "std::fs",
+        "std::time",
+        "Fuel::new",
+        "record_completed(",
+        "record_successor(",
+        "acknowledge_dispatch(",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    assert!(adapter.contains("ReferenceSuccessorHost + ?Sized"));
+    let flow = adapter
+        .split_once("pub fn complete_successor<")
+        .unwrap()
+        .1
+        .split_whitespace()
+        .collect::<String>();
+    let mut offset = 0;
+    for stage in [
+        "host.effect_request(&image.token)",
+        "request.continuation==*image",
+        "host.allocate_sequence()",
+        "parent.operation.authority()",
+        "HostOperation::for_effect(&effect)",
+        "host.build_effect_request(ReservedEffectInput",
+        "next.continuation.max_output_items=image.max_output_items",
+        "preflighted_result_binding_schema_version(&binding)",
+        "validate_effect_request(&next)",
+        "validate_continuation_size(&next.continuation)",
+        "letstep=Step::Done(value)",
+        "host.commit_successor(image,lease,&parent,&step,&next)",
+    ] {
+        offset += flow[offset..]
+            .find(stage)
+            .unwrap_or_else(|| panic!("missing/out-of-order {stage}"))
+            + stage.len();
+    }
+    assert_eq!(flow.matches("host.record_result(").count(), 3);
+    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let owner = vm
+        .split_once("struct ReferenceSuccessorOwner")
+        .unwrap()
+        .1
+        .split_once("impl Vm {")
+        .unwrap()
+        .0
+        .split_whitespace()
+        .collect::<String>();
+    for hook in [
+        "self.0.journal.effect_request(token)",
+        "self.0.allocate_sequence()",
+        "Vm::build_effect_request(",
+        "self.0.record_result(image,lease,step)",
+        "self.0.commit_successor(image,lease,parent,step,next)",
+    ] {
+        assert!(owner.contains(hook), "{hook}");
+    }
+    let native = vm.split_once("impl Vm {").unwrap().1;
+    let bridge = native
+        .split_once("fn complete_successor(")
+        .unwrap()
+        .1
+        .split_once("fn commit_successor(")
+        .unwrap()
+        .0;
+    assert!(bridge.contains("reference_successor::complete_successor("));
+    for absent in [
+        "LSV",
+        "allocate_sequence",
+        "journal",
+        "schema_version",
+        "build_effect_request",
+    ] {
+        assert!(!bridge.contains(absent), "{absent}");
+    }
+    let commit = native
+        .split_once("fn commit_successor(")
+        .unwrap()
+        .1
+        .split_once("fn record_result(")
+        .unwrap()
+        .0;
+    let mut offset = 0;
+    for stage in [
+        "self.journal.record_successor(",
+        "self.pending.remove(",
+        "self.completed",
+        "self.visible_step(",
+    ] {
+        offset += commit[offset..].find(stage).unwrap() + stage.len();
+    }
+    let oracle = fs::read_to_string(
+        root().join("crates/leselang-vm/src/successor_assembly_contract_tests.rs"),
+    )
+    .unwrap();
+    assert!(
+        !oracle
+            .split_once("fn frozen_complete_successor(")
+            .unwrap()
+            .1
+            .contains("reference_successor")
+    );
+    for count in [7280, 112] {
+        assert!(oracle.contains(&format!("assert_eq!(comparisons, {count})")));
+    }
+    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(ci.contains("--test reference_successor"));
+    assert!(ci.contains("--lib assembly_contract_tests::successor_assembly"));
+}
+
+#[test]
+fn product_reply_entries_preserve_distinct_replay_order_and_native_settlement() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_reply.rs")).unwrap();
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "std::fs",
+        "std::time",
+        "Fuel::new",
+        ".clone()",
+        "record_completed(",
+        "acknowledge_dispatch(",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    assert!(adapter.contains("ReferenceReplyHost + ?Sized"));
+    let ordinary = adapter
+        .split_once("fn resume_inner<")
+        .unwrap()
+        .1
+        .split_once("pub fn acknowledge_effect<")
+        .unwrap()
+        .0;
+    let positions = [
+        "host.replay_completed(",
+        "validate_continuation_image(image)",
+        "host.pending(",
+        "Effect::RuntimeRefresh",
+        "host.complete_result(image, None, result)",
+    ]
+    .map(|s| ordinary.find(s).unwrap());
+    assert!(positions.windows(2).all(|p| p[0] < p[1]));
+    let timed = adapter
+        .split_once("pub fn resume_at<")
+        .unwrap()
+        .1
+        .split_once("fn resume_inner<")
+        .unwrap()
+        .0;
+    assert!(
+        timed.find("validate_clock(now_ms)").unwrap()
+            < timed.find("host.expire_due(now_ms)").unwrap()
+    );
+    let ack = adapter.split_once("pub fn acknowledge_effect<").unwrap().1;
+    let positions = [
+        "host.expire_due(now_ms)",
+        "validate_effect_request(&lease.request)",
+        "host.replay_completed(",
+        "host.pending(",
+        "host.complete_result(image, Some((lease, now_ms)), result)",
+    ]
+    .map(|s| ack.find(s).unwrap());
+    assert!(positions.windows(2).all(|p| p[0] < p[1]));
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    for (from, to) in [
+        ("pub fn resume(", "pub fn claim_effect("),
+        ("pub fn acknowledge_effect(", "pub fn report_effect_error("),
+    ] {
+        let bridge = vm.split_once(from).unwrap().1.split_once(to).unwrap().0;
+        for absent in [
+            "LSV",
+            "self.replay_completed",
+            "self.expire_due",
+            "self.pending",
+            "self.complete_result",
+            ".clone()",
+        ] {
+            assert!(!bridge.contains(absent), "{absent}");
+        }
+        assert!(bridge.contains("&mut ReferenceReplyOwner(self)"));
+    }
+    let owner = vm
+        .split_once("struct ReferenceReplyOwner")
+        .unwrap()
+        .1
+        .split_once("struct ReferenceRestoreOwner")
+        .unwrap()
+        .0;
+    for hook in [
+        "self.0.expire_due(now_ms)",
+        "self.0.replay_completed(token)",
+        "self.0.visible_step(token, completed)",
+        "self.0.pending.get(token)",
+        "self.0.complete_result(image, lease, result)",
+    ] {
+        assert!(owner.contains(hook));
+    }
+    let successor = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    assert!(
+        successor.contains("pub(super) use leselang_command::reference_reply::CompletionLease;")
+    );
+    let commit = successor
+        .split_once("impl Vm {")
+        .unwrap()
+        .1
+        .split_once("fn record_result(")
+        .unwrap()
+        .1;
+    assert!(
+        commit.find("self.journal.acknowledge_dispatch(").unwrap()
+            < commit.find("self.pending.remove(").unwrap()
+    );
+    assert!(
+        commit.find("self.journal.record_completed(").unwrap()
+            < commit.find("self.pending.remove(").unwrap()
+    );
+    let oracle =
+        fs::read_to_string(root().join("crates/leselang-vm/src/reply_contract_tests.rs")).unwrap();
+    assert!(
+        !oracle
+            .split_once("fn frozen_resume(")
+            .unwrap()
+            .1
+            .contains("reference_reply")
+    );
+    for count in [3360, 64] {
+        assert!(oracle.contains(&format!("assert_eq!(comparisons, {count})")));
+    }
+    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(ci.contains("--test reference_reply"));
+    assert!(ci.contains("--lib reply_contract_tests::reply_entries"));
+}
+
+#[test]
+fn product_restore_keeps_preflight_duplicates_and_native_commit_before_publication() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_restore.rs"))
+            .unwrap();
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "std::fs",
+        "std::time",
+        "Fuel::new",
+        "record_pending(",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    let full = adapter.split_once("pub fn restore_request<").unwrap().1;
+    assert!(
+        full.find("validate_effect_request(&request)?").unwrap()
+            < full.find("request.continuation.clone()").unwrap()
+    );
+    let ordered = [
+        "validate_continuation_size(&image)?",
+        "image.group_result.is_some()",
+        "request.is_none()",
+        "host.pending(&image.token)",
+        "host.commit_existing(&image, request)",
+        "host.is_completed(&image.token)",
+        "canonical_continuation_sequence(&image.token)",
+        "SequenceWatermarkRequirement::after_observation",
+        "host.commit_new(image, request, next_sequence)",
+    ]
+    .map(|s| adapter.find(s).unwrap());
+    assert!(ordered.windows(2).all(|w| w[0] < w[1]));
+    assert!(adapter.contains("ReferenceRestoreHost + ?Sized"));
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    let bridge = vm
+        .split_once("pub fn restore(")
+        .unwrap()
+        .1
+        .split_once("pub fn resume(")
+        .unwrap()
+        .0;
+    for absent in [
+        "LSV",
+        "validate_",
+        "record_pending",
+        "self.pending",
+        ".clone()",
+    ] {
+        assert!(!bridge.contains(absent), "{absent}");
+    }
+    assert!(bridge.contains("reference_restore::restore(image,"));
+    assert!(bridge.contains("reference_restore::restore_request("));
+    let owner = vm
+        .split_once("struct ReferenceRestoreOwner")
+        .unwrap()
+        .1
+        .split_once("struct ReferenceStartOwner")
+        .unwrap()
+        .0;
+    let fresh = owner.split_once("fn commit_new(").unwrap().1;
+    let compact: String = fresh.chars().filter(|c| !c.is_whitespace()).collect();
+    assert!(
+        compact
+            .find(".record_pending(&image,request,self.0.scheduler_limits)?")
+            .unwrap()
+            < compact.find("self.0.next_effect_id=").unwrap()
+    );
+    assert!(
+        compact.find("self.0.next_effect_id=").unwrap()
+            < compact.find("self.0.pending.insert(").unwrap()
+    );
+    let existing = owner
+        .split_once("fn commit_existing(")
+        .unwrap()
+        .1
+        .split_once("fn commit_new(")
+        .unwrap()
+        .0;
+    assert!(existing.contains(".record_pending(image, request, self.0.scheduler_limits)"));
+    assert!(!existing.contains("next_effect_id"));
+    let oracle =
+        fs::read_to_string(root().join("crates/leselang-vm/src/restore_contract_tests.rs"))
+            .unwrap();
+    assert!(
+        !oracle
+            .split_once("fn frozen_restore(")
+            .unwrap()
+            .1
+            .contains("reference_restore")
+    );
+    for count in [2240, 66, 24] {
+        assert!(oracle.contains(&format!("assert_eq!(comparisons, {count})")));
+    }
+    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(ci.contains("--test reference_restore"));
+    assert!(ci.contains("--lib restore_contract_tests::"));
+}
+
+#[test]
+fn product_root_start_keeps_preflight_order_and_original_native_publication_hooks() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_start.rs")).unwrap();
+    let positions = [
+        "if fuel_limit == 0",
+        "authorize(program, &capabilities)",
+        "let mut fuel = Fuel::new(fuel_limit)",
+        "crate::reference_computation::evaluate(expression, &mut fuel)",
+        "validate_binding(binding, effect)",
+        "if fuel_remaining == 0",
+        "canonical_source(effect).is_err()",
+        "return host.start_group(",
+        "host.check_admission(1)",
+        "host.allocate_sequence()",
+        "match build_effect_request(",
+        "host.commit_atomic(request)",
+    ]
+    .map(|gate| adapter.find(gate).unwrap());
+    assert!(positions.windows(2).all(|p| p[0] < p[1]));
+    for forbidden in [
+        "leselang_vm",
+        "rusqlite",
+        "record_pending(",
+        "self.pending",
+        "std::fs",
+        "std::time",
+        "binding.clone()",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    assert!(adapter.contains("ReferenceStartHost: ReferenceGroupStartHost"));
+    assert!(adapter.contains("ReferenceStartHost + ?Sized"));
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    let bridge = vm
+        .split_once("fn start_inner(")
+        .unwrap()
+        .1
+        .split_once("fn start_group(")
+        .unwrap()
+        .0;
+    for forbidden in [
+        "Fuel::new",
+        "authorize(",
+        "canonical_source(",
+        "computation::evaluate",
+        "LSV",
+        ".clone()",
+    ] {
+        assert!(!bridge.contains(forbidden), "{forbidden}");
+    }
+    assert!(bridge.contains("leselang_command::reference_start::start("));
+    assert!(bridge.contains("fuel_remaining: self.fuel_limit"));
+    let owner = vm
+        .split_once("struct ReferenceStartOwner")
+        .unwrap()
+        .1
+        .split_once("fn encode_json_capped")
+        .unwrap()
+        .0;
+    let commit = owner.find("self.0.journal.record_pending(").unwrap();
+    let pending = owner.find("self.0.pending.insert(").unwrap();
+    let visible = owner.find("Step::Effect(Box::new(request))").unwrap();
+    assert!(commit < pending && pending < visible);
+    assert!(owner.contains("self.0.start_group("));
+    let timed = vm
+        .split_once("pub fn start_timed(")
+        .unwrap()
+        .1
+        .split_once("fn start_inner(")
+        .unwrap()
+        .0;
+    assert!(
+        timed.find("validate_effect_clock(").unwrap() < timed.find("self.expire_due(").unwrap()
+    );
+    assert!(timed.find("self.expire_due(").unwrap() < timed.find("self.start_inner(").unwrap());
+    let oracle =
+        fs::read_to_string(root().join("crates/leselang-vm/src/start_contract_tests.rs")).unwrap();
+    let frozen = oracle.split_once("fn frozen_start_inner(").unwrap().1;
+    assert!(!frozen.contains("reference_start"));
+    assert!(frozen.contains("authorize(program, &capabilities)"));
+    let compact: String = frozen.chars().filter(|c| !c.is_whitespace()).collect();
+    assert!(compact.contains("vm.journal.record_pending("));
+    for count in [8400, 320, 24] {
+        assert!(oracle.contains(&format!("assert_eq!(comparisons, {count})")));
+    }
+    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(ci.contains("--test reference_start"));
+    assert!(ci.contains("--lib start_contract_tests::root_start"));
+}
+
+#[test]
+fn product_group_start_retains_native_reservations_and_commit_before_publication() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_group_start.rs"))
+            .unwrap();
+    for forbidden in [
+        "leselang_vm",
+        "rusqlite",
+        "record_merge_graph_with_limits(",
+        "self.pending",
+        "std::fs",
+        "std::time",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let preflight = adapter.find("validate_merge_plan(&plan)?").unwrap();
+    let capacity = adapter
+        .find("host.check_admission(branches.len())?")
+        .unwrap();
+    let group = adapter
+        .find("let group_sequence = host.allocate_sequence()?")
+        .unwrap();
+    let prefix = adapter
+        .find("for (index, branch) in branches.iter().enumerate()")
+        .unwrap();
+    let successors = adapter.find("if order.has_group_successor()").unwrap();
+    assert!(preflight < capacity && capacity < group && group < prefix && prefix < successors);
+    assert!(adapter.contains("fuel.charge(index as u64)"));
+    assert!(adapter.contains("body_fuel.charge(branches.len() as u64)"));
+    assert!(adapter.contains("ReferenceGroupStartHost + ?Sized"));
+    let vm =
+        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+    let start = vm
+        .split_once("fn start_group(")
+        .unwrap()
+        .1
+        .split_once("fn build_effect_request(")
+        .unwrap()
+        .0;
+    for removed in [
+        "Fuel::new",
+        "GroupResultBinding {",
+        "validate_merge_plan(",
+        "GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION",
+        "NamedEffectRequest {",
+    ] {
+        assert!(!start.contains(removed), "{removed}");
+    }
+    let owner = vm
+        .split_once("struct ReferenceStartOwner")
+        .unwrap()
+        .1
+        .split_once("fn encode_json_capped")
+        .unwrap()
+        .0;
+    assert!(start.contains("&mut ReferenceStartOwner(self)"));
+    assert!(owner.contains("self.0.allocate_sequence()"));
+    assert!(owner.contains(".check_admission(additional, self.0.scheduler_limits)"));
+    let prepare = start.find("match prepare_group_start(").unwrap();
+    let commit = start
+        .find("self.journal.record_merge_graph_with_limits(")
+        .unwrap();
+    let pending = start.find("self.pending.insert(").unwrap();
+    let visible = start
+        .find("Step::Effect(Box::new(named.remove(0).request))")
+        .unwrap();
+    assert!(prepare < commit && commit < pending && pending < visible);
+    let oracle =
+        fs::read_to_string(root().join("crates/leselang-vm/src/group_start_contract_tests.rs"))
+            .unwrap();
+    let frozen = oracle.split_once("fn frozen_start_group(").unwrap().1;
+    assert!(!frozen.contains("reference_group_start"));
+    assert!(frozen.contains("let mut body_fuel = Fuel::new(fuel_remaining)"));
+    assert!(oracle.contains("assert_eq!(comparisons, 15120)"));
+    assert!(oracle.contains("assert_eq!(comparisons, 36)"));
+    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(ci.contains("--test reference_group_start"));
+    assert!(ci.contains("--lib group_start"));
+}
+
+#[test]
 fn complete_product_computation_policy_is_adapter_owned_over_the_original_evaluator() {
     let vm = fs::read_to_string(root().join("crates/leselang-vm/src/computation.rs")).unwrap();
     let bridge = vm.split_once("#[cfg(test)]").unwrap().0;
     assert!(bridge.contains("pub(super) use leselang_command::reference_computation::{"));
     for entry in [
-        "evaluate",
         "resume",
         "resume_group",
         "resume_outcome",
@@ -18,6 +654,7 @@ fn complete_product_computation_policy_is_adapter_owned_over_the_original_evalua
     ] {
         assert!(bridge.contains(entry));
     }
+    assert!(vm.contains("pub(super) use leselang_command::reference_computation::evaluate;"));
     for forbidden in ["fn ", "Fuel", "LSV", "ScopeFrame", "ReferenceCaptureHost"] {
         assert!(!bridge.contains(forbidden), "{forbidden}");
     }
@@ -804,7 +1441,8 @@ fn continuation_codec_is_adapter_owned_while_restore_and_consumers_keep_executio
         assert!(!vm.contains(removed), "{removed}");
     }
     assert!(vm.contains("pub use leselang_command::{MAX_CONTINUATION_BYTES, decode_continuation, encode_continuation}"));
-    assert!(vm.contains("pub(crate) use leselang_command::reference_continuation::{"));
+    assert!(vm.contains("pub(crate) use leselang_command::reference_continuation::validate_continuation_encoding_size;"));
+    assert!(vm.contains("#[cfg(test)]\npub(crate) use leselang_command::reference_continuation::validate_continuation_size;"));
     for absent in [
         "leselang_vm",
         "rusqlite",
@@ -845,28 +1483,37 @@ fn continuation_codec_is_adapter_owned_while_restore_and_consumers_keep_executio
             .unwrap()
             < preflight.find("bounded_json::measure(").unwrap()
     );
-    let restore = vm
-        .split_once("fn restore_inner(")
-        .unwrap()
-        .1
-        .split_once("pub fn resume(")
-        .unwrap()
-        .0;
-    let mut rest = restore;
+    let restore =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_restore.rs"))
+            .unwrap();
+    let mut rest = restore.as_str();
     for gate in [
         "validate_continuation_size(&image)?",
         "if image.group_result.is_some()",
-        "if let Some(current) = self.pending.get(&image.token)",
-        "if self.completed.contains_key(&image.token)",
+        "if let Some(current) = host.pending(&image.token)",
+        "if host.is_completed(&image.token)",
         "SequenceWatermarkRequirement::after_observation",
-        ".record_pending(&image, request, self.scheduler_limits)?",
-        "self.next_effect_id =",
-        "self.pending.insert(",
+        "host.commit_new(image, request, next_sequence)",
     ] {
         rest = rest
             .split_once(gate)
             .unwrap_or_else(|| panic!("lost restore gate {gate}"))
             .1;
+    }
+    let owner = vm
+        .split_once("struct ReferenceRestoreOwner")
+        .unwrap()
+        .1
+        .split_once("struct ReferenceStartOwner")
+        .unwrap()
+        .0;
+    let mut rest = owner.split_once("fn commit_new(").unwrap().1;
+    for gate in [
+        ".record_pending(&image, request, self.0.scheduler_limits)?",
+        "self.0.next_effect_id =",
+        "self.0.pending.insert(",
+    ] {
+        rest = rest.split_once(gate).unwrap().1;
     }
     let observe =
         fs::read_to_string(root().join("crates/leselang-observe/src/vm_bridge.rs")).unwrap();
@@ -1150,12 +1797,25 @@ fn concrete_product_request_and_static_policy_move_without_execution_authority()
         .split_once("pub fn resume(")
         .unwrap()
         .0;
+    assert!(restore.contains("reference_restore::restore_request("));
+    let restore =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_restore.rs"))
+            .unwrap();
     assert!(
         restore.find("validate_effect_request(&request)?").unwrap()
-            < restore.find("self.restore_inner(").unwrap()
+            < restore
+                .find("restore_inner(request.continuation.clone()")
+                .unwrap()
     );
     assert!(restore.contains("validate_continuation_size(&image)?"));
-    assert!(restore.contains(".record_pending(&image, request, self.scheduler_limits)?"));
+    let owner = vm
+        .split_once("struct ReferenceRestoreOwner")
+        .unwrap()
+        .1
+        .split_once("struct ReferenceStartOwner")
+        .unwrap()
+        .0;
+    assert!(owner.contains(".record_pending(&image, request, self.0.scheduler_limits)?"));
     let continuation =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_continuation.rs"))
             .unwrap();
@@ -2486,7 +3146,7 @@ fn successor_pair_correspondence_is_shared_after_native_request_and_value_admiss
         .split_once("pub(super) fn validate_pair(")
         .unwrap()
         .1
-        .split_once("enum PreparedResult")
+        .split_once("struct ReferenceCompletionOwner")
         .unwrap()
         .0;
     assert!(pair.contains("leselang_command::validate_successor_pair("));
@@ -3526,7 +4186,7 @@ fn group_continuation_data_and_successor_versions_are_product_owned_not_vm_owned
         .split_once("pub(super) fn validate_pair(")
         .unwrap()
         .1
-        .split_once("enum PreparedResult")
+        .split_once("struct ReferenceCompletionOwner")
         .unwrap()
         .0;
     assert!(pair.contains("leselang_command::validate_successor_pair("));
@@ -5034,7 +5694,7 @@ fn request_construction_is_static_policy_not_live_journal_authority() {
     let vm =
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
     assert!(vm.contains("self.journal.allocate_sequence(self.next_effect_id)?"));
-    assert!(vm.contains(".record_pending(&image, request, self.scheduler_limits)?"));
+    assert!(vm.contains(".record_pending(&image, request, self.0.scheduler_limits)?"));
     assert!(vm.contains(".claim_dispatch(now_ms, lease_ms, self.scheduler_limits)?"));
     let oracle =
         fs::read_to_string(root().join("crates/leselang-vm/src/operation_request_tests.rs"))
@@ -5162,13 +5822,9 @@ fn shared_watermark_planning_keeps_native_validation_reads_and_commit_before_pub
     assert!(allocation.find(".commit()").unwrap() < allocation.find("Ok(sequence)").unwrap());
     let vm =
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
-    let restore = vm
-        .split("fn restore_inner(")
-        .nth(1)
-        .unwrap()
-        .split("pub fn resume(")
-        .next()
-        .unwrap();
+    let restore =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_restore.rs"))
+            .unwrap();
     let next = restore
         .find("SequenceWatermarkRequirement::after_observation(")
         .unwrap();
@@ -5178,9 +5834,17 @@ fn shared_watermark_planning_keeps_native_validation_reads_and_commit_before_pub
             .unwrap()
             < next
     );
-    assert!(next < restore.rfind(".record_pending(").unwrap());
+    assert!(next < restore.rfind("host.commit_new(").unwrap());
+    let owner = vm
+        .split_once("struct ReferenceRestoreOwner")
+        .unwrap()
+        .1
+        .split_once("struct ReferenceStartOwner")
+        .unwrap()
+        .0;
+    let commit = owner.split_once("fn commit_new(").unwrap().1;
     assert!(
-        restore.rfind(".record_pending(").unwrap() < restore.find("self.next_effect_id =").unwrap()
+        commit.find(".record_pending(").unwrap() < commit.find("self.0.next_effect_id =").unwrap()
     );
     assert!(journal.contains("watermark_planning_preserves_frozen_sqlite_fault_order_and_writes"));
     assert!(
@@ -5258,7 +5922,7 @@ fn continuation_context_kernel_preserves_native_phase_order_in_every_succession_
         .split("pub(super) fn validate_pair(")
         .nth(1)
         .unwrap()
-        .split("enum PreparedResult")
+        .split("struct ReferenceCompletionOwner")
         .next()
         .unwrap();
     assert!(pair.contains("leselang_command::validate_successor_pair("));
@@ -5350,7 +6014,7 @@ fn successor_capture_extension_shares_retention_without_authority_or_saved_body_
         .split("pub(super) fn validate_pair(")
         .nth(1)
         .unwrap()
-        .split("enum PreparedResult")
+        .split("struct ReferenceCompletionOwner")
         .next()
         .unwrap();
     assert!(pair.contains("leselang_command::validate_successor_pair("));
