@@ -265,7 +265,12 @@ fn module_names(source: &str) -> Result<Vec<&str>, String> {
 
 fn validate_reference_test_support(root: &Path, relative: &Path) -> Result<(), String> {
     let children = regular_children(root, relative)?;
-    if children != [relative.join("reference_dispatch_authority.rs")] {
+    let expected = [
+        "reference_dispatch_authority.rs",
+        "reference_request_build_authority.rs",
+    ]
+    .map(|name| relative.join(name));
+    if children != expected {
         return Err(format!(
             "untracked reference test support asset: {}",
             relative.display()
@@ -300,7 +305,7 @@ fn copy_crate(
         }
     }
     for test in regular_children(root, &base.join("tests"))? {
-        // Shared by two excluded product suites, not part of the native closure.
+        // Shared product-only fixtures are not part of the native closure.
         if name == "leselang-vm" && test == base.join("tests/support") {
             validate_reference_test_support(root, &test)?;
             continue;
@@ -1252,7 +1257,13 @@ mod tests {
         assert!(validate_reference_test_support(&temp.0, relative).is_err());
         let helper = directory.join("reference_dispatch_authority.rs");
         fs::write(&helper, "pub fn exercise() {}\n").unwrap();
+        assert!(validate_reference_test_support(&temp.0, relative).is_err());
+        let request_helper = directory.join("reference_request_build_authority.rs");
+        fs::write(&request_helper, "pub fn request() {}\n").unwrap();
         validate_reference_test_support(&temp.0, relative).unwrap();
+        fs::remove_file(&helper).unwrap();
+        assert!(validate_reference_test_support(&temp.0, relative).is_err());
+        fs::write(&helper, "pub fn exercise() {}\n").unwrap();
         for extra in ["unknown.rs", "fixture.json"] {
             fs::write(directory.join(extra), "unreviewed").unwrap();
             assert!(validate_reference_test_support(&temp.0, relative).is_err());
@@ -1261,13 +1272,17 @@ mod tests {
         fs::create_dir(directory.join("nested")).unwrap();
         assert!(validate_reference_test_support(&temp.0, relative).is_err());
         fs::remove_dir(directory.join("nested")).unwrap();
-        OpenOptions::new()
-            .write(true)
-            .open(&helper)
-            .unwrap()
-            .set_len(MAX_FILE_BYTES + 1)
-            .unwrap();
-        assert!(validate_reference_test_support(&temp.0, relative).is_err());
+        for path in [&helper, &request_helper] {
+            OpenOptions::new()
+                .write(true)
+                .open(path)
+                .unwrap()
+                .set_len(MAX_FILE_BYTES + 1)
+                .unwrap();
+            assert!(validate_reference_test_support(&temp.0, relative).is_err());
+            fs::write(path, "pub fn exercise() {}\n").unwrap();
+        }
+        validate_reference_test_support(&temp.0, relative).unwrap();
     }
 
     #[cfg(unix)]
@@ -1278,14 +1293,25 @@ mod tests {
         let relative = Path::new("support");
         fs::create_dir(temp.0.join(relative)).unwrap();
         fs::write(temp.0.join("outside.rs"), "private").unwrap();
-        symlink(
-            "../outside.rs",
-            temp.0
-                .join(relative)
-                .join("reference_dispatch_authority.rs"),
-        )
-        .unwrap();
-        assert!(validate_reference_test_support(&temp.0, relative).is_err());
+        let helpers = [
+            "reference_dispatch_authority.rs",
+            "reference_request_build_authority.rs",
+        ];
+        for helper in helpers {
+            fs::write(temp.0.join(relative).join(helper), "pub fn exercise() {}\n").unwrap();
+        }
+        for helper in helpers {
+            let path = temp.0.join(relative).join(helper);
+            fs::remove_file(&path).unwrap();
+            symlink("../outside.rs", &path).unwrap();
+            assert!(
+                validate_reference_test_support(&temp.0, relative)
+                    .unwrap_err()
+                    .contains("symlink")
+            );
+            fs::remove_file(&path).unwrap();
+            fs::write(&path, "pub fn exercise() {}\n").unwrap();
+        }
         symlink("support", temp.0.join("linked-support")).unwrap();
         assert!(validate_reference_test_support(&temp.0, Path::new("linked-support")).is_err());
     }
@@ -1528,6 +1554,7 @@ mod tests {
             "crates/leselang-vm/tests/debugger_audit_memory.rs",
             "crates/leselang-vm/tests/debugger_audit_durable.rs",
             "crates/leselang-vm/tests/support/reference_dispatch_authority.rs",
+            "crates/leselang-vm/tests/support/reference_request_build_authority.rs",
             "crates/leselang-vm/src/debugger_audit_contract_tests.rs",
         ] {
             assert!(!plan.entries.contains_key(Path::new(path)));

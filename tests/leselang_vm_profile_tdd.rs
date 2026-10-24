@@ -5,6 +5,253 @@ fn root() -> &'static Path {
 }
 
 #[test]
+fn root_publication_is_product_policy_over_private_native_commit_and_cache_hooks() {
+    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let adapter = read("crates/leselang-command/src/reference_publication.rs");
+    assert!(adapter.contains("pub trait ReferenceRootPublicationHost"));
+    assert!(adapter.contains("pub(crate) fn publish_group<"));
+    assert!(!adapter.contains("pub fn publish_group<"));
+    for forbidden in [
+        "leselang_vm",
+        "rusqlite",
+        "std::fs",
+        "std::time",
+        ".clone()",
+        "catch_unwind",
+        "record_pending(",
+        "record_merge_graph_with_limits(",
+        "allocate_sequence(",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let vm = read("crates/leselang-vm/src/leserpent_profile.rs");
+    let owner = vm
+        .split_once("impl leselang_command::reference_publication::ReferenceRootPublicationHost")
+        .unwrap()
+        .1
+        .split_once("fn encode_json_capped")
+        .unwrap()
+        .0;
+    assert!(owner.contains("for ReferenceStartOwner<'_>"));
+    assert!(!owner.contains("for Vm"));
+    assert!(owner.contains("Some(request)"));
+    assert!(owner.contains("self.0.scheduler_limits"));
+    assert!(owner.contains("self.0.pending.insert(image.token.clone(), image.clone())"));
+    for forbidden in ["Step::", "for branch", "if order", "Err(", "unwrap", "LSV"] {
+        assert!(!owner.contains(forbidden), "{forbidden}");
+    }
+    let tests = read("crates/leselang-vm/src/publication_contract_tests.rs");
+    for count in [64, 13] {
+        assert!(tests.contains(&format!("assert_eq!(cases, {count})")));
+    }
+    let frozen = tests
+        .split_once("// Frozen pre-extraction publication.")
+        .unwrap()
+        .1;
+    assert!(!frozen.contains("reference_publication"));
+    assert!(frozen.contains("record_merge_graph_with_limits("));
+    assert!(frozen.contains(".record_pending("));
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_publication"));
+    assert!(ci.contains("--lib publication_contract_tests"));
+}
+
+#[test]
+fn startup_policy_keeps_validation_before_native_open_and_recovery_before_publication() {
+    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let vm = read("crates/leselang-vm/src/leserpent_profile.rs");
+    let adapter = read("crates/leselang-command/src/reference_startup.rs");
+    let constructors = vm
+        .split_once("    pub fn new(fuel_limit")
+        .unwrap()
+        .1
+        .split_once("    /// Lowering capacity")
+        .unwrap()
+        .0;
+    for entry in [
+        "reference_startup::in_memory(",
+        "reference_startup::in_memory_with_limits(",
+        "reference_startup::recover(",
+        ".map(Self::from_startup)",
+    ] {
+        assert!(constructors.contains(entry), "{entry}");
+    }
+    assert!(!constructors.contains(".min("));
+    assert!(!constructors.contains("BTreeMap::new()"));
+    assert!(!constructors.contains("LSV"));
+    let durable = constructors
+        .split_once("reference_startup::recover(")
+        .unwrap()
+        .1
+        .split_once("    fn from_startup(")
+        .unwrap()
+        .0;
+    assert!(durable.find("|| {").unwrap() < durable.find("Journal::open(path.as_ref())?").unwrap());
+    assert!(
+        durable.find("Journal::open(path.as_ref())?").unwrap()
+            < durable.find("RecoveredJournal {").unwrap()
+    );
+    assert!(!durable.contains("ephemeral"));
+    assert!(!durable.contains("unwrap"));
+    let flow = adapter.split_once("pub fn recover<").unwrap().1;
+    let mut offset = 0;
+    for stage in [
+        "validate_limits(limits)?",
+        "let recovered = open()?",
+        "Ok(StartupState {",
+        "fuel_limit.min(MAX_EXECUTION_FUEL)",
+        "pending: recovered.pending",
+        "completed: recovered.completed",
+        "journal: recovered.journal",
+    ] {
+        offset += flow[offset..]
+            .find(stage)
+            .unwrap_or_else(|| panic!("missing/out of order {stage}"))
+            + stage.len();
+    }
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "std::path",
+        ".clone()",
+        "catch_unwind",
+        "loop {",
+        "Serialize",
+        "Deserialize",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let journal = read("crates/leselang-vm/src/journal.rs");
+    let open = journal
+        .split_once("pub fn open(path: &Path)")
+        .unwrap()
+        .1
+        .split_once("pub fn allocate_sequence")
+        .unwrap()
+        .0;
+    assert!(
+        open.find("SqliteJournal::open(path)?").unwrap() < open.find("journal.load()?").unwrap()
+    );
+    assert!(
+        open.find("journal.load()?").unwrap()
+            < open.find("Ok((Self::Sqlite(journal), snapshot))").unwrap()
+    );
+    let frozen = read("crates/leselang-vm/src/startup_contract_tests.rs");
+    let frozen = frozen
+        .split_once("// Frozen pre-extraction constructors")
+        .unwrap()
+        .1;
+    assert!(!frozen.contains("reference_startup"));
+    assert!(frozen.contains("Journal::open(path.as_ref())?"));
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_startup"));
+    assert!(ci.contains("--lib startup_contract_tests"));
+}
+
+#[test]
+fn sequence_selection_keeps_native_reservation_before_watermark_and_local_occupancy() {
+    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let vm = read("crates/leselang-vm/src/leserpent_profile.rs");
+    let adapter = read("crates/leselang-command/src/reference_allocation.rs");
+    let bridge = vm
+        .split_once("    fn allocate_sequence(&mut self)")
+        .unwrap()
+        .1
+        .split_once("    fn expire_due(")
+        .unwrap()
+        .0;
+    assert!(bridge.contains("reference_allocation::allocate_sequence("));
+    assert!(
+        bridge
+            .split_whitespace()
+            .collect::<String>()
+            .replace(",)", ")")
+            .contains("&mutReferenceAllocationOwner(self)")
+    );
+    for forbidden in [
+        "self.journal",
+        "self.pending",
+        "self.completed",
+        "self.next_effect_id",
+        "loop",
+        "format!",
+        "LSV",
+    ] {
+        assert!(!bridge.contains(forbidden));
+    }
+    let owner = vm
+        .split_once("struct ReferenceAllocationOwner")
+        .unwrap()
+        .1
+        .split_once("struct ReferenceClaimOwner")
+        .unwrap()
+        .0
+        .split_whitespace()
+        .collect::<String>();
+    for hook in [
+        "self.0.next_effect_id",
+        "self.0.journal.allocate_sequence(local_next)",
+        "self.0.next_effect_id=next_sequence",
+        "self.0.pending.contains_key(token)",
+        "self.0.completed.contains_key(token)",
+    ] {
+        assert!(owner.contains(hook), "{hook}");
+    }
+    for forbidden in [".clone()", ".insert(", ".remove(", ".max("] {
+        assert!(!owner.contains(forbidden));
+    }
+    assert!(
+        !vm.split_whitespace()
+            .collect::<String>()
+            .contains("ReferenceAllocationHostforVm")
+    );
+    assert!(vm.contains("#[cfg(test)]\nfn effect_sequence_exhausted_fault("));
+    let flow = adapter.split_once("pub fn allocate_sequence").unwrap().1;
+    let mut offset = 0;
+    for stage in [
+        "loop {",
+        "host.local_next()",
+        "host.allocate_sequence(local_next)?",
+        "sequence == 0 || sequence > MAX_EFFECT_SEQUENCE",
+        "SequenceWatermarkRequirement::after_observation(sequence, u64::MAX)",
+        "host.publish_next(next)",
+        "format!(\"continuation-{sequence}\")",
+        "!host.pending_contains(&token) && !host.completed_contains(&token)",
+        "return Ok(sequence)",
+    ] {
+        offset += flow[offset..]
+            .find(stage)
+            .unwrap_or_else(|| panic!("missing/out of order {stage}"))
+            + stage.len();
+    }
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "std::time",
+        "std::thread",
+        ".clone()",
+        "sort_",
+        ".max(",
+    ] {
+        assert!(!adapter.contains(forbidden));
+    }
+    assert!(adapter.contains("ReferenceAllocationHost + ?Sized"));
+    let frozen = read("crates/leselang-vm/src/allocation_contract_tests.rs");
+    let frozen = frozen
+        .split_once("// Frozen pre-extraction selection")
+        .unwrap()
+        .1;
+    assert!(frozen.contains("vm.journal.allocate_sequence(vm.next_effect_id)?"));
+    assert!(!frozen.contains("reference_allocation"));
+    assert!(!frozen.contains("vm.allocate_sequence()"));
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_allocation"));
+    assert!(ci.contains("--lib allocation_contract_tests"));
+}
+
+#[test]
 fn maintenance_policy_preserves_admission_sort_commit_and_native_cache_mutations() {
     let read = |path| fs::read_to_string(root().join(path)).unwrap();
     let vm = read("crates/leselang-vm/src/leserpent_profile.rs");
@@ -1399,9 +1646,24 @@ fn product_root_start_keeps_preflight_order_and_original_native_publication_hook
         .split_once("fn encode_json_capped")
         .unwrap()
         .0;
-    let commit = owner.find("self.0.journal.record_pending(").unwrap();
-    let pending = owner.find("self.0.pending.insert(").unwrap();
-    let visible = owner.find("Step::Effect(Box::new(request))").unwrap();
+    assert!(owner.contains("reference_publication::publish_atomic(request, self)"));
+    assert!(owner.contains("self.0.journal.record_pending("));
+    assert!(owner.contains("self.0.pending.insert(image.token.clone(), image.clone())"));
+    let publication =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_publication.rs"))
+            .unwrap();
+    let atomic = publication
+        .split_once("pub fn publish_atomic<")
+        .unwrap()
+        .1
+        .split_once("pub(crate) fn publish_group<")
+        .unwrap()
+        .0;
+    let commit = atomic.find("host.commit_atomic(&request)").unwrap();
+    let pending = atomic
+        .find("host.publish_pending(&request.continuation)")
+        .unwrap();
+    let visible = atomic.find("Step::Effect(Box::new(request))").unwrap();
     assert!(commit < pending && pending < visible);
     assert!(owner.contains("self.0.start_group("));
     let timed = vm
@@ -1488,15 +1750,38 @@ fn product_group_start_retains_native_reservations_and_commit_before_publication
     assert!(start.contains("&mut ReferenceStartOwner(self)"));
     assert!(owner.contains("self.0.allocate_sequence()"));
     assert!(owner.contains(".check_admission(additional, self.0.scheduler_limits)"));
-    let prepare = start.find("match prepare_group_start(").unwrap();
-    let commit = start
-        .find("self.journal.record_merge_graph_with_limits(")
+    assert!(start.contains("leselang_command::reference_group_start::start_group("));
+    for removed in ["self.journal", "self.pending", "Step::", "named.remove("] {
+        assert!(!start.contains(removed), "{removed}");
+    }
+    assert!(
+        owner
+            .split_whitespace()
+            .collect::<String>()
+            .contains("self.0.journal.record_merge_graph_with_limits(")
+    );
+    let prepare = adapter.find("match prepare_group_start(").unwrap();
+    let publish = adapter
+        .find("crate::reference_publication::publish_group(prepared, host)")
         .unwrap();
-    let pending = start.find("self.pending.insert(").unwrap();
-    let visible = start
+    assert!(prepare < publish);
+    let publication =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_publication.rs"))
+            .unwrap();
+    let group = publication
+        .split_once("pub(crate) fn publish_group<")
+        .unwrap()
+        .1;
+    let commit = group
+        .find("host.commit_group(&merge_token, &plan, &graph)")
+        .unwrap();
+    let pending = group
+        .find("host.publish_pending(&branch.request.continuation)")
+        .unwrap();
+    let visible = group
         .find("Step::Effect(Box::new(named.remove(0).request))")
         .unwrap();
-    assert!(prepare < commit && commit < pending && pending < visible);
+    assert!(commit < pending && pending < visible);
     let oracle =
         fs::read_to_string(root().join("crates/leselang-vm/src/group_start_contract_tests.rs"))
             .unwrap();
@@ -2730,10 +3015,14 @@ fn product_identity_and_terminal_data_move_without_runtime_or_storage_authority(
         "pub use leselang_command::{DispatchLease, FailedEffect, RetryDisposition, RetrySchedule}",
         "pub(crate) use leselang_command::reference_value::{",
         "invalid_continuation_sequence_fault",
-        "if sequence == 0 || sequence > MAX_EFFECT_SEQUENCE",
     ] {
         assert!(vm.contains(retained), "{retained}");
     }
+    let allocation =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_allocation.rs"))
+            .unwrap();
+    assert!(allocation.contains("if sequence == 0 || sequence > MAX_EFFECT_SEQUENCE"));
+    assert!(vm.contains("reference_allocation::allocate_sequence("));
     let identity =
         fs::read_to_string(root().join("crates/leselang-command/src/continuation_identity.rs"))
             .unwrap();
@@ -2884,13 +3173,18 @@ fn product_scheduler_policy_moves_without_owning_leases_or_journal_admission() {
     assert!(!vm.contains("pub enum DispatchClaim"));
     assert!(!vm.contains("pub type DispatchClaim"));
     for delegated in [
-        "validate_scheduler_limits(self)",
+        "leselang_command::reference_startup::validate_limits(self)",
         "check_scheduler_admission(self, pending, additional)",
         "scheduler_lease_capacity_exhausted(self)",
     ] {
         assert!(vm.contains(delegated), "{delegated}");
     }
-    for code in ["LSV2500", "LSV2501", "LSV2503"] {
+    let startup =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_startup.rs"))
+            .unwrap();
+    assert!(startup.contains("validate_scheduler_limits(limits).map_err"));
+    assert!(startup.contains("LSV2500"));
+    for code in ["LSV2501", "LSV2503"] {
         assert!(vm.contains(code));
     }
     assert!(vm.contains("leselang_command::reference_claim::lease_capacity_fault(self)"));
@@ -6586,7 +6880,8 @@ fn request_construction_is_static_policy_not_live_journal_authority() {
     assert!(!adapter.contains("image.clone()"));
     let vm =
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
-    assert!(vm.contains("self.journal.allocate_sequence(self.next_effect_id)?"));
+    assert!(vm.contains("reference_allocation::allocate_sequence("));
+    assert!(vm.contains("self.0.journal.allocate_sequence(local_next)"));
     assert!(vm.contains(".record_pending(&image, request, self.0.scheduler_limits)?"));
     assert!(vm.contains(".claim_dispatch(now_ms, lease_ms, self.0.scheduler_limits)"));
     let oracle =
@@ -8208,7 +8503,7 @@ fn default_and_explicit_sqlite_features_keep_the_durable_backend_and_released_ap
     assert!(manifest.contains("rusqlite = { workspace = true, optional = true }"));
     let code =
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
-    assert!(code.contains("journal: Journal::ephemeral()"));
+    assert!(code.contains("Journal::ephemeral,"));
     for method in ["open_journal(", "open_journal_with_limits("] {
         assert!(code.contains(&format!(
             "#[cfg(feature = \"sqlite-journal\")]\n    pub fn {method}"

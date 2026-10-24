@@ -1,4 +1,4 @@
-//! Product group-start assembly with explicit live admission and reservation hooks.
+//! Product group-start assembly and publication over native admission/commit hooks.
 
 use leselang_hir::{Effect, HirBranch};
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
@@ -41,6 +41,28 @@ pub struct PreparedGroupStart {
     pub merge_token: ContinuationToken,
     pub plan: MergePlan,
     pub branches: Vec<NamedEffectRequest>,
+}
+
+/// Prepare, commit and publish one group in the released order. The caller's
+/// original HIR/authority preconditions are the same as `prepare_group_start`;
+/// only native commit can admit this graph. All reservations remain consumed on
+/// later refusal, and only a committed graph reaches pending-cache publication.
+pub fn start_group<Host>(
+    branches: &[HirBranch],
+    order: ExecutionOrder,
+    context: GroupStartContext,
+    result_binding: Option<Box<ResultBinding>>,
+    host: &mut Host,
+) -> crate::Step
+where
+    Host: ReferenceGroupStartHost
+        + crate::reference_publication::ReferenceRootPublicationHost
+        + ?Sized,
+{
+    match prepare_group_start(branches, order, context, result_binding, host) {
+        Ok(prepared) => crate::reference_publication::publish_group(prepared, host),
+        Err(error) => crate::Step::Fault(error),
+    }
 }
 
 /// Assemble the original group plan, prefix requests and successor reservations.

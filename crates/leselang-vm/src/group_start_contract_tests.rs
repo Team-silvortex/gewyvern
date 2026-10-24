@@ -257,7 +257,7 @@ fn group_start_sqlite_publication_and_failed_writes_match_frozen_restart_state()
 
 // Frozen pre-migration whole VM group start, including actual journal publication.
 #[allow(clippy::too_many_arguments)]
-fn frozen_start_group(
+pub(super) fn frozen_start_group(
     vm: &mut Vm,
     branches: &[leselang_hir::HirBranch],
     order: ExecutionOrder,

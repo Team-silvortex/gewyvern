@@ -20,7 +20,8 @@ rustls.workspace = true
 ring = "0.17"
 russh = { version = "0.62.3", default-features = false, features = ["ring"], optional = true }
 russh-sftp = { version = "2.3.0", optional = true }
-tokio = { version = "1", default-features = false, features = ["io-util", "net", "rt", "time"], optional = true }
+# RUSTSEC-2026-0386: retain the AsyncFd I/O-safety fix on the current minor line.
+tokio = { version = "1.53.3", default-features = false, features = ["io-util", "net", "rt", "time"], optional = true }
 silvortex-bounded-io = { path = "../silvortex-bounded-io" }
 zeroize = "1"
 

@@ -233,3 +233,106 @@ fn continuous_integration_enforces_all_primary_product_gates() {
         );
     }
 }
+
+// A focused delimiter guard, not a replacement for parsing the complete YAML.
+fn ambiguous_plain_run(line: &str) -> bool {
+    let line = line.trim_start();
+    let Some(value) = line
+        .strip_prefix("run: ")
+        .or_else(|| line.strip_prefix("- run: "))
+    else {
+        return false;
+    };
+    let value = value.trim();
+    if value.starts_with(['\'', '"', '|', '>']) {
+        return false;
+    }
+    value.ends_with(':')
+        || value
+            .as_bytes()
+            .windows(2)
+            .any(|pair| pair[0] == b':' && pair[1].is_ascii_whitespace())
+}
+
+#[test]
+fn workflow_run_delimiters_require_yaml_quoting_or_block_scalars() {
+    for bad in [
+        "run: cargo test --lib restore_contract_tests::",
+        "- run: cargo test --lib restore_contract_tests::  ",
+        "run: echo 'status: ready'",
+        "run: cargo test --lib restore_contract_tests:: # restore",
+    ] {
+        assert!(ambiguous_plain_run(bad), "{bad}");
+    }
+    for valid in [
+        "run: |",
+        "run: >-",
+        "run: 'cargo test --lib restore_contract_tests::'",
+        "run: \"cargo test --lib restore_contract_tests::\"",
+        "run: cargo test --lib restore_contract_tests::restore",
+        "run: curl https://example.invalid",
+        "name: Test restore",
+    ] {
+        assert!(!ambiguous_plain_run(valid), "{valid}");
+    }
+    for entry in fs::read_dir(repository_root().join(".github/workflows")).unwrap() {
+        let path = entry.unwrap().path();
+        if !path
+            .extension()
+            .is_some_and(|ext| ext == "yml" || ext == "yaml")
+        {
+            continue;
+        }
+        for (line, value) in fs::read_to_string(&path).unwrap().lines().enumerate() {
+            assert!(
+                !ambiguous_plain_run(value),
+                "{}:{}: quote the complete run value or use a YAML block scalar",
+                path.display(),
+                line + 1
+            );
+        }
+    }
+}
+
+#[test]
+fn locked_native_ssh_dependencies_retain_reviewed_security_patches() {
+    let lock = fs::read_to_string(repository_root().join("Cargo.lock")).unwrap();
+    for (name, minimum) in [
+        ("ctutils", "0.4.4"),
+        ("tokio", "1.53.3"),
+        ("crypto-bigint", "0.7.6"),
+    ] {
+        let versions = lock
+            .split("[[package]]")
+            .filter(|block| {
+                block
+                    .lines()
+                    .any(|line| line == format!("name = \"{name}\""))
+            })
+            .map(|block| {
+                let version = block
+                    .lines()
+                    .find_map(|line| {
+                        line.strip_prefix("version = \"")
+                            .and_then(|value| value.strip_suffix('"'))
+                    })
+                    .unwrap();
+                semver::Version::parse(version).unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert!(!versions.is_empty(), "missing reviewed dependency {name}");
+        for version in versions {
+            assert!(
+                version.pre.is_empty() && version >= semver::Version::parse(minimum).unwrap(),
+                "{name} {version} predates the reviewed security fix"
+            );
+            if name == "tokio" {
+                assert_ne!(
+                    version,
+                    semver::Version::new(1, 54, 0),
+                    "RUSTSEC-2026-0384: do not reintroduce the interval race"
+                );
+            }
+        }
+    }
+}

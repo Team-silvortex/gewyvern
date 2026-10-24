@@ -1,5 +1,5 @@
 use leselang_command::scheduler_policy::{
-    check_scheduler_admission, scheduler_lease_capacity_exhausted, validate_scheduler_limits,
+    check_scheduler_admission, scheduler_lease_capacity_exhausted,
 };
 use leselang_runtime_core::DispatchAdmissionError;
 
@@ -14,10 +14,7 @@ pub(crate) trait ReferenceSchedulerLimits {
 
 impl ReferenceSchedulerLimits for SchedulerLimits {
     fn validate(self) -> Result<(), Fault> {
-        validate_scheduler_limits(self).map_err(|error| Fault {
-            code: "LSV2500".into(),
-            message: error.to_string(),
-        })
+        leselang_command::reference_startup::validate_limits(self)
     }
 
     fn check_admission(self, pending: usize, additional: usize) -> Result<(), Fault> {

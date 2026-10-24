@@ -1,0 +1,197 @@
+{
+  "kind": "leselang-sequence-allocation-coordination-parity",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.151.0",
+  "direct_adapter_tests": 6,
+  "whole_vm_boundary_cache_comparisons": 112,
+  "long_collision_scenarios": 2,
+  "collisions_per_long_scenario": 1024,
+  "sqlite_frontier_cache_scenarios": 96,
+  "sqlite_fault_scenarios": 6,
+  "sqlite_concurrent_runs": 2,
+  "workers_per_concurrent_run": 4,
+  "reservations_per_concurrent_run": 64,
+  "adapter_owned_sequence_selection": true,
+  "private_owner_without_public_vm_allocator_mutators": true,
+  "native_allocation_before_product_range_check": true,
+  "watermark_before_pending_then_completed_short_circuit": true,
+  "original_local_hint_without_prevalidation_or_clamping": true,
+  "collision_consumes_reservation_without_reclaim": true,
+  "native_fault_ownership_and_backend_precedence_preserved": true,
+  "no_cache_mutation_or_effect_publication": true,
+  "no_retry_or_compensation_on_fault_or_unwind": true,
+  "frozen_sequence_selection_policy": true,
+  "native_journal_implementation_unchanged": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Local adapter and frozen VM allocation parity; native journal transactions remain shared.",
+  "limitations": [
+    "No remote CI, Linux, live GUI, standalone source export or checkpoint rerun.",
+    "Private cache fixtures are occupancy tests, not arbitrary saved-image admission proofs.",
+    "No new durable allocator, atomicity guarantee or complete host-neutral VM."
+  ],
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "c2eef16b70ec55d43f1589be9115a18bb1b57b7f118e8ebdf58d849304066b29"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_allocation.rs",
+      "sha256": "043f2590a94eb3dade89e1de42fa97e3e0a0934d85d6a6933474699f29202896"
+    },
+    {
+      "path": "crates/leselang-command/src/continuation_identity.rs",
+      "sha256": "5a530a239c3e7ab76abd6bfcfed66acaec4b459e15bf42cf0486d8494c7d6e6b"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_allocation.rs",
+      "sha256": "e0549c8f07ecac3fde12a8f11f77680edc3045ef150aa2c0e3b1ba1e395a88d1"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "eda09d937bad8d95c9fdd2d1c1abdfc932150665ed38411750f6ea057c876ee0"
+    },
+    {
+      "path": "crates/leselang-vm/src/allocation_contract_tests.rs",
+      "sha256": "eadfa5822f5835727a5c07ce414757293986e003272858f38615726d595c2431"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "c8b1993298578d827cb129564a6e4f92fde75fdf07ebceaa16913b57948118c5"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/successor.rs",
+      "sha256": "0835a2209a2c832cbe88a6bd2cee6597485a006285a3e9b3f6894fa41a7d727c"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/sequence_watermark.rs",
+      "sha256": "f6c9e410b332d4cb0a9b21468fe78a9291dc452aacd8a7e8abe086bd84fe226c"
+    },
+    {
+      "path": "crates/leselang-vm/tests/restore_allocator.rs",
+      "sha256": "21a02b0f21a309c292a41b85fceb12bd77d6146dbc54b4e17db8ec6c1b8ef225"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "d72f0bbf9884117d041585a25dc7aed98ce18600f3ef73962e3852e09b9ea27c"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "df21c1dde20f2d45300e731e905f61462b4e347319cab0db910e14e4d24e5475"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "e0a8004212d7b92dea72d04d8c52e5ae230ae0b16d1becc21ab2c9c5780575fa"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "1a601d235747817bf58f5233a1c92da577a871d32baccc5140059d6df506291f"
+    },
+    {
+      "path": "project/release/leserpent-gui-function-chain.json",
+      "sha256": "575de1b55c35f291b2e2553340aa5a4ed252ae1b2c69f4904584feeef1cbbd13"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "563acdb04149e0c687a9fad6f40595f3860f23ed1e7fb70c356e60e4ddd4b500"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "2bf23eb9699b76d0d0230d97dba6ac5e59c8606c041d5257244f634bd04f4813"
+    },
+    {
+      "path": "tests/language_independence_tdd.rs",
+      "sha256": "70708d5697ab91df42734bac2bc7f3e43b7d6447e6ea701c676aa9f4a7a4dc4f"
+    },
+    {
+      "path": "tests/gui_function_chain_tdd.rs",
+      "sha256": "d1edb86846882982c373389b798ae763fb1aaaf8fa04c36c1d50b526ab6a82ed"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "adapter",
+      "log": "/private/tmp/leselang-allocation-20261024-adapter.log",
+      "sha256": "b4912d8074943f20a2178a18c50947de741b0a4d4c7684117c66c52c1791a14b"
+    },
+    {
+      "stage": "parity",
+      "log": "/private/tmp/leselang-allocation-20261024-parity.log",
+      "sha256": "2c750d4ce71b1062fe5c482c87dd0fedb6a5b6d6f6cb6bb39a2b4c12b51be9d2"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-allocation-20261024-default.log",
+      "sha256": "f109590a4aa419aada9fbe990912b315315b28f48ffba3853c891de42a89fcca"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-allocation-20261024-memory.log",
+      "sha256": "efa182912bba781ca867696929be8454514a89b4fdf6c5ac72dc1a9eda240936"
+    },
+    {
+      "stage": "gates-sealed",
+      "log": "/private/tmp/leselang-allocation-20261024-gates-sealed.log",
+      "sha256": "79c9fe54b848850a7535c4746f4c9e1e8b8f490b0843861ae578d5181564769f"
+    },
+    {
+      "stage": "workspace-clippy",
+      "log": "/private/tmp/leselang-allocation-20261024-workspace-clippy.log",
+      "sha256": "031f8a5a3cda3d971eb6eb62823a55b5e62ab4ed8c95d1073ea22f2e1de42b24"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-allocation-20261024-memory-clippy.log",
+      "sha256": "2055cf0d5472e6b86f624a6317ed2c455a028ce99fade2b59112e7a44175a1fa"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-allocation-20261024-native-check.log",
+      "sha256": "6c9a93b709d70b97abb02cb00823887d60b5c99c51e73ea1ae9635a26f949d2e"
+    },
+    {
+      "stage": "dependencies",
+      "log": "/private/tmp/leselang-allocation-20261024-dependencies.log",
+      "sha256": "2aa3528997c7c9640dc072977067c24f67ca4ff21ee912b534ce599bf644ac56"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-allocation-20261024-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "included-format",
+      "log": "/private/tmp/leselang-allocation-20261024-included-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "diff",
+      "log": "/private/tmp/leselang-allocation-20261024-diff.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "status",
+      "log": "/private/tmp/leselang-allocation-20261024-status.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    },
+    {
+      "stage": "journal-boundary",
+      "log": "/private/tmp/leselang-allocation-20261024-journal-boundary.log",
+      "sha256": "cda4b82eb2173c18fc47f61bf6978bf885c4c107dc94df0ee5c66fb50c9bf9c6"
+    }
+  ],
+  "verification_counts": {
+    "default_tests": 1910,
+    "memory_tests": 287,
+    "architecture_documentation_status_gui_tests": 584
+  }
+}

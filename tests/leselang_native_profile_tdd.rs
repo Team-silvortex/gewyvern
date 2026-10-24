@@ -1644,7 +1644,12 @@ fn dispatch_capacity_is_shared_without_moving_storage_or_product_policy_into_cor
         "dispatch_lease_capacity_exhausted(pressure.active_leases, pressure.limits.max_active_leases)"
     ));
     assert!(!scheduling.contains("pending.saturating_add"));
-    for code in ["LSV2500", "LSV2501", "LSV2503"] {
+    assert!(scheduling.contains("leselang_command::reference_startup::validate_limits(self)"));
+    let startup =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_startup.rs"))
+            .unwrap();
+    assert!(startup.contains("LSV2500"));
+    for code in ["LSV2501", "LSV2503"] {
         assert!(scheduling.contains(code));
     }
     assert!(scheduling.contains("leselang_command::reference_claim::lease_capacity_fault(self)"));

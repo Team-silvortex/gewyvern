@@ -75,7 +75,8 @@ jobs:
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_restore
 
       - name: Test import parity and durable rollback boundaries
-        run: cargo +1.98.0 test -p leselang-vm --locked --lib restore_contract_tests::
+        run: |
+          cargo +1.98.0 test -p leselang-vm --locked --lib restore_contract_tests::
 
       - name: Test reference VM with the SQLite backend disabled
         run: cargo +1.98.0 test -p leselang-vm --locked --no-default-features --features leserpent-profile
@@ -141,6 +142,24 @@ jobs:
 
       - name: Test frozen retention and expiry cache publication parity
         run: cargo +1.98.0 test -p leselang-vm --locked --lib maintenance_contract_tests
+
+      - name: Test sequence selection without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_allocation
+
+      - name: Test frozen sequence selection and shared journal reservations
+        run: cargo +1.98.0 test -p leselang-vm --locked --lib allocation_contract_tests
+
+      - name: Test startup coordination without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_startup
+
+      - name: Test frozen startup and native recovery lifecycle parity
+        run: cargo +1.98.0 test -p leselang-vm --locked --lib startup_contract_tests
+
+      - name: Test root publication without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_publication
+
+      - name: Test native publication failures and shared-owner admission races
+        run: cargo +1.98.0 test -p leselang-vm --locked --lib publication_contract_tests
 
       - name: Test native settlement peer-winner publication
         run: cargo +1.98.0 test -p leselang-vm --locked --lib settlement_contract_tests::settlement_sqlite

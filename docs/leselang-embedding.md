@@ -10305,11 +10305,142 @@ owners, peer maintenance, late transaction failures, malformed later batch image
 replay and restart. Native journal kernels remain shared; these local macOS tests
 are compatibility evidence, not a fresh source export or independent storage engine.
 
-Reference execution is now `1.150.0`; native embedding `0.172.0`, HIR `0.184.0`,
+At reference execution `1.150.0`, native embedding `0.172.0`, HIR `0.184.0`,
 product version, wire formats and journal schema 10 remain unchanged. Native journal
 ownership, sequence allocation and startup/recovery lifecycle, complete host-neutral
 durable recovery, vertical compatibility and physical extraction remain open.
 Native completion, maturity and extraction gates are not promoted.
+
+### Sequence Allocation Coordination
+
+`leselang-command::reference_allocation` now owns the reference VM's sequence
+selection loop. A private owner reads the original local hint, calls the native
+journal allocator, assigns the returned watermark and performs pending/completed
+cache lookups. Existing start/group/successor host interfaces remain unchanged;
+the public VM gains no direct allocator or watermark mutation surface. Storage
+transactions, shared-worker uniqueness and startup/recovery remain native.
+
+The order is native allocation, product sequence-range validation, local watermark
+publication, token construction, pending lookup, then a short-circuited completed
+lookup. A collision consumes its reservation before requesting a fresh one. No
+cache is mutated, no effect is published, and neither native errors nor unwinds
+retry or compensate earlier reservations. The adapter does not clamp or prevalidate
+the local hint, merge it with the returned watermark, scan ahead or reclaim gaps.
+Numeric planning is still the shared kernel, not a new durable allocation receipt.
+
+The original backend diagnostic precedence is retained: memory exhaustion reaches
+the product's `LSV1003`, while SQLite may refuse with `LSV4009` before returning a
+candidate. Fault injection also covers invalid stored metadata after opening,
+read/write/commit refusal and failure after an earlier consumed collision. These
+are compatibility checks, not permission to bypass native recovery admission or
+a new guarantee that every error implies no native effects.
+
+The [allocation proof](fixtures/leselang_allocation_policy_macos_arm64_20261024.json)
+adds six adapter-only tests for exact hook order, original native faults, local-hint
+handling, ceiling behavior and unwind semantics. A frozen selection loop covers
+112 in-memory boundary/cache-mask cases and two 1,024-collision runs, including
+exhaustion without wraparound. The SQLite matrix covers 96 frontier/cache cases
+and six distinct fault scenarios with full table and restart comparison. Four
+shared workers also allocate 64 unique reservations per run under both the live
+and frozen loops, without publishing effects. Local occupancy fixtures deliberately
+seed private caches; they are not proofs of admission for arbitrary saved images.
+All journal kernels remain unchanged and shared with the compatibility oracle.
+
+At reference execution `1.151.0`, native embedding `0.172.0`, HIR `0.184.0`,
+product version, wire formats and journal schema 10 remain unchanged. Native journal
+ownership and startup/recovery lifecycle, complete host-neutral durable recovery,
+vertical compatibility and physical extraction remain open. Native completion,
+maturity and extraction gates are not promoted. No new standalone source export,
+remote CI, Linux or live GUI evidence is claimed by this local macOS proof.
+
+### Startup And Recovery Entry
+
+`leselang-command::reference_startup` owns default in-memory state assembly,
+startup scheduler-policy validation, the new-root fuel cap and recovered-state
+assembly. The VM's released constructors delegate to it and privately move the
+result into the existing owner. There is no new public VM state-injection method.
+The adapter uses borrowed-capable `FnOnce` hooks and move-only generic carriers,
+without a VM/SQLite dependency, serialization or Clone/Send/static requirements.
+These carriers are trusted product data, not authenticated recovery certificates.
+
+Explicit limits are checked before the native hook, even before the caller's
+`AsRef<Path>` conversion. Default in-memory construction stays infallible and
+does not open a durable store. Durable construction calls the existing native
+open/load boundary exactly once; path protections, permissions, migrations,
+bounded reads, graph/audit proofs, allocator repair and transaction commit remain
+native. Only successful recovery exposes assembled state. Native errors and
+unwinds are not caught, retried or converted into an ephemeral fallback.
+Successful earlier migrations may survive a later recovery failure, as before;
+the adapter adds no rollback or all-or-nothing startup guarantee.
+
+Recovered maps, saved execution budgets and the exact native watermark move
+unchanged. Lower limits affect future admission/leases, not the validity of
+existing work. A zero new-root fuel limit does not reset saved continuation fuel.
+Startup neither reaps expired work nor claims, cancels or executes effects.
+Live limit replacement reuses the same released `LSV2500` diagnostic and changes
+policy only after validation. The native profile without SQLite still has no
+durable-open API; this is not a hidden memory substitute.
+
+The [startup proof](fixtures/leselang_startup_policy_macos_arm64_20261024.json)
+covers six adapter tests (including 98 limit/backend combinations), frozen
+constructor parity across 294 memory configurations, default/fuel boundaries,
+49 live policy replacements and 49 validation-before-path cases. SQLite checks
+cover 54 empty/leased/group checkpoint configurations, four additional
+repair/migration/exhaustion/bare-image cases, six native recovery failures and
+four native path refusals on macOS. Full table comparisons preserve the existing
+bare-continuation format without requiring an outbox entry. Frozen constructors
+share the unchanged native journal kernel; this is startup policy parity, not an
+independent recovery implementation or a complete native source export.
+
+At reference execution `1.152.0`, native embedding `0.172.0`, HIR `0.184.0`,
+product version, wire formats and journal schema 10 remain unchanged. Native
+journal ownership, complete host-neutral durable recovery, full host verticals
+and physical extraction remain open. Completion, maturity and extraction gates
+are not promoted. No remote CI, Linux or live GUI run is claimed here.
+
+### Root Commit And Publication
+
+`leselang-command::reference_publication` now coordinates atomic and group root
+publication. The existing group-start adapter also exposes one prepare/commit/
+publish entry, so the VM no longer owns the group branch loop or sequential vs
+parallel visible-step selection. A private VM owner retains the native journal
+calls and exact pending-cache copy operations. Existing root-start and preparation
+interfaces remain available; the raw prepared-group publication helper is crate
+private, not a new way to bypass group preparation's nonempty-branch invariant.
+
+The order remains complete preparation and consumed identity reservations,
+native whole-request/graph commit, pending-cache publication in declared branch
+order, then visible work. Sequential groups still cache every prefix member but
+return only the first request; parallel groups return the original owned batch.
+Native commit receives original borrowed requests/plan and must recheck live
+capacity inside its transaction. Product policy adds no second validation pass,
+request clone, identity allocation, error translation or reservation refund.
+
+Refusal or unwind in native commit stops cache publication without retry or
+compensation. A cache-hook unwind after a successful commit can retain a locally
+published prefix; storage plus cache is not a new atomic transaction. Native
+recovery remains authoritative after interrupted publication. None of these
+interfaces authenticate a prepared graph or grant independent dispatch authority.
+
+The [publication proof](fixtures/leselang_publication_policy_macos_arm64_20261024.json)
+adds six adapter tests covering all twelve group forms, original owned payloads,
+ordered borrows, preparation/commit refusals and commit/cache unwinds. Existing
+frozen whole-VM oracles still cover 15,120 group cases, 8,400 root cases, 320 pure/
+lazy cases and 60 SQLite cases. Another 64 SQLite scenarios exercise late branch
+effect/dispatch/link failures, deferred foreign-key commit failure, restart and
+subsequent execution. Thirteen deterministic two-owner interleavings admit a real
+peer after preparation/reservations but before the first owner's commit: the
+native capacity recheck rejects the first root, preserves consumed identities
+and retains only the peer's work across restart. This is an interleaving proof,
+not a threaded throughput benchmark. The race oracle shares preparation; the
+existing group oracle retains independent preparation. Native journals remain
+unchanged and shared, not an independent storage implementation.
+
+Reference execution is now `1.153.0`; native embedding `0.172.0`, HIR `0.184.0`,
+product version, wire formats and journal schema 10 remain unchanged. Native
+journal ownership, complete host-neutral durable recovery, full host verticals
+and physical extraction remain open. Completion/maturity and extraction gates
+are not promoted. No new remote CI, Linux, live GUI or standalone export is claimed.
 
 **The current 2.3.0-and-later phase closes acceptance gates; physical extraction is deferred.**
 It is not an automatic version-triggered move. No replacement extraction version

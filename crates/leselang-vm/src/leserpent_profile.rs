@@ -21,6 +21,7 @@ use leselang_host_contract::{
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 #[cfg(test)]
 use leselang_runtime_core::Fuel;
+#[cfg(test)]
 use leselang_runtime_core::SequenceWatermarkRequirement;
 #[cfg(test)]
 use leselang_runtime_core::{ResourceBudgetError, ResourceBudgetLimits};
@@ -36,6 +37,8 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer};
 
 mod admission;
+#[cfg(test)]
+mod allocation_contract_tests;
 #[cfg(test)]
 mod bounded_decode_tests;
 #[cfg(test)]
@@ -79,6 +82,8 @@ mod merge_plan_contract_tests;
 mod operation_request_tests;
 #[cfg(test)]
 mod presentation_request_tests;
+#[cfg(all(test, feature = "sqlite-journal"))]
+mod publication_contract_tests;
 #[cfg(test)]
 mod reference_value_contract_tests;
 #[cfg(test)]
@@ -99,6 +104,8 @@ mod scheduling;
 mod scheduling_contract_tests;
 #[cfg(test)]
 mod start_contract_tests;
+#[cfg(test)]
+mod startup_contract_tests;
 mod successor;
 #[cfg(test)]
 mod value_validation_tests;
@@ -150,9 +157,10 @@ pub use leselang_command::{MAX_CONTINUATION_BYTES, decode_continuation, encode_c
 pub const DEFAULT_FUEL: u64 = 1_000;
 pub const DEFAULT_EFFECT_DEADLINE_MS: u64 = 30_000;
 pub use leselang_command::ContinuationToken;
+#[cfg(test)]
+pub(crate) use leselang_command::continuation_identity::MAX_EFFECT_SEQUENCE;
 pub(crate) use leselang_command::continuation_identity::{
-    MAX_EFFECT_SEQUENCE, canonical_continuation_sequence, continuation_age_order,
-    valid_continuation_token,
+    canonical_continuation_sequence, continuation_age_order, valid_continuation_token,
 };
 pub use leselang_command::reference_dispatch::{
     DEFAULT_DISPATCH_LEASE_MS, MAX_DISPATCH_ATTEMPTS, MAX_DISPATCH_LEASE_MS,
@@ -230,14 +238,10 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
 "#
     )]
     pub fn new(fuel_limit: u64) -> Self {
-        Self {
-            next_effect_id: 1,
-            fuel_limit: fuel_limit.min(MAX_EXECUTION_FUEL),
-            pending: BTreeMap::new(),
-            completed: BTreeMap::new(),
-            journal: Journal::ephemeral(),
-            scheduler_limits: SchedulerLimits::default(),
-        }
+        Self::from_startup(leselang_command::reference_startup::in_memory(
+            fuel_limit,
+            Journal::ephemeral,
+        ))
     }
 
     /// Opens the durable SQLite backend; available with the default `sqlite-journal` feature.
@@ -248,10 +252,12 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
     }
 
     pub fn new_with_limits(fuel_limit: u64, limits: SchedulerLimits) -> Result<Self, Fault> {
-        limits.validate()?;
-        let mut vm = Self::new(fuel_limit);
-        vm.scheduler_limits = limits;
-        Ok(vm)
+        leselang_command::reference_startup::in_memory_with_limits(
+            fuel_limit,
+            limits,
+            Journal::ephemeral,
+        )
+        .map(Self::from_startup)
     }
 
     /// The host must reapply the same policy to all trusted workers after restart.
@@ -261,16 +267,27 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
         fuel_limit: u64,
         limits: SchedulerLimits,
     ) -> Result<Self, Fault> {
-        limits.validate()?;
-        let (journal, snapshot) = Journal::open(path.as_ref())?;
-        Ok(Self {
-            next_effect_id: snapshot.next_sequence,
-            fuel_limit: fuel_limit.min(MAX_EXECUTION_FUEL),
-            pending: snapshot.pending,
-            completed: snapshot.completed,
-            journal,
-            scheduler_limits: limits,
+        leselang_command::reference_startup::recover(fuel_limit, limits, || {
+            let (journal, snapshot) = Journal::open(path.as_ref())?;
+            Ok(leselang_command::reference_startup::RecoveredJournal {
+                next_sequence: snapshot.next_sequence,
+                pending: snapshot.pending,
+                completed: snapshot.completed,
+                journal,
+            })
         })
+        .map(Self::from_startup)
+    }
+
+    fn from_startup(state: leselang_command::reference_startup::StartupState<Journal>) -> Self {
+        Self {
+            next_effect_id: state.next_sequence,
+            fuel_limit: state.fuel_limit,
+            pending: state.pending,
+            completed: state.completed,
+            journal: state.journal,
+            scheduler_limits: state.scheduler_limits,
+        }
     }
 
     /// Lowering capacity does not cancel existing work; it only gates new admission/leases.
@@ -366,18 +383,10 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
         fuel_remaining: u64,
         result_binding: Option<Box<ResultBinding>>,
     ) -> Step {
-        use leselang_command::reference_group_start::{
-            GroupStartContext, PreparedGroupStart, prepare_group_start,
-        };
-
-        let PreparedGroupStart {
-            merge_token,
-            plan,
-            branches: mut named,
-        } = match prepare_group_start(
+        leselang_command::reference_group_start::start_group(
             branches,
             order,
-            GroupStartContext {
+            leselang_command::reference_group_start::GroupStartContext {
                 principal,
                 capabilities,
                 expected_revision,
@@ -387,36 +396,7 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
             },
             result_binding,
             &mut ReferenceStartOwner(self),
-        ) {
-            Ok(prepared) => prepared,
-            Err(error) => return Step::Fault(error),
-        };
-        let order = plan.order;
-        let graph = named
-            .iter()
-            .map(|branch| (branch.branch.as_str(), &branch.request))
-            .collect::<Vec<_>>();
-        if let Err(error) = self.journal.record_merge_graph_with_limits(
-            &merge_token,
-            &plan,
-            &graph,
-            self.scheduler_limits,
-        ) {
-            return Step::Fault(error);
-        }
-        for branch in &named {
-            self.pending.insert(
-                branch.request.continuation.token.clone(),
-                branch.request.continuation.clone(),
-            );
-        }
-        if order.is_sequential() {
-            return Step::Effect(Box::new(named.remove(0).request));
-        }
-        Step::Effects(Box::new(StructuredEffectBatch {
-            merge_token,
-            branches: named,
-        }))
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -653,20 +633,9 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
     }
 
     fn allocate_sequence(&mut self) -> Result<u64, Fault> {
-        loop {
-            let sequence = self.journal.allocate_sequence(self.next_effect_id)?;
-            if sequence == 0 || sequence > MAX_EFFECT_SEQUENCE {
-                return Err(effect_sequence_exhausted_fault());
-            }
-            self.next_effect_id =
-                SequenceWatermarkRequirement::after_observation(sequence, u64::MAX)
-                    .map_err(|_| effect_sequence_exhausted_fault())?
-                    .required_watermark();
-            let token = ContinuationToken::from_wire(format!("continuation-{sequence}"));
-            if !self.pending.contains_key(&token) && !self.completed.contains_key(&token) {
-                return Ok(sequence);
-            }
-        }
+        leselang_command::reference_allocation::allocate_sequence(&mut ReferenceAllocationOwner(
+            self,
+        ))
     }
 
     fn expire_due(&mut self, now_ms: u64) -> Result<(), Fault> {
@@ -786,6 +755,28 @@ impl leselang_command::reference_settlement::interruption::ReferenceRetrySettlem
     }
     fn publish_retry_terminal(&mut self, image: &ContinuationImage, authoritative: &Step) -> Step {
         self.0.publish_retry_terminal(image, authoritative)
+    }
+}
+
+struct ReferenceAllocationOwner<'a>(&'a mut Vm);
+
+impl leselang_command::reference_allocation::ReferenceAllocationHost
+    for ReferenceAllocationOwner<'_>
+{
+    fn local_next(&self) -> u64 {
+        self.0.next_effect_id
+    }
+    fn allocate_sequence(&mut self, local_next: u64) -> Result<u64, Fault> {
+        self.0.journal.allocate_sequence(local_next)
+    }
+    fn publish_next(&mut self, next_sequence: u64) {
+        self.0.next_effect_id = next_sequence;
+    }
+    fn pending_contains(&self, token: &ContinuationToken) -> bool {
+        self.0.pending.contains_key(token)
+    }
+    fn completed_contains(&self, token: &ContinuationToken) -> bool {
+        self.0.completed.contains_key(token)
     }
 }
 
@@ -996,18 +987,32 @@ impl leselang_command::reference_start::ReferenceStartHost for ReferenceStartOwn
         )
     }
     fn commit_atomic(&mut self, request: EffectRequest) -> Step {
-        if let Err(error) = self.0.journal.record_pending(
+        leselang_command::reference_publication::publish_atomic(request, self)
+    }
+}
+
+impl leselang_command::reference_publication::ReferenceRootPublicationHost
+    for ReferenceStartOwner<'_>
+{
+    fn commit_atomic(&mut self, request: &EffectRequest) -> Result<(), Fault> {
+        self.0.journal.record_pending(
             &request.continuation,
-            Some(&request),
+            Some(request),
             self.0.scheduler_limits,
-        ) {
-            return Step::Fault(error);
-        }
-        self.0.pending.insert(
-            request.continuation.token.clone(),
-            request.continuation.clone(),
-        );
-        Step::Effect(Box::new(request))
+        )
+    }
+    fn commit_group(
+        &mut self,
+        token: &ContinuationToken,
+        plan: &MergePlan,
+        graph: &[(&str, &EffectRequest)],
+    ) -> Result<(), Fault> {
+        self.0
+            .journal
+            .record_merge_graph_with_limits(token, plan, graph, self.0.scheduler_limits)
+    }
+    fn publish_pending(&mut self, image: &ContinuationImage) {
+        self.0.pending.insert(image.token.clone(), image.clone());
     }
 }
 
@@ -1135,6 +1140,7 @@ fn valid_merge_branch_name(name: &str) -> bool {
     leselang_command::valid_merge_branch_name(name, MAX_MERGE_BRANCH_NAME_BYTES)
 }
 
+#[cfg(test)]
 fn effect_sequence_exhausted_fault() -> Fault {
     Fault {
         code: "LSV1003".to_string(),
