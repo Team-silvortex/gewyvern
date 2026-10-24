@@ -13,6 +13,14 @@ use leselang_vm::{
 #[path = "support/reference_dispatch_authority.rs"]
 mod reference_dispatch_authority;
 
+#[path = "support/reference_request_build_authority.rs"]
+mod reference_request_build_authority;
+
+#[test]
+fn memory_request_construction_cannot_reserve_or_dispatch_a_live_effect() {
+    reference_request_build_authority::exercise(Vm::new(100), |vm| vm);
+}
+
 #[test]
 fn inspected_group_cannot_publish_a_receipt_or_replace_live_member_authority() {
     use leselang_command::reference_group_batch::{

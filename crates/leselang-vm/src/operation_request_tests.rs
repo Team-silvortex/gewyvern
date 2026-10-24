@@ -168,6 +168,114 @@ fn operation_lowering_preserves_frozen_build_wire_fuel_and_refusal_order() {
 use crate::continuation_contract_tests::requests;
 
 #[test]
+fn request_construction_matches_frozen_policy_across_competing_fault_boundaries() {
+    use leselang_command::reference_request_build::{ReservedEffectInput, build_effect_request};
+    let requests = requests();
+    let mut cases = requests
+        .iter()
+        .map(|r| {
+            (
+                r.continuation.pending_effect.clone(),
+                r.continuation.result_type,
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(cases.len(), 70);
+    cases.extend([
+        (Effect::All { branches: vec![] }, Type::Structured),
+        (Effect::Sequence { steps: vec![] }, Type::Structured),
+    ]);
+    let mut comparisons = 0;
+    let mut successes = 0;
+    for (effect, result_type) in cases {
+        let before = serde_json::to_vec(&effect).unwrap();
+        for fuel in [
+            0,
+            1,
+            2,
+            MAX_EXECUTION_FUEL + 1,
+            MAX_EXECUTION_FUEL + 2,
+            u64::MAX,
+        ] {
+            for sequence in [0, 1, MAX_EFFECT_SEQUENCE, MAX_EFFECT_SEQUENCE + 1, u64::MAX] {
+                for defect in 0..6 {
+                    let mut principal = Principal::new("operator").unwrap();
+                    let mut capabilities = requests[0].operation.authority().1.clone();
+                    let mut result_type = result_type;
+                    let mut deadline = 30_000;
+                    let mut deadline_at = Some(31_100);
+                    match defect {
+                        1 => capabilities = CapabilitySet::default(),
+                        2 => principal.id = "private/invalid".into(),
+                        3 => result_type = Type::Structured,
+                        4 => deadline = 0,
+                        5 => {
+                            principal.id.clear();
+                            capabilities = CapabilitySet::default();
+                            deadline_at = Some(u64::MAX);
+                        }
+                        _ => {}
+                    }
+                    let expected = frozen_build_effect_request(
+                        &effect,
+                        result_type,
+                        sequence,
+                        principal.clone(),
+                        capabilities.clone(),
+                        Some(Revision(7)),
+                        deadline,
+                        deadline_at,
+                        fuel,
+                    );
+                    let delegated = Vm::build_effect_request(
+                        &effect,
+                        result_type,
+                        sequence,
+                        principal.clone(),
+                        capabilities.clone(),
+                        Some(Revision(7)),
+                        deadline,
+                        deadline_at,
+                        fuel,
+                    );
+                    let actual = build_effect_request(ReservedEffectInput {
+                        effect: &effect,
+                        result_type,
+                        sequence,
+                        principal,
+                        capabilities,
+                        expected_revision: Some(Revision(7)),
+                        deadline_ms: deadline,
+                        deadline_at_ms: deadline_at,
+                        fuel_remaining: fuel,
+                    });
+                    assert_eq!(
+                        actual, expected,
+                        "fuel={fuel}, sequence={sequence}, defect={defect}"
+                    );
+                    assert_eq!(delegated, expected);
+                    assert_eq!(
+                        serde_json::to_vec(&actual).unwrap(),
+                        serde_json::to_vec(&expected).unwrap()
+                    );
+                    assert_eq!(serde_json::to_vec(&effect).unwrap(), before);
+                    if let Ok(request) = actual {
+                        successes += 1;
+                        assert_eq!(request.continuation.fuel_remaining, fuel - 1);
+                    }
+                    comparisons += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(comparisons, 12960);
+    assert!(
+        successes >= 280,
+        "matrix must include valid requests: {successes}"
+    );
+}
+
+#[test]
 fn request_correspondence_preserves_cold_authority_identity_and_budget_fault_order() {
     use leselang_hir::computation::Computation;
     for original in requests() {

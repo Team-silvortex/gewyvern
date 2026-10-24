@@ -1,0 +1,188 @@
+{
+  "kind": "leselang-group-binding-policy",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.131.0",
+  "member_policy_comparisons": 3360,
+  "capture_policy_comparisons": 640,
+  "operation_version_cases": 350,
+  "direct_adapter_tests": 3,
+  "domain_adapter_tests": 1,
+  "sqlite_capture_oracle_tests": 1,
+  "adapter_owned_member_capture_policy": true,
+  "live_and_recovery_share_policy": true,
+  "original_label_and_fault_precedence": true,
+  "aggregate_capture_limits_retained": true,
+  "unchanged_borrowed_inputs": true,
+  "policy_does_not_grant_recovery_authority": true,
+  "no_saved_code_execution": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Product member type/label selection and saved-capture preflight/limit/diagnostic policy now live in the adapter. Thin VM delegates retain original live/recovery input ownership and use the unchanged lower-level typing and correspondence kernels without executing saved code.",
+  "limitations": [
+    "These checks require already bounded/admitted plans, requests and values. Type or projection correspondence does not authenticate original raw replies, request identifiers, current authority or same-snapshot durable state.",
+    "Live group admission/evaluation, successor execution and final checkpoint orchestration remain VM-owned. Full native durable recovery and complete extraction remain open.",
+    "Local macOS Rust/SQLite validation only; no new Linux, GUI or remote CI execution.",
+    "The previously verified standalone checkpoint was reused after rechecking 270 copied sources and 280 exported files; no new standalone export or standalone test run was performed."
+  ],
+  "default_runtime_tests": 1774,
+  "memory_vm_tests": 274,
+  "root_architecture_tests": 534,
+  "strict_workspace_lints_passed": true,
+  "memory_all_target_lints_passed": true,
+  "format_checks_passed": true,
+  "native_no_default_check_passed": true,
+  "native_checkpoint_reused": true,
+  "new_native_export_performed": false,
+  "native_checkpoint": {
+    "reused_checkpoint": "/private/tmp/gewyvern-ci-native-20261023/export-manifest.json",
+    "verified": true,
+    "complete_vm": false,
+    "full_extraction_gate": false,
+    "total_files": 280,
+    "copied_sources": 270,
+    "source_and_export_mismatches": [],
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "new_export_performed": false
+  },
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "685ab4c34dd0955027ae47b25b21c17de35cd532ad270ddb93a05d04ca1ee78e"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_group_binding.rs",
+      "sha256": "112c6f9fc2e3d40b829c4ac95eb0f46c4bbfa976a6dcac56bdffb83ab8ba3d8d"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_group_binding.rs",
+      "sha256": "365ac42db23247aa4b5f233cc1c139ed920f9964dce06dd0cdb2d486f71ff18f"
+    },
+    {
+      "path": "crates/leselang-command/tests/host_protocol.rs",
+      "sha256": "444c2fcd19b0dc97625e062bc5e8f21f614480f3ee7aa0b2850898caceb8cf1e"
+    },
+    {
+      "path": "crates/leselang-command/src/capture_replay.rs",
+      "sha256": "4e09e2bb2ab9c6873ced71280ce0fa485280e16b7be7abae6e8b9fd438749517"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_request.rs",
+      "sha256": "a2a15bd906d324bb17a1d8628079eec72e9ff3c659f8879f40f4425fc1a493c5"
+    },
+    {
+      "path": "crates/leselang-command/src/group_plan.rs",
+      "sha256": "cc2a581e4c643365a778d229031ea2250e2cdda145d9e9d3a80722a382d54590"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_bound_records.rs",
+      "sha256": "acc3d25ac6c859ad9b786620fc848276bb2ff5bc91a51f53505660f55e540b36"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_binding.rs",
+      "sha256": "44a130a27758d0a1bcb9e72b1d9845069d298a8883c899a81e9db09fa3d79d16"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_binding.rs",
+      "sha256": "0da47f7c0e4ed0f33abdd0051a40e9c91c74e5d96aefd08d21c8c7d2b27a00dc"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/capture_correspondence.rs",
+      "sha256": "a3f9f4b073ca9c9ffc3984252e49f17f8fe9faead2863db29264cfd52653770d"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "a83c8f3c09573323f493a742a7d2df437886f4dfcf426148613ea0fe57c57016"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "6c251a9cf0a5de09a9abcf5a12bbc19f1d3a4f42f4e67da1045942ca3e8be49a"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "1f05e719c644f72cda4591dc826a32b6eb0da13a3d57056e8e3d12bb8333adab"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "9d74b3fca9504464ea972f6206b2ea88bbc6433c75df88bb8693d3ee5c69d27c"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "a918d3a9e4feefdae7b71324ea9c000566bea7679d935e0e5b55512e9737db91"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "bea1c19d0ac3c7cbffb742860901f80b9105676c315fce564ad4520d1a8e8fb4"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "direct",
+      "log": "/private/tmp/leselang-group-binding-policy-20261024-direct.log",
+      "sha256": "ab0da2b79ee545f28054a67cc0102a3b7168132c7c9940870ad5114f48b91ef8"
+    },
+    {
+      "stage": "domain",
+      "log": "/private/tmp/leselang-group-binding-policy-20261024-domain.log",
+      "sha256": "57d1a954a04fa19a2ae64580aca0edb1316022d671f82f69e5382a5791e1230b"
+    },
+    {
+      "stage": "sqlite",
+      "log": "/private/tmp/leselang-group-binding-policy-20261024-sqlite.log",
+      "sha256": "e632b0920793713a65338499c57121b255399cc18f36b5cfcffb7b49b44cd73b"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-group-binding-policy-20261024-default.log",
+      "sha256": "d218df1d75ce50f6111f5795f786f3e59a9ee9b975c7653355ab1342dbb817a5"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-group-binding-policy-20261024-memory.log",
+      "sha256": "54ec688602cf0a1ae57e81b4f92703d5c9d81373737475259b9a63fb6032ab0a"
+    },
+    {
+      "stage": "gates-final",
+      "log": "/private/tmp/leselang-group-binding-policy-20261024-gates-final.log",
+      "sha256": "8ace26157fb79e4ebc085c58e633012b98bb8a40ae8a694d468207df6a65c25b"
+    },
+    {
+      "stage": "workspace-clippy",
+      "log": "/private/tmp/leselang-group-binding-policy-20261024-workspace-clippy.log",
+      "sha256": "451cba6eeffe06713d2957fdbeca152f8d29a099bfd624980122b74ce3648467"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-group-binding-policy-20261024-memory-clippy.log",
+      "sha256": "4b5e8e2c3c58aaefb64925e81aab51db2eeb58e7639db78ca64000c14bc9aaba"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-group-binding-policy-20261024-native-check.log",
+      "sha256": "029cb9dfbde31ab4af4696611b4f12f1cf9481833b059f8bd8fef358ff8a0f6f"
+    },
+    {
+      "stage": "native-checkpoint",
+      "log": "/private/tmp/leselang-group-binding-policy-20261024-native-checkpoint.log",
+      "sha256": "a1616e1b6bcf0154d246acc50f1a333d171969c102aaf9418d6e759d5b0bbfda"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-group-binding-policy-20261024-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "include-format",
+      "log": "/private/tmp/leselang-group-binding-policy-20261024-include-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

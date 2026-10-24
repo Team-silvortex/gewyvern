@@ -1,13 +1,16 @@
 use super::*;
 use crate::group_binding::invalid;
 #[cfg(feature = "sqlite-journal")]
-use leselang_command::reference_bound_receipt::validate_bound_group_receipt;
+use leselang_command::reference_bound_records::{
+    ReferenceBoundRecordProofs, inspect_bound_group_records,
+};
 #[cfg(feature = "sqlite-journal")]
 use leselang_command::reference_group_reservations::{
     ReferenceReservationSource, inspect_group_reservations,
 };
-#[cfg(feature = "sqlite-journal")]
-use leselang_runtime_core::{OrderedOutcomeSummary, OutcomeOrder};
+#[cfg(all(test, feature = "sqlite-journal"))]
+#[path = "bound_record_contract_tests.rs"]
+mod bound_record_contract_tests;
 
 pub(super) fn needs_successor(plan: &MergePlan) -> bool {
     plan.order.has_group_successor()
@@ -252,9 +255,9 @@ pub(super) fn validate_records(
     plan: &MergePlan,
     terminal: Option<&Step>,
 ) -> Result<(), Fault> {
-    let Some(binding) = &plan.result_binding else {
+    if plan.result_binding.is_none() {
         return Ok(());
-    };
+    }
     let mut statement = connection
         .prepare(
             "SELECT b.branch_name, d.request, e.terminal_step
@@ -273,93 +276,58 @@ pub(super) fn validate_records(
             ))
         })
         .map_err(|error| journal_error("LSV4007", "failed to read bound group requests", error))?;
-    let mut requests: Vec<(String, EffectRequest)> = Vec::with_capacity(plan.branches.len());
-    let mut outcomes = OrderedOutcomeSummary::new(
-        if plan.order.is_sequential() {
-            OutcomeOrder::Sequential
-        } else {
-            OutcomeOrder::Parallel
-        },
-        crate::MAX_MERGE_BRANCHES,
-        DEFAULT_MAX_OUTPUT_ITEMS,
-    )
-    .map_err(|_| invalid())?;
-    let mut last_step = None;
-    let mut prefix_fields = Vec::new();
-    let mut prefix_operations = Vec::new();
-    let mut previous_step = None;
-    let mut successful_prefix = 0usize;
-    for row in rows {
-        let (name, request, step) =
-            row.map_err(|error| journal_error("LSV4007", "invalid bound group record", error))?;
-        let request: EffectRequest =
-            decode_bounded(&request.ok_or_else(invalid)?, MAX_JOURNAL_ENTRY_BYTES)?;
-        if binding.captures_successor() && requests.len() >= binding.branches()?.len() {
-            binding.validate_saved_capture(&request, &prefix_fields, &prefix_operations)?;
-            if requests.len() > binding.branches()?.len() {
-                crate::successor::validate_pair(
-                    &requests.last().ok_or_else(invalid)?.1,
-                    previous_step.as_ref().ok_or_else(invalid)?,
-                    &request,
-                )?;
-            }
-        }
-        previous_step = None;
-        if let Some(bytes) = step {
-            let step: Step = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
-            previous_step = Some(step.clone());
-            if requests.len() + 1 == plan.branches.len() {
-                last_step = Some(step.clone());
-            }
-            if let Step::Done(value) = step {
-                binding.validate_member(&name, &value)?;
-                if requests.len() < binding.branches()?.len() {
-                    successful_prefix += 1;
-                }
-                outcomes
-                    .observe_success(validate_value(&value, 0)?, |_, _| {
-                        Step::Fault(journal_fault(
-                            "LSV2404",
-                            "sequential output exceeds runtime bounds",
-                        ))
-                    })
-                    .map_err(|_| invalid())?;
-                if binding.captures_successor() && binding.has_successor(plan) {
-                    prefix_operations.push(
-                        leselang_hir::host_call::HostOperation::for_effect(
-                            &request.continuation.pending_effect,
-                        )
-                        .ok_or_else(invalid)?,
-                    );
-                    prefix_fields.push(crate::StructuredField {
-                        name: name.clone(),
-                        value: Box::new(value),
-                    });
-                }
-            } else {
-                outcomes.observe_stop(step).map_err(|_| invalid())?;
-            }
-        }
-        requests.push((name, request));
-    }
-    let graph = requests
-        .iter()
-        .map(|(name, request)| (name.as_str(), request))
-        .collect::<Vec<_>>();
-    validate_merge_graph_input(token, plan, &graph)?;
-    if binding.has_successor(plan) && successful_prefix != binding.branches()?.len() {
-        return Err(invalid());
-    }
-    inspect_group_reservations(plan, &mut GroupReservationSource(connection))?;
-    validate_bound_group_receipt(
+    inspect_bound_group_records(
+        token,
         plan,
-        requests
-            .last()
-            .and_then(|(_, request)| request.continuation.result_binding.as_deref()),
-        last_step.as_ref(),
-        outcomes,
+        rows.map(|row| {
+            row.map_err(|error| journal_error("LSV4007", "invalid bound group record", error))
+        }),
         terminal,
+        &mut BoundRecordProofs(connection),
     )
+}
+
+#[cfg(feature = "sqlite-journal")]
+struct BoundRecordProofs<'a>(&'a Connection);
+
+#[cfg(feature = "sqlite-journal")]
+impl ReferenceBoundRecordProofs for BoundRecordProofs<'_> {
+    fn validate_capture(
+        &mut self,
+        binding: &crate::GroupResultBinding,
+        request: &EffectRequest,
+        fields: &[crate::StructuredField],
+        operations: &[leselang_hir::host_call::HostOperation],
+    ) -> Result<(), Fault> {
+        binding.validate_saved_capture(request, fields, operations)
+    }
+    fn validate_pair(
+        &mut self,
+        previous: &EffectRequest,
+        completed: &Step,
+        request: &EffectRequest,
+    ) -> Result<(), Fault> {
+        crate::successor::validate_pair(previous, completed, request)
+    }
+    fn validate_member(
+        &mut self,
+        binding: &crate::GroupResultBinding,
+        name: &str,
+        value: &crate::Value,
+    ) -> Result<(), Fault> {
+        binding.validate_member(name, value)
+    }
+    fn validate_graph(
+        &mut self,
+        token: &ContinuationToken,
+        plan: &MergePlan,
+        requests: &[(&str, &EffectRequest)],
+    ) -> Result<(), Fault> {
+        validate_merge_graph_input(token, plan, requests)
+    }
+    fn validate_reservations(&mut self, plan: &MergePlan) -> Result<(), Fault> {
+        inspect_group_reservations(plan, &mut GroupReservationSource(self.0))
+    }
 }
 
 #[cfg(feature = "sqlite-journal")]

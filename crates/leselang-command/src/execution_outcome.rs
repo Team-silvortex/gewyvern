@@ -13,6 +13,18 @@ use crate::{
 use leselang_runtime_core::Fault;
 use serde::{Deserialize, Serialize};
 
+/// In-process product computation observation, not a wire format or execution grant.
+/// Borrowed/owned effects and captured bindings retain their original ownership.
+pub enum ComputationOutcome<'a> {
+    Scalar(leselang_runtime_core::ScalarValue),
+    Result,
+    Host(std::borrow::Cow<'a, leselang_hir::Effect>),
+    BoundHost {
+        effect: std::borrow::Cow<'a, leselang_hir::Effect>,
+        binding: Box<crate::ResultBinding>,
+    },
+}
+
 /// Released specialization of host-neutral owned dispatch data; no wire conversion.
 pub type DispatchLease = leselang_runtime_core::DispatchLease<EffectRequest>;
 

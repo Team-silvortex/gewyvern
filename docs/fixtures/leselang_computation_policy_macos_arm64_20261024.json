@@ -1,0 +1,221 @@
+{
+  "kind": "leselang-computation-policy",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.135.0",
+  "ir_node_kinds": 15,
+  "execution_entries": 5,
+  "execution_comparisons": 11640,
+  "capture_comparisons": 2600,
+  "relocated_unit_tests": 12,
+  "direct_adapter_tests": 2,
+  "adapter_owned_product_computation": true,
+  "exact_vm_entry_reexports": true,
+  "original_shared_evaluator": true,
+  "original_capture_cost_and_scope_order": true,
+  "typed_scalar_recovery_preserved": true,
+  "original_fault_and_wire_contracts": true,
+  "native_request_and_journal_authority_retained": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "The entire released product computation facade, restored projection/capture accounting, fixed limits, typed failure classification and diagnostics move to the command adapter over the unchanged HIR/runtime-core evaluator. Five VM entries are exact reexports. Internal compatibility tests move with implementation; frozen pre-migration VM policy independently compares all IR nodes and capture faults.",
+  "limitations": [
+    "Public entries are preflighted product execution, not an untrusted-input sandbox. Callers must bound/admit HIR, captures and raw replies, prove canonical types and original correspondence, and retain current authority.",
+    "The adapter executes expressions through the original shared engine. It does not construct authenticated requests, allocate identities, dispatch, settle journals, refill/refund fuel or retry native work. This is not a second interpreter or a product-free execution API.",
+    "Native request construction and journal admission/settlement, full host-neutral durable recovery, complete vertical compatibility and physical extraction remain open.",
+    "Local macOS Rust/SQLite verification only; no new Linux, GUI or remote CI execution.",
+    "The previous standalone checkpoint was reused after rechecking 270 copied sources and 280 exported files. No new standalone export or standalone test run was performed."
+  ],
+  "default_runtime_tests": 1792,
+  "memory_vm_tests": 267,
+  "root_architecture_tests": 542,
+  "adapter_unit_and_external_tests": 27,
+  "adapter_dependency_closure_excludes_vm_and_sqlite": true,
+  "strict_workspace_lints_passed": true,
+  "memory_all_target_lints_passed": true,
+  "format_checks_passed": true,
+  "native_no_default_check_passed": true,
+  "native_checkpoint_reused": true,
+  "new_native_export_performed": false,
+  "native_checkpoint": {
+    "reused_checkpoint": "/private/tmp/gewyvern-ci-native-20261023/export-manifest.json",
+    "verified": true,
+    "complete_vm": false,
+    "full_extraction_gate": false,
+    "total_files": 280,
+    "copied_sources": 270,
+    "source_and_export_mismatches": [],
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "new_export_performed": false
+  },
+  "source_parity": {
+    "normalized_pre_migration_policy_equal": true,
+    "normalization": [
+      "crate qualifiers and visibility",
+      "three private forwards to existing limits, diagnostics and name policy",
+      "documentation, whitespace and formatting-only trailing commas"
+    ],
+    "shared_evaluator_unchanged": true
+  },
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "de3637feeeda30dc4e5d00461173dafbea4eab92afb240ff077bb7620864668b"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_computation.rs",
+      "sha256": "c20c526c22e22ca55ff6d13221b1bf3ca3fb74494aa56040c7a1e75f2fc8bd6d"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_computation/effect_preparation_tests.rs",
+      "sha256": "be2020c9b1abc8f1daa0c7911300adcd8021314f1815194b285d19da3a2c9e85"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_computation/result_view_tests.rs",
+      "sha256": "923657303b36ae8bec5b4d9f4d5bc6fef39ea95d3ed61704cdc1734d11bd4799"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_computation.rs",
+      "sha256": "e3c1b1051799166d38f5fdf5ae0f3c336325540ce208d3add40540fb09752de2"
+    },
+    {
+      "path": "crates/leselang-command/src/execution_environment.rs",
+      "sha256": "b30c3267be34dc51dc6b2f70f7dd315bc342c4d4891955964c783f03635976db"
+    },
+    {
+      "path": "crates/leselang-command/src/capture_scope.rs",
+      "sha256": "870d5378f661274c5f265f1fc1b5febdabe6bb1ca874952037f08e61084d0ce3"
+    },
+    {
+      "path": "crates/leselang-command/src/effect_preparation.rs",
+      "sha256": "bd90e94b64cd5d86b7e3bc9972611adb7d2399b150a145bbc2edc6425c1d41d8"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_request.rs",
+      "sha256": "a2a15bd906d324bb17a1d8628079eec72e9ff3c659f8879f40f4425fc1a493c5"
+    },
+    {
+      "path": "crates/leselang-command/src/result_view.rs",
+      "sha256": "02e3a66265beab307b763356419436978e334a0b68d99cfb4f2baa7b1767ddf0"
+    },
+    {
+      "path": "crates/leselang-vm/src/computation.rs",
+      "sha256": "fd224d4de014231c0e12de0d2cb4bac1162b23819d26b4e35418a6c4950f969f"
+    },
+    {
+      "path": "crates/leselang-vm/src/result_binding.rs",
+      "sha256": "089881f9d516b01e9e1a622b12cb8b18b218c2e57cd7bd329ce106374df6db00"
+    },
+    {
+      "path": "crates/leselang-vm/src/computation_contract_tests.rs",
+      "sha256": "f39bf3bb4ce973bfa2798aaf08e338f9d81ce6c7a637c9c17dad4757af39b996"
+    },
+    {
+      "path": "crates/leselang-vm/src/computation_contract_tests/frozen.rs",
+      "sha256": "1736109a02b5fcb6ac419ae3f6eafd82d20d9cb3122a9fec36c060d8eb7bcba5"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "ed78f2bcc709636c5f2f0f4567d2b7ec8dc3a51b85be34d903b3b7415e5f20fe"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "4125d1a81df824b371339c04ec9a0f4beabd3119bdb664aaa7493f566b285668"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "9a9f7974a77142bc77a80498782cc7c2b2a0976eb71e799da314cae9733febf6"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "6f9de42738773eba4bc89744cb6253bf6356ba15202f1e965c22aef349deb344"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "74b55b36a580241c1b31482d40ddff12466bbc01de5e1b47a713d647e74a1aac"
+    },
+    {
+      "path": "tests/language_independence_tdd.rs",
+      "sha256": "5dd5dc10ea91b107ecb4051d5fd316a48e466ed9c311fb2de51b1218b27d8408"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "6db26de565c7f37a2add7530713906e1989fa6494b1259e6e5101778cfcb8248"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "adapter",
+      "log": "/private/tmp/leselang-computation-policy-20261024-adapter.log",
+      "sha256": "8d7243222f06cac19d4bcc59a1ab0ca30de6c2c62f5e204a3bc8f7b92b172aed"
+    },
+    {
+      "stage": "oracle",
+      "log": "/private/tmp/leselang-computation-policy-20261024-oracle.log",
+      "sha256": "a11903be0607c180d462261fb9777cde15540ec0557b95d879a3eb884084c81b"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-computation-policy-20261024-default.log",
+      "sha256": "63a012ace2f32d6d93215471a533ad018bf3b33558248667544dafb1d99a771e"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-computation-policy-20261024-memory.log",
+      "sha256": "f4b7f82bd140482bbadf3dc944b28840b4b921b742ad0e33cf5c81fa5d86af6e"
+    },
+    {
+      "stage": "gates-final",
+      "log": "/private/tmp/leselang-computation-policy-20261024-gates-final.log",
+      "sha256": "d1a4e6f2b0cac0d2efdc69efd70684a0ed587b2f2d17f0ce4f8f427203811248"
+    },
+    {
+      "stage": "workspace-clippy",
+      "log": "/private/tmp/leselang-computation-policy-20261024-workspace-clippy.log",
+      "sha256": "289f1726c98594b9b6bb1884686fc816bbd215ba4113bcf2e9d34454742dd132"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-computation-policy-20261024-memory-clippy.log",
+      "sha256": "79d4d0ebed27ab7686e3dc735906f11b75d4cf12b6aee7815ef1634127033072"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-computation-policy-20261024-native-check.log",
+      "sha256": "f679ef1e7087f1c5ae3bd205b1b367f18d11c01216b7112ff3833c63898a9634"
+    },
+    {
+      "stage": "native-checkpoint",
+      "log": "/private/tmp/leselang-computation-policy-20261024-native-checkpoint.log",
+      "sha256": "a1616e1b6bcf0154d246acc50f1a333d171969c102aaf9418d6e759d5b0bbfda"
+    },
+    {
+      "stage": "dependencies",
+      "log": "/private/tmp/leselang-computation-policy-20261024-dependencies.log",
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "stage": "source-parity",
+      "log": "/private/tmp/leselang-computation-policy-20261024-source-parity.log",
+      "sha256": "96926adf8a58179260fef15330d1e4489dbe2556cc27d292943fe49477f7127a"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-computation-policy-20261024-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "include-format",
+      "log": "/private/tmp/leselang-computation-policy-20261024-include-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

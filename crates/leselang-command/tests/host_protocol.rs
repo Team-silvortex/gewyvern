@@ -624,6 +624,90 @@ fn request_admission_cases() -> Vec<(Effect, EffectOperation)> {
 }
 
 #[test]
+fn request_construction_covers_seventy_operations_and_moves_original_gui_authority() {
+    use leselang_command::reference_request_build::{ReservedEffectInput, build_effect_request};
+    for (effect, operation) in request_admission_cases() {
+        let before = serde_json::to_vec(&effect).unwrap();
+        let principal = operation.authority().0.clone();
+        let principal_buffer = principal.id.as_ptr();
+        let request = build_effect_request(ReservedEffectInput {
+            effect: &effect,
+            result_type: leselang_hir::host_call::HostOperation::for_effect(&effect)
+                .unwrap()
+                .result_type(),
+            sequence: 9,
+            principal,
+            capabilities: operation.authority().1.clone(),
+            expected_revision: request_context(&effect).expected_revision,
+            deadline_ms: 30_000,
+            deadline_at_ms: Some(31_100),
+            fuel_remaining: 21,
+        })
+        .unwrap();
+        assert_eq!(request.effect_id, "effect-9");
+        assert_eq!(request.continuation.token.as_str(), "continuation-9");
+        assert_eq!(request.continuation.fuel_remaining, 20);
+        assert_eq!(request.continuation.deadline_at_ms, Some(31_100));
+        assert_eq!(request.budget, request.continuation.resource_budget());
+        assert_eq!(request.operation.authority(), operation.authority());
+        if matches!(request.operation, EffectOperation::Presentation(_)) {
+            assert_eq!(
+                request.operation.authority().0.id.as_ptr(),
+                principal_buffer
+            );
+        }
+        assert_eq!(serde_json::to_vec(&effect).unwrap(), before);
+        leselang_command::reference_request::validate_effect_request(&request).unwrap();
+        let bytes = serde_json::to_vec(&request).unwrap();
+        assert_eq!(
+            serde_json::from_slice::<leselang_command::EffectRequest>(&bytes).unwrap(),
+            request
+        );
+    }
+}
+
+#[test]
+fn request_construction_debits_before_shape_checks_without_repairing_public_inputs() {
+    use leselang_command::reference_request_build::{ReservedEffectInput, build_effect_request};
+    for (effect, operation) in request_admission_cases() {
+        let input = |fuel| ReservedEffectInput {
+            effect: &effect,
+            result_type: leselang_hir::Type::Structured,
+            sequence: 0,
+            principal: operation.authority().0.clone(),
+            capabilities: operation.authority().1.clone(),
+            expected_revision: None,
+            deadline_ms: 0,
+            deadline_at_ms: Some(u64::MAX),
+            fuel_remaining: fuel,
+        };
+        assert_eq!(build_effect_request(input(0)).unwrap_err().code, "LSV1001");
+        assert_ne!(build_effect_request(input(2)).unwrap_err().code, "LSV1001");
+    }
+}
+
+#[test]
+fn request_construction_preserves_the_existing_group_input_type() {
+    use leselang_command::reference_group_successor::ReservedEffectInput;
+    let effect = Effect::UiFocus {
+        node_id: "a".into(),
+    };
+    let input = ReservedEffectInput {
+        effect: &effect,
+        result_type: leselang_hir::Type::UiFocus,
+        sequence: 1,
+        principal: Principal::new("operator").unwrap(),
+        capabilities: CapabilitySet::new(["ui.presentation"]),
+        expected_revision: None,
+        deadline_ms: 30_000,
+        deadline_at_ms: None,
+        fuel_remaining: 2,
+    };
+    let request = leselang_command::reference_request_build::build_effect_request(input).unwrap();
+    assert_eq!(request.continuation.fuel_remaining, 1);
+}
+
+#[test]
 fn operation_lowering_composes_seventy_wire_shapes_with_lazy_identity_and_original_gui_owner() {
     use std::cell::Cell;
     struct Capture<'a>(&'a Cell<usize>);
@@ -2504,6 +2588,133 @@ fn capture_cases() -> Vec<(
     }
     assert_eq!(values.len(), 70);
     values
+}
+
+#[test]
+fn reference_group_binding_policy_covers_seventy_operations_and_five_saved_vocabularies() {
+    use leselang_command::reference_group_binding::{validate_member, validate_saved_capture};
+    use leselang_command::{
+        ContinuationImage, ContinuationToken, EffectRequest, GroupResultBinding, ProjectedBinding,
+        ProjectedGroup, ProjectedGroupBinding, ProjectedResult, ResultBinding, StructuredField,
+        Value as ProductValue,
+    };
+    use leselang_hir::{HirBranch, computation::Computation, host_call::HostOperation};
+    use leselang_runtime_core::ScalarValue;
+    let requests = request_admission_cases();
+    let mut comparisons = 0;
+    for (operation, raw) in capture_cases() {
+        let (effect, envelope) = requests
+            .iter()
+            .find(|(effect, _)| HostOperation::for_effect(effect) == Some(operation))
+            .unwrap();
+        let branches = vec![HirBranch {
+            name: "member".into(),
+            result_type: operation.result_type(),
+            effect: effect.clone(),
+        }];
+        let fields = vec![StructuredField {
+            name: "member".into(),
+            value: Box::new(raw.clone()),
+        }];
+        for version in 1..=5 {
+            let captured = ProjectedResult::capture_version(operation, &raw, version).unwrap();
+            let group = GroupResultBinding {
+                pending: Effect::Sequence {
+                    steps: branches.clone(),
+                },
+                binding: Box::new(ResultBinding {
+                    name: "group".into(),
+                    locals: vec![],
+                    results: vec![],
+                    groups: vec![],
+                    body: Computation::Literal {
+                        value: ScalarValue::None,
+                    },
+                }),
+                fuel_remaining: 99,
+                successor_sequence: None,
+                additional_successor_sequences: vec![],
+            };
+            let continuation = ContinuationImage {
+                schema_version: 5,
+                token: ContinuationToken::from_wire("continuation-7".into()),
+                program_counter: 1,
+                expected_revision: None,
+                result_type: operation.result_type(),
+                pending_effect: effect.clone(),
+                fuel_remaining: 99,
+                deadline_ms: 30_000,
+                deadline_at_ms: Some(40_000),
+                max_output_items: 10_000,
+                group_result: None,
+                result_binding: Some(Box::new(ResultBinding {
+                    name: "current".into(),
+                    locals: vec![],
+                    groups: vec![ProjectedGroupBinding {
+                        name: "group".into(),
+                        group: ProjectedGroup {
+                            members: vec![ProjectedBinding {
+                                name: "member".into(),
+                                result: captured.clone(),
+                            }],
+                        },
+                    }],
+                    results: vec![ProjectedBinding {
+                        name: "alias".into(),
+                        result: captured,
+                    }],
+                    body: Computation::Literal {
+                        value: ScalarValue::None,
+                    },
+                })),
+            };
+            let mut request = EffectRequest {
+                effect_id: "effect-7".into(),
+                required_capability: request_context(effect).required_capability.into(),
+                operation: envelope.clone(),
+                budget: continuation.resource_budget(),
+                continuation,
+            };
+            let before = serde_json::to_vec(&(&group, &request, &fields)).unwrap();
+            assert_eq!(validate_member(&group, "member", &raw), Ok(()));
+            assert_eq!(
+                validate_member(
+                    &group,
+                    "member",
+                    &ProductValue::Scalar {
+                        value: ScalarValue::None
+                    }
+                )
+                .unwrap_err()
+                .code,
+                "LSV1409"
+            );
+            assert_eq!(
+                validate_saved_capture(&group, &request, &fields, &[operation]),
+                Ok(())
+            );
+            assert_eq!(
+                serde_json::to_vec(&(&group, &request, &fields)).unwrap(),
+                before
+            );
+            request
+                .continuation
+                .result_binding
+                .as_mut()
+                .unwrap()
+                .results[0]
+                .result
+                .projection_version = 99;
+            assert_eq!(
+                validate_saved_capture(&group, &request, &fields, &[operation])
+                    .unwrap_err()
+                    .code,
+                "LSV1405"
+            );
+            comparisons += 1;
+        }
+    }
+    assert_eq!(comparisons, 350);
 }
 
 #[test]

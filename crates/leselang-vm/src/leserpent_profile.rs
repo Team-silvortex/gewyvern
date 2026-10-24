@@ -20,7 +20,9 @@ use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_runtime_core::{Fuel, SequenceWatermarkRequirement};
 #[cfg(test)]
 use leselang_runtime_core::{ResourceBudgetError, ResourceBudgetLimits};
-use leserpent_domain::{CommandId, IdempotencyKey};
+use leserpent_domain::CommandId;
+#[cfg(any(test, feature = "sqlite-journal"))]
+use leserpent_domain::IdempotencyKey;
 #[cfg(test)]
 use leserpent_domain::{DOMAIN_SCHEMA_VERSION, QueryEnvelope};
 use serde::Serialize;
@@ -645,54 +647,19 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
         deadline_at_ms: Option<u64>,
         fuel_remaining: u64,
     ) -> Result<EffectRequest, Fault> {
-        let mut fuel = Fuel::new(fuel_remaining);
-        fuel.charge(1).map_err(|_| Fault {
-            code: "LSV1001".into(),
-            message: "execution fuel exhausted before host operation".into(),
-        })?;
-        let image = ContinuationImage {
-            schema_version: CONTINUATION_SCHEMA_VERSION,
-            token: ContinuationToken::from_wire(format!("continuation-{sequence}")),
-            program_counter: 1,
-            expected_revision,
-            result_type,
-            pending_effect: effect.clone(),
-            fuel_remaining: fuel.remaining(),
-            deadline_ms,
-            deadline_at_ms,
-            max_output_items: DEFAULT_MAX_OUTPUT_ITEMS,
-            result_binding: None,
-            group_result: None,
-        };
-        let (required_capability, operation) = leselang_command::lower_effect_operation(
-            effect,
-            principal,
-            capabilities,
-            expected_revision,
-            || {
-                Some((
-                    CommandId::new(format!("leselang-command-{sequence}")).ok()?,
-                    IdempotencyKey::new(format!("leselang-effect-{sequence}")).ok()?,
-                ))
+        leselang_command::reference_request_build::build_effect_request(
+            leselang_command::reference_request_build::ReservedEffectInput {
+                effect,
+                result_type,
+                sequence,
+                principal,
+                capabilities,
+                expected_revision,
+                deadline_ms,
+                deadline_at_ms,
+                fuel_remaining,
             },
         )
-        .map_err(|error| match error {
-            leselang_command::OperationLoweringError::Identity => generated_effect_identity_fault(),
-            leselang_command::OperationLoweringError::Lowering(error) => Fault {
-                code: "LSV1002".to_string(),
-                message: format!("structured branch lowering failed: {error:?}"),
-            },
-        })?;
-        let budget = image.resource_budget();
-        let request = EffectRequest {
-            effect_id: format!("effect-{sequence}"),
-            required_capability,
-            operation,
-            continuation: image,
-            budget,
-        };
-        validate_effect_request(&request)?;
-        Ok(request)
     }
 
     pub fn restore(&mut self, image: ContinuationImage) -> Result<(), Fault> {
@@ -1204,6 +1171,7 @@ fn bounded_json_fault(
     }
 }
 
+#[cfg(test)]
 fn generated_effect_identity_fault() -> Fault {
     Fault {
         code: "LSV1002".to_string(),

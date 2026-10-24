@@ -1,12 +1,14 @@
 use super::*;
-use crate::result_binding::{ReferenceProjectedGroup, projection_fault};
+use crate::ProjectedGroupExt;
+
+fn projection_fault(_: crate::InvalidProjectedResult) -> Fault {
+    invalid_projection()
+}
 use leselang_hir::result_field::ResultField;
 
 fn frozen_field(view: ResultView<'_>, field: ResultField) -> Result<ScalarValue, Fault> {
     match view {
-        ResultView::Raw { value, .. } => value
-            .project_scalar(field)
-            .ok_or_else(crate::result_binding::invalid),
+        ResultView::Raw { value, .. } => value.project_scalar(field).ok_or_else(invalid_projection),
         ResultView::Projected(result) => result.field(field).map_err(projection_fault),
         ResultView::Group { .. } | ResultView::ProjectedGroup(_) => Err(invalid()),
     }
@@ -24,13 +26,10 @@ fn frozen_snapshot(view: ResultView<'_>) -> Result<ProjectedResult, Fault> {
 
 fn frozen_group(view: ResultView<'_>) -> Result<ProjectedGroup, Fault> {
     match view {
-        ResultView::Group { value, branches } => ProjectedGroup::capture(
-            branches,
-            value,
-            group_capture_limits(),
-            crate::valid_merge_branch_name,
-        )
-        .map_err(projection_fault),
+        ResultView::Group { value, branches } => {
+            ProjectedGroup::capture(branches, value, group_capture_limits(), valid_group_name)
+                .map_err(projection_fault)
+        }
         ResultView::ProjectedGroup(group) => Ok(group.clone()),
         _ => Err(invalid()),
     }
@@ -116,11 +115,11 @@ fn result_views_preserve_frozen_projection_selection_copy_and_fault_boundaries()
     };
     let group = ProjectedGroup {
         members: vec![
-            crate::result_binding::ProjectedBinding {
+            crate::ProjectedBinding {
                 name: "member".into(),
                 result: malformed.clone(),
             },
-            crate::result_binding::ProjectedBinding {
+            crate::ProjectedBinding {
                 name: "member".into(),
                 result: saved.clone(),
             },

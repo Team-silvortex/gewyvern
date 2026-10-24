@@ -1,4 +1,5 @@
 use leselang_hir::{Effect, Type};
+#[cfg(test)]
 use leselang_runtime_core::GroupCaptureLimits;
 
 use crate::Fault;
@@ -12,6 +13,7 @@ pub use leselang_runtime_core::ScalarBinding;
 #[cfg(test)]
 pub(super) use leselang_command::ProjectedGroupExt as ReferenceProjectedGroup;
 
+#[cfg(test)]
 pub(super) fn group_capture_limits() -> GroupCaptureLimits {
     result_binding_limits().groups
 }

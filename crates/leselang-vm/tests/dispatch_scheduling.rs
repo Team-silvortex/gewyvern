@@ -11,6 +11,18 @@ use std::sync::atomic::{AtomicU64, Ordering};
 #[path = "support/reference_dispatch_authority.rs"]
 mod reference_dispatch_authority;
 
+#[path = "support/reference_request_build_authority.rs"]
+mod reference_request_build_authority;
+
+#[test]
+fn durable_request_construction_cannot_reserve_or_dispatch_across_restarts() {
+    let path = JournalPath::new();
+    reference_request_build_authority::exercise(path.vm(true), |vm| {
+        drop(vm);
+        path.vm(true)
+    });
+}
+
 #[test]
 fn durable_dispatch_adapter_proposals_remain_fenced_across_restarts() {
     let path = JournalPath::new();

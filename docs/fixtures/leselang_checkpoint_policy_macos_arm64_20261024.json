@@ -1,0 +1,175 @@
+{
+  "kind": "leselang-checkpoint-policy",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.132.0",
+  "checkpoint_policy_comparisons": 1560,
+  "sqlite_atomic_recovery_comparisons": 420,
+  "owner_unwind_boundaries": 13,
+  "direct_adapter_tests": 4,
+  "adapter_owned_checkpoint_coordination": true,
+  "original_limit_and_fault_precedence": true,
+  "same_native_transaction_owner": true,
+  "no_precommit_snapshot_publication": true,
+  "poisoned_staging_cannot_finalize": true,
+  "native_commit_authority_retained": true,
+  "original_payload_ownership": true,
+  "no_saved_code_execution": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Whole product checkpoint load coordination now lives in the adapter over unchanged core staging and finalization. The original native owner retains same-transaction bounded reads, record/dispatch/graph/audit proofs, allocator repair and atomic commit. No recovered maps leave the coordinator before commit and owner cleanup.",
+  "limitations": [
+    "Native source/proof/commit callbacks are trusted and must enforce bounded admission and same-snapshot atomicity. An inspected checkpoint does not authenticate current execution authority or allow effect dispatch.",
+    "Native callback side effects are not rolled back by the adapter. Commit or cleanup unwind can have an uncertain outcome and is not permission to retry writes.",
+    "Live group admission/evaluation and successor construction remain VM-owned; native durable recovery, complete vertical compatibility and physical extraction remain open.",
+    "Local macOS Rust/SQLite verification only; no new Linux, GUI or remote CI execution.",
+    "The previously verified standalone checkpoint was reused after rechecking 270 copied sources and 280 exported files. No new standalone export or standalone test run was performed."
+  ],
+  "default_runtime_tests": 1778,
+  "memory_vm_tests": 274,
+  "root_architecture_tests": 536,
+  "strict_workspace_lints_passed": true,
+  "memory_all_target_lints_passed": true,
+  "format_checks_passed": true,
+  "native_no_default_check_passed": true,
+  "native_checkpoint_reused": true,
+  "new_native_export_performed": false,
+  "native_checkpoint": {
+    "reused_checkpoint": "/private/tmp/gewyvern-ci-native-20261023/export-manifest.json",
+    "verified": true,
+    "complete_vm": false,
+    "full_extraction_gate": false,
+    "total_files": 280,
+    "copied_sources": 270,
+    "source_and_export_mismatches": [],
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "new_export_performed": false
+  },
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "cd2aca9382efca384eb5559210db1df5b5ae55a51cfeddaf4da1117a65744763"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_checkpoint.rs",
+      "sha256": "f88f690b25ba67f07712edfa7fb6a4152b84c3c032b5fd7d39c0a2440bb3b865"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_checkpoint.rs",
+      "sha256": "cf09d461bbc3f8ba04ed2f3fd5d6b07553ac690d33f2370e8ded1fd717312462"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_recovery.rs",
+      "sha256": "c0343ee352723bac559ef201ef2776341b8ec68202474015c5175a5f71359445"
+    },
+    {
+      "path": "crates/leselang-command/src/continuation_identity.rs",
+      "sha256": "5a530a239c3e7ab76abd6bfcfed66acaec4b459e15bf42cf0486d8494c7d6e6b"
+    },
+    {
+      "path": "crates/leselang-command/src/retention_policy.rs",
+      "sha256": "7b58ac84a851853e41f890112fbd7530e88a7885678f4a5b5313d14ad840075e"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "7d208005d17520fcd3c91db5b8ca70dfb522f2f92d8bc1cb2a1145683509a580"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/finalization_contract_tests.rs",
+      "sha256": "d0f1c02dfc5bf5ab27c42f7ae1738f86143c0794d4b82746f6958bbc31e60ad7"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/checkpoint.rs",
+      "sha256": "b8dc86af662995e89f9ebf9978946566685d4bac0cb9818d23fcfc3ecc2d7a3f"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "f7691d3ec0ca47ac8df631535766fee213754e7221a9535835ebd49bec9f0d0c"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "75718c841abfdf819f20b9dd392f2bd42bd5382eb1c0fafe168ecace58fc9fcb"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "e062327df3eac2fd2637b1cdd2008ee707c3d006cacc193a3d70576337bc5d09"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "9bd20ac3358dd4437f52ed164d3ec9040fc1a42d2068ad9126cc9c713e17fa19"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "deeec01b52bbdc4c75fd2156001d97d8eb2608922ea337c952cdab3cb75dd25d"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "66a3dba770abe457d0fb6441391b88d3c8a805f05040e53a23a919ef6dc82606"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "direct",
+      "log": "/private/tmp/leselang-checkpoint-policy-20261024-direct.log",
+      "sha256": "a5741b061a0cfe50ffac8b85a962ed6b4ad49236252cbb7ce58164c42186ee71"
+    },
+    {
+      "stage": "sqlite",
+      "log": "/private/tmp/leselang-checkpoint-policy-20261024-sqlite.log",
+      "sha256": "1781545a0d86336ce7be69920ff38767ae8f5696b3755d86d8a69a9a197ae21b"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-checkpoint-policy-20261024-default.log",
+      "sha256": "d4d7ff948cb63db775d88dcd67520979d17a23bfbf01a04e2a54f31609d18bf7"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-checkpoint-policy-20261024-memory.log",
+      "sha256": "1e7579062925e777606d88288fad0a5382df6efea2861c1b257407bc0660942b"
+    },
+    {
+      "stage": "gates-final",
+      "log": "/private/tmp/leselang-checkpoint-policy-20261024-gates-final.log",
+      "sha256": "e6aaa0f1aae381e377f8ab15a6e2f73aef3fd999e55a6fb8ca0d9489ed2e8e89"
+    },
+    {
+      "stage": "workspace-clippy",
+      "log": "/private/tmp/leselang-checkpoint-policy-20261024-workspace-clippy.log",
+      "sha256": "ad2aec8be2b4611a546ea90f6dda7e1d0e4aee54f85e81d3372a90d7931b84a5"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-checkpoint-policy-20261024-memory-clippy.log",
+      "sha256": "03e0a34ba7430c82d55a7f49a6af2acd78b2c7db4bd3d7a3688f96719ea35119"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-checkpoint-policy-20261024-native-check.log",
+      "sha256": "6c9a93b709d70b97abb02cb00823887d60b5c99c51e73ea1ae9635a26f949d2e"
+    },
+    {
+      "stage": "native-checkpoint",
+      "log": "/private/tmp/leselang-checkpoint-policy-20261024-native-checkpoint.log",
+      "sha256": "a1616e1b6bcf0154d246acc50f1a333d171969c102aaf9418d6e759d5b0bbfda"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-checkpoint-policy-20261024-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "include-format",
+      "log": "/private/tmp/leselang-checkpoint-policy-20261024-include-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

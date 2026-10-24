@@ -1,11 +1,21 @@
 pub use leselang_command::GroupResultBinding;
+#[cfg(test)]
+use leselang_hir::Type;
 use leselang_hir::host_call::HostOperation;
-use leselang_hir::{Effect, HirBranch, Type};
-use leselang_runtime_core::{CaptureCorrespondenceLimits, Fuel};
+use leselang_hir::{Effect, HirBranch};
+use leselang_runtime_core::Fuel;
 
 #[cfg(test)]
 #[path = "group_protocol_tests.rs"]
 mod protocol_tests;
+
+#[cfg(test)]
+#[path = "group_successor_contract_tests.rs"]
+mod successor_contract_tests;
+
+#[cfg(test)]
+#[path = "group_execution_contract_tests.rs"]
+mod execution_contract_tests;
 
 #[cfg(test)]
 #[path = "group_plan_contract_tests.rs"]
@@ -13,13 +23,11 @@ pub(crate) mod plan_contract_tests;
 
 #[cfg(test)]
 use crate::MergePlan;
-use crate::result_binding::{ReferenceResultBinding, group_capture_limits};
+#[cfg(test)]
+use crate::result_binding::ReferenceResultBinding;
 use crate::{ContinuationToken, EffectRequest, Fault, ResultBinding, Step, Value};
 
-pub(super) enum CaptureProgress {
-    Done(crate::ScalarValue),
-    Pending(Box<EffectRequest>),
-}
+pub(super) use leselang_command::reference_group_execution::CaptureProgress;
 
 pub(super) use leselang_command::reference_merge::invalid_group_binding as invalid;
 pub(super) use leselang_command::reference_merge::{
@@ -61,6 +69,7 @@ pub(super) trait ReferenceGroupResultBinding {
         value: &Value,
     ) -> Result<CaptureProgress, Fault>;
     fn finish(&self, value: &Value) -> Step;
+    #[cfg(any(test, feature = "sqlite-journal"))]
     fn validate_saved_capture(
         &self,
         request: &EffectRequest,
@@ -111,26 +120,7 @@ impl ReferenceGroupResultBinding for GroupResultBinding {
     }
 
     fn validate_member(&self, name: &str, value: &Value) -> Result<(), Fault> {
-        if let Some(index) = (0..self.reserved_sequences().count()).find(|index| {
-            self.successor_name_at(*index)
-                .is_ok_and(|candidate| candidate == name)
-        }) {
-            let accepted = if self.captures_successor() {
-                self.preflighted_capture_accepts_type_at(index, value_type(value))
-            } else {
-                value_type(value) == self.binding.validate(&self.pending)?
-            };
-            return if accepted { Ok(()) } else { Err(invalid()) };
-        }
-        let branch = self
-            .branches()?
-            .iter()
-            .find(|branch| branch.name == name)
-            .ok_or_else(invalid)?;
-        if value_type(value) != branch.result_type {
-            return Err(invalid());
-        }
-        Ok(())
+        leselang_command::reference_group_binding::validate_member(self, name, value)
     }
 
     fn prepare_initial(
@@ -139,34 +129,13 @@ impl ReferenceGroupResultBinding for GroupResultBinding {
         first: &EffectRequest,
         value: &Value,
     ) -> Result<CaptureProgress, Fault> {
-        let mut fuel = Fuel::new(self.fuel_remaining);
-        let (effect, binding) = match crate::computation::resume_group_outcome(
-            &self.binding,
+        leselang_command::reference_group_execution::prepare_initial(
+            self,
+            owner,
+            first,
             value,
-            self.branches()?,
-            &mut fuel,
-        )? {
-            crate::computation::Outcome::Scalar(value) if self.is_conditional() => {
-                return Ok(CaptureProgress::Done(value));
-            }
-            crate::computation::Outcome::Host(effect) if !self.captures_successor() => {
-                (effect, None)
-            }
-            crate::computation::Outcome::BoundHost { effect, binding }
-                if self.captures_successor() =>
-            {
-                (effect, Some(binding))
-            }
-            _ => return Err(invalid()),
-        };
-        if fuel.remaining() == 0 {
-            return Err(Fault {
-                code: "LSV1001".into(),
-                message: "execution fuel exhausted before group successor".into(),
-            });
-        }
-        self.build_successor(owner, first, &effect, binding, fuel.remaining(), 0)
-            .map(|request| CaptureProgress::Pending(Box::new(request)))
+            &mut GroupExecutionHost,
+        )
     }
 
     fn build_successor(
@@ -178,30 +147,30 @@ impl ReferenceGroupResultBinding for GroupResultBinding {
         fuel: u64,
         position: usize,
     ) -> Result<EffectRequest, Fault> {
-        let operation = HostOperation::for_effect(effect).ok_or_else(invalid)?;
-        let (principal, capabilities) = crate::successor::authority(&first.operation);
-        let image = &first.continuation;
-        let mut request = crate::Vm::build_effect_request(
+        leselang_command::reference_group_successor::build_group_successor(
+            self,
             effect,
-            operation.result_type(),
-            self.reserved_sequences()
-                .nth(position)
-                .ok_or_else(invalid)?,
-            principal.clone(),
-            capabilities.clone(),
-            image.expected_revision,
-            image.deadline_ms,
-            image.deadline_at_ms,
-            fuel,
-        )?;
-        request.continuation.schema_version = self.continuation_schema();
-        request.continuation.group_result = Some(owner.clone());
-        request.continuation.result_binding = binding;
-        request.continuation.max_output_items = image.max_output_items;
-        request.budget.max_output_items = image.max_output_items;
-        crate::validate_effect_request(&request)?;
-        crate::validate_continuation_size(&request.continuation)?;
-        Ok(request)
+            binding,
+            leselang_command::reference_group_successor::GroupSuccessorContext {
+                owner,
+                first,
+                fuel_remaining: fuel,
+                position,
+            },
+            |input| {
+                crate::Vm::build_effect_request(
+                    input.effect,
+                    input.result_type,
+                    input.sequence,
+                    input.principal,
+                    input.capabilities,
+                    input.expected_revision,
+                    input.deadline_ms,
+                    input.deadline_at_ms,
+                    input.fuel_remaining,
+                )
+            },
+        )
     }
 
     fn advance_capture(
@@ -210,103 +179,98 @@ impl ReferenceGroupResultBinding for GroupResultBinding {
         requests: &[EffectRequest],
         value: &Value,
     ) -> Result<CaptureProgress, Fault> {
-        let Value::Structured { fields } = value else {
-            return Err(invalid());
-        };
-        let (tail, prefix) = fields.split_last().ok_or_else(invalid)?;
-        let request = requests.last().ok_or_else(invalid)?;
-        let operations = requests
-            .iter()
-            .take(prefix.len())
-            .map(|request| {
-                HostOperation::for_effect(&request.continuation.pending_effect).ok_or_else(invalid)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        self.validate_saved_capture(request, prefix, &operations)?;
-        let image = &request.continuation;
-        let saved = image.result_binding.as_ref().ok_or_else(invalid)?;
-        let operation = HostOperation::for_effect(&image.pending_effect).ok_or_else(invalid)?;
-        let mut fuel = Fuel::new(image.fuel_remaining);
-        match crate::computation::resume_outcome(saved, &tail.value, operation, &mut fuel)? {
-            crate::computation::Outcome::Scalar(value) => Ok(CaptureProgress::Done(value)),
-            crate::computation::Outcome::BoundHost { effect, binding }
-                if self.is_dataflow() || self.is_conditional() =>
-            {
-                if fuel.remaining() == 0 {
-                    return Err(Fault {
-                        code: "LSV1001".into(),
-                        message: "execution fuel exhausted before group successor".into(),
-                    });
-                }
-                let next = self.build_successor(
-                    owner,
-                    requests.first().ok_or_else(invalid)?,
-                    &effect,
-                    Some(binding),
-                    fuel.remaining(),
-                    requests.len() - self.branches()?.len(),
-                )?;
-                crate::successor::validate_pair(
-                    request,
-                    &Step::Done((*tail.value).clone()),
-                    &next,
-                )?;
-                Ok(CaptureProgress::Pending(Box::new(next)))
-            }
-            _ => Err(invalid()),
-        }
+        leselang_command::reference_group_execution::advance_capture(
+            self,
+            owner,
+            requests,
+            value,
+            &mut GroupExecutionHost,
+        )
     }
 
     fn finish(&self, value: &Value) -> Step {
-        let mut fuel = Fuel::new(self.fuel_remaining);
-        match self.branches().and_then(|branches| {
-            crate::computation::resume_group(&self.binding, value, branches, &mut fuel)
-        }) {
-            Ok(value) => Step::Done(Value::Scalar { value }),
-            Err(error) => Step::Fault(error),
-        }
+        leselang_command::reference_group_execution::finish(self, value, &mut GroupExecutionHost)
     }
 
+    #[cfg(any(test, feature = "sqlite-journal"))]
     fn validate_saved_capture(
         &self,
         request: &EffectRequest,
         fields: &[crate::StructuredField],
         operations: &[HostOperation],
     ) -> Result<(), Fault> {
-        let branches = self.branches()?;
-        if fields.len() < branches.len() || fields.len() != operations.len() {
-            return Err(invalid());
-        }
-        let binding = request
-            .continuation
-            .result_binding
-            .as_ref()
-            .ok_or_else(invalid)?;
-        leselang_command::validate_group_capture_correspondence(
-            binding,
-            branches,
-            fields,
-            operations,
-            CaptureCorrespondenceLimits {
-                max_saved_bindings: leselang_hir::MAX_EFFECT_NESTING_DEPTH,
-                max_original_rows: crate::MAX_MERGE_BRANCHES,
-            },
-            group_capture_limits(),
-            crate::valid_merge_branch_name,
+        leselang_command::reference_group_binding::validate_saved_capture(
+            self, request, fields, operations,
         )
-        .map_err(|error| match error {
-            leselang_command::CaptureReplayError::InvalidProjection => {
-                crate::result_binding::invalid()
-            }
-            leselang_command::CaptureReplayError::Mismatch => invalid(),
-        })
+    }
+}
+
+struct GroupExecutionHost;
+
+impl leselang_command::reference_group_execution::ReferenceGroupExecutionHost
+    for GroupExecutionHost
+{
+    fn resume_group<'a>(
+        &mut self,
+        binding: &'a ResultBinding,
+        value: &'a Value,
+        branches: &'a [HirBranch],
+        fuel: &mut Fuel,
+    ) -> Result<crate::computation::Outcome<'a>, Fault> {
+        crate::computation::resume_group_outcome(binding, value, branches, fuel)
+    }
+
+    fn resume_capture<'a>(
+        &mut self,
+        binding: &'a ResultBinding,
+        value: &'a Value,
+        operation: HostOperation,
+        fuel: &mut Fuel,
+    ) -> Result<crate::computation::Outcome<'a>, Fault> {
+        crate::computation::resume_outcome(binding, value, operation, fuel)
+    }
+
+    fn finish_group(
+        &mut self,
+        binding: &ResultBinding,
+        value: &Value,
+        branches: &[HirBranch],
+        fuel: &mut Fuel,
+    ) -> Result<crate::ScalarValue, Fault> {
+        crate::computation::resume_group(binding, value, branches, fuel)
+    }
+
+    fn build_successor(
+        &mut self,
+        group: &GroupResultBinding,
+        effect: &Effect,
+        binding: Option<Box<ResultBinding>>,
+        context: leselang_command::reference_group_successor::GroupSuccessorContext<'_>,
+    ) -> Result<EffectRequest, Fault> {
+        group.build_successor(
+            context.owner,
+            context.first,
+            effect,
+            binding,
+            context.fuel_remaining,
+            context.position,
+        )
+    }
+
+    fn validate_successor(
+        &mut self,
+        parent: &EffectRequest,
+        result: &Step,
+        next: &EffectRequest,
+    ) -> Result<(), Fault> {
+        crate::successor::validate_pair(parent, result, next)
     }
 }
 
 #[cfg(all(test, feature = "sqlite-journal"))]
 mod correspondence_tests {
     use super::*;
-    use crate::result_binding::{ReferenceProjectedGroup, projection_fault};
+    use crate::result_binding::{ReferenceProjectedGroup, group_capture_limits, projection_fault};
 
     struct TempRoot(std::path::PathBuf);
     impl Drop for TempRoot {
@@ -506,6 +470,7 @@ mod correspondence_tests {
     }
 }
 
+#[cfg(test)]
 pub(super) fn value_type(value: &Value) -> Type {
     value.result_type()
 }

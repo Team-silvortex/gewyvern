@@ -444,13 +444,15 @@ fn real_execution_reentry_uses_shared_original_state_without_a_second_meter_or_p
     ] {
         assert!(shared.contains(retained));
     }
-    let vm = std::fs::read_to_string(root.join("crates/leselang-vm/src/computation.rs")).unwrap();
+    let vm =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/reference_computation.rs"))
+            .unwrap();
     let production = vm.split("\n#[cfg(test)]\n").next().unwrap();
     for retained in [
         "resume_captured_outcome(binding, ResultView::Group",
         "resume_captured_outcome(binding, ResultView::Raw",
-        "leselang_command::resume_preflighted_result_binding_in_scope(",
-        "impl leselang_command::ResultCaptureHost for ReferenceCaptureHost",
+        "crate::resume_preflighted_result_binding_in_scope(",
+        "impl crate::ResultCaptureHost for ReferenceCaptureHost",
         "charge_projection(fuel, result)",
         "charge_group_projection(fuel, group)",
         "effect_outcome(outcome.into_legacy())",
@@ -588,11 +590,13 @@ fn real_capture_construction_uses_shared_bounded_snapshot_with_native_charge_pol
     ] {
         assert!(source.contains(required), "shared snapshot lost {required}");
     }
-    let vm = std::fs::read_to_string(root.join("crates/leselang-vm/src/computation.rs")).unwrap();
+    let vm =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/reference_computation.rs"))
+            .unwrap();
     let production = vm.split("\n#[cfg(test)]\n").next().unwrap();
     for required in [
-        "leselang_command::PreflightedResultEnvironment::new(",
-        "leselang_command::ResultCaptureLimits {",
+        "crate::PreflightedResultEnvironment::new(",
+        "crate::ResultCaptureLimits {",
         "groups: group_capture_limits()",
         "crate::valid_merge_branch_name",
         "CaptureSnapshotError::Native { error, .. } => error",
@@ -1605,7 +1609,9 @@ fn shared_pure_execution_is_product_free_and_used_by_the_reference_vm() {
     assert!(source.contains("preflight_with_budget(expression, 0, &mut budget)"));
     assert!(source.contains("Err(failure) if failure.is_recoverable()"));
     assert!(!source.contains("pub enum Computation"));
-    let vm = std::fs::read_to_string(root.join("crates/leselang-vm/src/computation.rs")).unwrap();
+    let vm =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/reference_computation.rs"))
+            .unwrap();
     assert!(vm.contains("type LocalValue<'a> = PureValue<ResultView<'a>>"));
     assert!(vm.contains("evaluate_effects_in_scope("));
     let control =
@@ -1770,8 +1776,10 @@ fn shared_call_preparation_connects_native_catalogs_and_values_to_the_reference_
         std::fs::read_to_string(root.join("crates/leselang-hir/src/host_call.rs")).unwrap();
     assert!(reference.contains("pub fn evaluate_computed_arguments"));
     assert!(reference.contains("crate::call_evaluation::evaluate_call_arguments_in_scope("));
-    let vm = std::fs::read_to_string(root.join("crates/leselang-vm/src/computation.rs")).unwrap();
-    assert!(vm.contains("leselang_command::PreflightedResultEnvironment::new("));
+    let vm =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/reference_computation.rs"))
+            .unwrap();
+    assert!(vm.contains("crate::PreflightedResultEnvironment::new("));
     assert!(!vm.contains("for argument in arguments"));
     assert!(
         vm.contains("CallEvaluationError::Evaluation { failure, .. } => pure_failure(failure)")
@@ -1900,9 +1908,11 @@ fn shared_effect_control_drives_reference_vm_with_explicit_non_dispatching_captu
     );
     assert!(!source.contains("pub enum Computation"));
     assert!(!source.contains("bindings.to_vec()"));
-    let vm = std::fs::read_to_string(root.join("crates/leselang-vm/src/computation.rs")).unwrap();
+    let vm =
+        std::fs::read_to_string(root.join("crates/leselang-command/src/reference_computation.rs"))
+            .unwrap();
     assert!(vm.contains("evaluate_effects_in_scope("));
-    assert!(vm.contains("leselang_command::PreflightedResultEnvironment::new("));
+    assert!(vm.contains("crate::PreflightedResultEnvironment::new("));
     let environment =
         std::fs::read_to_string(root.join("crates/leselang-command/src/execution_environment.rs"))
             .unwrap();

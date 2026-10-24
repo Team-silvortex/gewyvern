@@ -51,7 +51,13 @@ jobs:
           package leselang --output "$RUNNER_TEMP/leselang-native-source" --verify
 
       - name: Test reference protocol and capture execution without linking the VM
-        run: cargo +1.98.0 test -p leselang-command --locked --test captured_execution --test capture_scope --test structured_value --test result_domain --test host_protocol --test result_binding --test merge_plan --test continuation_admission --test reference_continuation --test reference_value --test reference_merge --test reference_completion --test reference_dispatch --test reference_recovery --test reference_dispatch_recovery --test reference_group_recovery --test reference_merge_output --test reference_group_batch --test reference_group_reservations --test reference_bound_receipt
+        run: cargo +1.98.0 test -p leselang-command --locked --test captured_execution --test capture_scope --test structured_value --test result_domain --test host_protocol --test result_binding --test merge_plan --test continuation_admission --test reference_continuation --test reference_value --test reference_merge --test reference_completion --test reference_dispatch --test reference_recovery --test reference_dispatch_recovery --test reference_group_recovery --test reference_merge_output --test reference_group_batch --test reference_group_reservations --test reference_bound_receipt --test reference_bound_records --test reference_group_binding --test reference_checkpoint --test reference_group_successor --test reference_group_execution
+
+      - name: Test product computation policy without linking the VM
+        run: cargo +1.98.0 test -p leselang-command --locked --lib --test reference_computation
+
+      - name: Test product request construction and live dispatch authority
+        run: cargo +1.98.0 test -p leselang-command -p leselang-vm --locked request_construction --no-fail-fast
 
       - name: Test reference VM with the SQLite backend disabled
         run: cargo +1.98.0 test -p leselang-vm --locked --no-default-features --features leserpent-profile

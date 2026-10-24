@@ -1,0 +1,174 @@
+{
+  "kind": "leselang-bound-record-policy",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.130.0",
+  "adapter_stream_comparisons": 5280,
+  "sqlite_record_comparisons": 720,
+  "unwind_boundaries": 21,
+  "direct_adapter_tests": 3,
+  "sqlite_record_tests": 1,
+  "adapter_owned_bound_record_coordination": true,
+  "lazy_original_row_reads": true,
+  "original_capture_prefix_and_predecessor_order": true,
+  "original_snapshot_proofs_retained_in_vm": true,
+  "unchanged_original_tables": true,
+  "no_saved_code_execution": true,
+  "shared_outcome_summary_reused": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Product lazy bound-row admission, ordered outcome accumulation and capture-prefix coordination use original VM proof hooks and the original same-snapshot SQLite reader. Existing final receipt policy remains unchanged; inspection has no execution, allocation, transaction or publication authority.",
+  "limitations": [
+    "Owners must bound/admit the original plan and graph before entry, authenticate one snapshot and bound iterator work and aggregate ingress. Per-payload decoding is capped, but the adapter is not an arbitrary-iterator sandbox.",
+    "Native product proof implementations, live group admission/evaluation and final checkpoint orchestration remain VM-owned. Full native durable recovery and complete extraction remain open.",
+    "Local macOS Rust/SQLite validation only; no new Linux, GUI or remote CI execution.",
+    "The previously verified standalone checkpoint was reused after rechecking 270 copied sources and 280 exported files; no new standalone export or standalone test run was performed."
+  ],
+  "default_runtime_tests": 1770,
+  "memory_vm_tests": 274,
+  "root_architecture_tests": 533,
+  "strict_workspace_lints_passed": true,
+  "memory_all_target_lints_passed": true,
+  "format_checks_passed": true,
+  "native_no_default_check_passed": true,
+  "native_checkpoint_reused": true,
+  "new_native_export_performed": false,
+  "native_checkpoint": {
+    "reused_checkpoint": "/private/tmp/gewyvern-ci-native-20261023/export-manifest.json",
+    "verified": true,
+    "complete_vm": false,
+    "full_extraction_gate": false,
+    "total_files": 280,
+    "copied_sources": 270,
+    "source_and_export_mismatches": [],
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "new_export_performed": false
+  },
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "bda5fbc2c676609c048ad08ba39dcc26b45ef829829badec28e555780753219c"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_bound_records.rs",
+      "sha256": "acc3d25ac6c859ad9b786620fc848276bb2ff5bc91a51f53505660f55e540b36"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_bound_records.rs",
+      "sha256": "954e55834901668b00bb460f561ce0a436cb2ba0a2a30d213bcb24839bd56199"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_bound_receipt.rs",
+      "sha256": "0e57545fd1f6323f6132abcff0d282be69378e38ddbdce6bcbcaf6c793265cc2"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_binding.rs",
+      "sha256": "0da47f7c0e4ed0f33abdd0051a40e9c91c74e5d96aefd08d21c8c7d2b27a00dc"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/bound_record_contract_tests.rs",
+      "sha256": "a3b2bd8c8c806dbd9526eb7941891e2f8de72c23f2aac10571bb061fc067e1a2"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_binding.rs",
+      "sha256": "8decedea7af1241e5bdef1cab12cfad1e18e68cf4b4da93b4c6fcab66b8d54a4"
+    },
+    {
+      "path": "crates/leselang-vm/src/successor.rs",
+      "sha256": "d3551d8aebe745a46ffee49d300efb936c45ffaace0c9a99f94f05d9c8c2fe71"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/outcome_summary.rs",
+      "sha256": "173c31de78254413ae2daf5ce831a19018fd126325d7507cf1acb984cebb8d1b"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "bc054db3d77d2b969a97536958b3991aa900c6f5566222cc0e8373e0f604735b"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "a53b29a54b213397f356d67c88773ae20bba92892bb455a261fa4e0a9726c4de"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "2037c87d6649d2495735801d2081b14fa623422d973c66d2f518fbdd7514eb1c"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "6d0af0204f6d1e185eb394b1b638b0e42fa11dcd0d6c556407b33c520a4c6e97"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "f82842f582c20b8e8fbca72577b483445feaf3df5ec159501d67b69d6c702920"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "1083d0d887146b8bc65447eca18430a99bbd3cfb21971e8a375452bbef59975a"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "direct",
+      "log": "/private/tmp/leselang-bound-record-policy-20261024-direct.log",
+      "sha256": "f1a2a7af10d41122de63fcf8b0173ac9f2448190129925dd980394794ad7b51c"
+    },
+    {
+      "stage": "sqlite",
+      "log": "/private/tmp/leselang-bound-record-policy-20261024-sqlite.log",
+      "sha256": "bdad442f4ec8c2070377a690674db8da6a8cad8d343c2e117b20032b6d5775c0"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-bound-record-policy-20261024-default.log",
+      "sha256": "47fc350fcb225f94f9d0d32064875c45c38a19e1d73c19df4d44e2f6e16f0c64"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-bound-record-policy-20261024-memory.log",
+      "sha256": "8364a2805c5ca2b7bd0a614fd74ef7855ee0996affee9da6f20e762c4309939b"
+    },
+    {
+      "stage": "gates-final",
+      "log": "/private/tmp/leselang-bound-record-policy-20261024-gates-final.log",
+      "sha256": "e892800dd744cb1d3c13cbb65b48310ad3c40ca9f15765d12c530daf8452296b"
+    },
+    {
+      "stage": "workspace-clippy",
+      "log": "/private/tmp/leselang-bound-record-policy-20261024-workspace-clippy.log",
+      "sha256": "e09e508495d40e00a531dec7f60560d18f78bf109c677d9e6295a6a9d1f22a40"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-bound-record-policy-20261024-memory-clippy.log",
+      "sha256": "ea6a059c0296185f8d6da4f3e32ef365c1df8dcce9c052c1d10acf8e1cef2753"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-bound-record-policy-20261024-native-check.log",
+      "sha256": "69ee8c36ec996ffb4eb3ea08c22a0bea9ee00b2eb167587aabc840bf0ec3b8f7"
+    },
+    {
+      "stage": "native-checkpoint",
+      "log": "/private/tmp/leselang-bound-record-policy-20261024-native-checkpoint.log",
+      "sha256": "a1616e1b6bcf0154d246acc50f1a333d171969c102aaf9418d6e759d5b0bbfda"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-bound-record-policy-20261024-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "include-format",
+      "log": "/private/tmp/leselang-bound-record-policy-20261024-include-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

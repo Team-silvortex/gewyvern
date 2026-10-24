@@ -1,5 +1,21 @@
 use super::group_recovery_contract_tests::{Fixture, snapshot};
 use super::*;
+use leselang_runtime_core::{CheckpointCommitError, CheckpointError, CheckpointRecovery};
+
+fn checkpoint_fault(error: CheckpointError) -> Fault {
+    match error {
+        CheckpointError::RecordLimit => {
+            journal_fault("LSV4006", "journal recovery record limit exceeded")
+        }
+        CheckpointError::InvalidSequence => {
+            journal_fault("LSV4007", "journal continuation sequence is invalid")
+        }
+        CheckpointError::DuplicateKey => {
+            journal_fault("LSV4007", "duplicate journal continuation token")
+        }
+        CheckpointError::Closed => journal_fault("LSV4007", "journal recovery pass is closed"),
+    }
+}
 
 fn all_tables(connection: &Connection) -> Vec<Vec<rusqlite::types::Value>> {
     let mut result = snapshot(connection);

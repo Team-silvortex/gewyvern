@@ -9528,11 +9528,269 @@ tests show fabricated external summaries cannot authorize forged receipts:
 reopen refuses without altering the original tables, while restoring original
 receipt bytes permits recovery without new dispatches.
 
-Reference execution is `1.129.0`; native embedding `0.172.0`, HIR `0.184.0`,
+This slice established reference `1.129.0`; native embedding `0.172.0`, HIR `0.184.0`,
 product `2.4.0`, wire formats and journal schema 10 are unchanged. Bound-record
 stream admission/capture coordination and final checkpoint orchestration remain
 in the VM. Full native durable recovery, vertical compatibility and physical
 repository extraction remain open; this slice does not promote native maturity.
+
+### Product Bound Record Recovery Ownership
+
+`leselang-command::reference_bound_records::inspect_bound_group_records` now
+owns the lazy bound-record loop and capture-prefix coordination. Each original
+row is read, its request is bounded/decoded, capture and successor-pair proofs
+run, and only then is its terminal decoded and admitted. Successful members
+extend the original ordered capture values and operation list; a missing
+terminal clears the predecessor rather than reusing an earlier completion.
+The unchanged outcome summary retains sequential stop and parallel overflow
+precedence. After the stream, graph proof precedes prefix completeness,
+original reservation proof and the existing bound-receipt policy.
+
+The VM keeps the original SQLite query, typed field-read order and native
+member/capture/successor/graph/reservation proofs through
+`ReferenceBoundRecordProofs`. Rows are not pre-collected: an early refusal does
+not pull later records or invoke later proof hooks. Unbound plans do not enter
+the iterator. Local move-only byte owners and borrowed non-Send proof owners
+are supported, including dynamic dispatch, without new Clone/Send/Sync bounds.
+Unwind propagates and releases held rows; native interior mutations are not
+rolled back. The owner must first bound/admit the graph and plan (at most 64
+rows), authenticate the same snapshot and bound iterator work/aggregate ingress.
+The adapter caps each encoded payload; it is not an arbitrary-iterator sandbox.
+
+The [bound-record policy proof](fixtures/leselang_bound_record_policy_macos_arm64_20261024.json)
+tracks 5,280 frozen result/read/proof-trace comparisons, 21 iterator/read/proof
+unwind boundaries, and inclusive encoded-size checks. Another 720 real SQLite
+comparisons use original native proofs across sequential/parallel groups,
+saved successor prefixes and corrupt records, including invalid UTF-8 TEXT and
+competing early/late failures. All five original tables remain byte-for-byte
+unchanged during inspection, including malformed TEXT storage.
+
+This slice established reference `1.130.0`; native embedding `0.172.0`, HIR `0.184.0`,
+product `2.4.0`, continuation formats and journal schema 10 remain unchanged.
+This is product recovery coordination, not native proof authority or a new
+generic core abstraction. It cannot evaluate saved code, allocate fresh fuel,
+dispatch, repair watermarks, publish checkpoints or grant recovery authority.
+This slice left native product validators, live group admission/evaluation and
+final checkpoint orchestration VM-owned. Full native durable recovery and physical
+repository extraction stay open, with native maturity unchanged.
+
+### Product Group Member And Capture Policy
+
+`leselang-command::reference_group_binding` now owns `validate_member` and
+`validate_saved_capture`. The VM retains thin delegates used by both live group
+execution and the bound-record recovery proof bridge. Successor-name selection
+still precedes ordinary member lookup. Capture successors retain their preflighted
+type classifier; other successors retain static saved-binding validation, with
+the original `LSV1405` versus `LSV1409` fault distinction. No saved body runs here.
+
+Saved-capture admission keeps the original order: group branches, prefix row
+shape, saved-frame presence, aggregate limits, group signatures/projections,
+then complete result-to-row correspondence. The existing shared correspondence
+kernel and product projection vocabulary are unchanged. Saved groups and results
+share one inclusive count ceiling; the original-row ceiling remains 64. Later
+malformed projections cannot be hidden by an earlier matching result.
+
+These are bounded-input policy checks, not whole-frame or raw-value admission.
+The caller must first admit the original plan/request/value, retain authentic
+receipts and prove same-snapshot authority. Matching a type does not validate a
+raw value; even a forged request identifier may pass capture correspondence alone.
+Inspection never mutates inputs, replenishes fuel, dispatches successors or grants
+checkpoint publication. Those restrictions are tested, not inferred from names.
+
+The [group-binding policy proof](fixtures/leselang_group_binding_policy_macos_arm64_20261024.json)
+records 3,360 frozen member decisions, 640 capture fault-order comparisons,
+inclusive aggregate/row limits and 350 operation/version cases spanning all 70
+product operations and five saved vocabularies. Existing real SQLite capture
+oracle, corruption/reopen, saved-fuel and no-duplicate-successor suites still run
+through the VM delegates.
+
+This slice reached reference execution `1.131.0`, leaving live group
+admission/evaluation, successor execution and final checkpoint coordination
+VM-owned. Native durable recovery, complete vertical compatibility and physical
+repository extraction remain unfinished; native maturity is not promoted.
+
+### Product Checkpoint Recovery Coordination
+
+`leselang-command::reference_checkpoint` now owns the complete product load policy:
+record count, aggregate byte ceiling, lazy row staging, original checkpoint fault
+mapping and delegation to the existing shared finalization runner. The record and
+byte ceilings remain inclusive. A staged limit/sequence/duplicate failure poisons
+recovery even if a faulty source ignores the refusal; finalization cannot run.
+
+`ReferenceCheckpointSource` extends the existing `CheckpointFinalizer` on the
+same original owner. SQLite still opens one immediate transaction, reads original
+typed fields in token order, runs same-snapshot record/dispatch/graph/audit proofs,
+updates the allocator watermark and commits. Cursors close before finalization.
+No rows are precollected, no second transaction is opened and no saved code runs.
+The adapter has no database, VM, interpreter or independent persistence backend.
+
+Unlike a read-only record inspector, this entry **does coordinate commit** through
+explicit trusted native hooks. It returns the maps and original commit metadata
+only after commit and owner cleanup succeed. The owner must bound/admit its reads,
+retain authentic same-snapshot proofs and implement atomic rollback on refusal.
+No callback is retried, and no Clone/Send/static bound is added. Native callback
+side effects are not rolled back by Rust; commit or cleanup unwind is uncertain,
+not permission to replay writes. A successful checkpoint still does not authorize
+effect execution, fabricate receipts or replenish the saved fuel budget.
+
+The [checkpoint policy proof](fixtures/leselang_checkpoint_policy_macos_arm64_20261024.json)
+covers 1,560 frozen result/fault/trace comparisons, original owned payloads,
+inclusive stream limits, ignored staging refusals and 13 unwind boundaries.
+The existing 420-case real SQLite oracle compares snapshots, exact faults and
+unchanged tables after corruption or failure, including deferred commit failure.
+Its frozen load retains independent orchestration and fault mapping.
+
+This slice reached reference execution `1.132.0`, leaving live group
+admission/evaluation and successor construction VM-owned. Actual storage
+authority remains native; full host-neutral durable recovery, complete vertical
+compatibility and physical repository extraction remain open. This step does not
+promote native maturity or introduce a second runtime.
+
+### Product Group Successor Assembly
+
+`leselang-command::reference_group_successor` now owns the released group's
+successor assembly policy. Atomic-operation selection precedes reserved-position
+lookup. The adapter forwards the borrowed effect, original remaining fuel and
+inherited principal/capabilities/revision/deadline to one trusted native builder.
+It then installs the group's schema and owner, moves the original captured binding,
+copies the original output ceiling to frame and budget, validates the full request,
+and checks continuation encoding and canonical form, in the original order.
+
+`GroupSuccessorContext` and `ReservedEffectInput` are unchecked input records, not
+reservation certificates or execution grants. Callers must bound/admit the group,
+prove original requests and reserved identities, and retain live authority. The
+native builder still owns identity generation, lowering, base admission and the
+single host-operation fuel debit. The adapter does not reconstruct that builder,
+evaluate saved code, allocate identities, persist, dispatch or replenish fuel.
+The callback is once-only, supports borrowed/non-Send owners and is not retried
+after refusal or unwind; arbitrary native callback side effects are not rolled back.
+Request validation does not authenticate a substitute trusted builder.
+
+Both initial group successors and later capture successors use the same thin VM
+delegate. Evaluation, saved-prefix correspondence and predecessor-pair checks stay
+on their original paths. Journal admission/settlement and first-commit replay are
+unchanged. No continuation version or storage migration is required.
+
+The [group-successor policy proof](fixtures/leselang_group_successor_policy_macos_arm64_20261024.json)
+records 384 frozen adapter result/wire/input-trace comparisons and 8,960 real VM
+construction comparisons across all 70 operations, sequential/parallel groups,
+tail/capture/dataflow/conditional forms and competing faults. The 560 unmodified
+fixtures must succeed with exactly the original single debit. Direct ownership,
+uncalled-builder cleanup and unwind checks accompany existing group restart,
+rollback, saved-fuel and no-duplicate-successor suites.
+
+This slice reached reference execution `1.133.0`, leaving live group
+evaluation/capture progression and actual native request construction VM-owned.
+It did not promote native maturity or change the wire or journal schema.
+
+### Product Group Re-entry Coordination
+
+`leselang-command::reference_group_execution` now coordinates initial group
+evaluation, capture progression and final scalar completion. Its explicit
+`ReferenceGroupExecutionHost` invokes the original VM evaluator, scalar-only
+finish, request builder and parent/result/successor proof. The VM keeps only the
+bridge at these entries; no second evaluator or core product policy is introduced.
+`ComputationOutcome` moves to the adapter with an exact VM re-export, preserving
+borrowed/owned effects and the original captured binding without a conversion copy.
+
+Each restored meter starts from the same saved remaining fuel, not a fresh default
+budget. Outcome classification still precedes the zero-fuel successor gate, so a
+conditional scalar early exit is not incorrectly rejected. Capture progression
+validates the ordered saved prefix before evaluation, uses the pending capture's
+remaining fuel, and checks the original successor relationship before handoff.
+Final scalar-only rejection remains in the original native implementation.
+
+The host and inputs are trusted execution boundaries, not dispatch credentials.
+Callers must retain bounded/admitted inputs, authentic receipts, complete group
+state and current authority. Hooks may execute saved expressions, but may not
+replenish fuel, dispatch or settle work through this coordinator. Hook refusal or
+unwind is not retried, and native side effects are not rolled back. Borrowed,
+non-Send owners and trait-object hosts remain supported. Journal admission,
+settlement, restart and committed replay stay on their original native paths.
+
+The [group-execution policy proof](fixtures/leselang_group_execution_policy_macos_arm64_20261024.json)
+records 5,760 scripted adapter result/trace comparisons, plus 1,944 initial/finish
+and 2,916 capture comparisons against the frozen pre-migration VM coordinator
+using the real evaluator and request builder. Explicit zero-budget error-order,
+borrowed-effect/moved-binding identity and all five native-hook unwind checks
+complement the existing memory and SQLite restart/authority suites.
+
+This slice reached reference execution `1.134.0`, leaving computation/capture
+execution policy and native request construction in the VM. It did not change
+wire formats, journal schema 10 or native maturity.
+
+### Product Computation Facade
+
+`leselang-command::reference_computation` now owns the complete released product
+execution facade: initial evaluation, atomic/group re-entry, scalar-only finish,
+capture/projection accounting, fixed execution limits and diagnostic mapping.
+The five original VM entries are exact re-exports, not wrappers or a duplicate
+interpreter. The implementation still uses the existing HIR evaluator, shared
+capture environment and runtime-core scope/fuel kernels. Twelve internal tests
+move with that implementation, including frozen preparation, projection and
+capture-order checks; they can now run without linking the VM or SQLite.
+
+These are preflighted product execution APIs, not a generic host-neutral API or
+an untrusted-input sandbox. Callers must bound/admit all cold HIR and captures,
+prove canonical types and original reply correspondence, and keep current native
+authority. A computed effect or captured binding alone is not an authenticated
+request, continuation or receipt. Native request construction, identity allocation,
+dispatch, journal admission/settlement and retry remain outside this facade.
+
+Original meter costs and refusal order remain unchanged. Scalars charge before
+copying; restored saved projections charge before borrowing; group re-entry still
+rejects saved result/group rows after preceding scalar charges. No new meter,
+refill or refund is introduced. Typed scalar failures stay typed until the outer
+fault boundary; an external error with a scalar-looking code cannot enter recovery.
+Borrowed effects remain borrowed, while new captures remain owned original outputs.
+
+The [computation policy proof](fixtures/leselang_computation_policy_macos_arm64_20261024.json)
+records 11,640 comparisons across all 15 IR node kinds, five entries and each
+tested fuel boundary, plus 2,600 saved-row/duplicate/projection comparisons.
+The test-only oracle retains the pre-migration VM policy independently of the
+new facade; exact outcomes, errors, serialized observations and remaining fuel
+must agree. Separate adapter-only tests check borrowed effect identity, live
+capture/resume composition, scalar-only refusal and zero-fuel behavior. Existing
+memory and SQLite group restart/authority tests continue through the VM re-exports.
+
+At reference execution `1.135.0`, native embedding `0.172.0`, HIR `0.184.0`,
+product `2.4.0`, wire formats and journal schema 10 remain unchanged. Native
+request construction and journal authority still require migration/compatibility
+work. Full host-neutral durable recovery, complete vertical compatibility and
+physical extraction remain open, without native maturity promotion.
+
+### Product Request Construction
+
+`leselang-command::reference_request_build::build_effect_request` owns the complete
+base product request policy: one host-operation fuel debit, the continuation
+frame, deterministic identity formatting, operation lowering, fault mapping and
+final static request validation. The VM entry forwards the original parameters
+once. `ReservedEffectInput` is the same type exported from the group-successor
+module; existing callers do not need a conversion or a second implementation.
+
+This is not an identity allocator or authorization boundary. The caller must
+bound/admit HIR before it is cloned, reserve sequences in its live journal and
+retain current authority. Successful construction does not install a pending
+continuation, issue a dispatch lease, publish a receipt or advance a watermark.
+Failure does not refund a reservation. Native journal transactions, pending maps,
+lease fencing and settlement are unchanged. The adapter introduces no I/O,
+clock, retry, extra continuation clone or fresh execution budget.
+
+The [request construction proof](fixtures/leselang_request_build_policy_macos_arm64_20261024.json)
+compares the independent pre-migration builder, adapter entry and VM forwarding
+entry across 12,960 cases: 70 atomic operations plus both structured group forms,
+six fuel boundaries, five sequence boundaries and six competing fault scenarios.
+The existing 1,120-case oracle still checks deadline, type, authority and revision
+boundaries. Adapter-only tests cover all 70 operations, exact GUI authority-buffer
+ownership, one debit, checked wire round-trips and the legacy input type path.
+Memory and SQLite tests prove that a constructed request neither reserves an
+identity nor bypasses the live lease, including after reopening the journal.
+
+Reference execution is now `1.136.0`. Native embedding `0.172.0`, HIR `0.184.0`,
+product version, wire formats and journal schema 10 are unchanged. Native
+sequence allocation and journal admission/settlement, complete vertical
+compatibility, host-neutral durable recovery and physical extraction remain open.
+This policy migration does not promote native maturity or complete the VM gate.
 
 **The current 2.3.0-and-later phase closes acceptance gates; physical extraction is deferred.**
 It is not an automatic version-triggered move. No replacement extraction version

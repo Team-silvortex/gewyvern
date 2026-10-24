@@ -1,0 +1,180 @@
+{
+  "kind": "leselang-group-successor-policy",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.133.0",
+  "adapter_comparisons": 384,
+  "native_builder_comparisons": 8960,
+  "native_valid_fixtures": 560,
+  "direct_adapter_tests": 3,
+  "adapter_owned_group_successor_assembly": true,
+  "original_operation_and_reservation_precedence": true,
+  "once_only_original_native_builder": true,
+  "original_single_fuel_debit": true,
+  "original_binding_moves_without_clone": true,
+  "original_context_and_limits": true,
+  "native_journal_authority_retained": true,
+  "no_saved_code_execution": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "operation_count": 70,
+  "scope": "Product group-successor operation/reservation selection, inherited-context forwarding, group frame assembly and final admission now live in the adapter. The same original VM builder retains identity generation, lowering and a single fuel debit. Initial and capture successors share the delegate without changing evaluation, pair checks or native journals.",
+  "limitations": [
+    "Inputs require bounded/admitted original groups and requests, proven reservations and current native authority. Public context/input records and a valid assembled request are not authentication, dispatch or settlement grants.",
+    "The native builder is trusted, called once, and must not dispatch. The adapter does not authenticate a substitute builder, retry failures or roll back arbitrary callback side effects.",
+    "Live group evaluation/capture progression and actual native request construction remain VM-owned; full native durable recovery, complete vertical compatibility and physical extraction remain open.",
+    "Local macOS Rust/SQLite verification only; no new Linux, GUI or remote CI execution.",
+    "The previously verified standalone checkpoint was reused after rechecking 270 copied sources and 280 exported files. No new standalone export or standalone test run was performed."
+  ],
+  "default_runtime_tests": 1782,
+  "memory_vm_tests": 275,
+  "root_architecture_tests": 538,
+  "strict_workspace_lints_passed": true,
+  "memory_all_target_lints_passed": true,
+  "format_checks_passed": true,
+  "native_no_default_check_passed": true,
+  "native_checkpoint_reused": true,
+  "new_native_export_performed": false,
+  "native_checkpoint": {
+    "reused_checkpoint": "/private/tmp/gewyvern-ci-native-20261023/export-manifest.json",
+    "verified": true,
+    "complete_vm": false,
+    "full_extraction_gate": false,
+    "total_files": 280,
+    "copied_sources": 270,
+    "source_and_export_mismatches": [],
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "new_export_performed": false
+  },
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "cba36714ccd89d21170e1829c1a6fd68cd0dd06ae1d2b78a68ccad7ce5d08a8e"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_group_successor.rs",
+      "sha256": "b63b809eadc3c98db4efca64ac79213568e96d634e075e71a94e76061a2dd219"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_group_successor.rs",
+      "sha256": "fdf875fccbc4eee21720e1bd0896f17f488f977277f348f34d052b1bbc395871"
+    },
+    {
+      "path": "crates/leselang-command/src/group_continuation.rs",
+      "sha256": "b0d1ac18aa488d953833412c3a2ecfd4850bc1980c8e4789b3e5425b2888cdca"
+    },
+    {
+      "path": "crates/leselang-command/src/operation_lowering.rs",
+      "sha256": "90328d4d118c00607d1ba99c2d841d0b80fb3a78d59597a84bbe2effb8abec77"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_continuation.rs",
+      "sha256": "dc9e229c6880201cad2c22983644984622e40b81c19d7e440bb9690bf8066815"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_request.rs",
+      "sha256": "a2a15bd906d324bb17a1d8628079eec72e9ff3c659f8879f40f4425fc1a493c5"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_binding.rs",
+      "sha256": "81a47e8ed266e3d09de615e09dc7d9f902305cbb9b2a74e5d4a396ad889e5329"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_successor_contract_tests.rs",
+      "sha256": "c7e34ce4d57db4b98fd7dfc6a3626522fabc6d8868877b50e6f4e50e9ac31689"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "e5b904c52152e3d15c54c99ee2d3650d5332b31fd7d26d6331831e18605d60ca"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "faf2f427d94cad0cb7de3756fcff66ddcedcdb27b3d405f54d73de488ca5f019"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "4493471efe2425b8205d6276818d579f60f1453afdba23bd9379c5f21d3bb178"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "4cab80e7679d691e5082bb8bd99fd7b78cd9bbfa4c91b2910cdc8079bf1756ce"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "077bed9460c52d94af89d77a81092bac76859e33406b02f6bcaffb81e71753db"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "49d16a26a5db87de85f3fb1455dd55b3d0e269c36d25ff6cec6e40424320db1e"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "37d773817d005b1aadd1c935ff3149dd01caac357fb59e2006ce11ecef7406fa"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "direct",
+      "log": "/private/tmp/leselang-group-successor-policy-20261024-direct.log",
+      "sha256": "9e0b3e21b3b472e8ed525655a1621ae1fd687c0fe85209bc40421c0d1a947a80"
+    },
+    {
+      "stage": "native-oracle",
+      "log": "/private/tmp/leselang-group-successor-policy-20261024-native-oracle.log",
+      "sha256": "8475d3b2546d1c21945990349ec81588a1941900d47bbe4ea249fd5daef0b512"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-group-successor-policy-20261024-default.log",
+      "sha256": "76aebff026e9475fc2c9cec9c898e0e6963a0935c38d570ff7ecfa87ced88304"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-group-successor-policy-20261024-memory.log",
+      "sha256": "4330b870a5a8149c293e4d23c0274859ee1c6feb586bf7be961538f26d8f4a72"
+    },
+    {
+      "stage": "gates-final",
+      "log": "/private/tmp/leselang-group-successor-policy-20261024-gates-final.log",
+      "sha256": "ba29242ff54a619a684d80db206e96b901311079f905274777d0cbe8edca34d7"
+    },
+    {
+      "stage": "workspace-clippy",
+      "log": "/private/tmp/leselang-group-successor-policy-20261024-workspace-clippy.log",
+      "sha256": "6d5a788b9094ecf8c8f2fede8702cd65b66ad6aacf4b287a39ac366b7be6718e"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-group-successor-policy-20261024-memory-clippy.log",
+      "sha256": "55357e8ead758984816c3c47099ed7be60a8f2cbfa2bdc016b5ad0f5e1ccd491"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-group-successor-policy-20261024-native-check.log",
+      "sha256": "19c7d339b4005a4b806c4702591d05093488aaa8325e20bb98cef34eb2dc2605"
+    },
+    {
+      "stage": "native-checkpoint",
+      "log": "/private/tmp/leselang-group-successor-policy-20261024-native-checkpoint.log",
+      "sha256": "a1616e1b6bcf0154d246acc50f1a333d171969c102aaf9418d6e759d5b0bbfda"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-group-successor-policy-20261024-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "include-format",
+      "log": "/private/tmp/leselang-group-successor-policy-20261024-include-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

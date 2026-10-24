@@ -1,0 +1,188 @@
+{
+  "kind": "leselang-group-execution-policy",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.134.0",
+  "adapter_comparisons": 5760,
+  "native_initial_and_finish_comparisons": 1944,
+  "native_capture_comparisons": 2916,
+  "direct_adapter_tests": 4,
+  "native_hook_unwind_boundaries": 5,
+  "adapter_owned_group_reentry_coordination": true,
+  "original_evaluator_and_scalar_finish": true,
+  "original_saved_fuel_and_fault_precedence": true,
+  "original_borrowed_effect_and_moved_capture": true,
+  "saved_prefix_before_evaluation": true,
+  "original_successor_pair_before_handoff": true,
+  "no_hook_retry_after_unwind": true,
+  "native_journal_authority_retained": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Product initial group evaluation, capture progression and final scalar coordination delegate to explicit hooks on the original evaluator, native builder and successor proof. Exact outcome reexports preserve borrowed effects and moved captured bindings; saved meters, prefix preflight, refusal precedence and journal authority remain unchanged.",
+  "limitations": [
+    "Inputs and hooks are trusted execution boundaries: bounded admission, authentic receipts, complete group state and current native authority remain required. Prepared typed output is not dispatch or settlement authority.",
+    "The coordinator invokes saved-expression evaluation through the original native hooks; it is not read-only inspection. It contains no independent evaluator and does not refill fuel, retry native failures or roll back arbitrary native side effects.",
+    "Actual computation/capture execution, native request construction and journal admission/settlement remain native. Full host-neutral durable recovery, complete vertical compatibility and physical extraction remain open.",
+    "Local macOS Rust/SQLite verification only; no new Linux, GUI or remote CI execution.",
+    "The previously verified standalone checkpoint was reused after rechecking 270 copied sources and 280 exported files. No new standalone export or standalone test run was performed."
+  ],
+  "default_runtime_tests": 1788,
+  "memory_vm_tests": 277,
+  "root_architecture_tests": 540,
+  "strict_workspace_lints_passed": true,
+  "memory_all_target_lints_passed": true,
+  "format_checks_passed": true,
+  "native_no_default_check_passed": true,
+  "native_checkpoint_reused": true,
+  "new_native_export_performed": false,
+  "native_checkpoint": {
+    "reused_checkpoint": "/private/tmp/gewyvern-ci-native-20261023/export-manifest.json",
+    "verified": true,
+    "complete_vm": false,
+    "full_extraction_gate": false,
+    "total_files": 280,
+    "copied_sources": 270,
+    "source_and_export_mismatches": [],
+    "manifest_sha256": "51c604b23579e666b77a9f4f15ebbbc4c5b03e73548a2cf40c6ae3df10ca52a8",
+    "new_export_performed": false
+  },
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "8d93320a6c397ddd4d33086a2643eaf6c1bf62053605f6429ba13052e1c413b0"
+    },
+    {
+      "path": "crates/leselang-command/src/execution_outcome.rs",
+      "sha256": "9fbdca28bca8c7b7366d8dd80b7b414fe23298d90665b627f11381aa257050cb"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_group_execution.rs",
+      "sha256": "44ea40a6044c4b387ad20a0122573bcdb8ac4272458334f31baa913bd8a105ed"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_group_execution.rs",
+      "sha256": "277a4d633681943ea0afb15eeec0b18db95a0cdbf3069b325de3ecd21fb088b4"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_group_binding.rs",
+      "sha256": "112c6f9fc2e3d40b829c4ac95eb0f46c4bbfa976a6dcac56bdffb83ab8ba3d8d"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_group_successor.rs",
+      "sha256": "b63b809eadc3c98db4efca64ac79213568e96d634e075e71a94e76061a2dd219"
+    },
+    {
+      "path": "crates/leselang-vm/src/computation.rs",
+      "sha256": "705bc77c96eae2a0a13d8b2a1c590d71b955e8bd757e9dc13f941df08243855a"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_binding.rs",
+      "sha256": "bd34143e0b94fae5ab032020f3d4a1f751896c974cda8543fdeba3a0bfcbbfef"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_execution_contract_tests.rs",
+      "sha256": "9a413fdc82a91640f945e5766e23cb657730311a4d653ee7cd1a2dfe6ba8bf49"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_successor_contract_tests.rs",
+      "sha256": "4af975535b088209e34a1c94e24c6c304ba498d4c4deceeb80ebc78c0714780b"
+    },
+    {
+      "path": "crates/leselang-vm/src/successor.rs",
+      "sha256": "d3551d8aebe745a46ffee49d300efb936c45ffaace0c9a99f94f05d9c8c2fe71"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "e5b904c52152e3d15c54c99ee2d3650d5332b31fd7d26d6331831e18605d60ca"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "f48572db87692de4213d364e745d7f649ee9efe40e605bb5062d5477ca38cb8e"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "2d4ba320f766b64ad863414fefc4d12c5dd364db88831935c7223e247411fc0f"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "16ec8de7473b6633b2d64a14f280e1dcca3ce4465d743006191832184846ba7d"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "596b93d8ab64fca2b1a13fbe59f342d1048bf7a0bdc3fa08d0770a98db7f1b4e"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "fdda5be6d3ef406ef6e66e93659857f07d22a78ee2e3e77fdf63200f89b4442b"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "13a472f88a264fa64707ce908c384a960c46bd5fc19216b7a637450e07fd4f1e"
+    }
+  ],
+  "verification": [
+    {
+      "stage": "direct",
+      "log": "/private/tmp/leselang-group-execution-policy-20261024-direct.log",
+      "sha256": "009fcdc44cfe16b68425647cce0f7957e83870c87f5f9dc63c0658ee4f24a285"
+    },
+    {
+      "stage": "native-oracle",
+      "log": "/private/tmp/leselang-group-execution-policy-20261024-native-oracle.log",
+      "sha256": "df80b77a05482b1e1bd6c3218cb63572ba8fe0e3bdbded6df22282a6943bf42f"
+    },
+    {
+      "stage": "default",
+      "log": "/private/tmp/leselang-group-execution-policy-20261024-default.log",
+      "sha256": "317d9ef15e8736ebd7fdca6ef3f1e41b401f72c1af202a470e25c5b63a3554f4"
+    },
+    {
+      "stage": "memory",
+      "log": "/private/tmp/leselang-group-execution-policy-20261024-memory.log",
+      "sha256": "8b8cb63a2702da2d4b9aadbf8e3cb5c8738aa260ec8bf5831019805ab0f395ab"
+    },
+    {
+      "stage": "gates-final",
+      "log": "/private/tmp/leselang-group-execution-policy-20261024-gates-final.log",
+      "sha256": "dca7cda9c95293604bf0b8be9dc46d37da1e80684412a82f05dadf84aef2a09d"
+    },
+    {
+      "stage": "workspace-clippy",
+      "log": "/private/tmp/leselang-group-execution-policy-20261024-workspace-clippy.log",
+      "sha256": "7d0d977e86f0003d55ec16a23d92aa1afd4c7c590621d1f8e011d6c3ed2054ff"
+    },
+    {
+      "stage": "memory-clippy",
+      "log": "/private/tmp/leselang-group-execution-policy-20261024-memory-clippy.log",
+      "sha256": "4231d5541d5783dde36aa77afa51d4fca5e927f497ad34d05d51b72774c408b1"
+    },
+    {
+      "stage": "native-check",
+      "log": "/private/tmp/leselang-group-execution-policy-20261024-native-check.log",
+      "sha256": "5bee2a7769ce1b3162ea5fb3140bb23c15825bc2979d403e10875cbb33c5afce"
+    },
+    {
+      "stage": "native-checkpoint",
+      "log": "/private/tmp/leselang-group-execution-policy-20261024-native-checkpoint.log",
+      "sha256": "a1616e1b6bcf0154d246acc50f1a333d171969c102aaf9418d6e759d5b0bbfda"
+    },
+    {
+      "stage": "format",
+      "log": "/private/tmp/leselang-group-execution-policy-20261024-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "include-format",
+      "log": "/private/tmp/leselang-group-execution-policy-20261024-include-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

@@ -17,6 +17,8 @@ use crate::{Cancellation, CancellationReason};
 #[cfg(feature = "sqlite-journal")]
 use leselang_command::debugger_audit::command_origin_label;
 use leselang_command::debugger_audit::{audit_matches_record, debugger_audit_record};
+#[cfg(feature = "sqlite-journal")]
+use leselang_command::reference_checkpoint::{ReferenceCheckpointSource, recover_checkpoint};
 use leselang_command::reference_completion::{
     deadline_cancellation, sequence_stop, terminal_step_outcome, validate_cancellation_step,
     validate_terminal_step,
@@ -40,9 +42,7 @@ use leselang_command::reference_recovery::{
     inspect_effect_record,
 };
 #[cfg(feature = "sqlite-journal")]
-use leselang_runtime_core::{
-    CheckpointCommitError, CheckpointError, CheckpointRecovery, dispatch_lease_capacity_exhausted,
-};
+use leselang_runtime_core::dispatch_lease_capacity_exhausted;
 use leselang_runtime_core::{DispatchLeaseObservation, GroupGraphError};
 #[cfg(all(test, feature = "sqlite-journal"))]
 use leselang_runtime_core::{
@@ -73,9 +73,9 @@ mod retention_tests;
 mod successor;
 
 pub const JOURNAL_SCHEMA_VERSION: u32 = 10;
+pub use leselang_command::reference_checkpoint::MAX_JOURNAL_TOTAL_BYTES;
 pub use leselang_command::reference_recovery::MAX_JOURNAL_ENTRY_BYTES;
 pub use leselang_command::retention_policy::MAX_JOURNAL_RECORDS;
-pub const MAX_JOURNAL_TOTAL_BYTES: usize = 64 * 1024 * 1024;
 #[cfg(feature = "sqlite-journal")]
 const JOURNAL_BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 #[cfg(feature = "sqlite-journal")]
@@ -1426,62 +1426,9 @@ impl SqliteJournal {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| journal_error("LSV4005", "failed to lock journal load", error))?;
-        let count = journal_record_count(&transaction)?;
-        if count > MAX_JOURNAL_RECORDS {
-            return Err(journal_fault(
-                "LSV4006",
-                format!("journal has {count} records, limit is {MAX_JOURNAL_RECORDS}"),
-            ));
-        }
-        let total_bytes = journal_payload_bytes(&transaction)?;
-        if total_bytes > MAX_JOURNAL_TOTAL_BYTES {
-            return Err(journal_fault(
-                "LSV4006",
-                format!(
-                    "journal payload is {total_bytes} bytes, limit is {MAX_JOURNAL_TOTAL_BYTES}"
-                ),
-            ));
-        }
-
-        let mut statement = transaction
-            .prepare(
-                "SELECT token, state, image, deadline_at_ms, terminal_step
-                 FROM vm_effects ORDER BY token ASC",
-            )
-            .map_err(|error| journal_error("LSV4005", "failed to prepare journal load", error))?;
-        let mut rows = statement
-            .query([])
-            .map_err(|error| journal_error("LSV4005", "failed to load journal", error))?;
-        let mut recovery = CheckpointRecovery::new(MAX_JOURNAL_RECORDS, crate::MAX_EFFECT_SEQUENCE);
-
-        while let Some(row) = rows
-            .next()
-            .map_err(|error| journal_error("LSV4005", "failed to read journal record", error))?
-        {
-            recovery
-                .push(recover_effect_record(&transaction, row)?)
-                .map_err(checkpoint_fault)?;
-        }
-
-        drop(rows);
-        drop(statement);
-        let (snapshot, next_sequence) = recovery
-            .finish_recovery(SqliteRecoveryFinalizer {
-                transaction: Some(transaction),
-            })
-            .map_err(|error| match error {
-                CheckpointCommitError::Host(error) => {
-                    use leselang_runtime_core::CheckpointFinalizationError;
-                    match error {
-                        CheckpointFinalizationError::Dispatch(error)
-                        | CheckpointFinalizationError::Graph(error)
-                        | CheckpointFinalizationError::Audit(error)
-                        | CheckpointFinalizationError::Watermark(error)
-                        | CheckpointFinalizationError::Commit(error) => error,
-                    }
-                }
-                CheckpointCommitError::Closed => checkpoint_fault(CheckpointError::Closed),
-            })?;
+        let (snapshot, next_sequence) = recover_checkpoint(SqliteRecoveryFinalizer {
+            transaction: Some(transaction),
+        })?;
         let (pending, completed) = snapshot.into_parts();
         Ok(JournalSnapshot {
             pending,
@@ -2656,22 +2603,6 @@ impl ReferenceRecordSource for SqliteRecoveryRecord<'_, '_> {
 }
 
 #[cfg(feature = "sqlite-journal")]
-fn checkpoint_fault(error: CheckpointError) -> Fault {
-    match error {
-        CheckpointError::RecordLimit => {
-            journal_fault("LSV4006", "journal recovery record limit exceeded")
-        }
-        CheckpointError::InvalidSequence => {
-            journal_fault("LSV4007", "journal continuation sequence is invalid")
-        }
-        CheckpointError::DuplicateKey => {
-            journal_fault("LSV4007", "duplicate journal continuation token")
-        }
-        CheckpointError::Closed => journal_fault("LSV4007", "journal recovery pass is closed"),
-    }
-}
-
-#[cfg(feature = "sqlite-journal")]
 fn completed_effect_logical_bytes(connection: &Connection, token: &str) -> Result<usize, Fault> {
     let bytes: i64 = connection
         .query_row(
@@ -3346,6 +3277,40 @@ impl SqliteRecoveryFinalizer<'_> {
         self.transaction
             .as_deref()
             .ok_or_else(|| journal_fault("LSV4005", "journal load transaction is closed"))
+    }
+}
+
+#[cfg(feature = "sqlite-journal")]
+impl ReferenceCheckpointSource for SqliteRecoveryFinalizer<'_> {
+    fn record_count(&mut self) -> Result<usize, Fault> {
+        journal_record_count(self.connection()?)
+    }
+
+    fn payload_bytes(&mut self) -> Result<usize, Fault> {
+        journal_payload_bytes(self.connection()?)
+    }
+
+    fn stage_records(
+        &mut self,
+        push: &mut dyn FnMut(RecoveredEffectRecord) -> Result<(), Fault>,
+    ) -> Result<(), Fault> {
+        let connection = self.connection()?;
+        let mut statement = connection
+            .prepare(
+                "SELECT token, state, image, deadline_at_ms, terminal_step
+                 FROM vm_effects ORDER BY token ASC",
+            )
+            .map_err(|error| journal_error("LSV4005", "failed to prepare journal load", error))?;
+        let mut rows = statement
+            .query([])
+            .map_err(|error| journal_error("LSV4005", "failed to load journal", error))?;
+        while let Some(row) = rows
+            .next()
+            .map_err(|error| journal_error("LSV4005", "failed to read journal record", error))?
+        {
+            push(recover_effect_record(connection, row)?)?;
+        }
+        Ok(())
     }
 }
 
