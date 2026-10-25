@@ -1,0 +1,195 @@
+{
+  "kind": "leselang-reference-merge-graph-registration-commit-parity",
+  "validated_on": "2026-10-25",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "pre_extraction_revision": "8b792476",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.166.0",
+  "direct_adapter_tests": 8,
+  "frozen_memory_cases": 1680,
+  "public_admission_refusal_cases": 5,
+  "frozen_sqlite_cases": 192,
+  "durable_reopen_cases": 6,
+  "public_start_failure_cases": 6,
+  "bound_graph_shapes": 12,
+  "native_public_graph_admission_retained": true,
+  "duplicate_graphs_refuse_without_repair": true,
+  "distinct_memory_and_sqlite_fault_order_retained": true,
+  "late_sqlite_failures_roll_back_entire_graph": true,
+  "public_caches_publish_only_after_commit": true,
+  "prior_root_reservations_are_not_refunded": true,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "Whole-graph registration coordination under native graph admission and transaction ownership; memory conflicts/capacity/insertion and SQLite record/capacity/quota/conflict/write/watermark/consuming commit order.",
+  "limitations": [
+    "Frozen registration bodies share native admission, bounded codecs, capacity/quota/storage and watermark primitives, not migrated orchestration.",
+    "Memory bounded-image checks precede conflicts and capacity. Infallible trusted-owner writes preserve their original prefix on unwind; no memory rollback or new low-level request admission is claimed.",
+    "SQLite encodings are exact native buffers in admitted branch order. Group duplicate registration is a conflict, never replay or repair; branch write errors retain original native diagnostics.",
+    "The 192 SQLite matrix cases use three representative operations and parallel/sequential orders, not all 70 durable operation combinations. Twelve additional production group-start shapes cover result bindings and reserved successors.",
+    "Disposable corrupt fixtures restore constraints before production calls. Raw filler rows probe record limits; a virtual oversized view probes quota refusal without physical disk-full. These are not admitted checkpoints.",
+    "Direct hooks model fault/unwind including uncertain commit; real triggers and deferred constraints probe rollback. No process-kill, power-loss or multi-physical-host test is claimed.",
+    "Public-start failure leaves caches empty and rolls back the graph, but sequence reservations committed earlier by the root allocator are not refunded. Only an explicit subsequent start retries.",
+    "No new Linux, remote CI, live GUI, standalone exported-source execution, full host-neutral durable recovery or throughput benchmark is claimed."
+  ],
+  "related_crate_tests_passed": 1476,
+  "memory_profile_unit_tests_passed": 143,
+  "source_planning_tests_passed": 23,
+  "source_export_dry_run_files": 280,
+  "source_export_dry_run_bytes": 6784528,
+  "adapter_has_no_vm_or_sqlite_normal_dependency": true,
+  "feature_specific_strict_lints_passed": true,
+  "strict_workspace_all_features_all_targets_clippy_passed": true,
+  "verification_status": "passed",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_merge_graph_commit.rs",
+      "sha256": "2ebd8ffa13f5145ab35d6eb01d8c586ae7b12614308f37be28bcb45ce3060e15"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "353ef1dfb74c913e181f4c111d42eb1037ec47858c5c591b1e2a9b3931558283"
+    },
+    {
+      "path": "crates/leselang-command/src/continuation_identity.rs",
+      "sha256": "5a530a239c3e7ab76abd6bfcfed66acaec4b459e15bf42cf0486d8494c7d6e6b"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_continuation.rs",
+      "sha256": "dc9e229c6880201cad2c22983644984622e40b81c19d7e440bb9690bf8066815"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_group_batch.rs",
+      "sha256": "ebd50163b0d425b4ea529969452fa060b5bdbe707017c82718e011aac015f4fa"
+    },
+    {
+      "path": "crates/leselang-command/src/merge_admission.rs",
+      "sha256": "1c1ff4ff5eba80e3251e8ba9b0dedf82bac565c788f266c6f8875c70bf356fb0"
+    },
+    {
+      "path": "crates/leselang-command/src/scheduler_policy.rs",
+      "sha256": "08a061323f787873a4fb00379e6faf3dabce869ef87063c3cc89003b1d490e40"
+    },
+    {
+      "path": "crates/leselang-command/src/retention_policy.rs",
+      "sha256": "7b58ac84a851853e41f890112fbd7530e88a7885678f4a5b5313d14ad840075e"
+    },
+    {
+      "path": "crates/leselang-command/Cargo.toml",
+      "sha256": "51753fa79fce986890ef1948ad092f9875b370be116b228c49513375066e462f"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_merge_graph_commit.rs",
+      "sha256": "97863bcad5a878ffe5fba916b4710cb473c845c2aa36607ba5b5883c6c6602a3"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "d41e8c49e4c5ec9c311f47844074c29fd96b10880c6c22351461e4b74352ff43"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/merge_graph_commit.rs",
+      "sha256": "8f886df5b2048ee6fbc54a7b802f6c9628413963957eb0496344cf2d82d34f0e"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/merge_graph_commit_contract_tests.rs",
+      "sha256": "ae38e70ed0cf28bc3dbaaac8fc6343191162d150cadd1ff8eedbaf39824fdc5a"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "a89a6b86b27ed40d065fd656eb0187bf8b3dbe3fa78f3149e72e8e584c8d4186"
+    },
+    {
+      "path": "crates/leselang-vm/Cargo.toml",
+      "sha256": "2f1d51815d543a85d8b69662dbb4578170e8c6b0672f52402e4dec5c05260e21"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "882ff5a110e47ebd8f75978071ce823a6a963da872bcccc7c025e913fa815a9f"
+    },
+    {
+      "path": "tests/leselang_native_profile_tdd.rs",
+      "sha256": "315c7b8b5131eb4dd626050d5f6816feb1572897f36bfba9a34b5a7621325eb1"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "8d2b78a04d30cc8ef29e3e4b2f341faa13fd4788b703b439dd398941325733b8"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "2173a26bfd48d1c974cc5bdd286e0f5e3b99a966d80647cea586364fae5fde53"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "a91cb6148688cb817d1e58e90414344fff19a53b764d757087cda039e6cd3d60"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "56164662edc04d5c31f8153f4ab9728c5ad7d3cb4c77c510e7013c3185bd64fa"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "b67603feb0911e28cd58e10678d8c942504cc2902ed417ba5257a7eb7a6b0610"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/private/tmp/leselang-graph-adapter-20261025.log",
+      "sha256": "0c1ebd535c1f590de4c8459b92f959a5bfa8c783403b6aa98e81e8f597ccf532"
+    },
+    {
+      "path": "/private/tmp/leselang-graph-native-20261025.log",
+      "sha256": "3ba5e63d63a4f163a779b17c5b44694064d8d2b840b3678d5e68a29d58f701bc"
+    },
+    {
+      "path": "/private/tmp/leselang-graph-suite-20261025.log",
+      "sha256": "6d424fd05c44800a6c25ac1b5f770db1b34d80eb073d3fa2aee84ffa4860a28a"
+    },
+    {
+      "path": "/private/tmp/leselang-graph-memory-20261025.log",
+      "sha256": "a3111128cecb73245cb7b667b86a7e91d73c12a1ce6e2533aef35a23e71c954f"
+    },
+    {
+      "path": "/private/tmp/leselang-graph-clippy-20261025.log",
+      "sha256": "17b9e0cf06eacca80f8cb09473a4dbc675084c49517ec66033b8adbd35b92455"
+    },
+    {
+      "path": "/private/tmp/leselang-graph-bridge-clippy-20261025.log",
+      "sha256": "b64fd83cf0bcc5e3757fe4f036e321e8705d11976a196cf54c84ff82d69941dc"
+    },
+    {
+      "path": "/private/tmp/leselang-graph-memory-clippy-20261025.log",
+      "sha256": "9c42c90e2a2d3f3186dd0aabcdc31d8f5fcfb72cba3c250096593144ca9b6384"
+    },
+    {
+      "path": "/private/tmp/leselang-graph-native-clippy-20261025.log",
+      "sha256": "19c7d339b4005a4b806c4702591d05093488aaa8325e20bb98cef34eb2dc2605"
+    },
+    {
+      "path": "/private/tmp/leselang-graph-source-plan-20261025.log",
+      "sha256": "1500f2ad298398aee89193166c6174acb2cb3dddb72c1b0f6da133424549eb4e"
+    },
+    {
+      "path": "/private/tmp/leselang-graph-dependencies-20261025.log",
+      "sha256": "2aa3528997c7c9640dc072977067c24f67ca4ff21ee912b534ce599bf644ac56"
+    },
+    {
+      "path": "/private/tmp/leselang-graph-export-plan-20261025.log",
+      "sha256": "9479beac26f6f4862fd08d1b65bd40f9f4146fb7e6d6a81814149dbad09b08c2"
+    },
+    {
+      "path": "/private/tmp/leselang-graph-architecture-status-20261025.log",
+      "sha256": "dd5ad00b98d947ca0953d4aa7fa83ecec2f12b07e5d46bdb66a576ef1e644431"
+    },
+    {
+      "path": "/private/tmp/leselang-graph-catalog-20261025.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "architecture_documentation_status_tests_passed": 504,
+  "status_catalog_valid": true
+}

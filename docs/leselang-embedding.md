@@ -10867,9 +10867,197 @@ and a disposable view supplies a virtual oversized payload for the quota gate.
 They are not valid recovery checkpoints or physical disk-full tests. No new Linux,
 remote CI, live GUI, standalone export execution or performance claim is made.
 
-Reference execution is `1.165.0`; native embedding `0.172.0`, HIR `0.184.0`, journal
+This slice advanced reference execution to `1.165.0`; native embedding `0.172.0`, HIR `0.184.0`, journal
 schema 10 and product/wire versions are unchanged. Complete host-neutral execution,
 durable recovery and physical repository extraction remain separate open gates.
+
+### Merge Graph Registration Commit
+
+`leselang-command::reference_merge_graph_commit` owns whole-graph registration
+coordination over native memory and SQLite owners. The public journal entry still
+admits the owner, plan, branch order, requests and binding correspondence before
+either backend. This is not pending-request replay: a registered group is a
+conflict even when its contents are identical.
+
+Memory retains bounded-image checks before ordered owner/member conflicts, then
+capacity admission before any insertion. Branch tokens are collected before native
+dispatch insertion and final group publication. Trusted-owner unwind preserves the
+original mutation prefix; this layer does not invent memory rollback.
+
+SQLite retains bounded plan/image/request encoding before opening an immediate
+transaction. The adapter checks record count (including the group), dispatch
+capacity and payload quota before the group-token conflict read. Native branch
+storage retains signed position/deadline conversion and effect, dispatch, link
+write order. After all branches, numeric group/member/reserved IDs determine the
+watermark; opaque legacy owners add no numeric reservation. Native owners keep
+SQL diagnostics, watermark reconciliation and consuming commit/atomic rollback.
+The borrowed encodings must match the admitted graph; these hooks are not a new
+recovery or dispatch authorization interface.
+
+The [graph-registration proof](fixtures/leselang_merge_graph_commit_macos_arm64_20261025.json)
+covers 8 direct tests, 1,680 frozen memory cases across 70 operations and both
+parallel/sequential order, 5 public admission refusals, 192 frozen SQLite cases
+across three representative operations and both orders, 6 reopen cases and
+6 public start-failure cases, plus all 12 group-start binding/order shapes and
+their reserved successor watermarks. Late effect/dispatch/link failures and deferred commit
+failures roll back the graph. Public caches publish no partial graph; earlier root
+sequence reservations remain consumed, and an explicit new start can proceed.
+
+The oracle shares native admission/codecs/storage and watermark primitives, not
+migrated orchestration. Corrupt fixtures and virtual quota views are disposable
+failure probes, not admitted checkpoints or physical disk-full/power-loss tests.
+No new Linux, remote CI, live GUI, standalone source execution or throughput claim
+is made. Feature-specific strict lints include the SQLite-disabled bridge and VM.
+
+This slice advanced reference execution to `1.166.0`; native embedding `0.172.0`, HIR `0.184.0`, journal
+schema 10 and product/wire versions are unchanged. Complete host-neutral execution,
+durable recovery and physical repository extraction remain separate open gates.
+
+### Dispatch Selection And Lease Commit
+
+`leselang-command::reference_claim_commit` coordinates journal-level dispatch
+selection and lease commit beneath the existing public claim/expiry/cache entry.
+Public clock/duration admission is unchanged. Memory borrows scheduling fields
+without request copies, filters completed/future-ready/live-leased records, and
+orders candidates by attempt then continuation age. Native graph dependencies are
+checked only for candidates that can improve the current minimum. Idle precedes
+capacity pressure; native mutable lookup precedes attempt validation, mutation
+and cloning the selected request. This primitive adds no memory request admission.
+
+SQLite retains signed clock conversion before its immediate transaction. When
+capacity is saturated, the owner only queries indexed eligibility; it never loads
+or decodes candidate payloads. Both idle and backpressured routes still commit.
+Otherwise bounded decoding, request validation, token/image correspondence,
+attempt conversion/increment and retry-count checks preserve their old order.
+The native owner keeps selection SQL, graph joins, capacity counts, image encoding,
+lease update, exact diagnostics and consuming commit/rollback. Lease publication
+follows successful commit; later public cache adoption neither retries nor revokes
+an already committed lease. Claiming never advances allocation watermarks.
+
+The [claim-commit proof](fixtures/leselang_claim_commit_macos_arm64_20261025.json)
+covers 8 direct tests, 1,400 frozen memory cases across all 70 operations, 4 public
+clock refusals, 108 frozen SQLite cases across three representative operations,
+and 6 public failure/reopen/shared-owner lifecycle cases. It verifies readiness
+and expiry boundaries, sequential predecessors, saturated corrupt-payload bypass,
+fault precedence, rollback and rejection of superseded leases after reclaim.
+
+The frozen bodies share native query/graph/capacity/codecs/storage primitives, not
+migrated coordination. Corrupt fixtures are not admitted recovery checkpoints:
+in particular, the original SQLite query ignores a completed group while memory
+blocks a raw pending member under a terminal sequential group. This slice preserves
+that low-level distinction rather than inventing a new recovery repair policy.
+Shared-owner lifecycle checks use separate handles in one process, not a new
+parallel race or multi-host experiment. No new Linux, remote CI, live GUI,
+standalone exported-source execution or performance benchmark is claimed.
+
+This slice advanced reference execution to `1.167.0`; native embedding `0.172.0`, HIR `0.184.0`, journal
+schema 10 and product/wire versions are unchanged. Complete host-neutral execution,
+durable recovery and physical repository extraction remain separate open gates.
+
+### Group Finalization Within Native Settlement
+
+`leselang-command::reference_group_finalization` owns the decision to wait for
+members, stop a sequential group, merge its result, or ask the existing native
+owner to admit a group successor. It does not add another evaluator or recovery
+authority. Native owners retain map/SQL observations, original merge/binding
+evaluation, successor construction and insertion, bounded encoding, quota checks
+and writes. SQLite borrows the caller's settlement transaction; the adapter cannot
+begin, commit, roll back or retry it independently of the triggering branch.
+
+Memory keeps first-owner lookup, completed-group replay without new validation,
+lazy stop inspection, acknowledged/missing-member skips and its original partial
+mutation behavior on late errors. SQLite validates a completed receipt before
+reading its plan, reads branches before decoding the plan, and eagerly decodes
+all present sequential receipt bytes before stop selection. Ordinary pending
+members still mask invalid later states. Stop propagation budgets the pending
+members plus group receipt before writes; normal completion requires exactly one
+pending owner update. An admitted successor defers terminal publication.
+
+The [group-finalization proof](fixtures/leselang_group_finalization_macos_arm64_20261025.json)
+covers 8 direct adapter tests, 2,240 frozen memory cases across 70 operations,
+128 frozen SQLite cases across four source shapes, 12 memory and 12 durable bound
+group shapes through their original successor evaluator, and 8 public final-member
+failure/reopen cases. Update and deferred-commit failures roll back the triggering
+branch and successor writes together, publish no completed-cache entry, and allow
+explicit retry after reopening without duplicate successors.
+
+Frozen bodies share storage, codecs, reducers and the original binding evaluator,
+not finalization coordination. Corrupt fixtures test low-level fault precedence,
+not supported recovery checkpoints or new repair rules. These are local macOS
+tests, not new Linux, live GUI, remote CI, exported-source execution, power-loss,
+multi-host or throughput evidence. This slice advanced reference execution to `1.168.0`; native
+embedding remains `0.172.0`/developing/draft, HIR stays `0.184.0`, and journal schema
+10 and product/wire versions are unchanged. Full host-neutral durable recovery
+and physical repository extraction remain open.
+
+### Group Successor Registration
+
+`leselang-command::reference_group_successor_commit` coordinates prefix bypass,
+ordered authority loading, original binding preparation, next-plan assembly and
+graph proof before registering a group successor. Only evaluator/preparation
+errors become terminal `Step::Fault` receipts; request-loading, plan/graph proof,
+encoding and storage failures remain errors. A completed scalar returns before
+next-plan validation. Native owners still select initial versus capture re-entry,
+run the existing evaluator and prove the original reservations and request graph.
+
+Memory preserves dispatch-before-group conflict lookup, bounded request encoding,
+move-only dispatch insertion and the late mutable-owner lookup. It does not retry,
+roll back or repair a conflicting successor. SQLite preserves streamed request
+decoding before preparation, record bound before four bounded encodings, signed
+deadline conversion and incremental plan-growth quota. Effect, dispatch, plan and
+branch-link writes borrow the triggering branch's transaction. Exactly one pending
+plan must update before linking; no new allocation, watermark advance, capacity
+admission, dispatch or independent commit is introduced.
+
+The [successor-registration proof](fixtures/leselang_group_successor_commit_macos_arm64_20261025.json)
+covers 8 direct callback tests, 168 frozen memory cases, 288 frozen SQLite cases,
+12 memory and 12 durable complete group shapes, and 10 public failure/reopen cases.
+Tail, capture, multi-capture and conditional forms retain their original evaluator
+and fuel. Successful durable chains reopen without redispatch or new reservations;
+late write and deferred-commit failures roll back the last member and all successor
+writes before an explicit retry. The adapter does not add a boxed staging record.
+
+Frozen bodies retain original loading and next-plan assembly; codecs, graph proof
+and evaluation remain shared, not registration coordination. Corrupt fixtures are not
+supported checkpoints. A disposable SQLite view supplies a bad later column type
+to verify that an earlier decode failure still wins; production STRICT tables are
+not weakened. No new Linux, remote CI, live GUI, exported-source execution,
+power-loss, multi-host race or throughput evidence is claimed.
+
+This slice advanced reference execution to `1.169.0`; native embedding remains `0.172.0`/developing/draft,
+HIR stays `0.184.0`, and journal schema 10 and product/wire versions are unchanged.
+Complete host-neutral execution, durable recovery and repository extraction remain
+separate open gates.
+
+### Group Progress Projection
+
+`leselang-command::reference_group_progress` selects standalone, next-request,
+pending and completed group observations. Native owners retain the original
+ordered lookups and storage diagnostics. Memory borrows the first owning group,
+skips missing dispatches and distinguishes acknowledgement from terminal presence;
+completed groups bypass branch inspection. This is projection, not admission or repair.
+
+SQLite opens one read transaction before locating the group and retains it through
+plan/request decoding and ordered token reads. Count conversion precedes state
+checks; only a parallel group with one pending member probes its successor plan.
+Sequential groups skip that plan read. Request and terminal admission precede their
+dependent token queries. Unknown order labels retain their original pending behavior;
+recovery validation is a separate gate. No commit, cache write or fallback is added.
+
+The [progress projection proof](fixtures/leselang_group_progress_macos_arm64_20261025.json)
+covers 8 direct tests, 1,680 frozen memory cases across 70 operations, 192 frozen
+SQLite cases, and 12 memory plus 12 durable complete group shapes. A two-connection
+test commits a real branch acknowledgement between progress and request/prefix reads,
+then verifies that only a subsequent read sees the newer commit. WAL is enabled only
+in that test; production journal mode remains unchanged. Corrupt fixtures probe error
+precedence, not supported checkpoints. Native SQL, codecs and evaluators stay shared
+with the frozen implementation; migrated selection policy does not.
+
+Reference execution is `1.170.0`. Native embedding remains `0.172.0`/developing/draft,
+HIR stays `0.184.0`, and journal schema 10 and product/wire versions are unchanged.
+No new Linux, remote CI, live GUI, exported-source execution, power-loss or performance
+evidence is claimed. Full host-neutral durable recovery and repository extraction
+remain open; this slice does not advance their maturity.
 
 **The current 2.3.0-and-later phase closes acceptance gates; physical extraction is deferred.**
 It is not an automatic version-triggered move. No replacement extraction version

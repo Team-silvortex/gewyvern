@@ -1,6 +1,6 @@
-use leselang_command::scheduler_policy::{
-    check_scheduler_admission, scheduler_lease_capacity_exhausted,
-};
+use leselang_command::scheduler_policy::check_scheduler_admission;
+#[cfg(test)]
+use leselang_command::scheduler_policy::scheduler_lease_capacity_exhausted;
 use leselang_runtime_core::DispatchAdmissionError;
 
 use crate::Fault;
@@ -37,12 +37,14 @@ impl ReferenceSchedulerLimits for SchedulerLimits {
     }
 }
 
+#[cfg(test)]
 pub(crate) trait ReferenceSchedulerPressure {
     fn lease_capacity_exhausted(self) -> bool;
     #[cfg(test)]
     fn lease_fault(self) -> Fault;
 }
 
+#[cfg(test)]
 impl ReferenceSchedulerPressure for SchedulerPressure {
     fn lease_capacity_exhausted(self) -> bool {
         scheduler_lease_capacity_exhausted(self)

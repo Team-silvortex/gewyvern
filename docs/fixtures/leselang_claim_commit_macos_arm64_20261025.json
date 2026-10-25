@@ -1,0 +1,204 @@
+{
+  "kind": "leselang-reference-dispatch-selection-lease-commit-parity",
+  "validated_on": "2026-10-25",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "pre_extraction_revision": "8b792476",
+  "pre_extraction_worktree_included_merge_graph_slice": true,
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.167.0",
+  "direct_adapter_tests": 8,
+  "frozen_memory_cases": 1400,
+  "public_clock_refusal_cases": 4,
+  "frozen_sqlite_cases": 108,
+  "public_claim_lifecycle_cases": 6,
+  "native_clock_admission_and_transaction_ownership_retained": true,
+  "memory_lazy_selection_and_idle_precedence_preserved": true,
+  "saturated_sqlite_never_decodes_candidate_payloads": true,
+  "candidate_fault_precedence_preserved": true,
+  "failed_native_lease_commits_roll_back": true,
+  "public_cache_adoption_follows_commit": true,
+  "superseded_leases_refused_after_reopen": true,
+  "claim_does_not_advance_sequence_watermark": true,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "Memory candidate selection and SQLite dispatch-claim coordination beneath public clock/expiry/cache entry, retaining native graph observations, indexed queries, capacity counts, image codec, lease update and consuming transaction ownership.",
+  "limitations": [
+    "Frozen claim bodies share native query/graph/capacity, bounded codecs and storage primitives, not migrated selection/claim coordination.",
+    "Memory borrows scheduling fields, reads graph readiness only for competitive candidates, and checks pressure only after finding eligible work. It preserves low-level behavior on corrupt request/counter fields rather than adding new admission.",
+    "SQLite saturation reads eligibility only and does not decode candidate payloads. Idle/capacity-limited routes still commit, with original commit diagnostics.",
+    "The 108 SQLite cases cover three representative operations with 36 scenarios, not all 70 durable operation combinations.",
+    "Disposable corrupt fixtures restore constraints before production calls. A terminal group with a still-pending member is not an admitted checkpoint; the original SQL ignores that completed group's predecessor constraint, while memory blocks that raw terminal sequential group. No repair policy is added.",
+    "Public lifecycle checks use separate handles in one process, injected update/deferred-commit failures, restart/reclaim and stale-lease rejection. They are not new concurrent races, multi-host tests, power-loss or disk-full experiments.",
+    "Direct hooks model error/unwind including uncertain commits; native SQLite owns rollback. Post-commit cache adoption remains the existing outer entry's responsibility and does not revoke or retry a lease.",
+    "No new Linux, remote CI, live GUI, standalone exported-source execution, full host-neutral durable recovery or throughput benchmark is claimed."
+  ],
+  "related_crate_tests_passed": 1488,
+  "memory_profile_unit_tests_passed": 145,
+  "source_planning_tests_passed": 23,
+  "source_export_dry_run_files": 280,
+  "source_export_dry_run_bytes": 6784528,
+  "adapter_has_no_vm_or_sqlite_normal_dependency": true,
+  "feature_specific_strict_lints_passed": true,
+  "strict_workspace_all_features_all_targets_clippy_passed": true,
+  "verification_status": "passed",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_claim_commit.rs",
+      "sha256": "40afbc198819df79345f33a04e25f0c53ce0ff21563e7b7a05ef26ee31febe83"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "09b2405340b5af607ad432480fe52be167b56681e073377157b9e34338c69656"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_claim.rs",
+      "sha256": "8b503e671f2026e325e0a6c2ba64195d471ebb45d6cbc06c98d8514568a202d0"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_dispatch.rs",
+      "sha256": "b62f9b90c51eb675e9e35433ebcb48fa6fd3b448d6575f377653d59d374b286b"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_recovery.rs",
+      "sha256": "6361bdb796bf24a5b19146cadae19646bd45606d9363defa2d5a95721bb73d11"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_request.rs",
+      "sha256": "a2a15bd906d324bb17a1d8628079eec72e9ff3c659f8879f40f4425fc1a493c5"
+    },
+    {
+      "path": "crates/leselang-command/src/continuation_identity.rs",
+      "sha256": "5a530a239c3e7ab76abd6bfcfed66acaec4b459e15bf42cf0486d8494c7d6e6b"
+    },
+    {
+      "path": "crates/leselang-command/src/scheduler_policy.rs",
+      "sha256": "08a061323f787873a4fb00379e6faf3dabce869ef87063c3cc89003b1d490e40"
+    },
+    {
+      "path": "crates/leselang-command/src/retry_policy.rs",
+      "sha256": "434a46218c5e729aafd5eec22a9ded4c5df2deb3846f16a0037659a5f7601625"
+    },
+    {
+      "path": "crates/leselang-command/Cargo.toml",
+      "sha256": "51753fa79fce986890ef1948ad092f9875b370be116b228c49513375066e462f"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_claim_commit.rs",
+      "sha256": "f9e983df173dabe5502273efb6e88db0c18bd117f5a827e04566e0f5bf444b45"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "3957fcbdf57cbf0b7a36a147b62825e6cf622c76d284abcd760db66384780095"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/claim_commit.rs",
+      "sha256": "5fd55a894f23cd9cf220a449b5b6514d2a7c909341abcfa5f3417e9bcd5c68fc"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/claim_commit_contract_tests.rs",
+      "sha256": "7fecf02387adc564958c27977e0bf9a75700042a549a728b4a3d928d4e0fb2a9"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "a89a6b86b27ed40d065fd656eb0187bf8b3dbe3fa78f3149e72e8e584c8d4186"
+    },
+    {
+      "path": "crates/leselang-vm/src/scheduling.rs",
+      "sha256": "8609b7c13acc05609a18bdc6361cb4e80fa38e77e9eccb3e7a86acb95474631e"
+    },
+    {
+      "path": "crates/leselang-vm/Cargo.toml",
+      "sha256": "2f1d51815d543a85d8b69662dbb4578170e8c6b0672f52402e4dec5c05260e21"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "16e2d905ebe6e267d485ab16e21686d508b6de23800d7a78e22f505e61f5349c"
+    },
+    {
+      "path": "tests/leselang_native_profile_tdd.rs",
+      "sha256": "108f11dd700615a0d6505885f29724bed134f09e4855b73fb3ba3cda4e9429d0"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "c73a4aef8175923d1a0bb15d8ec7fab68676b75fed8f256ed29f39490ad6c00b"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "3f3f30ad9fa6eb27ef4fdbc8ded00b10b5bdb975950fd8550e8e30b01787eccc"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "f06785f246d8dcede6eac4fbb5ba26ae2e285288d648aea160b7f4169691bdc5"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "638f82d1f8c522bf9cb134be0280011f4bef0d1d2445aea0bf8872cebe93ceba"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "631ca8778cdccd02d5749f57a2521058deed02a03678890834d802a3e81b33c1"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/private/tmp/leselang-claim-commit-adapter-20261025.log",
+      "sha256": "a95887f2028cc240a5ee7450b611de2bd5dbe5d67fb5c50cb28ea334b43c9813"
+    },
+    {
+      "path": "/private/tmp/leselang-claim-commit-parity-20261025.log",
+      "sha256": "ccde8191ce04fe780afa293c0cfad8f05776c861c3618cf8748220f705a2e849"
+    },
+    {
+      "path": "/private/tmp/leselang-claim-commit-suite-20261025.log",
+      "sha256": "f971310f3a90180f927cde13d90f28657830ee1c9fdbded6b970e6cffb0414e3"
+    },
+    {
+      "path": "/private/tmp/leselang-claim-commit-memory-20261025.log",
+      "sha256": "f8d77ca346829c52fe3e4d7b3fe0037ac8d0be6dffde92fd02c3aeb94a835bd2"
+    },
+    {
+      "path": "/private/tmp/leselang-claim-commit-clippy-20261025.log",
+      "sha256": "1608f53e48d9be5ed1bc2165b98b7e1ffe5013e3d78a9576794ebd585803b614"
+    },
+    {
+      "path": "/private/tmp/leselang-claim-commit-bridge-clippy-20261025.log",
+      "sha256": "635f8351d799e36da349fbc900cc7425e7da149cc031f996668e7acbd4833339"
+    },
+    {
+      "path": "/private/tmp/leselang-claim-commit-memory-clippy-20261025.log",
+      "sha256": "89d416cd63e2140d21e5d92aa39cb955c7e91c0514efbaad6fb405af98f69ee3"
+    },
+    {
+      "path": "/private/tmp/leselang-claim-commit-native-clippy-20261025.log",
+      "sha256": "a2e5d712936e6d5744ed33dcd59bce4ffae472fc312afc305717f57fc1e2d1dd"
+    },
+    {
+      "path": "/private/tmp/leselang-claim-commit-source-plan-20261025.log",
+      "sha256": "b0857a2675afb25b5912f3634b56a743bfb6ba4f85553052f88a623de9b9c354"
+    },
+    {
+      "path": "/private/tmp/leselang-claim-commit-dependencies-20261025.log",
+      "sha256": "2aa3528997c7c9640dc072977067c24f67ca4ff21ee912b534ce599bf644ac56"
+    },
+    {
+      "path": "/private/tmp/leselang-claim-commit-export-plan-20261025.log",
+      "sha256": "a0102c9ff7a67209d0397866c0c39a0356594e15a274b365d5333d92bd7771a0"
+    },
+    {
+      "path": "/private/tmp/leselang-claim-commit-architecture-status-20261025.log",
+      "sha256": "d51eae3cec5df965f55f763af2758241b308b2e3831e4382ea6b065b97955cbc"
+    },
+    {
+      "path": "/private/tmp/leselang-claim-commit-catalog-20261025.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "architecture_documentation_status_tests_passed": 506,
+  "status_catalog_valid": true
+}

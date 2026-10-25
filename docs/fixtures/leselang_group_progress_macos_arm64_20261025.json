@@ -1,0 +1,203 @@
+{
+  "kind": "leselang-reference-group-progress-projection-parity",
+  "validated_on": "2026-10-25",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "pre_extraction_revision": "8b792476",
+  "pre_extraction_worktree_included_merge_graph_claim_finalization_and_successor_slices": true,
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.170.0",
+  "direct_adapter_tests": 8,
+  "frozen_memory_cases": 1680,
+  "frozen_sqlite_cases": 192,
+  "memory_complete_group_shapes": 12,
+  "durable_complete_group_shapes": 12,
+  "two_connection_snapshot_cases": 1,
+  "single_native_read_transaction_retained": true,
+  "memory_ack_and_terminal_distinction_preserved": true,
+  "durable_lazy_decode_and_error_order_preserved": true,
+  "native_queries_are_read_only": true,
+  "wal_interleaved_acknowledgement_keeps_snapshot": true,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "production_journal_mode_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "Group-progress projection from the original memory journal or a single native SQLite read transaction: standalone/next/pending/completed selection, lazy plan/request/terminal decoding and ordered branch-token observations.",
+  "limitations": [
+    "Frozen pre-extraction projection bodies keep original SQL and decision order. Native storage, codecs, request/terminal admission and existing group evaluation remain shared; migrated selection policy is not shared.",
+    "The 1680 memory cases cover 70 original operations, two execution orders and twelve low-level states, including absent rows, partial acknowledgement/terminal state, duplicate membership, first-owner selection and unvalidated memory payloads.",
+    "The 192 SQLite cases cover four group forms, three lifecycle stages and sixteen low-level scenarios. Corrupt fixtures exercise original fault precedence and are not supported recovery checkpoints; production schema constraints are unchanged.",
+    "Twelve memory and twelve durable complete shapes use public claim/acknowledgement through tail, capture, multiple capture and conditional groups. Durable final observations survive reopen without changing their result.",
+    "The two-connection snapshot test enables WAL after opening both test connections, commits a real branch acknowledgement after the first progress query, and verifies request/prefix reads remain on the previous snapshot. A new read sees the new commit. Production keeps DELETE journal mode.",
+    "Memory and durable projection intentionally retain different admission and successor-marker checks. Durable count conversion precedes state checks; only a last-pending parallel group probes its plan. Unknown order handling is unchanged, not newly admitted recovery authority.",
+    "Native owners retain transaction lifetime and all SQL diagnostics. The adapter introduces no writes, retries, cache publication, ID allocation or independent commit.",
+    "No new Linux, remote CI, live GUI, actual exported-source execution, full host-neutral durable recovery, power-loss, disk-full, multi-host race or throughput evidence is claimed."
+  ],
+  "related_crate_tests_passed": 1527,
+  "memory_profile_unit_tests_passed": 151,
+  "source_planning_tests_passed": 23,
+  "source_export_dry_run_files": 280,
+  "source_export_dry_run_bytes": 6784528,
+  "adapter_has_no_vm_or_sqlite_normal_dependency": true,
+  "feature_specific_strict_lints_passed": true,
+  "strict_workspace_all_features_all_targets_clippy_passed": true,
+  "verification_status": "passed",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_group_progress.rs",
+      "sha256": "87a3973d53fc23f416695edb16d2182521a0d0b63fe9393df4f7cddd0e6b7373"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "f8e9e302e65d64c93a15b4aa0a739115fa8ff8ebc708947e20e35a1563a02e67"
+    },
+    {
+      "path": "crates/leselang-command/src/group_plan.rs",
+      "sha256": "cc2a581e4c643365a778d229031ea2250e2cdda145d9e9d3a80722a382d54590"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_request.rs",
+      "sha256": "a2a15bd906d324bb17a1d8628079eec72e9ff3c659f8879f40f4425fc1a493c5"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_recovery.rs",
+      "sha256": "6361bdb796bf24a5b19146cadae19646bd45606d9363defa2d5a95721bb73d11"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_completion.rs",
+      "sha256": "b24d4aae5db9f008aa0c3f4eb617c3cb19ec4d16aef78ebe6175efac045e5487"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_settlement/visibility.rs",
+      "sha256": "739225583a5205c1500997da34b886bdfcbce5d86a5a25357815526b691a5b5c"
+    },
+    {
+      "path": "crates/leselang-command/Cargo.toml",
+      "sha256": "51753fa79fce986890ef1948ad092f9875b370be116b228c49513375066e462f"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_group_progress.rs",
+      "sha256": "0c486b591901ff5ee9e5a5a94606c18e1a2c13458d6a313c5181cb3c57668d79"
+    },
+    {
+      "path": "crates/leselang-command/tests/support/group_start_fixture.rs",
+      "sha256": "784a107454b0db3728a1329e25fa40dbdd9d0c7f0cc29fb9a49867036193d47c"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "c559aba9640e276dc965083e2c4d00cb562c4aa9e9fe5d80960784e8405a4205"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_progress.rs",
+      "sha256": "1a9b93a41e1b2ea0c6a09a6a25c3288fe129e7b9fa0c85aea5fae8ec78c1d648"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_progress_contract_tests.rs",
+      "sha256": "429c1784715012e01ac7d525ba080b6e442d79556d09f8a060147d8a5e34d0ec"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_recovery_contract_tests.rs",
+      "sha256": "cb528045c5a41e30aacdc54250381bb50f20d8fa1b45bf065808f20723954a6d"
+    },
+    {
+      "path": "crates/leselang-vm/src/continuation_contract_tests.rs",
+      "sha256": "7e200a10449a9dc5de6c5abdda911e15459a140c9995d77fb646af8f7ce076f2"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "a89a6b86b27ed40d065fd656eb0187bf8b3dbe3fa78f3149e72e8e584c8d4186"
+    },
+    {
+      "path": "crates/leselang-vm/Cargo.toml",
+      "sha256": "2f1d51815d543a85d8b69662dbb4578170e8c6b0672f52402e4dec5c05260e21"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "f88288be2766118e2563ba4d3d10908862932523230c12fd93d9a29f59710917"
+    },
+    {
+      "path": "tests/leselang_native_profile_tdd.rs",
+      "sha256": "108f11dd700615a0d6505885f29724bed134f09e4855b73fb3ba3cda4e9429d0"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "dc8353482d66cd07fa9f70b35d9488f4e1e7187a0ef95a3f56147991e23acfcb"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "2baf4a0896b535c676291468be30c045ac3706ee8b8e9bb8513ed56680550536"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "39a6bcc5166f560d26c9a8425b7a91b472cc12bc0cbeb0d7f5043606c97335c1"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "d860b578ae2ce6ebf6563b324663abbc04dc74786d52c673986c8a34b06fcc53"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "52684d3cef55cc3c2475da50f2865d1b014ef59299b61e2f6180c8554878638a"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/private/tmp/leselang-group-progress-adapter-20261025.log",
+      "sha256": "c8f5b6954365702c58aa4c3b355d54c008e7ac2006b3cfa234510809540f4fe5"
+    },
+    {
+      "path": "/private/tmp/leselang-group-progress-parity-20261025.log",
+      "sha256": "0b35607207be739ebcbc220586a01732b224a4fa2316327c849924873a1a482c"
+    },
+    {
+      "path": "/private/tmp/leselang-group-progress-suite-20261025.log",
+      "sha256": "2ec2616a38e0c86de92d8f80d2da9878c04c0c91e6327eeaf508b7b480ce836b"
+    },
+    {
+      "path": "/private/tmp/leselang-group-progress-memory-20261025.log",
+      "sha256": "381d1f452531f383b12a1896cd6362debe1c332bb5b07a557aabb67efe878ebf"
+    },
+    {
+      "path": "/private/tmp/leselang-group-progress-clippy-20261025.log",
+      "sha256": "cda3b7b8607fb02dff257f6572011703102b4c67543d534fda5522284e2e03c2"
+    },
+    {
+      "path": "/private/tmp/leselang-group-progress-bridge-clippy-20261025.log",
+      "sha256": "bc8f0418ad4d5c2aa9d086427262b3239ea33721466baf2d92267e3324724852"
+    },
+    {
+      "path": "/private/tmp/leselang-group-progress-memory-clippy-20261025.log",
+      "sha256": "dc50498bb3fc21981f945b0d83f83f10deaf8b396837d03130b4022d86219424"
+    },
+    {
+      "path": "/private/tmp/leselang-group-progress-native-clippy-20261025.log",
+      "sha256": "6faf060d09625611c11b10ede4e883ff0d5120d2b96bcab5d209b58a7c55d418"
+    },
+    {
+      "path": "/private/tmp/leselang-group-progress-source-plan-20261025.log",
+      "sha256": "f8fa1fd471ab45baba3d208bc7b00c1975cab9a56e22339a93f387276fd84e54"
+    },
+    {
+      "path": "/private/tmp/leselang-group-progress-dependencies-20261025.log",
+      "sha256": "2aa3528997c7c9640dc072977067c24f67ca4ff21ee912b534ce599bf644ac56"
+    },
+    {
+      "path": "/private/tmp/leselang-group-progress-export-plan-20261025.log",
+      "sha256": "0e0c50cf4fcfd0cb3d2d756cd47d7edfe90c4a9d67e1c4a6bb4e4f0fb5fb2f43"
+    },
+    {
+      "path": "/private/tmp/leselang-group-progress-architecture-status-20261025.log",
+      "sha256": "edf5c719f90a78f8992f96a467364fb90f931a5a3b91837d006e20db6aa0df9e"
+    },
+    {
+      "path": "/private/tmp/leselang-group-progress-catalog-20261025.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "architecture_documentation_status_tests_passed": 512,
+  "status_catalog_valid": true
+}

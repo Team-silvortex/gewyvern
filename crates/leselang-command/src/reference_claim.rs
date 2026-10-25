@@ -7,8 +7,9 @@ use leselang_runtime_core::{Fault, validate_clock};
 use std::collections::{BTreeMap, btree_map::Entry};
 
 /// Trusted synchronous owner. Claim selection, fairness, capacity and lease
-/// issuance remain atomic under the native journal owner. Idle and backpressure
-/// must be determined there without materializing ineligible work. Adoption is a
+/// issuance remain atomic under the native journal owner, coordinated by
+/// reference_claim_commit. Idle and backpressure are determined there without
+/// materializing ineligible work. Adoption is a
 /// local-cache operation after commit, not additional dispatch authority. Its
 /// failure must not retry or roll back the already committed lease. Input bounds,
 /// caller authority, clock provenance and consistent worker limits remain native.

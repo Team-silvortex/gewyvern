@@ -1,12 +1,14 @@
 use crate::group_binding::ReferenceGroupResultBinding;
-use crate::scheduling::{ReferenceSchedulerLimits, ReferenceSchedulerPressure};
+use crate::scheduling::ReferenceSchedulerLimits;
+#[cfg(test)]
+use crate::scheduling::ReferenceSchedulerPressure;
 use std::collections::{BTreeMap, BTreeSet};
 #[cfg(feature = "sqlite-journal")]
 use std::{fs, path::Path, time::Duration};
 
 #[cfg(test)]
 use crate::MAX_DISPATCH_LEASE_MS;
-#[cfg(feature = "sqlite-journal")]
+#[cfg(all(test, feature = "sqlite-journal"))]
 use crate::MAX_SEMANTIC_RETRIES;
 #[cfg(feature = "sqlite-journal")]
 use crate::validate_effect_error;
@@ -24,15 +26,19 @@ use leselang_command::debugger_audit::{audit_matches_record, debugger_audit_reco
 use leselang_command::reference_checkpoint::{ReferenceCheckpointSource, recover_checkpoint};
 #[cfg(test)]
 use leselang_command::reference_completion::deadline_cancellation;
-use leselang_command::reference_completion::{sequence_stop, terminal_step_outcome};
+use leselang_command::reference_completion::sequence_stop;
+#[cfg(test)]
+use leselang_command::reference_completion::terminal_step_outcome;
 #[cfg(any(test, feature = "sqlite-journal"))]
 use leselang_command::reference_completion::{validate_cancellation_step, validate_terminal_step};
+#[cfg(test)]
+use leselang_command::reference_dispatch::next_attempt;
 #[cfg(test)]
 pub(super) use leselang_command::reference_dispatch::validate_lease_clock;
 #[cfg(test)]
 use leselang_command::reference_dispatch::validate_proposed_retry;
 use leselang_command::reference_dispatch::{
-    lease_expiration, next_attempt, validate_dispatch_clock, validate_observed_lease,
+    lease_expiration, validate_dispatch_clock, validate_observed_lease,
 };
 #[cfg(feature = "sqlite-journal")]
 use leselang_command::reference_dispatch_recovery::{
@@ -85,6 +91,9 @@ mod bounded_decode_tests;
 mod cancellation_commit;
 #[cfg(test)]
 mod cancellation_commit_contract_tests;
+mod claim_commit;
+#[cfg(test)]
+mod claim_commit_contract_tests;
 mod completion_commit;
 #[cfg(test)]
 mod completion_commit_contract_tests;
@@ -92,6 +101,16 @@ mod expiration_commit;
 #[cfg(test)]
 mod expiration_commit_contract_tests;
 mod group_binding;
+mod group_finalization;
+#[cfg(test)]
+mod group_finalization_contract_tests;
+mod group_progress;
+#[cfg(test)]
+mod group_progress_contract_tests;
+mod group_successor_commit;
+mod merge_graph_commit;
+#[cfg(test)]
+mod merge_graph_commit_contract_tests;
 mod pending_commit;
 #[cfg(test)]
 mod pending_commit_contract_tests;
@@ -533,54 +552,13 @@ impl EphemeralJournal {
         branches: &[(&str, &EffectRequest)],
         limits: SchedulerLimits,
     ) -> Result<(), Fault> {
-        for (_, request) in branches {
-            validate_continuation_encoding_size(&request.continuation)?;
-        }
-        if self.merge_groups.contains_key(group_token)
-            || self.dispatches.contains_key(group_token)
-            || branches.iter().any(|(_, request)| {
-                self.dispatches.contains_key(&request.continuation.token)
-                    || self.merge_groups.contains_key(&request.continuation.token)
-            })
-        {
-            return Err(journal_fault(
-                "LSV4011",
-                "merge graph token conflicts with pending state",
-            ));
-        }
-        limits.check_admission(
-            self.scheduler_pressure(0, limits).pending_dispatches,
-            branches.len(),
-        )?;
-
-        let branch_tokens = branches
-            .iter()
-            .map(|(_, request)| request.continuation.token.clone())
-            .collect::<Vec<_>>();
-        for (_, request) in branches {
-            self.dispatches.insert(
-                request.continuation.token.clone(),
-                EphemeralDispatch {
-                    request: (*request).clone(),
-                    attempt: 0,
-                    lease_expires_at_ms: None,
-                    ready_at_ms: 0,
-                    retry_count: 0,
-                    last_error: None,
-                    acknowledged: false,
-                    terminal_step: None,
-                },
-            );
-        }
-        self.merge_groups.insert(
-            group_token.clone(),
-            EphemeralMergeGroup {
-                plan: plan.clone(),
-                branch_tokens,
-                terminal_step: None,
-            },
-        );
-        Ok(())
+        leselang_command::reference_merge_graph_commit::register_memory(
+            self,
+            group_token,
+            plan,
+            branches,
+            limits,
+        )
     }
 
     fn claim_dispatch(
@@ -589,46 +567,12 @@ impl EphemeralJournal {
         lease_expires_at_ms: u64,
         limits: SchedulerLimits,
     ) -> Result<DispatchClaim, Fault> {
-        let mut eligible: Option<(&ContinuationToken, &EphemeralDispatch)> = None;
-        for (token, dispatch) in &self.dispatches {
-            if dispatch.acknowledged
-                || dispatch.ready_at_ms > now_ms
-                || dispatch
-                    .lease_expires_at_ms
-                    .is_some_and(|expires_at| expires_at > now_ms)
-            {
-                continue;
-            }
-            let already_preferred = eligible.is_some_and(|(best_token, best)| {
-                best.attempt
-                    .cmp(&dispatch.attempt)
-                    .then_with(|| continuation_age_order(best_token, token))
-                    .is_le()
-            });
-            // Scan graph dependencies only for candidates that can beat the current minimum.
-            if !already_preferred && self.sequence_ready(token) {
-                eligible = Some((token, dispatch));
-            }
-        }
-        let Some(token) = eligible.map(|(token, _)| token.clone()) else {
-            return Ok(DispatchClaim::Idle);
-        };
-        let pressure = self.scheduler_pressure(now_ms, limits);
-        if pressure.lease_capacity_exhausted() {
-            return Ok(DispatchClaim::Backpressured(pressure));
-        }
-        let dispatch = self
-            .dispatches
-            .get_mut(&token)
-            .ok_or_else(|| journal_fault("LSV4007", "dispatch disappeared"))?;
-        dispatch.attempt = next_attempt(dispatch.attempt)?;
-        dispatch.lease_expires_at_ms = Some(lease_expires_at_ms);
-        Ok(DispatchClaim::Leased(Box::new(DispatchLease {
-            request: dispatch.request.clone(),
-            attempt: dispatch.attempt,
-            retry_count: dispatch.retry_count,
+        leselang_command::reference_claim_commit::claim_memory(
+            self,
+            now_ms,
             lease_expires_at_ms,
-        })))
+            limits,
+        )
     }
 
     fn record_completed(&mut self, image: &ContinuationImage, step: &Step) -> Result<Step, Fault> {
@@ -674,76 +618,7 @@ impl EphemeralJournal {
     }
 
     fn finalize_merge_group(&mut self, branch_token: &ContinuationToken) -> Result<(), Fault> {
-        let group_token = self
-            .merge_groups
-            .iter()
-            .find(|(_, group)| group.branch_tokens.contains(branch_token))
-            .map(|(token, _)| token.clone());
-        let Some(group_token) = group_token else {
-            return Ok(());
-        };
-        let group = self
-            .merge_groups
-            .get(&group_token)
-            .ok_or_else(|| journal_fault("LSV4033", "located merge group disappeared"))?;
-        if group.terminal_step.is_some() {
-            return Ok(());
-        }
-        let plan = group.plan.clone();
-        let branch_tokens = group.branch_tokens.clone();
-        if plan.order.is_sequential()
-            && let Some(stop) = sequence_stop(branch_tokens.iter().filter_map(|token| {
-                self.dispatches
-                    .get(token)
-                    .and_then(|dispatch| dispatch.terminal_step.as_ref())
-            }))?
-        {
-            for token in &branch_tokens {
-                if let Some(dispatch) = self.dispatches.get_mut(token)
-                    && !dispatch.acknowledged
-                {
-                    dispatch.acknowledged = true;
-                    dispatch.lease_expires_at_ms = None;
-                    dispatch.terminal_step = Some(stop.clone());
-                }
-            }
-            self.merge_groups
-                .get_mut(&group_token)
-                .ok_or_else(|| journal_fault("LSV4007", "sequence disappeared"))?
-                .terminal_step = Some(stop);
-            return Ok(());
-        }
-        let mut completions = Vec::with_capacity(branch_tokens.len());
-        for (branch, token) in plan.branches.iter().zip(&branch_tokens) {
-            let Some(step) = self
-                .dispatches
-                .get(token)
-                .and_then(|dispatch| dispatch.terminal_step.clone())
-            else {
-                return Ok(());
-            };
-            completions.push(BranchCompletion {
-                branch: branch.clone(),
-                outcome: terminal_step_outcome(step)?,
-            });
-        }
-        let merged =
-            if group_binding::needs_successor(&plan) || plan.order.captures_group_successor() {
-                let prefix = group_binding::merge_prefix(&plan, completions)?;
-                let Some(terminal) =
-                    group_binding::admit_ephemeral(self, &group_token, &plan, &prefix)?
-                else {
-                    return Ok(());
-                };
-                terminal
-            } else {
-                group_binding::finish(&plan, completions)?
-            };
-        self.merge_groups
-            .get_mut(&group_token)
-            .ok_or_else(|| journal_fault("LSV4033", "located merge group disappeared"))?
-            .terminal_step = Some(merged);
-        Ok(())
+        leselang_command::reference_group_finalization::finalize_memory(self, branch_token)
     }
 
     fn merge_result(&self, group_token: &ContinuationToken) -> Option<Step> {
@@ -774,59 +649,7 @@ impl EphemeralJournal {
     }
 
     fn merge_progress(&self, branch_token: &ContinuationToken) -> MergeProgress {
-        let Some((merge_token, group)) = self
-            .merge_groups
-            .iter()
-            .find(|(_, group)| group.branch_tokens.contains(branch_token))
-        else {
-            return MergeProgress::Standalone;
-        };
-        if let Some(step) = &group.terminal_step {
-            return MergeProgress::Completed {
-                merge_token: merge_token.clone(),
-                step: Box::new(step.clone()),
-                branch_tokens: group.branch_tokens.clone(),
-            };
-        }
-        if (group.plan.order.is_sequential()
-            || group
-                .plan
-                .result_binding
-                .as_ref()
-                .is_some_and(|binding| binding.has_successor(&group.plan)))
-            && let Some(dispatch) = group
-                .branch_tokens
-                .iter()
-                .filter_map(|token| self.dispatches.get(token))
-                .find(|dispatch| !dispatch.acknowledged)
-        {
-            return MergeProgress::Next {
-                request: Box::new(dispatch.request.clone()),
-                completed_tokens: group
-                    .branch_tokens
-                    .iter()
-                    .filter(|token| {
-                        self.dispatches
-                            .get(*token)
-                            .is_some_and(|dispatch| dispatch.acknowledged)
-                    })
-                    .cloned()
-                    .collect(),
-            };
-        }
-        MergeProgress::Pending {
-            merge_token: merge_token.clone(),
-            completed_branches: group
-                .branch_tokens
-                .iter()
-                .filter(|token| {
-                    self.dispatches
-                        .get(*token)
-                        .is_some_and(|dispatch| dispatch.terminal_step.is_some())
-                })
-                .count(),
-            total_branches: group.branch_tokens.len(),
-        }
+        leselang_command::reference_group_progress::read_memory(self, branch_token)
     }
 
     fn compact_completed(
@@ -1107,138 +930,14 @@ impl SqliteJournal {
     }
 
     fn merge_progress(&self, branch_token: &ContinuationToken) -> Result<MergeProgress, Fault> {
-        type RawProgress = (String, String, Option<Vec<u8>>, i64, i64, String);
         // Progress, current request and completed prefix must describe the same commit.
         let transaction = self.connection.unchecked_transaction().map_err(|error| {
             journal_error("LSV4033", "failed to snapshot merge progress", error)
         })?;
-        let progress: Option<RawProgress> = transaction
-            .query_row(
-                "SELECT g.token, g.state, g.terminal_step,
-                        SUM(CASE WHEN e.state = 'completed' THEN 1 ELSE 0 END),
-                        COUNT(*), g.execution_order
-                 FROM vm_merge_groups g
-                 JOIN vm_merge_branches own ON own.group_token = g.token
-                 JOIN vm_merge_branches branches ON branches.group_token = g.token
-                 JOIN vm_effects e ON e.token = branches.branch_token
-                 WHERE own.branch_token = ?1
-                 GROUP BY g.token, g.state, g.terminal_step",
-                [branch_token.as_str()],
-                |row| {
-                    Ok((
-                        row.get(0)?,
-                        row.get(1)?,
-                        row.get(2)?,
-                        row.get(3)?,
-                        row.get(4)?,
-                        row.get(5)?,
-                    ))
-                },
-            )
-            .optional()
-            .map_err(|error| journal_error("LSV4033", "failed to read merge progress", error))?;
-        let Some((merge_token, state, terminal, completed, total, order)) = progress else {
-            return Ok(MergeProgress::Standalone);
-        };
-        let merge_token = ContinuationToken::from_wire(merge_token);
-        let completed_branches = usize::try_from(completed)
-            .map_err(|_| journal_fault("LSV4007", "merge completion count is invalid"))?;
-        let total_branches = usize::try_from(total)
-            .map_err(|_| journal_fault("LSV4007", "merge branch count is invalid"))?;
-        match (state.as_str(), terminal) {
-            ("pending", None) if completed_branches < total_branches => {
-                // One pending request may be the last parallel member or its admitted successor.
-                let successor_ready = if order == "parallel"
-                    && completed_branches + 1 == total_branches
-                {
-                    let bytes: Vec<u8> = transaction
-                        .query_row(
-                            "SELECT plan FROM vm_merge_groups WHERE token = ?1",
-                            [merge_token.as_str()],
-                            |row| row.get(0),
-                        )
-                        .map_err(|error| {
-                            journal_error("LSV4033", "failed to inspect parallel successor", error)
-                        })?;
-                    let plan: MergePlan = decode_bounded(&bytes, MAX_CONTINUATION_BYTES)?;
-                    plan.order.has_group_successor()
-                        && plan
-                            .result_binding
-                            .as_ref()
-                            .is_some_and(|binding| binding.has_successor(&plan))
-                } else {
-                    false
-                };
-                if order == "sequential" || successor_ready {
-                    let bytes: Vec<u8> = transaction
-                        .query_row(
-                            "SELECT d.request FROM vm_merge_branches b
-                         JOIN vm_effects e ON e.token = b.branch_token
-                         JOIN vm_dispatches d ON d.token = b.branch_token
-                         WHERE b.group_token = ?1 AND e.state = 'pending'
-                         ORDER BY b.position LIMIT 1",
-                            [merge_token.as_str()],
-                            |row| row.get(0),
-                        )
-                        .map_err(|error| {
-                            journal_error("LSV4033", "failed to read next sequence step", error)
-                        })?;
-                    let request: EffectRequest = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
-                    validate_effect_request(&request)?;
-                    let mut statement = transaction.prepare(
-                        "SELECT b.branch_token FROM vm_merge_branches b JOIN vm_effects e ON e.token = b.branch_token
-                         WHERE b.group_token = ?1 AND e.state = 'completed' ORDER BY b.position",
-                    ).map_err(|error| journal_error("LSV4033", "failed to inspect completed prefix", error))?;
-                    let completed_tokens = statement
-                        .query_map([merge_token.as_str()], |row| {
-                            Ok(ContinuationToken::from_wire(row.get(0)?))
-                        })
-                        .map_err(|error| {
-                            journal_error("LSV4033", "failed to load completed prefix", error)
-                        })?
-                        .collect::<Result<Vec<_>, _>>()
-                        .map_err(|error| {
-                            journal_error("LSV4033", "invalid completed prefix", error)
-                        })?;
-                    return Ok(MergeProgress::Next {
-                        request: Box::new(request),
-                        completed_tokens,
-                    });
-                }
-                Ok(MergeProgress::Pending {
-                    merge_token,
-                    completed_branches,
-                    total_branches,
-                })
-            }
-            ("completed", Some(bytes)) if completed_branches == total_branches => {
-                let step: Step = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
-                validate_terminal_step(&step)?;
-                let mut statement = transaction.prepare(
-                    "SELECT branch_token FROM vm_merge_branches WHERE group_token = ?1 ORDER BY position"
-                ).map_err(|error| journal_error("LSV4033", "failed to read completed group", error))?;
-                let branch_tokens = statement
-                    .query_map([merge_token.as_str()], |row| {
-                        Ok(ContinuationToken::from_wire(row.get(0)?))
-                    })
-                    .map_err(|error| {
-                        journal_error("LSV4033", "failed to read completed branches", error)
-                    })?
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|error| {
-                        journal_error("LSV4033", "invalid completed branches", error)
-                    })?;
-                Ok(MergeProgress::Completed {
-                    merge_token,
-                    step: Box::new(step),
-                    branch_tokens,
-                })
-            }
-            _ => Err(journal_fault(
-                "LSV4007",
-                "merge progress has an invalid durable state",
-            )),
-        }
+        leselang_command::reference_group_progress::read_durable(
+            &mut group_progress::SqliteGroupProgress(&transaction),
+            branch_token,
+        )
     }
 
     fn allocate_sequence(&mut self, local_next: u64) -> Result<u64, Fault> {
@@ -1347,109 +1046,18 @@ impl SqliteJournal {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| journal_error("LSV4032", "failed to lock merge graph", error))?;
-        let current_count = journal_record_count(&transaction)?;
-        let added_records = branches.len().saturating_add(1);
-        if current_count.saturating_add(added_records) > MAX_JOURNAL_RECORDS {
-            return Err(journal_fault(
-                "LSV4006",
-                format!("journal record limit {MAX_JOURNAL_RECORDS} reached"),
-            ));
-        }
-        limits.check_admission(
-            sql_scheduler_pressure(&transaction, 0, limits)?.pending_dispatches,
-            branches.len(),
-        )?;
-        ensure_growth(&transaction, additional_bytes)?;
-
-        let group_conflict: bool = transaction
-            .query_row(
-                "SELECT EXISTS(
-                   SELECT 1 FROM vm_merge_groups WHERE token = ?1
-                   UNION ALL
-                   SELECT 1 FROM vm_effects WHERE token = ?1
-                 )",
-                [group_token.as_str()],
-                |row| row.get(0),
-            )
-            .map_err(|error| {
-                journal_error("LSV4032", "failed to validate merge group token", error)
-            })?;
-        if group_conflict {
-            return Err(journal_fault(
-                "LSV4011",
-                "merge graph token conflicts with durable state",
-            ));
-        }
-
-        transaction
-            .execute(
-                "INSERT INTO vm_merge_groups(token, plan, state, terminal_step, execution_order)
-                 VALUES (?1, ?2, 'pending', NULL, ?3)",
-                params![
-                    group_token.as_str(),
-                    plan_bytes,
-                    execution_order_label(plan.order)
-                ],
-            )
-            .map_err(|error| journal_error("LSV4032", "failed to store merge group", error))?;
-        for (position, ((_, request), (name, image_bytes, request_bytes))) in
-            branches.iter().zip(encoded.iter()).enumerate()
-        {
-            let position = i64::try_from(position)
-                .map_err(|_| journal_fault("LSV4032", "merge branch position is invalid"))?;
-            transaction
-                .execute(
-                    "INSERT INTO vm_effects(token, state, image, deadline_at_ms, terminal_step)
-                     VALUES (?1, 'pending', ?2, ?3, NULL)",
-                    params![
-                        request.continuation.token.as_str(),
-                        image_bytes,
-                        request
-                            .continuation
-                            .deadline_at_ms
-                            .map(i64::try_from)
-                            .transpose()
-                            .map_err(|_| {
-                                journal_fault("LSV4032", "effect deadline is out of range")
-                            })?
-                    ],
-                )
-                .map_err(|error| {
-                    journal_error("LSV4032", "failed to store merge branch effect", error)
-                })?;
-            transaction
-                .execute(
-                    "INSERT INTO vm_dispatches(token, request, state, attempt, lease_expires_at_ms)
-                     VALUES (?1, ?2, 'ready', 0, NULL)",
-                    params![request.continuation.token.as_str(), request_bytes],
-                )
-                .map_err(|error| {
-                    journal_error("LSV4032", "failed to store merge branch dispatch", error)
-                })?;
-            transaction
-                .execute(
-                    "INSERT INTO vm_merge_branches(
-                       group_token, branch_token, branch_name, position
-                     ) VALUES (?1, ?2, ?3, ?4)",
-                    params![
-                        group_token.as_str(),
-                        request.continuation.token.as_str(),
-                        name,
-                        position
-                    ],
-                )
-                .map_err(|error| journal_error("LSV4032", "failed to link merge branch", error))?;
-        }
-        let highest_sequence = branches
-            .iter()
-            .filter_map(|(_, request)| {
-                crate::canonical_continuation_sequence(&request.continuation.token)
-            })
-            .fold(merge_reserved_sequence(group_token, plan), u64::max);
-        advance_sequence_watermark(&transaction, highest_sequence)?;
-        transaction
-            .commit()
-            .map_err(|error| journal_error("LSV4032", "failed to commit merge graph", error))
+        leselang_command::reference_merge_graph_commit::register_durable(
+            merge_graph_commit::SqliteMergeGraphTransaction(transaction),
+            group_token,
+            plan,
+            branches,
+            limits,
+            leselang_command::reference_merge_graph_commit::MergeGraphEncoding {
+                plan: &plan_bytes,
+                branches: &encoded,
+                additional_bytes,
+            },
+        )
     }
 
     fn claim_dispatch(
@@ -1466,97 +1074,16 @@ impl SqliteJournal {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| journal_error("LSV4016", "failed to lock dispatch journal", error))?;
-        // Busy workers only inspect eligibility; they do not materialize a queued request/image.
-        if sql_lease_capacity_exhausted(&transaction, now, limits.max_active_leases)? {
-            let eligible: bool = transaction
-                .query_row(
-                    &format!("SELECT EXISTS({CLAIM_DISPATCH_SQL})"),
-                    [now],
-                    |row| row.get(0),
-                )
-                .map_err(|error| {
-                    journal_error("LSV4016", "failed to inspect dispatch readiness", error)
-                })?;
-            let claim = if eligible {
-                DispatchClaim::Backpressured(sql_scheduler_pressure(&transaction, now_ms, limits)?)
-            } else {
-                DispatchClaim::Idle
-            };
-            transaction.commit().map_err(|error| {
-                journal_error(
-                    "LSV4016",
-                    "failed to close capacity-limited dispatch transaction",
-                    error,
-                )
-            })?;
-            return Ok(claim);
-        }
-        let candidate = transaction
-            .query_row(CLAIM_DISPATCH_SQL, [now], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, Vec<u8>>(1)?,
-                    row.get::<_, i64>(2)?,
-                    row.get::<_, i64>(3)?,
-                    row.get::<_, Vec<u8>>(4)?,
-                ))
-            })
-            .optional()
-            .map_err(|error| journal_error("LSV4016", "failed to select effect dispatch", error))?;
-        let Some((token, request_bytes, attempt, retry_count, image_bytes)) = candidate else {
-            transaction.commit().map_err(|error| {
-                journal_error("LSV4016", "failed to close dispatch transaction", error)
-            })?;
-            return Ok(DispatchClaim::Idle);
-        };
-        let request: EffectRequest = decode_bounded(&request_bytes, MAX_JOURNAL_ENTRY_BYTES)?;
-        validate_effect_request(&request)?;
-        if request.continuation.token.as_str() != token {
-            return Err(journal_fault(
-                "LSV4007",
-                "dispatch token does not match effect request",
-            ));
-        }
-        if image_bytes
-            != encode_json_capped(
-                &request.continuation,
-                MAX_CONTINUATION_BYTES,
-                "continuation",
-            )?
-        {
-            return Err(journal_fault(
-                "LSV4014",
-                "dispatch continuation conflicts with durable journal state",
-            ));
-        }
-        let attempt = u32::try_from(attempt)
-            .map_err(|_| journal_fault("LSV4007", "dispatch attempt is invalid"))?;
-        let attempt = next_attempt(attempt)?;
-        let retry_count = u32::try_from(retry_count)
-            .map_err(|_| journal_fault("LSV4007", "dispatch retry count is invalid"))?;
-        if retry_count > MAX_SEMANTIC_RETRIES {
-            return Err(journal_fault(
-                "LSV4007",
-                "dispatch retry count exceeds runtime limit",
-            ));
-        }
-        transaction
-            .execute(
-                "UPDATE vm_dispatches
-                 SET state = 'leased', attempt = ?2, lease_expires_at_ms = ?3
-                 WHERE token = ?1",
-                params![token, i64::from(attempt), expires_at_sql],
-            )
-            .map_err(|error| journal_error("LSV4016", "failed to lease effect dispatch", error))?;
-        transaction
-            .commit()
-            .map_err(|error| journal_error("LSV4016", "failed to commit effect lease", error))?;
-        Ok(DispatchClaim::Leased(Box::new(DispatchLease {
-            request,
-            attempt,
-            retry_count,
-            lease_expires_at_ms: expires_at,
-        })))
+        leselang_command::reference_claim_commit::claim_durable(
+            claim_commit::SqliteClaimTransaction {
+                transaction,
+                now,
+                expires_at: expires_at_sql,
+            },
+            now_ms,
+            expires_at,
+            limits,
+        )
     }
 
     fn record_completed(&mut self, image: &ContinuationImage, step: &Step) -> Result<Step, Fault> {
@@ -2119,156 +1646,10 @@ fn finalize_merge_group(
     transaction: &rusqlite::Transaction<'_>,
     branch_token: &str,
 ) -> Result<(), Fault> {
-    type RawGroup = (String, Vec<u8>, String, Option<Vec<u8>>);
-    let group: Option<RawGroup> = transaction
-        .query_row(
-            "SELECT g.token, g.plan, g.state, g.terminal_step
-             FROM vm_merge_groups g
-             JOIN vm_merge_branches b ON b.group_token = g.token
-             WHERE b.branch_token = ?1",
-            [branch_token],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-        )
-        .optional()
-        .map_err(|error| journal_error("LSV4033", "failed to locate merge group", error))?;
-    let Some((group_token, plan_bytes, state, terminal_bytes)) = group else {
-        return Ok(());
-    };
-    if state == "completed" {
-        let terminal: Step = decode_bounded(
-            &terminal_bytes.ok_or_else(|| {
-                journal_fault("LSV4007", "completed merge group has no terminal step")
-            })?,
-            MAX_JOURNAL_ENTRY_BYTES,
-        )?;
-        validate_terminal_step(&terminal)?;
-        return Ok(());
-    }
-    if state != "pending" || terminal_bytes.is_some() {
-        return Err(journal_fault(
-            "LSV4007",
-            "merge group has an invalid durable state",
-        ));
-    }
-
-    type RawBranch = (String, String, Option<Vec<u8>>);
-    let branches = {
-        let mut statement = transaction
-            .prepare(
-                "SELECT b.branch_name, e.state, e.terminal_step
-                 FROM vm_merge_branches b
-                 JOIN vm_effects e ON e.token = b.branch_token
-                 WHERE b.group_token = ?1
-                 ORDER BY b.position ASC",
-            )
-            .map_err(|error| {
-                journal_error("LSV4033", "failed to prepare merge completion", error)
-            })?;
-        statement
-            .query_map([&group_token], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-            })
-            .map_err(|error| journal_error("LSV4033", "failed to scan merge completion", error))?
-            .collect::<Result<Vec<RawBranch>, _>>()
-            .map_err(|error| journal_error("LSV4033", "failed to read merge completion", error))?
-    };
-    let plan: MergePlan = decode_bounded(&plan_bytes, MAX_CONTINUATION_BYTES)?;
-    if plan.order.is_sequential() {
-        let terminal_steps = branches
-            .iter()
-            .filter_map(|(_, _, terminal)| terminal.as_ref())
-            .map(|bytes| decode_bounded::<Step>(bytes, MAX_JOURNAL_ENTRY_BYTES))
-            .collect::<Result<Vec<_>, _>>()?;
-        if let Some(stop) = sequence_stop(terminal_steps.iter())? {
-            let bytes = encode_json_capped(&stop, MAX_JOURNAL_ENTRY_BYTES, "sequence failure")?;
-            let pending = {
-                let mut statement = transaction
-                    .prepare(
-                        "SELECT b.branch_token FROM vm_merge_branches b
-                     JOIN vm_effects e ON e.token = b.branch_token
-                     WHERE b.group_token = ?1 AND e.state = 'pending'",
-                    )
-                    .map_err(|error| {
-                        journal_error("LSV4033", "failed to prepare sequence stop", error)
-                    })?;
-                statement
-                    .query_map([&group_token], |row| row.get::<_, String>(0))
-                    .map_err(|error| {
-                        journal_error("LSV4033", "failed to scan stopped sequence", error)
-                    })?
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|error| journal_error("LSV4033", "invalid stopped sequence", error))?
-            };
-            ensure_growth(transaction, bytes.len().saturating_mul(pending.len() + 1))?;
-            for token in pending {
-                complete_terminal_record(transaction, &token, &bytes)?;
-            }
-            transaction.execute(
-                "UPDATE vm_merge_groups SET state = 'completed', terminal_step = ?2 WHERE token = ?1",
-                params![group_token, bytes]
-            ).map_err(|error| journal_error("LSV4033", "failed to stop sequence", error))?;
-            return Ok(());
-        }
-    }
-    if branches.iter().any(|(_, state, _)| state == "pending") {
-        return Ok(());
-    }
-    if branches
-        .iter()
-        .any(|(_, state, terminal)| state != "completed" || terminal.is_none())
-    {
-        return Err(journal_fault(
-            "LSV4007",
-            "merge branch has an invalid durable state",
-        ));
-    }
-
-    let completions = branches
-        .into_iter()
-        .map(|(branch, _, terminal)| {
-            let terminal = terminal.ok_or_else(|| {
-                journal_fault("LSV4007", "completed merge branch has no terminal step")
-            })?;
-            let step: Step = decode_bounded(&terminal, MAX_JOURNAL_ENTRY_BYTES)?;
-            Ok(BranchCompletion {
-                branch,
-                outcome: terminal_step_outcome(step)?,
-            })
-        })
-        .collect::<Result<Vec<_>, Fault>>()?;
-    let merged = if group_binding::needs_successor(&plan) || plan.order.captures_group_successor() {
-        let prefix = group_binding::merge_prefix(&plan, completions)?;
-        let Some(terminal) = group_binding::admit_successor(
-            transaction,
-            &ContinuationToken::from_wire(group_token.clone()),
-            &plan,
-            &prefix,
-        )?
-        else {
-            return Ok(());
-        };
-        terminal
-    } else {
-        group_binding::finish(&plan, completions)?
-    };
-    validate_terminal_step(&merged)?;
-    let merged_bytes = encode_json_capped(&merged, MAX_JOURNAL_ENTRY_BYTES, "merge result")?;
-    ensure_growth(transaction, merged_bytes.len())?;
-    let updated = transaction
-        .execute(
-            "UPDATE vm_merge_groups
-             SET state = 'completed', terminal_step = ?2
-             WHERE token = ?1 AND state = 'pending'",
-            params![group_token, merged_bytes],
-        )
-        .map_err(|error| journal_error("LSV4033", "failed to complete merge group", error))?;
-    if updated != 1 {
-        return Err(journal_fault(
-            "LSV4033",
-            "merge group completion lost its pending state",
-        ));
-    }
-    Ok(())
+    leselang_command::reference_group_finalization::finalize_durable(
+        &mut group_finalization::SqliteGroupFinalization(transaction),
+        branch_token,
+    )
 }
 
 #[cfg(feature = "sqlite-journal")]
@@ -2743,10 +2124,12 @@ fn validate_merge_graph_input(
     })
 }
 
+#[cfg(all(test, feature = "sqlite-journal"))]
+use leselang_command::reference_group_batch::merge_reserved_sequence;
 #[cfg(feature = "sqlite-journal")]
 use leselang_command::reference_group_batch::{
     AdmittedMergeGroup, ReferenceGroupBatchProofs, StoredMergeGroup as RawMergeGroup,
-    execution_order_label, inspect_group_batch, merge_reserved_sequence,
+    execution_order_label, inspect_group_batch,
 };
 
 #[cfg(feature = "sqlite-journal")]

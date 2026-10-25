@@ -11,7 +11,11 @@ use leselang_command::reference_group_reservations::{
 #[cfg(all(test, feature = "sqlite-journal"))]
 #[path = "bound_record_contract_tests.rs"]
 mod bound_record_contract_tests;
+#[cfg(test)]
+#[path = "group_successor_commit_contract_tests.rs"]
+mod successor_commit_contract_tests;
 
+#[cfg(test)]
 pub(super) fn needs_successor(plan: &MergePlan) -> bool {
     plan.order.has_group_successor()
         && plan
@@ -36,6 +40,7 @@ pub(super) fn finish(plan: &MergePlan, completions: Vec<BranchCompletion>) -> Re
 
 use leselang_command::reference_merge_output::terminal_merge;
 
+#[cfg(test)]
 fn successor_plan(plan: &MergePlan) -> Result<MergePlan, Fault> {
     let mut next = plan.clone();
     let binding = next.result_binding.as_ref().ok_or_else(invalid)?;
@@ -45,7 +50,7 @@ fn successor_plan(plan: &MergePlan) -> Result<MergePlan, Fault> {
     Ok(next)
 }
 
-fn prepare_admission(
+pub(super) fn prepare_admission(
     owner: &ContinuationToken,
     plan: &MergePlan,
     requests: &[EffectRequest],
@@ -65,59 +70,7 @@ pub(super) fn admit_ephemeral(
     plan: &MergePlan,
     prefix: &Step,
 ) -> Result<Option<Step>, Fault> {
-    let Step::Done(value) = prefix else {
-        return Ok(Some(prefix.clone()));
-    };
-    let group = journal.merge_groups.get(owner).ok_or_else(invalid)?;
-    let mut requests = group
-        .branch_tokens
-        .iter()
-        .map(|token| {
-            journal
-                .dispatches
-                .get(token)
-                .map(|dispatch| dispatch.request.clone())
-                .ok_or_else(invalid)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let request = match prepare_admission(owner, plan, &requests, value) {
-        Ok(crate::group_binding::CaptureProgress::Pending(request)) => *request,
-        Ok(crate::group_binding::CaptureProgress::Done(value)) => {
-            return Ok(Some(Step::Done(crate::Value::Scalar { value })));
-        }
-        Err(error) => return Ok(Some(Step::Fault(error))),
-    };
-    let next = successor_plan(plan)?;
-    requests.push(request.clone());
-    let graph = next
-        .branches
-        .iter()
-        .zip(&requests)
-        .map(|(name, request)| (name.as_str(), request))
-        .collect::<Vec<_>>();
-    validate_merge_graph_input(owner, &next, &graph)?;
-    let token = request.continuation.token.clone();
-    if journal.dispatches.contains_key(&token) || journal.merge_groups.contains_key(&token) {
-        return Err(invalid());
-    }
-    encode_json_capped(&request, MAX_JOURNAL_ENTRY_BYTES, "group successor request")?;
-    journal.dispatches.insert(
-        token.clone(),
-        EphemeralDispatch {
-            request,
-            attempt: 0,
-            lease_expires_at_ms: None,
-            ready_at_ms: 0,
-            retry_count: 0,
-            last_error: None,
-            acknowledged: false,
-            terminal_step: None,
-        },
-    );
-    let group = journal.merge_groups.get_mut(owner).ok_or_else(invalid)?;
-    group.plan = next;
-    group.branch_tokens.push(token);
-    Ok(None)
+    leselang_command::reference_group_successor_commit::admit_memory(journal, owner, plan, prefix)
 }
 
 #[cfg(feature = "sqlite-journal")]
@@ -127,100 +80,12 @@ pub(super) fn admit_successor(
     plan: &MergePlan,
     prefix: &Step,
 ) -> Result<Option<Step>, Fault> {
-    let Step::Done(value) = prefix else {
-        return Ok(Some(prefix.clone()));
-    };
-    let mut statement = transaction.prepare(
-        "SELECT d.request FROM vm_merge_branches b JOIN vm_dispatches d ON d.token = b.branch_token
-         WHERE b.group_token = ?1 ORDER BY b.position"
-    ).map_err(|error| journal_error("LSV4033", "failed to prepare group successor", error))?;
-    let mut requests = statement
-        .query_map([owner.as_str()], |row| row.get::<_, Vec<u8>>(0))
-        .map_err(|error| journal_error("LSV4033", "failed to load group authority", error))?
-        .map(|row| {
-            decode_bounded::<EffectRequest>(
-                &row.map_err(|error| journal_error("LSV4033", "invalid group authority", error))?,
-                MAX_JOURNAL_ENTRY_BYTES,
-            )
-        })
-        .collect::<Result<Vec<_>, Fault>>()?;
-    drop(statement);
-    let request = match prepare_admission(owner, plan, &requests, value) {
-        Ok(crate::group_binding::CaptureProgress::Pending(request)) => *request,
-        Ok(crate::group_binding::CaptureProgress::Done(value)) => {
-            return Ok(Some(Step::Done(crate::Value::Scalar { value })));
-        }
-        Err(error) => return Ok(Some(Step::Fault(error))),
-    };
-    let next = successor_plan(plan)?;
-    requests.push(request.clone());
-    let graph = next
-        .branches
-        .iter()
-        .zip(&requests)
-        .map(|(name, request)| (name.as_str(), request))
-        .collect::<Vec<_>>();
-    validate_merge_graph_input(owner, &next, &graph)?;
-    let records: i64 = transaction
-        .query_row(
-            "SELECT (SELECT COUNT(*) FROM vm_effects) + (SELECT COUNT(*) FROM vm_merge_groups)",
-            [],
-            |row| row.get(0),
-        )
-        .map_err(|error| journal_error("LSV4033", "failed to bound group successor", error))?;
-    if records >= MAX_JOURNAL_RECORDS as i64 {
-        return Err(journal_fault("LSV4008", "journal record limit exceeded"));
-    }
-    let image = encode_json_capped(
-        &request.continuation,
-        MAX_CONTINUATION_BYTES,
-        "group successor image",
-    )?;
-    let request_bytes =
-        encode_json_capped(&request, MAX_JOURNAL_ENTRY_BYTES, "group successor request")?;
-    let plan_bytes = encode_json_capped(&next, MAX_CONTINUATION_BYTES, "group successor plan")?;
-    let previous_plan_bytes =
-        encode_json_capped(plan, MAX_CONTINUATION_BYTES, "group prefix plan")?;
-    let deadline = request
-        .continuation
-        .deadline_at_ms
-        .map(i64::try_from)
-        .transpose()
-        .map_err(|_| invalid())?;
-    ensure_growth(
-        transaction,
-        image
-            .len()
-            .saturating_add(request_bytes.len())
-            .saturating_add(plan_bytes.len().saturating_sub(previous_plan_bytes.len())),
-    )?;
-    transaction.execute(
-        "INSERT INTO vm_effects(token, state, image, deadline_at_ms, terminal_step) VALUES (?1, 'pending', ?2, ?3, NULL)",
-        params![request.continuation.token.as_str(), image, deadline]
-    ).map_err(|error| journal_error("LSV4033", "failed to create group successor", error))?;
-    transaction.execute(
-        "INSERT INTO vm_dispatches(token, request, state, attempt, lease_expires_at_ms) VALUES (?1, ?2, 'ready', 0, NULL)",
-        params![request.continuation.token.as_str(), request_bytes]
-    ).map_err(|error| journal_error("LSV4033", "failed to create group successor dispatch", error))?;
-    let updated = transaction
-        .execute(
-            "UPDATE vm_merge_groups SET plan = ?2 WHERE token = ?1 AND state = 'pending'",
-            params![owner.as_str(), plan_bytes],
-        )
-        .map_err(|error| {
-            journal_error("LSV4033", "failed to append group successor plan", error)
-        })?;
-    if updated != 1 {
-        return Err(journal_fault(
-            "LSV4033",
-            "group successor lost its pending owner",
-        ));
-    }
-    transaction.execute(
-        "INSERT INTO vm_merge_branches(group_token, branch_token, branch_name, position) VALUES (?1, ?2, ?3, ?4)",
-        params![owner.as_str(), request.continuation.token.as_str(), next.branches.last().ok_or_else(invalid)?, plan.branches.len() as i64]
-    ).map_err(|error| journal_error("LSV4033", "failed to link group successor", error))?;
-    Ok(None)
+    leselang_command::reference_group_successor_commit::admit_durable(
+        &mut super::group_successor_commit::SqliteGroupSuccessor(transaction),
+        owner,
+        plan,
+        prefix,
+    )
 }
 
 #[cfg(feature = "sqlite-journal")]

@@ -35,7 +35,9 @@ pub(super) use leselang_command::reference_merge::{
 };
 
 pub(super) trait ReferenceGroupResultBinding {
+    #[cfg(test)]
     fn branches(&self) -> Result<&[HirBranch], Fault>;
+    #[cfg(test)]
     fn successor_name_at(&self, position: usize) -> Result<String, Fault>;
     #[cfg(test)]
     fn validate(&self, plan: &MergePlan) -> Result<Type, Fault>;
@@ -79,10 +81,12 @@ pub(super) trait ReferenceGroupResultBinding {
 }
 
 impl ReferenceGroupResultBinding for GroupResultBinding {
+    #[cfg(test)]
     fn branches(&self) -> Result<&[HirBranch], Fault> {
         self.plan_branches().map_err(|_| invalid())
     }
 
+    #[cfg(test)]
     fn successor_name_at(&self, position: usize) -> Result<String, Fault> {
         self.plan_successor_name_at(position, crate::MAX_MERGE_BRANCHES)
             .map_err(|_| invalid())

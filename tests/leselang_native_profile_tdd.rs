@@ -1705,8 +1705,14 @@ fn lease_issuance_planning_stays_separate_from_existing_lease_settlement() {
             .unwrap();
     assert!(journal.contains("use leselang_command::reference_dispatch::{"));
     assert!(journal.contains("lease_expiration(now_ms, lease_ms)?"));
-    assert!(journal.contains("next_attempt(dispatch.attempt)?"));
-    assert!(journal.contains("next_attempt(attempt)?"));
+    let claim =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_claim_commit.rs"))
+            .unwrap();
+    assert!(journal.contains("reference_claim_commit::claim_memory("));
+    assert!(journal.contains("reference_claim_commit::claim_durable("));
+    assert!(claim.contains("use crate::reference_dispatch::next_attempt;"));
+    assert!(claim.contains("next_attempt(*state.attempt)?"));
+    assert!(claim.contains("next_attempt(attempt)?"));
     assert!(policy.contains("plan_dispatch_lease(now_ms, lease_ms, MAX_DISPATCH_LEASE_MS)"));
     assert!(policy.contains("next_dispatch_attempt(current, MAX_DISPATCH_ATTEMPTS)"));
     assert_eq!(

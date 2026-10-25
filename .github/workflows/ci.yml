@@ -230,6 +230,31 @@ jobs:
           cargo +1.98.0 test -p leselang-command --locked --test reference_pending_commit
           cargo +1.98.0 test -p leselang-vm --locked --lib pending_commit_contract_tests
 
+      - name: Test merge graph registration policy and native transaction parity
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_merge_graph_commit
+          cargo +1.98.0 test -p leselang-vm --locked --lib merge_graph_commit_contract_tests
+
+      - name: Test dispatch selection policy and native lease commit parity
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_claim_commit
+          cargo +1.98.0 test -p leselang-vm --locked --lib claim_commit_contract_tests
+
+      - name: Test group finalization policy inside native settlement transactions
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_group_finalization
+          cargo +1.98.0 test -p leselang-vm --locked --lib group_finalization_contract_tests
+
+      - name: Test group successor registration policy and native rollback parity
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_group_successor_commit
+          cargo +1.98.0 test -p leselang-vm --locked --lib successor_commit_contract_tests
+
+      - name: Test group progress projection and native snapshot parity
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_group_progress
+          cargo +1.98.0 test -p leselang-vm --locked --lib group_progress_contract_tests
+
       - name: Lint read-only projections and their consumers
         run: cargo +1.98.0 clippy -p leselang-observe --locked --no-default-features --all-targets -- -D warnings
 

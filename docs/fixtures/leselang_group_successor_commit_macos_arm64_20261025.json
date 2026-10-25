@@ -1,0 +1,210 @@
+{
+  "kind": "leselang-reference-group-successor-registration-parity",
+  "validated_on": "2026-10-25",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "pre_extraction_revision": "8b792476",
+  "pre_extraction_worktree_included_merge_graph_claim_and_finalization_slices": true,
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.169.0",
+  "direct_adapter_tests": 8,
+  "frozen_memory_cases": 168,
+  "frozen_sqlite_cases": 288,
+  "memory_complete_group_shapes": 12,
+  "durable_complete_group_shapes": 12,
+  "public_failure_reopen_cases": 10,
+  "original_binding_evaluator_and_graph_proof_retained": true,
+  "only_preparation_errors_become_receipts": true,
+  "native_streaming_decode_order_preserved": true,
+  "memory_conflicts_and_write_prefix_preserved": true,
+  "borrowed_outer_transaction_only": true,
+  "failed_successor_writes_roll_back_last_member": true,
+  "no_duplicate_successor_after_reopen": true,
+  "successor_does_not_advance_watermark": true,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "Group-successor registration inside existing branch settlement: prefix and preparation routing, next-plan assembly and graph proof, memory conflict/write ordering and SQLite record/encoding/deadline/quota/write coordination.",
+  "limitations": [
+    "Frozen registration bodies retain original authority loading and next-plan assembly; codecs, binding evaluation and graph proof remain shared, not migrated registration coordination. The frozen next-plan path keeps the original test-only helper.",
+    "Native entry still owns bounded/admitted plans, original reservations and selection of initial versus capture re-entry. This is not an arbitrary-input-safe evaluator or a new standalone runtime.",
+    "The 168 memory cases span twelve original group shapes and fourteen low-level scenarios; the 288 SQLite cases span those shapes and twenty-four scenarios, not all 70 host operations.",
+    "Memory retains non-Done prefix bypass, preparation-fault receipts, conflict short-circuit and insertion before late owner lookup. Trusted callback failure/unwind preserves prior side effects without retry or compensation.",
+    "SQLite retains streaming decode fault precedence, record bound, four encoding order, signed deadline, incremental quota and effect/dispatch/plan/link writes inside the caller's transaction. There is no new dispatch admission or watermark reservation.",
+    "Corrupt fixtures are not supported checkpoints. A disposable view supplies a wrong later storage class to probe earlier decode failure; production STRICT tables are unchanged and fixture checks are restored before invoking the code.",
+    "Twelve memory and twelve durable complete shape checks reuse the original evaluator, including tail/capture/multi-capture/conditional forms. Durable final receipts reopen without redispatch or additional reservations.",
+    "Ten public cases inject effect/dispatch/plan/link failures and deferred-commit failure, then reopen and explicitly retry. Last-member settlement and all successor writes roll back together, without completed-cache publication or duplicate successors.",
+    "No new Linux, remote CI, live GUI, exported-source execution, full host-neutral durable recovery, power-loss, disk-full, multi-host race or throughput evidence is claimed."
+  ],
+  "related_crate_tests_passed": 1514,
+  "memory_profile_unit_tests_passed": 149,
+  "source_planning_tests_passed": 23,
+  "source_export_dry_run_files": 280,
+  "source_export_dry_run_bytes": 6784528,
+  "adapter_has_no_vm_or_sqlite_normal_dependency": true,
+  "feature_specific_strict_lints_passed": true,
+  "strict_workspace_all_features_all_targets_clippy_passed": true,
+  "verification_status": "passed",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_group_successor_commit.rs",
+      "sha256": "d4509ebd4a0f25e24f7b493670ba97af554d45dad77037b8b29ec45e90261bd7"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "6ad167b26d5f2885860470eebcfec24e3a6695813e2f7c2e2f1e4b201f389e55"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_group_execution.rs",
+      "sha256": "44ea40a6044c4b387ad20a0122573bcdb8ac4272458334f31baa913bd8a105ed"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_group_successor.rs",
+      "sha256": "487d100308a01fe7630f7a65ecd3093702606d69ca54757aac341327263a88c1"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_merge.rs",
+      "sha256": "5ae75be28fce48e5e2d66f482bca4e490c01618e2f91abea2a7b422a814a2fbf"
+    },
+    {
+      "path": "crates/leselang-command/src/group_plan.rs",
+      "sha256": "cc2a581e4c643365a778d229031ea2250e2cdda145d9e9d3a80722a382d54590"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_recovery.rs",
+      "sha256": "6361bdb796bf24a5b19146cadae19646bd45606d9363defa2d5a95721bb73d11"
+    },
+    {
+      "path": "crates/leselang-command/src/retention_policy.rs",
+      "sha256": "7b58ac84a851853e41f890112fbd7530e88a7885678f4a5b5313d14ad840075e"
+    },
+    {
+      "path": "crates/leselang-command/Cargo.toml",
+      "sha256": "51753fa79fce986890ef1948ad092f9875b370be116b228c49513375066e462f"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_group_successor_commit.rs",
+      "sha256": "18e7d8d7632efbc05e13ddde6dae7cf8b7911d91ea0534da9ae98f5289eec3f2"
+    },
+    {
+      "path": "crates/leselang-command/tests/support/group_start_fixture.rs",
+      "sha256": "784a107454b0db3728a1329e25fa40dbdd9d0c7f0cc29fb9a49867036193d47c"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "222118aa3c4ac106f399d943c009bcb0e22249b0ac1832e4e492b43c1f803aec"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_binding.rs",
+      "sha256": "3446466a8d69e7b02ba9bfdaa6b4562dae2004f133ae286591b13de0704885a5"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_successor_commit.rs",
+      "sha256": "bdf7ceae2c8814b58dc923f37c0ffee48223d9314d452d85da3f57b743ce94ab"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_successor_commit_contract_tests.rs",
+      "sha256": "2eda3d5e09d271853e0bb020284598e8421a173e83987085a1ee166f14f72fdd"
+    },
+    {
+      "path": "crates/leselang-vm/src/group_binding.rs",
+      "sha256": "537fccd6c74cf22340338c41d22cacafd4c890fe340d10144dba240ba415885d"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "a89a6b86b27ed40d065fd656eb0187bf8b3dbe3fa78f3149e72e8e584c8d4186"
+    },
+    {
+      "path": "crates/leselang-vm/Cargo.toml",
+      "sha256": "2f1d51815d543a85d8b69662dbb4578170e8c6b0672f52402e4dec5c05260e21"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "683d7248999d9d1a05be9a6d65331face79821858ca475c6ec922acae286065e"
+    },
+    {
+      "path": "tests/leselang_native_profile_tdd.rs",
+      "sha256": "108f11dd700615a0d6505885f29724bed134f09e4855b73fb3ba3cda4e9429d0"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "bfe180a40702b3021160053950c692b6869d11919fe1d4902eaee11613d6c3e2"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "3bd761ec3a3623a07c7d16762457bfd94f87b8f15548c4e16af3eb48cf8cfb87"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "3296f92f017dec4c149c71e80351e4c0789a48298a258f6dc1babb8f06d5fb4a"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "d922f07d6120b2902a00f3b8d19ed48300ee22e0b7ff3dadc2dc5b647475591d"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "5043cba24b35a860c28701da946fcac0dfabe14616ca0005089f38ae3f07dcd4"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/private/tmp/leselang-group-successor-commit-adapter-20261025.log",
+      "sha256": "689c01019ddf6f9850f7dafa3307733211147e6584d34249e5c0a994337d53a2"
+    },
+    {
+      "path": "/private/tmp/leselang-group-successor-commit-parity-20261025.log",
+      "sha256": "07c904d4e8f6479d9f32de86755232a7f18a7f2387ce194c88cf91fc29c9c9b6"
+    },
+    {
+      "path": "/private/tmp/leselang-group-successor-commit-suite-20261025.log",
+      "sha256": "337e0defdc73d78e542316740dc8aaff54a091c4f28641c30896d9e1c8e25081"
+    },
+    {
+      "path": "/private/tmp/leselang-group-successor-commit-memory-20261025.log",
+      "sha256": "b9a624b5fe7261dedcb5f74db7e51e62bdbf4f7b9c70639133590512ec03fba5"
+    },
+    {
+      "path": "/private/tmp/leselang-group-successor-commit-clippy-20261025.log",
+      "sha256": "910ac592c260b5730e76730e32da28c4c4dbb6a2f49161bdcb9f4a3a2e88fe96"
+    },
+    {
+      "path": "/private/tmp/leselang-group-successor-commit-bridge-clippy-20261025.log",
+      "sha256": "781e6dc7f629e3fcfe6d88e12e5120ef4b5b0ac50601d614a761620344a9b109"
+    },
+    {
+      "path": "/private/tmp/leselang-group-successor-commit-memory-clippy-20261025.log",
+      "sha256": "f982ce85fd80b3d15391a933378d23ea0ff05493df03515957846246148a00c2"
+    },
+    {
+      "path": "/private/tmp/leselang-group-successor-commit-native-clippy-20261025.log",
+      "sha256": "6faf060d09625611c11b10ede4e883ff0d5120d2b96bcab5d209b58a7c55d418"
+    },
+    {
+      "path": "/private/tmp/leselang-group-successor-commit-source-plan-20261025.log",
+      "sha256": "918cbb7a30663bc7a11ee746e1f4c08dc5acfbe5f0f06837a579347e7f132ecb"
+    },
+    {
+      "path": "/private/tmp/leselang-group-successor-commit-dependencies-20261025.log",
+      "sha256": "2aa3528997c7c9640dc072977067c24f67ca4ff21ee912b534ce599bf644ac56"
+    },
+    {
+      "path": "/private/tmp/leselang-group-successor-commit-export-plan-20261025.log",
+      "sha256": "140733a96440c06d58cd2e53a9b49a27df64841e584f30931e3ef5ecf2d47156"
+    },
+    {
+      "path": "/private/tmp/leselang-group-successor-commit-architecture-status-20261025.log",
+      "sha256": "18b2dc5ff910f77412a845afea1d415948c8a1a1ba23115feed231e6fe06a35d"
+    },
+    {
+      "path": "/private/tmp/leselang-group-successor-commit-catalog-20261025.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "architecture_documentation_status_tests_passed": 510,
+  "status_catalog_valid": true
+}

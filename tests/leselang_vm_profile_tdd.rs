@@ -1,6 +1,647 @@
 use std::{fs, path::Path, process::Command};
 
 #[test]
+fn group_progress_policy_keeps_native_snapshot_and_original_lazy_read_order() {
+    let read = |p| fs::read_to_string(root().join(p)).unwrap();
+    let ordered = |s: &str, parts: &[&str]| {
+        let mut n = 0;
+        for p in parts {
+            n += s[n..].find(p).expect(p) + p.len();
+        }
+    };
+    let adapter = read("crates/leselang-command/src/reference_group_progress.rs");
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "catch_unwind",
+        "fn commit(",
+        "fn rollback(",
+        "loop {",
+        "validate_merge_plan",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let memory = adapter
+        .split("pub fn read_memory")
+        .nth(1)
+        .unwrap()
+        .split("pub struct StoredGroupProgress")
+        .next()
+        .unwrap();
+    ordered(
+        memory,
+        &[
+            "host.locate(branch)",
+            "group.terminal",
+            "group.plan.order.is_sequential()",
+            "!d.acknowledged",
+            "dispatch.request.clone()",
+            "completed_tokens:",
+            "d.acknowledged",
+            "completed_branches:",
+            "d.terminal",
+        ],
+    );
+    assert!(!memory.contains("has_group_successor"));
+    let durable = adapter.split("pub fn read_durable").nth(1).unwrap();
+    ordered(
+        durable,
+        &[
+            "host.locate(",
+            "usize::try_from(record.completed)",
+            "usize::try_from(record.total)",
+            "match (record.state.as_str(), record.terminal)",
+            "completed_branches + 1 == total_branches",
+            "host.plan(",
+            "plan.order.has_group_successor()",
+            "host.next_request(",
+            "validate_effect_request(&request)?",
+            "host.completed_tokens(",
+            "validate_terminal_step(&step)?",
+            "host.branch_tokens(",
+        ],
+    );
+    let native = read("crates/leselang-vm/src/journal/group_progress.rs");
+    assert!(native.contains("&'a rusqlite::Transaction<'connection>"));
+    for fragment in [
+        "SUM(CASE WHEN e.state = 'completed'",
+        "ORDER BY b.position LIMIT 1",
+        "failed to inspect parallel successor",
+        "invalid completed prefix",
+        "invalid completed branches",
+    ] {
+        assert!(native.contains(fragment), "{fragment}");
+    }
+    for forbidden in [".commit(", ".rollback(", "UPDATE ", "INSERT ", "DELETE "] {
+        assert!(!native.contains(forbidden), "{forbidden}");
+    }
+    let journal = read("crates/leselang-vm/src/journal.rs");
+    assert!(journal.contains("reference_group_progress::read_memory(self, branch_token)"));
+    ordered(
+        journal.split("impl SqliteJournal").nth(1).unwrap(),
+        &[
+            "fn merge_progress(",
+            "unchecked_transaction()",
+            "failed to snapshot merge progress",
+            "reference_group_progress::read_durable(",
+            "SqliteGroupProgress(&transaction)",
+        ],
+    );
+    let tests = read("crates/leselang-vm/src/journal/group_progress_contract_tests.rs");
+    let frozen = tests
+        .split("// Frozen pre-extraction bodies")
+        .nth(1)
+        .unwrap();
+    assert!(!frozen.contains("reference_group_progress::"));
+    assert!(tests.contains("wal_snapshot_keeps_progress_request_and_prefix_on_one_commit"));
+    for n in [1680, 192, 12] {
+        assert!(tests.contains(&format!("assert_eq!(cases, {n})")));
+    }
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_group_progress"));
+    assert!(ci.contains("--lib group_progress_contract_tests"));
+}
+
+#[test]
+fn group_successor_registration_policy_retains_native_authority_and_outer_commit() {
+    let read = |p| fs::read_to_string(root().join(p)).unwrap();
+    let ordered = |s: &str, parts: &[&str]| {
+        let mut n = 0;
+        for p in parts {
+            n += s[n..].find(p).expect(p) + p.len();
+        }
+    };
+    let adapter = read("crates/leselang-command/src/reference_group_successor_commit.rs");
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "catch_unwind",
+        "Box::new",
+        "fn commit(",
+        "advance_sequence_watermark",
+        "loop {",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let prepare = adapter.split("fn prepare<Host").nth(1).unwrap();
+    ordered(
+        prepare,
+        &[
+            "let Step::Done(value)",
+            "return Ok(Some(prefix.clone()))",
+            "host.requests(owner)?",
+            "host.prepare(owner, plan, &requests, value)",
+            "CaptureProgress::Done(value)",
+            "Err(error) => return Ok(Some(Step::Fault(error)))",
+            "plan.clone()",
+            "plan_successor_name_at(",
+            "validate_merge_plan(&next)?",
+            "requests.push(request.clone())",
+            ".zip(&requests)",
+            "host.validate_graph(",
+            "register(host, request, next)",
+        ],
+    );
+    let memory = adapter
+        .split("pub fn admit_memory")
+        .nth(1)
+        .unwrap()
+        .split("pub enum SuccessorPlanEncoding")
+        .next()
+        .unwrap();
+    ordered(
+        memory,
+        &[
+            "prepare(host",
+            "host.contains_dispatch(&token) || host.contains_group(&token)",
+            "host.encode_request(&request)?",
+            "host.insert_dispatch(token.clone(), request)",
+            "host.group_mut(owner)",
+            "*group.plan = next",
+            "group.branches.push(token)",
+        ],
+    );
+    let durable = adapter
+        .split("pub fn admit_durable")
+        .nth(1)
+        .unwrap()
+        .split("fn prepare<Host")
+        .next()
+        .unwrap();
+    ordered(
+        durable,
+        &[
+            "prepare(host",
+            "host.record_count()?",
+            "MAX_JOURNAL_RECORDS as i64",
+            "host.encode_image(",
+            "host.encode_request(",
+            "SuccessorPlanEncoding::Next",
+            "SuccessorPlanEncoding::Prefix",
+            ".map(i64::try_from)",
+            "host.ensure_growth(",
+            "saturating_sub(previous.len())",
+            "host.insert_effect(",
+            "host.insert_dispatch(",
+            "host.update_plan(",
+            "group successor lost its pending owner",
+            "host.link_branch(",
+        ],
+    );
+    let native = read("crates/leselang-vm/src/journal/group_successor_commit.rs");
+    for required in [
+        "&'a rusqlite::Transaction<'connection>",
+        "group_binding::prepare_admission",
+        "validate_merge_graph_input",
+        "ORDER BY b.position",
+        "invalid group authority",
+        "decode_bounded::<EffectRequest>",
+        "drop(statement)",
+        "failed to create group successor",
+        "failed to create group successor dispatch",
+        "failed to append group successor plan",
+        "failed to link group successor",
+        "position as i64",
+    ] {
+        assert!(native.contains(required), "{required}");
+    }
+    for forbidden in [".commit(", "transaction_with_behavior", ".rollback("] {
+        assert!(!native.contains(forbidden));
+    }
+    let entry = read("crates/leselang-vm/src/journal/group_binding.rs");
+    assert!(entry.contains("reference_group_successor_commit::admit_memory"));
+    assert!(entry.contains("reference_group_successor_commit::admit_durable"));
+    let frozen = read("crates/leselang-vm/src/journal/group_successor_commit_contract_tests.rs");
+    assert!(!frozen.contains("reference_group_successor_commit::"));
+    assert!(frozen.contains("fn frozen_admit_ephemeral("));
+    assert!(frozen.contains("fn frozen_admit_successor("));
+    for count in [168, 288, 12, 10] {
+        assert!(frozen.contains(&format!("assert_eq!(cases, {count})")));
+    }
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_group_successor_commit"));
+    assert!(ci.contains("--lib successor_commit_contract_tests"));
+}
+
+#[test]
+fn group_finalization_policy_keeps_native_evaluation_and_one_outer_transaction() {
+    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let ordered = |source: &str, fragments: &[&str]| {
+        let mut offset = 0;
+        for f in fragments {
+            offset += source[offset..].find(f).expect(f) + f.len();
+        }
+    };
+    let adapter = read("crates/leselang-command/src/reference_group_finalization.rs");
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "catch_unwind",
+        "fn commit(",
+        "fn rollback(",
+        "transaction_with_behavior",
+        "loop {",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let memory = adapter
+        .split("pub fn finalize_memory")
+        .nth(1)
+        .unwrap()
+        .split("pub struct StoredFinalizingGroup")
+        .next()
+        .unwrap();
+    ordered(
+        memory,
+        &[
+            "host.locate(branch)",
+            "host.group(&token)",
+            "group.completed",
+            "group.plan.clone()",
+            "sequence_stop(",
+            "host.branch_terminal(t)",
+            "host.branch_mut(t)",
+            "!*state.acknowledged",
+            "*state.acknowledged = true",
+            "*state.lease_expires_at_ms = None",
+            "sequence disappeared",
+            "plan.branches.iter().zip(&branches)",
+            "terminal_step_outcome(step)?",
+            "merge(host",
+            "ok_or_else(missing_group)",
+        ],
+    );
+    assert!(!memory.contains("validate_terminal_step"));
+    let durable = adapter
+        .split("pub fn finalize_durable")
+        .nth(1)
+        .unwrap()
+        .split("fn merge<")
+        .next()
+        .unwrap();
+    ordered(
+        durable,
+        &[
+            "host.locate(branch)?",
+            "group.state == \"completed\"",
+            "validate_terminal_step(&terminal)?",
+            "group.state != \"pending\"",
+            "host.branches(&group.token)?",
+            "decode_journal_value(&group.plan",
+            "collect::<Result<Vec<_>, _>>()?",
+            "sequence_stop(steps.iter())?",
+            "GroupTerminalEncoding::SequenceStop",
+            "host.pending_tokens(",
+            "saturating_mul(pending.len() + 1)",
+            "host.complete_branch(",
+            "host.stop_group(",
+            "b.state == \"pending\"",
+            "b.state != \"completed\"",
+            "terminal_step_outcome(step)?",
+            "merge(host",
+            "validate_terminal_step(&merged)?",
+            "GroupTerminalEncoding::MergeResult",
+            "host.ensure_growth(bytes.len())?",
+            "host.complete_group(",
+            "merge group completion lost its pending state",
+        ],
+    );
+    let native = read("crates/leselang-vm/src/journal/group_finalization.rs");
+    for required in [
+        "&'a rusqlite::Transaction<'connection>",
+        "group_binding::admit_ephemeral",
+        "group_binding::admit_successor",
+        "group_binding::merge_prefix",
+        "group_binding::finish",
+        "ORDER BY b.position ASC",
+        "e.state = 'pending'",
+        "complete_terminal_record(self.0",
+        "WHERE token = ?1 AND state = 'pending'",
+        "failed to stop sequence",
+        "failed to complete merge group",
+    ] {
+        assert!(native.contains(required), "{required}");
+    }
+    for forbidden in [".commit(", "transaction_with_behavior", ".rollback("] {
+        assert!(!native.contains(forbidden));
+    }
+    let journal = read("crates/leselang-vm/src/journal.rs");
+    assert!(journal.contains("reference_group_finalization::finalize_memory(self, branch_token)"));
+    assert!(journal.contains("reference_group_finalization::finalize_durable("));
+    let frozen = read("crates/leselang-vm/src/journal/group_finalization_contract_tests.rs");
+    assert_eq!(frozen.matches("fn frozen_finalize_merge_group(").count(), 2);
+    assert!(!frozen.contains("reference_group_finalization::"));
+    for count in [2240, 128, 12, 8] {
+        assert!(frozen.contains(&format!("assert_eq!(cases, {count})")));
+    }
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_group_finalization"));
+    assert!(ci.contains("--lib group_finalization_contract_tests"));
+}
+
+#[test]
+fn dispatch_claim_policy_preserves_native_atomicity_cold_capacity_path_and_lazy_memory_selection() {
+    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let ordered = |source: &str, fragments: &[&str]| {
+        let mut offset = 0;
+        for f in fragments {
+            offset += source[offset..].find(f).expect(f) + f.len();
+        }
+    };
+    let adapter = read("crates/leselang-command/src/reference_claim_commit.rs");
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "catch_unwind",
+        "loop {",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let memory = adapter
+        .split("pub fn claim_memory")
+        .nth(1)
+        .unwrap()
+        .split("pub struct StoredClaimCandidate")
+        .next()
+        .unwrap();
+    ordered(
+        memory,
+        &[
+            "host.candidates()",
+            "candidate.acknowledged",
+            "best.attempt",
+            "continuation_age_order(best.token, candidate.token)",
+            "!already_preferred && host.sequence_ready(candidate.token)",
+            "candidate.token.clone()",
+            "DispatchClaim::Idle",
+            "host.pressure(now_ms, limits)",
+            "scheduler_lease_capacity_exhausted(pressure)",
+            "host",
+            ".dispatch(&token)",
+            "next_attempt(*state.attempt)?",
+            "*state.lease_expires_at_ms",
+            "state.request.clone()",
+        ],
+    );
+    assert!(!memory.contains("validate_effect_request"));
+    let durable = adapter.split("pub fn claim_durable").nth(1).unwrap();
+    ordered(
+        durable,
+        &[
+            "host.capacity_exhausted(",
+            "host.has_candidate()?",
+            "host.pressure(",
+            "host.commit(ClaimCommit::CapacityLimited)?",
+            "host.candidate()?",
+            "host.commit(ClaimCommit::Idle)?",
+            "decode_journal_value",
+            "validate_effect_request",
+            "request.continuation.token.as_str()",
+            "host.encode_image(",
+            "u32::try_from(candidate.attempt)",
+            "next_attempt(attempt)?",
+            "u32::try_from(candidate.retry_count)",
+            "retry_count > MAX_SEMANTIC_RETRIES",
+            "host.lease(",
+            "host.commit(ClaimCommit::Leased)?",
+            "DispatchClaim::Leased",
+        ],
+    );
+    let journal = read("crates/leselang-vm/src/journal.rs");
+    let public = journal
+        .split("pub fn claim_dispatch(")
+        .nth(1)
+        .unwrap()
+        .split("pub fn record_completed")
+        .next()
+        .unwrap();
+    ordered(
+        public,
+        &["lease_expiration(now_ms, lease_ms)?", "match self"],
+    );
+    let sqlite = journal
+        .split("impl SqliteJournal {")
+        .nth(1)
+        .unwrap()
+        .split("fn claim_dispatch(")
+        .nth(1)
+        .unwrap()
+        .split("fn record_completed")
+        .next()
+        .unwrap();
+    ordered(
+        sqlite,
+        &[
+            "i64::try_from(now_ms)",
+            "i64::try_from(expires_at)",
+            "transaction_with_behavior(TransactionBehavior::Immediate)",
+            "reference_claim_commit::claim_durable(",
+            "claim_commit::SqliteClaimTransaction",
+        ],
+    );
+    assert!(!sqlite.contains("decode_bounded"));
+    let native = read("crates/leselang-vm/src/journal/claim_commit.rs");
+    for required in [
+        "self.dispatches",
+        "self.sequence_ready(token)",
+        "self.dispatches",
+        ".get_mut(token)",
+        "sql_lease_capacity_exhausted",
+        "SELECT EXISTS({CLAIM_DISPATCH_SQL})",
+        "query_row(CLAIM_DISPATCH_SQL",
+        "encode_json_capped",
+        "UPDATE vm_dispatches",
+        "failed to lease effect dispatch",
+        "failed to close capacity-limited dispatch transaction",
+        "failed to close dispatch transaction",
+        "failed to commit effect lease",
+    ] {
+        assert!(native.contains(required), "{required}");
+    }
+    ordered(
+        native.split("fn candidates(").nth(1).unwrap(),
+        &["self.dispatches", ".iter()", ".map("],
+    );
+    ordered(
+        native.split("fn commit(self").nth(1).unwrap(),
+        &[
+            "self.transaction.commit()",
+            "ClaimCommit::CapacityLimited",
+            "ClaimCommit::Idle",
+            "ClaimCommit::Leased",
+        ],
+    );
+    assert!(journal.contains("ORDER BY d.attempt ASC, length(d.token) ASC, d.token ASC"));
+    assert!(journal.contains("INDEXED BY vm_dispatch_attempt_order_idx"));
+    let frozen = read("crates/leselang-vm/src/journal/claim_commit_contract_tests.rs");
+    assert!(!frozen.contains("reference_claim_commit::"));
+    assert_eq!(frozen.matches("fn frozen_claim_dispatch(").count(), 2);
+    for n in [1400, 4, 108, 6] {
+        assert!(frozen.contains(&format!("assert_eq!(cases, {n})")));
+    }
+    let ci = read(".github/workflows/ci.yml");
+    for cmd in [
+        "--test reference_claim_commit",
+        "--lib claim_commit_contract_tests",
+        "--no-default-features --features vm-bridge --all-targets -- -D warnings",
+        "--no-default-features --features leserpent-profile --all-targets -- -D warnings",
+    ] {
+        assert!(ci.contains(cmd), "{cmd}");
+    }
+}
+
+#[test]
+fn merge_graph_registration_keeps_native_admission_and_distinct_backend_ordering() {
+    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let ordered = |source: &str, fragments: &[&str]| {
+        let mut offset = 0;
+        for f in fragments {
+            offset += source[offset..].find(f).expect(f) + f.len();
+        }
+    };
+    let adapter = read("crates/leselang-command/src/reference_merge_graph_commit.rs");
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "catch_unwind",
+        "loop {",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let memory = adapter
+        .split("pub fn register_memory")
+        .nth(1)
+        .unwrap()
+        .split("pub type EncodedMergeBranch")
+        .next()
+        .unwrap();
+    ordered(
+        memory,
+        &[
+            "validate_continuation_encoding_size",
+            "host.contains_group(token)",
+            "host.contains_dispatch(token)",
+            "host.contains_dispatch(&request.continuation.token)",
+            "host.contains_group(&request.continuation.token)",
+            "host.check_capacity(branches.len(), limits)?",
+            "let tokens =",
+            "host.insert_dispatch(request)",
+            "host.insert_group(token, plan, tokens)",
+        ],
+    );
+    let durable = adapter.split("pub fn register_durable").nth(1).unwrap();
+    ordered(
+        durable,
+        &[
+            "host.record_count()?",
+            "branches.len().saturating_add(1)",
+            "current_count.saturating_add(added_records) > MAX_JOURNAL_RECORDS",
+            "host.check_capacity(branches.len(), limits)?",
+            "host.ensure_growth(encoding.additional_bytes)?",
+            "host.group_conflicts(token)?",
+            "host.insert_group(token, plan, encoding.plan)?",
+            "host.insert_branch(token, request, position, encoded)?",
+            "let highest_sequence =",
+            "canonical_continuation_sequence",
+            "merge_reserved_sequence(token, plan)",
+            "host.advance_watermark(highest_sequence)?",
+            "host.commit()",
+        ],
+    );
+    assert!(adapter.contains("fn commit(self) -> Result<(), Fault>"));
+    let journal = read("crates/leselang-vm/src/journal.rs");
+    let public = journal
+        .split("pub fn record_merge_graph_with_limits")
+        .nth(1)
+        .unwrap()
+        .split("pub fn scheduler_pressure")
+        .next()
+        .unwrap();
+    ordered(
+        public,
+        &[
+            "validate_merge_graph_input(group_token, plan, branches)?",
+            "match self",
+        ],
+    );
+    assert!(journal.contains("reference_merge_graph_commit::register_memory("));
+    let sqlite = journal
+        .split("impl SqliteJournal {")
+        .nth(1)
+        .unwrap()
+        .split("fn record_merge_graph(")
+        .nth(1)
+        .unwrap()
+        .split("fn claim_dispatch(")
+        .next()
+        .unwrap();
+    ordered(
+        sqlite,
+        &[
+            "encode_json_capped(plan",
+            "encode_json_capped(",
+            "let additional_bytes",
+            "transaction_with_behavior(TransactionBehavior::Immediate)",
+            "reference_merge_graph_commit::register_durable(",
+            "plan: &plan_bytes",
+            "branches: &encoded",
+        ],
+    );
+    assert!(!sqlite.contains("group_conflict"));
+    let owner = read("crates/leselang-vm/src/journal/merge_graph_commit.rs");
+    for required in [
+        "rusqlite::Transaction<'a>",
+        "journal_record_count(&self.0)",
+        "sql_scheduler_pressure",
+        "ensure_growth(&self.0",
+        "SELECT EXISTS(",
+        "failed to validate merge group token",
+        "failed to store merge group",
+        "failed to store merge branch effect",
+        "failed to store merge branch dispatch",
+        "failed to link merge branch",
+        "failed to commit merge graph",
+        "fn commit(self) -> Result<(), Fault>",
+    ] {
+        assert!(owner.contains(required), "{required}");
+    }
+    ordered(
+        owner.split("fn commit(self)").nth(1).unwrap(),
+        &["self.0", ".commit()", "failed to commit merge graph"],
+    );
+    ordered(
+        owner.split("fn insert_branch(").nth(1).unwrap(),
+        &[
+            "i64::try_from(position)",
+            "INSERT INTO vm_effects",
+            "map(i64::try_from)",
+            "INSERT INTO vm_dispatches",
+            "INSERT INTO vm_merge_branches",
+        ],
+    );
+    let frozen = read("crates/leselang-vm/src/journal/merge_graph_commit_contract_tests.rs");
+    assert!(!frozen.contains("reference_merge_graph_commit::"));
+    assert_eq!(frozen.matches("fn frozen_record_merge_graph(").count(), 2);
+    for n in [1680, 5, 192, 6, 12] {
+        assert!(frozen.contains(&format!("assert_eq!(cases, {n})")));
+    }
+    let ci = read(".github/workflows/ci.yml");
+    for cmd in [
+        "--test reference_merge_graph_commit",
+        "--lib merge_graph_commit_contract_tests",
+        "--no-default-features --features vm-bridge --all-targets -- -D warnings",
+        "--no-default-features --features leserpent-profile --all-targets -- -D warnings",
+    ] {
+        assert!(ci.contains(cmd), "{cmd}");
+    }
+}
+
+#[test]
 fn pending_registration_policy_keeps_native_admission_watermark_and_replay_boundaries() {
     let read = |path| fs::read_to_string(root().join(path)).unwrap();
     let ordered = |source: &str, fragments: &[&str]| {
@@ -4266,7 +4907,12 @@ fn product_identity_and_terminal_data_move_without_runtime_or_storage_authority(
     assert!(terminal.contains("pub enum CancellationReason"));
     assert!(!terminal.contains("deny_unknown_fields"));
     let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
-    assert!(journal.contains("merge_reserved_sequence(group_token, plan)"));
+    let graph_registration = fs::read_to_string(
+        root().join("crates/leselang-command/src/reference_merge_graph_commit.rs"),
+    )
+    .unwrap();
+    assert!(journal.contains("reference_merge_graph_commit::register_durable("));
+    assert!(graph_registration.contains("merge_reserved_sequence(token, plan)"));
     let batch =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_group_batch.rs"))
             .unwrap();
