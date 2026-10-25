@@ -10782,9 +10782,94 @@ codecs/storage/group primitives, not migrated orchestration. Corrupt fixtures
 restore checks before production calls; mock quota/uncertain-commit failures do
 not claim physical disk-full or power-loss testing.
 
-Reference execution is `1.163.0`; native embedding `0.172.0`, HIR `0.184.0`, journal
+This slice advanced reference execution to `1.163.0`; native embedding `0.172.0`, HIR `0.184.0`, journal
 schema 10 and product/wire versions are unchanged. Complete independent VM,
 host-neutral durable recovery and repository extraction remain open gates.
+
+### Deadline Expiration Batch Commit
+
+`leselang-command::reference_expiration_commit` owns low-level deadline batch
+coordination, below the existing public maintenance/cache-publication adapter.
+Memory borrows original dispatch fields in native map order, skips acknowledged,
+undated and future work, and cancels deadlines inclusively at `deadline <= now`.
+It changes every due dispatch before finalizing any group. A finalization failure
+retains all those memory mutations but returns no partial result list for public
+cache publication. This primitive adds no clock/image admission; public entries
+retain trusted-time gates. No map clone or compensating retry is introduced.
+
+SQLite retains clock-range admission before opening its immediate transaction,
+and eagerly collects the original ordered pending/deadline query before writes.
+Each snapshot row is decoded and admitted natively, checked for matching identity
+and deadline, encoded, quota-checked, completed and group-finalized in order.
+The batch does not reselect rows after an earlier group completion has changed a
+sibling. Even an empty batch consumes and commits its transaction. Native codecs,
+SQL diagnostics, rollback and commit remain native; only a successful commit
+returns the batch for cache publication. This does not add restoration authority.
+
+The [expiration proof](fixtures/leselang_expiration_commit_macos_arm64_20261025.json)
+covers 7 direct adapter tests, 700 frozen memory cases across all 70 operations,
+2 real partial-memory failure cases, 2 public deadline replay cases, 2 public
+cache non-publication cases, 140 frozen SQLite cases and 10 reopen cases.
+It checks exact faults, all table contents, write counts, closed transactions,
+no audit writes, late-row failures, eager-scan precedence, group writes and deferred
+commit rollback. Reopen checks use the required trusted-time `resume_at` entry,
+compare persisted member cancellations separately from visible group results,
+and prevent redispatch or rewriting the original deadline observation time.
+
+The frozen oracle shares native codecs/storage/group primitives, not migrated
+batch orchestration. Corrupt fixtures restore constraints before production calls;
+disposable views inject row-read faults that STRICT tables would reject on insert.
+These are not valid recovery checkpoints. Hook quota/uncertain-commit failures are
+not physical disk-full or power-loss tests. No new Linux, remote CI, live GUI,
+standalone export execution or performance benchmark is claimed.
+
+This slice advanced reference execution to `1.164.0`; native embedding `0.172.0`, HIR `0.184.0`, journal
+schema 10 and product/wire versions are unchanged. Complete host-neutral execution,
+durable recovery and physical repository extraction remain separate open gates.
+
+### Pending Registration Commit
+
+`leselang-command::reference_pending_commit` owns ordinary pending-record
+registration and replay/conflict decisions. Memory does nothing without a request;
+otherwise request and bounded-image checks precede borrowed lookup. Exact matches
+bypass capacity checks and never reset a dispatch's lease, attempts or terminal,
+including already-acknowledged records at this primitive. Only fresh insertion
+clones the request. Public import/adoption still owns live-state behavior.
+
+SQLite retains image/request/correspondence admission, bounded encodings and
+canonical sequence parsing before opening the immediate transaction. Existing
+rows must be pending with exactly matching encoded images. A full request also
+requires the original dispatch: native history/counter checks precede bounded
+request decoding and exact comparison in the adapter. Missing dispatches are not
+repaired, and completed/conflicting rows cannot be overwritten. Exact replay skips
+record/capacity/quota checks but still reconciles the watermark and commits.
+
+Fresh bare images bypass only dispatch capacity and dispatch insertion, not the
+journal record ceiling or payload quota. Native capacity observations and quota
+checks precede effect insertion, optional dispatch insertion, watermark update
+and consuming commit. Native owners retain signed-deadline storage, SQLite
+diagnostics and atomic rollback; public caches publish only after successful commit.
+The trusted adapter inputs are exact native encodings, not restoration authority.
+
+The [registration proof](fixtures/leselang_pending_commit_macos_arm64_20261025.json)
+covers 8 direct adapter tests, 840 frozen memory cases across all 70 operations,
+2 public memory replay cases, 192 frozen SQLite cases across three representative
+operations and bare/full imports, 6 reopen cases and 4 public commit-failure cases.
+It compares exact faults, all table contents and native write counts, including
+corrupt dispatch histories, missing dispatches, completed conflicts, full capacity,
+the record ceiling, quota refusal, low/high watermarks and deferred commit rollback.
+Reopen preserves active leases, subsequent attempt numbers and settled results.
+
+The oracle shares native admission/codecs/storage, capacity and watermark
+primitives, not migrated registration orchestration. Corrupt fixtures restore
+constraints before production calls; raw filler rows exercise record counting,
+and a disposable view supplies a virtual oversized payload for the quota gate.
+They are not valid recovery checkpoints or physical disk-full tests. No new Linux,
+remote CI, live GUI, standalone export execution or performance claim is made.
+
+Reference execution is `1.165.0`; native embedding `0.172.0`, HIR `0.184.0`, journal
+schema 10 and product/wire versions are unchanged. Complete host-neutral execution,
+durable recovery and physical repository extraction remain separate open gates.
 
 **The current 2.3.0-and-later phase closes acceptance gates; physical extraction is deferred.**
 It is not an automatic version-triggered move. No replacement extraction version

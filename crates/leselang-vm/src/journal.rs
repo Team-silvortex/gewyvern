@@ -10,6 +10,8 @@ use crate::MAX_DISPATCH_LEASE_MS;
 use crate::MAX_SEMANTIC_RETRIES;
 #[cfg(feature = "sqlite-journal")]
 use crate::validate_effect_error;
+#[cfg(any(test, feature = "sqlite-journal"))]
+use crate::validate_effect_request;
 #[cfg(feature = "sqlite-journal")]
 use crate::validate_image;
 #[cfg(test)]
@@ -20,11 +22,11 @@ use leselang_command::debugger_audit::command_origin_label;
 use leselang_command::debugger_audit::{audit_matches_record, debugger_audit_record};
 #[cfg(feature = "sqlite-journal")]
 use leselang_command::reference_checkpoint::{ReferenceCheckpointSource, recover_checkpoint};
+#[cfg(test)]
+use leselang_command::reference_completion::deadline_cancellation;
+use leselang_command::reference_completion::{sequence_stop, terminal_step_outcome};
 #[cfg(any(test, feature = "sqlite-journal"))]
-use leselang_command::reference_completion::validate_cancellation_step;
-use leselang_command::reference_completion::{
-    deadline_cancellation, sequence_stop, terminal_step_outcome, validate_terminal_step,
-};
+use leselang_command::reference_completion::{validate_cancellation_step, validate_terminal_step};
 #[cfg(test)]
 pub(super) use leselang_command::reference_dispatch::validate_lease_clock;
 #[cfg(test)]
@@ -63,8 +65,7 @@ use crate::{
     EffectRequest, ExecutionOrder, Fault, MAX_CONTINUATION_BYTES, MAX_DISPATCH_ATTEMPTS, MergePlan,
     RetentionPolicy, RetryDisposition, SchedulerLimits, SchedulerPressure, Step,
     continuation_age_order, encode_json_capped, measure_json_capped, valid_continuation_token,
-    validate_continuation_encoding_size, validate_effect_request, validate_merge_plan,
-    validate_value,
+    validate_continuation_encoding_size, validate_merge_plan, validate_value,
 };
 
 mod acknowledgement_commit;
@@ -87,7 +88,13 @@ mod cancellation_commit_contract_tests;
 mod completion_commit;
 #[cfg(test)]
 mod completion_commit_contract_tests;
+mod expiration_commit;
+#[cfg(test)]
+mod expiration_commit_contract_tests;
 mod group_binding;
+mod pending_commit;
+#[cfg(test)]
+mod pending_commit_contract_tests;
 #[cfg(test)]
 mod reference_completion_contract_tests;
 #[cfg(test)]
@@ -515,37 +522,7 @@ impl EphemeralJournal {
         request: Option<&EffectRequest>,
         limits: SchedulerLimits,
     ) -> Result<(), Fault> {
-        let Some(request) = request else {
-            return Ok(());
-        };
-        validate_effect_request(request)?;
-        validate_continuation_encoding_size(&request.continuation)?;
-        let token = request.continuation.token.clone();
-        if let Some(existing) = self.dispatches.get(&token) {
-            return if existing.request == *request {
-                Ok(())
-            } else {
-                Err(journal_fault(
-                    "LSV4011",
-                    "effect request conflicts with pending state",
-                ))
-            };
-        }
-        limits.check_admission(self.scheduler_pressure(0, limits).pending_dispatches, 1)?;
-        self.dispatches.insert(
-            token,
-            EphemeralDispatch {
-                request: request.clone(),
-                attempt: 0,
-                lease_expires_at_ms: None,
-                ready_at_ms: 0,
-                retry_count: 0,
-                last_error: None,
-                acknowledged: false,
-                terminal_step: None,
-            },
-        );
-        Ok(())
+        leselang_command::reference_pending_commit::register_memory(self, request, limits)
     }
 
     #[cfg_attr(not(test), allow(dead_code))]
@@ -684,26 +661,7 @@ impl EphemeralJournal {
     }
 
     fn expire_due(&mut self, now_ms: u64) -> Result<Vec<(ContinuationImage, Step)>, Fault> {
-        let mut expired = Vec::new();
-        for dispatch in self.dispatches.values_mut() {
-            let image = &dispatch.request.continuation;
-            if dispatch.acknowledged
-                || image
-                    .deadline_at_ms
-                    .is_none_or(|deadline| deadline > now_ms)
-            {
-                continue;
-            }
-            let step = deadline_cancellation(image, now_ms);
-            dispatch.acknowledged = true;
-            dispatch.lease_expires_at_ms = None;
-            dispatch.terminal_step = Some(step.clone());
-            expired.push((image.clone(), step));
-        }
-        for (image, _) in &expired {
-            self.finalize_merge_group(&image.token)?;
-        }
-        Ok(expired)
+        leselang_command::reference_expiration_commit::expire_memory(self, now_ms)
     }
 
     fn report_error(
@@ -1344,71 +1302,17 @@ impl SqliteJournal {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| journal_error("LSV4010", "failed to lock journal", error))?;
-        let existing = load_record(&transaction, image.token.as_str())?;
-        if let Some(existing) = existing {
-            if existing.state == "pending" && existing.image == image_bytes {
-                if let Some(request) = request {
-                    ensure_dispatch_matches(&transaction, image.token.as_str(), request)?;
-                }
-                advance_sequence_watermark(&transaction, sequence)?;
-                return transaction.commit().map_err(|error| {
-                    journal_error("LSV4010", "failed to commit pending journal record", error)
-                });
-            }
-            return Err(journal_fault(
-                "LSV4011",
-                "continuation token conflicts with durable journal state",
-            ));
-        }
-        let count = journal_record_count(&transaction)?;
-        if count >= MAX_JOURNAL_RECORDS {
-            return Err(journal_fault(
-                "LSV4006",
-                format!("journal record limit {MAX_JOURNAL_RECORDS} reached"),
-            ));
-        }
-        if request.is_some() {
-            limits.check_admission(
-                sql_scheduler_pressure(&transaction, 0, limits)?.pending_dispatches,
-                1,
-            )?;
-        }
-        ensure_growth(
-            &transaction,
-            image_bytes.len() + request_bytes.as_ref().map_or(0, Vec::len),
-        )?;
-        transaction
-            .execute(
-                "INSERT INTO vm_effects(token, state, image, deadline_at_ms, terminal_step)
-                 VALUES (?1, 'pending', ?2, ?3, NULL)",
-                params![
-                    image.token.as_str(),
-                    image_bytes,
-                    image
-                        .deadline_at_ms
-                        .map(i64::try_from)
-                        .transpose()
-                        .map_err(|_| {
-                            journal_fault("LSV4010", "effect deadline is out of range")
-                        })?
-                ],
-            )
-            .map_err(|error| journal_error("LSV4010", "failed to store pending effect", error))?;
-        if let Some(request_bytes) = request_bytes {
-            transaction
-                .execute(
-                    "INSERT INTO vm_dispatches(token, request, state, attempt, lease_expires_at_ms)
-                     VALUES (?1, ?2, 'ready', 0, NULL)",
-                    params![image.token.as_str(), request_bytes],
-                )
-                .map_err(|error| {
-                    journal_error("LSV4010", "failed to store effect dispatch", error)
-                })?;
-        }
-        advance_sequence_watermark(&transaction, sequence)?;
-        transaction
-            .commit()
-            .map_err(|error| journal_error("LSV4010", "failed to commit pending effect", error))
+        leselang_command::reference_pending_commit::register_durable(
+            pending_commit::SqlitePendingTransaction(transaction),
+            image,
+            request,
+            limits,
+            leselang_command::reference_pending_commit::PendingEncoding {
+                image: &image_bytes,
+                request: request_bytes.as_deref(),
+                sequence,
+            },
+        )
     }
 
     #[cfg_attr(not(test), allow(dead_code))]
@@ -1798,47 +1702,10 @@ impl SqliteJournal {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| journal_error("LSV4025", "failed to lock timeout journal", error))?;
-        let mut statement = transaction
-            .prepare(
-                "SELECT token, image FROM vm_effects
-                 WHERE state = 'pending' AND deadline_at_ms IS NOT NULL AND deadline_at_ms <= ?1
-                 ORDER BY token ASC",
-            )
-            .map_err(|error| journal_error("LSV4025", "failed to prepare timeout scan", error))?;
-        let records = statement
-            .query_map([now], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
-            })
-            .map_err(|error| journal_error("LSV4025", "failed to scan timed effects", error))?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| journal_error("LSV4025", "failed to read timed effect", error))?;
-        drop(statement);
-
-        let mut expired = Vec::with_capacity(records.len());
-        for (token, image_bytes) in records {
-            let image: ContinuationImage = decode_bounded(&image_bytes, MAX_CONTINUATION_BYTES)?;
-            validate_image(&image)?;
-            if image.token.as_str() != token
-                || image
-                    .deadline_at_ms
-                    .is_none_or(|deadline| deadline > now_ms)
-            {
-                return Err(journal_fault(
-                    "LSV4007",
-                    "timed effect deadline conflicts with continuation image",
-                ));
-            }
-            let step = deadline_cancellation(&image, now_ms);
-            let step_bytes = encode_json_capped(&step, MAX_JOURNAL_ENTRY_BYTES, "terminal step")?;
-            ensure_growth(&transaction, step_bytes.len())?;
-            complete_terminal_record(&transaction, &token, &step_bytes)?;
-            finalize_merge_group(&transaction, &token)?;
-            expired.push((image, step));
-        }
-        transaction
-            .commit()
-            .map_err(|error| journal_error("LSV4025", "failed to commit effect timeouts", error))?;
-        Ok(expired)
+        leselang_command::reference_expiration_commit::expire_durable(
+            expiration_commit::SqliteExpirationTransaction { transaction, now },
+            now_ms,
+        )
     }
 
     fn compact_completed(
@@ -2549,29 +2416,6 @@ fn load_dispatch(transaction: &Connection, token: &str) -> Result<Option<Dispatc
             },
         )
         .transpose()
-}
-
-#[cfg(feature = "sqlite-journal")]
-fn ensure_dispatch_matches(
-    transaction: &rusqlite::Transaction<'_>,
-    token: &str,
-    request: &EffectRequest,
-) -> Result<(), Fault> {
-    let Some(existing) = load_dispatch(transaction, token)? else {
-        return Err(journal_fault(
-            "LSV4011",
-            "pending effect is missing its durable dispatch",
-        ));
-    };
-    let durable_request: EffectRequest =
-        decode_bounded(&existing.request, MAX_JOURNAL_ENTRY_BYTES)?;
-    if durable_request != *request {
-        return Err(journal_fault(
-            "LSV4011",
-            "effect request conflicts with durable dispatch state",
-        ));
-    }
-    Ok(())
 }
 
 #[cfg(feature = "sqlite-journal")]

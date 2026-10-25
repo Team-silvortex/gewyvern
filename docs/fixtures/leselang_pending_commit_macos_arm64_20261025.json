@@ -1,0 +1,188 @@
+{
+  "kind": "leselang-reference-pending-registration-commit-parity",
+  "validated_on": "2026-10-25",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "pre_extraction_revision": "ca6b738d",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.165.0",
+  "direct_adapter_tests": 8,
+  "frozen_memory_cases": 840,
+  "public_memory_replay_cases": 2,
+  "frozen_sqlite_cases": 192,
+  "durable_reopen_cases": 6,
+  "public_commit_failure_cases": 4,
+  "native_input_admission_and_encoding_before_transaction_retained": true,
+  "memory_replay_bypasses_capacity_without_resetting_state": true,
+  "durable_replay_checks_dispatch_only_for_full_requests": true,
+  "bare_import_never_synthesizes_dispatch_authority": true,
+  "replay_bypasses_capacity_but_reconciles_watermark": true,
+  "native_record_quota_write_watermark_order_preserved": true,
+  "failed_sqlite_writes_and_commits_roll_back_all_tables": true,
+  "public_cache_publication_waits_for_successful_commit": true,
+  "transaction_owner_consumed_without_retry": true,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "Ordinary pending registration and exact dispatch replay/conflict policy, retaining native admission, bounded input encoding, record/capacity/quota observations, storage, watermark reconciliation and consuming transactions.",
+  "limitations": [
+    "Frozen orchestration and its frozen dispatch comparison share native admission/codecs/storage, scheduler primitives and watermark reconciliation, not the migrated registration policy.",
+    "Memory does no work without a request; exact existing requests bypass capacity regardless of dispatch phase and do not reset lease/terminal fields. Public import/adoption owns live replay behavior.",
+    "Durable existing rows must be pending with identical encoded images. Bare replay skips dispatch lookup; full replay preserves native history checks, bounded request decoding and exact comparison. No missing dispatch is repaired or granted authority.",
+    "Fresh bare images skip dispatch capacity/insertion only. Replay still reconciles watermarks but skips record/capacity/quota gates. Native input validation and encoding precede transaction opening.",
+    "SQLite parity covers three representative operation envelopes, each with 32 scenarios and both bare/full input shapes, not all 70 durable operation combinations.",
+    "Disposable corrupt fixtures restore constraints before production calls. Raw filler rows exercise the record ceiling; a view supplies a virtual oversized payload for the quota gate. These are not admitted recovery checkpoints or physical disk-full experiments.",
+    "Direct hooks model exact fault/unwind and uncertain commit propagation; native triggers and deferred constraints exercise rollback. No power-loss experiment is claimed.",
+    "No new Linux, remote CI, live GUI, standalone exported-source execution, complete host-neutral durable recovery or throughput benchmark is claimed."
+  ],
+  "related_crate_tests_passed": 1462,
+  "memory_profile_unit_tests_passed": 141,
+  "source_planning_tests_passed": 23,
+  "adapter_has_no_vm_or_sqlite_normal_dependency": true,
+  "strict_workspace_all_features_all_targets_clippy_passed": true,
+  "source_export_dry_run_files": 280,
+  "source_export_dry_run_bytes": 6784528,
+  "verification_status": "passed",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_pending_commit.rs",
+      "sha256": "20c1b67e03c0ab3acc01d8e3ec2cf203a31a5eea7490d7bdc8b4e6256e3cc306"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "190e166b33d4eb8563d46cb2c07883946261a7bcab2338d0a0bd4af623c85163"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_recovery.rs",
+      "sha256": "6361bdb796bf24a5b19146cadae19646bd45606d9363defa2d5a95721bb73d11"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_request.rs",
+      "sha256": "a2a15bd906d324bb17a1d8628079eec72e9ff3c659f8879f40f4425fc1a493c5"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_continuation.rs",
+      "sha256": "dc9e229c6880201cad2c22983644984622e40b81c19d7e440bb9690bf8066815"
+    },
+    {
+      "path": "crates/leselang-command/src/scheduler_policy.rs",
+      "sha256": "08a061323f787873a4fb00379e6faf3dabce869ef87063c3cc89003b1d490e40"
+    },
+    {
+      "path": "crates/leselang-command/src/retention_policy.rs",
+      "sha256": "7b58ac84a851853e41f890112fbd7530e88a7885678f4a5b5313d14ad840075e"
+    },
+    {
+      "path": "crates/leselang-command/Cargo.toml",
+      "sha256": "51753fa79fce986890ef1948ad092f9875b370be116b228c49513375066e462f"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_pending_commit.rs",
+      "sha256": "91d78de973c19d2f34b9a9e5a2b6268619199861b06e149d6a9f8816510efd2e"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "aa5d2f8f6442bd7157e4068bf94a4e316dc41de9d7eb516c0400fb85b8dbd38d"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/pending_commit.rs",
+      "sha256": "bf0fc9614fd9227d83ddaa1702c6d25bdc6f810c270449a4122788a867be4259"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/pending_commit_contract_tests.rs",
+      "sha256": "d06e6e9451317f31c7d22002b55d8c5622e46b4c88cafc90ba277aee12cd6f6c"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "a89a6b86b27ed40d065fd656eb0187bf8b3dbe3fa78f3149e72e8e584c8d4186"
+    },
+    {
+      "path": "crates/leselang-vm/src/scheduling.rs",
+      "sha256": "0e4581372966a8f182d4409591abbb5a222520588cf2699616e3a55b0ec196af"
+    },
+    {
+      "path": "crates/leselang-vm/Cargo.toml",
+      "sha256": "2f1d51815d543a85d8b69662dbb4578170e8c6b0672f52402e4dec5c05260e21"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "5e628031a2db3e1875547f0418e71cee1c493cada560be2dff40a36b72aa8ecd"
+    },
+    {
+      "path": "tests/leselang_native_profile_tdd.rs",
+      "sha256": "315c7b8b5131eb4dd626050d5f6816feb1572897f36bfba9a34b5a7621325eb1"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "2c378ae0afb96ded0351855c92f0114ff5b69825961420a591624bec90ed772b"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "3505fd3fe521493dda18bb3e6f2443501c451f4b0b8986f3211b798328b05ac6"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "7ead03b610b0543e66eb66f6fd8a76c52fabb61192ba58762e7a9212f859ecb6"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "7fb3fb2370a4edc35ff6bda75fe304a0dea75fda8010ad52e69e830f6d04f161"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "08444f4c1a139d6146e9997620773fcab26d2d43a4cfa0460e41f6f762946372"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/private/tmp/leselang-pending-commit-adapter-20261025.log",
+      "sha256": "b7bde369806cb4d9088f19762a0891af290d1d708e98ee9a6c2a6b01a56755ab"
+    },
+    {
+      "path": "/private/tmp/leselang-pending-commit-parity-20261025.log",
+      "sha256": "1c36fb7a0bdf749fa4184e2cef2ae0b86c7ec3def26aa81ed52b38c5f3a0cd1b"
+    },
+    {
+      "path": "/private/tmp/leselang-pending-commit-suite-20261025.log",
+      "sha256": "2378213fc622f081055deb28c48472e7f73fa4a2f4b4478ad19b5e61cc338174"
+    },
+    {
+      "path": "/private/tmp/leselang-pending-commit-memory-20261025.log",
+      "sha256": "2be5409341f1b334b3a1f0b16714cdf53b71641f74f9c81f4a6e14502516017e"
+    },
+    {
+      "path": "/private/tmp/leselang-pending-commit-native-20261025.log",
+      "sha256": "6c9a93b709d70b97abb02cb00823887d60b5c99c51e73ea1ae9635a26f949d2e"
+    },
+    {
+      "path": "/private/tmp/leselang-pending-commit-clippy-20261025.log",
+      "sha256": "fd4d14adacedbcfcc91d57c9d457b80b9b9b6cc9be8a21b86218a00847d945b7"
+    },
+    {
+      "path": "/private/tmp/leselang-pending-commit-source-plan-20261025.log",
+      "sha256": "feebed15e7627f897003fac7f39f0a61bdcc7a90a246091b57ce17a3b71ded45"
+    },
+    {
+      "path": "/private/tmp/leselang-pending-commit-dependencies-20261025.log",
+      "sha256": "2aa3528997c7c9640dc072977067c24f67ca4ff21ee912b534ce599bf644ac56"
+    },
+    {
+      "path": "/private/tmp/leselang-pending-commit-export-plan-20261025.log",
+      "sha256": "39cda45c9dfe8550788b536b36fb57848963a1849a6fcbc48ac468a68457be43"
+    },
+    {
+      "path": "/private/tmp/leselang-pending-commit-architecture-status-20261025.log",
+      "sha256": "fd5dbd1b9d7821ddb58602b131829c0a4548da1438abb269e32252139a0fa80d"
+    },
+    {
+      "path": "/private/tmp/leselang-pending-commit-catalog-20261025.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "architecture_documentation_status_tests_passed": 502,
+  "status_catalog_valid": true
+}

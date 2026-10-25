@@ -205,11 +205,13 @@ fn corrupt_group(source: &str) -> (EphemeralJournal, ContinuationImage) {
     assert_eq!(pending.len(), 2);
     let first = &pending[0];
     let second = pending[1].clone();
+    #[cfg(feature = "sqlite-journal")]
     let mut journal = match vm.journal {
         Journal::Ephemeral(journal) => journal,
-        #[cfg(feature = "sqlite-journal")]
         Journal::Sqlite(_) => unreachable!(),
     };
+    #[cfg(not(feature = "sqlite-journal"))]
+    let Journal::Ephemeral(mut journal) = vm.journal;
     let dispatch = journal.dispatches.get_mut(&first.token).unwrap();
     dispatch.acknowledged = true;
     dispatch.terminal_step = Some(Step::Yield(first.clone()));

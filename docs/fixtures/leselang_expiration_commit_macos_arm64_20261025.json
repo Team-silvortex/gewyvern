@@ -1,0 +1,167 @@
+{
+  "kind": "leselang-reference-deadline-expiration-batch-commit-parity",
+  "validated_on": "2026-10-25",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "pre_extraction_revision": "ca6b738d",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.164.0",
+  "direct_adapter_tests": 7,
+  "frozen_memory_cases": 700,
+  "native_memory_partial_mutation_cases": 2,
+  "public_memory_replay_cases": 2,
+  "public_memory_failed_publication_cases": 2,
+  "frozen_sqlite_cases": 140,
+  "durable_reopen_cases": 10,
+  "native_clock_admission_before_transaction_retained": true,
+  "memory_mutates_entire_due_batch_before_finalization": true,
+  "public_cache_publication_waits_for_successful_batch": true,
+  "native_eager_scan_and_snapshot_order_preserved": true,
+  "snapshot_siblings_not_reselected_after_group_finalization": true,
+  "trusted_time_replay_keeps_original_deadline_result": true,
+  "failed_sqlite_writes_and_commits_roll_back_all_tables": true,
+  "transaction_owner_consumed_without_retry": true,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "Low-level deadline batch memory and SQLite coordination beneath existing public maintenance/cache publication, retaining native clock admission, bounded codecs, eager scan, quota, terminal/group writes and consuming transactions.",
+  "limitations": [
+    "Frozen orchestration shares native codecs/storage/group primitives, not migrated expiration-batch policy.",
+    "Low-level memory expiration adds no image or clock admission and mutates every due dispatch before group finalization. On finalization failure those mutations remain, but public caches receive no partial batch. Trusted-time public entry gates remain unchanged.",
+    "Durable rows are eagerly snapshotted in original token order before writes, and are not reselected after prior group finalization changes siblings. Even an empty batch commits. Pending/deadline selection is not recovery admission.",
+    "Corrupt fixtures restore constraints before production calls. Disposable views inject raw row-read faults that production STRICT tables reject at insertion; these are not valid recovery checkpoints.",
+    "Public replay/reopen uses resume_at with trusted time, examines persisted member cancellations separately from group visibility, and preserves original observation times without redispatch.",
+    "Direct hooks model quota errors, uncertain commits and unwinds; native triggers and deferred constraints exercise rollback. No physical disk-full or power-loss experiment is claimed.",
+    "No new Linux, remote CI, live GUI, standalone exported-source execution, complete host-neutral durable recovery or throughput benchmark is claimed."
+  ],
+  "related_crate_tests_passed": 1449,
+  "adapter_has_no_vm_or_sqlite_normal_dependency": true,
+  "source_export_dry_run_files": 280,
+  "source_export_dry_run_bytes": 6784528,
+  "memory_profile_unit_tests_passed": 139,
+  "source_planning_tests_passed": 23,
+  "strict_workspace_all_features_all_targets_clippy_passed": true,
+  "verification_status": "passed",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_expiration_commit.rs",
+      "sha256": "14882f6e143e47f3e508ade3d464bbfb8cc283160f03b7f6328702458e0ef62f"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "c566c2e52395d976c38f1b99e32709f1e87864ab5d70f3b9a26def5e69cec46d"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_settlement/maintenance.rs",
+      "sha256": "2f9ac25a92bfbdf1940a9f41052ee49f04c0042514e7b52ab2288802828f2f18"
+    },
+    {
+      "path": "crates/leselang-command/Cargo.toml",
+      "sha256": "51753fa79fce986890ef1948ad092f9875b370be116b228c49513375066e462f"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_expiration_commit.rs",
+      "sha256": "48064d03d443018c0c2923f7aa5f745b8633fa27de5ba13de4e79a5b7219b584"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "dadf83aea7d42600292bcb16a600dadb71f5f49834aaaf135e29cf8bfd38bfcf"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/expiration_commit.rs",
+      "sha256": "c54dedaced8815fa16aa21cf0edfef5dff1ea1998bccfa857e1624d1c83eaf39"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/expiration_commit_contract_tests.rs",
+      "sha256": "38fd680f8e3992131eaf56e592bc569a05876cdb3effb0e8d6b96e01897ed274"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "a89a6b86b27ed40d065fd656eb0187bf8b3dbe3fa78f3149e72e8e584c8d4186"
+    },
+    {
+      "path": "crates/leselang-vm/Cargo.toml",
+      "sha256": "2f1d51815d543a85d8b69662dbb4578170e8c6b0672f52402e4dec5c05260e21"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "228ea1b64cd5468dfe17ca2781bc7e8c1dec322f8aba50987711e3221a777325"
+    },
+    {
+      "path": "tests/leselang_native_profile_tdd.rs",
+      "sha256": "315c7b8b5131eb4dd626050d5f6816feb1572897f36bfba9a34b5a7621325eb1"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "8e50420dadf4d9e4d07bfb3da06da1da70aabd28f4c580b9f1bbf6ebe3276a9c"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "6d900c5a5d7436993c8863c499c06c82c15b1daca6673ee1d7b526f312bb66b5"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "caad1bf63bf063c328ca17097ca780ae734fd635b4bc8a33f1a3db55e5aaa370"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "ed299bcb09a6bbffe698b6cfaaf450e46acfb822fc2da990005837b025419110"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "33db7a255c8862c691c129e3c4b62a25da49529a87b4b3a2fd9f6e327441a40c"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/private/tmp/leselang-expiration-commit-adapter-20261025.log",
+      "sha256": "2df7ba64d91508fd1d3d5ad1d1c2624ab90cd7a4ba089c10ac9caecc3a3ea911"
+    },
+    {
+      "path": "/private/tmp/leselang-expiration-commit-parity-20261025.log",
+      "sha256": "29acb3748aa58d9b3e83b59361c04727802260d50cac1395db0c2dd99278b872"
+    },
+    {
+      "path": "/private/tmp/leselang-expiration-commit-suite-20261025.log",
+      "sha256": "6e17a25bbb65a60a8469abba8b5f194d2dde1a0475de0fbc7c95b6e4c6bacf39"
+    },
+    {
+      "path": "/private/tmp/leselang-expiration-commit-memory-20261025.log",
+      "sha256": "b00ff0d0eac010d4dc89ff81d6e9507a31a963249d65e043ba3f164733bce288"
+    },
+    {
+      "path": "/private/tmp/leselang-expiration-commit-native-20261025.log",
+      "sha256": "79da96bd850235e7fd6f7a37511d1102932d1a6eed04742ff9be9163447e3fe4"
+    },
+    {
+      "path": "/private/tmp/leselang-expiration-commit-clippy-20261025.log",
+      "sha256": "fd4d14adacedbcfcc91d57c9d457b80b9b9b6cc9be8a21b86218a00847d945b7"
+    },
+    {
+      "path": "/private/tmp/leselang-expiration-commit-source-plan-20261025.log",
+      "sha256": "dc16fdca8884b56a74efabddc74ab15b3c0aa77edd34ca3073ca21eb729c0ad7"
+    },
+    {
+      "path": "/private/tmp/leselang-expiration-commit-dependencies-20261025.log",
+      "sha256": "2aa3528997c7c9640dc072977067c24f67ca4ff21ee912b534ce599bf644ac56"
+    },
+    {
+      "path": "/private/tmp/leselang-expiration-commit-export-plan-20261025.log",
+      "sha256": "67e1b1f4d0e769e07285d266c2c369c2c938fa8be93b3856e59e9c83b33c732b"
+    },
+    {
+      "path": "/private/tmp/leselang-expiration-commit-architecture-status-20261025.log",
+      "sha256": "dad0e9f3baf679cfebaa969ab0aae5cbd6e6187b9c82bdb7beca881f2f756bd4"
+    },
+    {
+      "path": "/private/tmp/leselang-expiration-commit-catalog-20261025.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "architecture_documentation_status_tests_passed": 500,
+  "status_catalog_valid": true
+}

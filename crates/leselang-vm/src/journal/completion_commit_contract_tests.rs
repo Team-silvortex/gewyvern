@@ -126,11 +126,13 @@ fn memory_completion_matches_frozen_primitive_for_all_operations() {
 fn group_fixture(source: &str, mode: usize) -> (EphemeralJournal, ContinuationImage) {
     let vm = start(source);
     let pending = vm.pending_continuations();
+    #[cfg(feature = "sqlite-journal")]
     let mut j = match vm.journal {
         Journal::Ephemeral(j) => j,
-        #[cfg(feature = "sqlite-journal")]
         Journal::Sqlite(_) => unreachable!(),
     };
+    #[cfg(not(feature = "sqlite-journal"))]
+    let Journal::Ephemeral(mut j) = vm.journal;
     if mode == 0 {
         j.dispatches
             .get_mut(&pending[1].token)

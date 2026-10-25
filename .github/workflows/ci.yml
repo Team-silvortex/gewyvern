@@ -217,8 +217,18 @@ jobs:
       - name: Test native settlement peer-winner publication
         run: cargo +1.98.0 test -p leselang-vm --locked --lib settlement_contract_tests::settlement_sqlite
 
+      - name: Test deadline expiration batches and native commit parity
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_expiration_commit
+          cargo +1.98.0 test -p leselang-vm --locked --lib expiration_commit_contract_tests
+
       - name: Test read-only projections without the VM or SQLite
         run: cargo +1.98.0 test -p leselang-observe --locked --no-default-features
+
+      - name: Test pending registration policy and native commit parity
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_pending_commit
+          cargo +1.98.0 test -p leselang-vm --locked --lib pending_commit_contract_tests
 
       - name: Lint read-only projections and their consumers
         run: cargo +1.98.0 clippy -p leselang-observe --locked --no-default-features --all-targets -- -D warnings

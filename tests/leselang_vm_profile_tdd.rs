@@ -1,6 +1,276 @@
 use std::{fs, path::Path, process::Command};
 
 #[test]
+fn pending_registration_policy_keeps_native_admission_watermark_and_replay_boundaries() {
+    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let ordered = |source: &str, fragments: &[&str]| {
+        let mut offset = 0;
+        for f in fragments {
+            offset += source[offset..].find(f).expect(f) + f.len();
+        }
+    };
+    let adapter = read("crates/leselang-command/src/reference_pending_commit.rs");
+    for required in [
+        "pub trait MemoryPendingJournal",
+        "pub trait DurablePendingTransaction",
+        "fn commit(self, kind: PendingCommit)",
+        "Option<&EffectRequest>",
+        "pub struct PendingEncoding<'a>",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "catch_unwind",
+        "loop {",
+        "thread",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let memory = adapter
+        .split("pub fn register_memory")
+        .nth(1)
+        .unwrap()
+        .split("pub struct PendingEncoding")
+        .next()
+        .unwrap();
+    ordered(
+        memory,
+        &[
+            "let Some(request) = request",
+            "validate_effect_request(request)?",
+            "validate_continuation_encoding_size(&request.continuation)?",
+            "request.continuation.token.clone()",
+            "host.request(&token)",
+            "existing == request",
+            "host.check_capacity(limits)?",
+            "host.insert_pending(token, request)",
+        ],
+    );
+    let durable = adapter.split("pub fn register_durable").nth(1).unwrap();
+    ordered(
+        durable,
+        &[
+            "host.effect(token)?",
+            "existing.state == \"pending\" && existing.image == encoding.image",
+            "if let Some(request) = request",
+            "host.dispatch(token)?",
+            "decode_journal_value(&dispatch.request",
+            "durable_request != *request",
+            "host.advance_watermark(encoding.sequence)?",
+            "return host.commit(PendingCommit::Existing)",
+            "host.record_count()? >= MAX_JOURNAL_RECORDS",
+            "if request.is_some()",
+            "host.check_capacity(limits)?",
+            "host.ensure_growth(",
+            "host.insert_effect(image, encoding.image)?",
+            "host.insert_dispatch(token, bytes)?",
+            "host.advance_watermark(encoding.sequence)?",
+            "host.commit(PendingCommit::New)",
+        ],
+    );
+    let journal = read("crates/leselang-vm/src/journal.rs");
+    assert!(journal.contains("reference_pending_commit::register_memory(self, request, limits)"));
+    assert!(!journal.contains("fn ensure_dispatch_matches("));
+    let native = journal
+        .split("impl SqliteJournal {")
+        .nth(1)
+        .unwrap()
+        .split("fn record_pending(")
+        .nth(1)
+        .unwrap()
+        .split("fn record_merge_graph(")
+        .next()
+        .unwrap();
+    ordered(
+        native,
+        &[
+            "validate_image(image)?",
+            "validate_effect_request(request)?",
+            "&request.continuation != image",
+            "encode_json_capped(image",
+            "canonical_continuation_sequence(&image.token)",
+            "encode_json_capped(request",
+            "transaction_with_behavior(TransactionBehavior::Immediate)",
+            "reference_pending_commit::register_durable(",
+            "pending_commit::SqlitePendingTransaction(transaction)",
+            "request: request_bytes.as_deref()",
+        ],
+    );
+    assert!(!native.contains("existing.state"));
+    let owner = read("crates/leselang-vm/src/journal/pending_commit.rs");
+    for required in [
+        "self.dispatches.get(token)",
+        "request: request.clone()",
+        "scheduler_pressure(0, limits).pending_dispatches",
+        "rusqlite::Transaction<'a>",
+        "load_record(&self.0, token)",
+        "load_dispatch(&self.0, token)",
+        "journal_record_count(&self.0)",
+        "sql_scheduler_pressure(&self.0, 0, limits)?",
+        "ensure_growth(&self.0, additional)",
+        "INSERT INTO vm_effects",
+        "INSERT INTO vm_dispatches",
+        "map(i64::try_from)",
+        "effect deadline is out of range",
+        "advance_sequence_watermark(&self.0, sequence)",
+        "self.0.commit()",
+        "failed to commit pending journal record",
+        "failed to commit pending effect",
+    ] {
+        assert!(owner.contains(required), "{required}");
+    }
+    assert!(!owner.contains("durable_request"));
+    let cases = read("crates/leselang-vm/src/journal/pending_commit_contract_tests.rs");
+    assert!(!cases.contains("reference_pending_commit::"));
+    assert_eq!(cases.matches("fn frozen_record_pending(").count(), 2);
+    assert!(cases.contains("fn frozen_ensure_dispatch_matches("));
+    for count in [840, 2, 192, 6, 4] {
+        assert!(cases.contains(&format!("assert_eq!(cases, {count})")));
+    }
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_pending_commit"));
+    assert!(ci.contains("--lib pending_commit_contract_tests"));
+}
+
+#[test]
+fn expiration_batches_keep_borrowed_memory_order_and_native_snapshot_transaction_boundaries() {
+    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let ordered = |source: &str, fragments: &[&str]| {
+        let mut offset = 0;
+        for f in fragments {
+            offset += source[offset..].find(f).expect(f) + f.len();
+        }
+    };
+    let adapter = read("crates/leselang-command/src/reference_expiration_commit.rs");
+    for required in [
+        "pub trait MemoryExpirationJournal",
+        "pub trait DurableExpirationTransaction",
+        "fn commit(self)",
+        "pub image: &'a ContinuationImage",
+        "impl Iterator<Item = MemoryExpirationState<'_>>",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "catch_unwind",
+        "loop {",
+        "thread",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let memory = adapter
+        .split("pub fn expire_memory")
+        .nth(1)
+        .unwrap()
+        .split("pub struct TimedEffectRecord")
+        .next()
+        .unwrap();
+    ordered(
+        memory,
+        &[
+            "for state in host.dispatches()",
+            "*state.acknowledged",
+            "deadline > now_ms",
+            "deadline_cancellation(image, now_ms)",
+            "*state.acknowledged = true",
+            "*state.lease_expires_at_ms = None",
+            "*state.terminal_step = Some(step.clone())",
+            "expired.push((image.clone(), step))",
+            "for (image, _) in &expired",
+            "host.finalize_group(&image.token)?",
+        ],
+    );
+    assert!(!memory.contains("validate_"));
+    assert!(!memory.contains(".collect"));
+    let durable = adapter.split("pub fn expire_durable").nth(1).unwrap();
+    ordered(
+        durable,
+        &[
+            "host.due_records()?",
+            "Vec::with_capacity(records.len())",
+            "for record in records",
+            "host.admit_image(&record.image)?",
+            "image.token.as_str() != record.token",
+            "deadline > now_ms",
+            "deadline_cancellation(&image, now_ms)",
+            "host.encode_terminal(&step)?",
+            "host.ensure_growth(step_bytes.len())?",
+            "host.complete(&record.token, &step_bytes)?",
+            "host.finalize_group(&record.token)?",
+            "expired.push((image, step))",
+            "host.commit()?",
+            "Ok(expired)",
+        ],
+    );
+    assert_eq!(durable.matches("host.due_records()").count(), 1);
+    let journal = read("crates/leselang-vm/src/journal.rs");
+    assert!(journal.contains("reference_expiration_commit::expire_memory(self, now_ms)"));
+    let native = journal
+        .split("impl SqliteJournal {")
+        .nth(1)
+        .unwrap()
+        .split("fn expire_due(")
+        .nth(1)
+        .unwrap()
+        .split("fn compact_completed(")
+        .next()
+        .unwrap();
+    ordered(
+        native,
+        &[
+            "i64::try_from(now_ms)",
+            "LSV4015",
+            "transaction_with_behavior(TransactionBehavior::Immediate)",
+            "reference_expiration_commit::expire_durable(",
+            "expiration_commit::SqliteExpirationTransaction { transaction, now }",
+        ],
+    );
+    assert!(!native.contains("SELECT"));
+    let owner = read("crates/leselang-vm/src/journal/expiration_commit.rs");
+    for required in [
+        "self.dispatches",
+        ".values_mut()",
+        "image: &dispatch.request.continuation",
+        "rusqlite::Transaction<'a>",
+        "state = 'pending' AND deadline_at_ms IS NOT NULL AND deadline_at_ms <= ?1",
+        "ORDER BY token ASC",
+        ".collect::<Result<Vec<_>, _>>()",
+        "drop(statement)",
+        "failed to prepare timeout scan",
+        "failed to scan timed effects",
+        "failed to read timed effect",
+        "decode_bounded(bytes, MAX_CONTINUATION_BYTES)?",
+        "validate_image(&image)?",
+        "encode_json_capped(step, MAX_JOURNAL_ENTRY_BYTES, \"terminal step\")",
+        "ensure_growth(&self.transaction, additional)",
+        "complete_terminal_record(&self.transaction, token, step_bytes)",
+        "finalize_merge_group(&self.transaction, token)",
+        "failed to commit effect timeouts",
+    ] {
+        assert!(owner.contains(required), "{required}");
+    }
+    let cases = read("crates/leselang-vm/src/journal/expiration_commit_contract_tests.rs");
+    assert!(!cases.contains("reference_expiration_commit::"));
+    assert_eq!(cases.matches("fn frozen_expire_due(").count(), 2);
+    for count in [700, 2, 140, 10] {
+        assert!(cases.contains(&format!("assert_eq!(cases, {count})")));
+    }
+    assert!(
+        cases.contains("public_memory_finalization_failure_does_not_publish_partial_cache_results")
+    );
+    assert!(cases.contains("reopened.resume_at(i, 20, reply())"));
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_expiration_commit"));
+    assert!(ci.contains("--lib expiration_commit_contract_tests"));
+}
+
+#[test]
 fn ordinary_completion_policy_preserves_backend_precedence_and_native_transaction_ownership() {
     let read = |path| fs::read_to_string(root().join(path)).unwrap();
     let ordered = |source: &str, fragments: &[&str]| {

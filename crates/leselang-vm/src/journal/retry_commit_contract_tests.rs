@@ -303,11 +303,13 @@ fn corrupt_memory_group(source: &str) -> (EphemeralJournal, DispatchLease) {
     ));
     let pending = vm.pending_continuations();
     assert_eq!(pending.len(), 2);
+    #[cfg(feature = "sqlite-journal")]
     let mut journal = match vm.journal {
         Journal::Ephemeral(j) => j,
-        #[cfg(feature = "sqlite-journal")]
         Journal::Sqlite(_) => unreachable!(),
     };
+    #[cfg(not(feature = "sqlite-journal"))]
+    let Journal::Ephemeral(mut journal) = vm.journal;
     let first = journal.dispatches.get_mut(&pending[0].token).unwrap();
     first.acknowledged = true;
     first.terminal_step = Some(Step::Yield(pending[0].clone()));
