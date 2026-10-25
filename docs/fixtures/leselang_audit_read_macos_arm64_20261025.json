@@ -1,0 +1,155 @@
+{
+  "kind": "leselang-reference-audit-read-projection-parity",
+  "validated_on": "2026-10-25",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.159.0",
+  "direct_adapter_tests": 7,
+  "frozen_sqlite_projection_cases": 1610,
+  "native_lookup_cases": 180,
+  "related_crate_tests_passed": 1390,
+  "memory_profile_unit_tests_passed": 125,
+  "source_planning_tests_passed": 23,
+  "source_export_dry_run_files": 280,
+  "source_export_dry_run_bytes": 6784528,
+  "distinct_record_replay_read_order_preserved": true,
+  "native_errors_and_optional_rows_preserved": true,
+  "raw_identity_observation_semantics_preserved": true,
+  "native_queries_and_transaction_ownership_retained": true,
+  "buffer_moves_and_original_command_clone_preserved": true,
+  "read_only_without_repair_or_retry": true,
+  "adapter_has_no_vm_or_sqlite_normal_dependency": true,
+  "strict_workspace_all_features_all_targets_clippy_passed": true,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Both released audit record projections over unchanged native SQLite row reads, command-or-principal-key selection, optional-row handling and native fault wrapping.",
+  "limitations": [
+    "Raw SQLite fixtures deliberately omit constraints to exercise row/type corruption. They are not valid checkpoints, saved-frame import or proof of cancellation authority.",
+    "The frozen projection policy shares SQLite row reads, the unchanged command identity primitive and native fault formatter, not the migrated record/replay decoder. It is not an independent database implementation.",
+    "Principal/session and raw replay token/key remain observations, not new admission checks. Matching, authorization and terminal cancellation evidence are enforced by their existing later owners.",
+    "The 180 native lookup scenarios each compare both read and replay-query paths. SQL selection, transaction lifetime and missing-row semantics are intentionally unchanged.",
+    "Existing cancellation commit, reopen and checkpoint recovery tests run in the related-crate regression; complete independent host-neutral durable recovery remains open.",
+    "No new Linux, remote CI, live GUI, standalone exported-source execution, physical multi-host, power-loss or throughput benchmark is claimed."
+  ],
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_audit_read.rs",
+      "sha256": "8600632059bf41a97fbb41ff3ceb970940f2b77f755341c78e6023959ebba984"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "53dea59793ed8d4174c1372ed33adbd4ce612338a3989c6dfa0fc5dba3e3518a"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_audit_commit.rs",
+      "sha256": "93a6333262693022917da3f61f4f7f7f16c9514023732efd74a4ec6581ac9269"
+    },
+    {
+      "path": "crates/leselang-command/Cargo.toml",
+      "sha256": "51753fa79fce986890ef1948ad092f9875b370be116b228c49513375066e462f"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_audit_read.rs",
+      "sha256": "5ce023fff270079c06cb308704ad4c033154efeb97b0e2f346c01cb79ce8218c"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "181bbec4c669873810403ebda394f8ab2124c8f56e4e98cb45b4b00f8c530268"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/audit_read.rs",
+      "sha256": "90d2998f327a0b8e225e05ecf7410ef38400bf996f45752ece34dd44a3f52f47"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/audit_read_contract_tests.rs",
+      "sha256": "79afe2f4671a1a452698620eeb3ab0625da541f59e73400122b31d89d095a58d"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "a89a6b86b27ed40d065fd656eb0187bf8b3dbe3fa78f3149e72e8e584c8d4186"
+    },
+    {
+      "path": "crates/leselang-vm/Cargo.toml",
+      "sha256": "2f1d51815d543a85d8b69662dbb4578170e8c6b0672f52402e4dec5c05260e21"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "251ad99c0a5040370d3a783ba806ff75cac29c1767935f0066fd3c64a6119fc1"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "b6c907ed30634e6e0dd8cd9ab10333d749b92f9f5722ce69ac6526468222ab81"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "a125d7730a575236ef9a0a63d00d548ac59e5afcf00497451da07ea9be30e946"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "672d94ee0001f752b21783b60c5db3c5c52b040d45f5588d1a7d145f4e95975f"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "b26b6a4072e73625bce23e9338b973251345eac29e80a9f6d7ec81a96fe5b6f6"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "b99f89ea1fb30c2642dc7eca867622535478f0a342c511da6b23f1f9c25daed9"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/private/tmp/leselang-audit-read-adapter-20261025.log",
+      "sha256": "b5a9b3d938316467a482839e764d36077570cde1ea825dcc68fc8d2d8d5bcf76"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-read-parity-20261025.log",
+      "sha256": "765cbcaec2be9c9814331fceb51c4de850af0612025ed96bdfc0aaf395d6a017"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-read-suite-20261025.log",
+      "sha256": "dea1a11af4534c44b841734c1f1e41a27a7467dd4b6e4b46e34aa1fde88a2b90"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-read-memory-20261025.log",
+      "sha256": "f63ccf5e56547aed51bf4693608c7d332a965370cfe709d920b009a4ccd73c9d"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-read-native-20261025.log",
+      "sha256": "6faf060d09625611c11b10ede4e883ff0d5120d2b96bcab5d209b58a7c55d418"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-read-clippy-20261025.log",
+      "sha256": "8453ea39d096fc12074a80446fe5b2c967483c4cfe500f76ea86bcda8ad20460"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-read-source-plan-20261025.log",
+      "sha256": "3166b109f1c1f2481f2b2bece8b32d64a8828b80f6986e518b0568604f8b258c"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-read-dependencies-20261025.log",
+      "sha256": "2aa3528997c7c9640dc072977067c24f67ca4ff21ee912b534ce599bf644ac56"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-read-export-plan-20261025.log",
+      "sha256": "d03d2468ef7ae36afbe4d58a7f026f8d3ca9102eab6b309b2dfc2009db6dcc49"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-read-architecture-status-20261025.log",
+      "sha256": "bd4ba25fa075b22c661cec729b1eea65fdae9841572231db564b0534b37fd3b9"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-read-catalog-20261025.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "architecture_documentation_status_tests_passed": 490,
+  "status_catalog_valid": true
+}

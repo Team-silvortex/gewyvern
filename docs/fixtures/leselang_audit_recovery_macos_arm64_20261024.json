@@ -1,0 +1,165 @@
+{
+  "kind": "leselang-reference-debugger-audit-recovery-parity",
+  "started_on": "2026-10-24",
+  "validated_on": "2026-10-25",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.157.0",
+  "direct_adapter_tests": 7,
+  "frozen_sqlite_row_cases": 640,
+  "native_query_failure_cases": 3,
+  "native_payload_failure_cases": 3,
+  "atomic_checkpoint_cases": 35,
+  "related_crate_tests_passed": 1372,
+  "existing_public_audit_tests_passed": 24,
+  "existing_finalization_matrix_cases": 420,
+  "memory_profile_unit_tests_passed": 124,
+  "source_planning_tests_passed": 23,
+  "source_export_dry_run_files": 280,
+  "source_export_dry_run_bytes": 6784528,
+  "lazy_row_reads_and_fault_precedence_preserved": true,
+  "native_read_faults_and_origin_diagnostic_preserved": true,
+  "original_requested_cancellation_evidence_required": true,
+  "schema_scan_and_cardinality_order_preserved": true,
+  "audit_refusal_preserves_tables_and_watermark": true,
+  "explicit_fixture_repair_retains_original_receipt": true,
+  "native_sql_and_checkpoint_transaction_retained": true,
+  "adapter_has_no_vm_or_sqlite_normal_dependency": true,
+  "strict_workspace_all_features_all_targets_clippy_passed": true,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Reference debugger-audit recovery pass and lazy joined-row validation over unchanged native SQLite reads and the original checkpoint transaction.",
+  "limitations": [
+    "The frozen policy shares the native SQLite engine and unchanged identity and bounded decoder primitives. It is not an independent storage implementation.",
+    "Raw row fixtures deliberately omit schema constraints. Full-checkpoint fixtures bypass constraints only during disposable corruption setup, restoring enforcement before load.",
+    "The source callbacks are trusted to scan the original snapshot in command-id order. Successful validation does not authenticate arbitrary saved frames or grant dispatch or cancellation.",
+    "The broad related-crate run precedes the test-only scoping of two obsolete VM compatibility imports/wrappers. Final SQLite parity and strict all-target checks cover that cleanup.",
+    "Native journal ownership, full host-neutral durable recovery and complete host verticals remain open.",
+    "No new Linux, remote CI, live GUI, standalone exported-source execution, physical power-loss or throughput benchmark is claimed."
+  ],
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_audit_recovery.rs",
+      "sha256": "0704bd244dc9a38e04e87ade653e591ed5b90a4cbe81e4aa2312b3bf490cba73"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "a64b9ab64429a8d74dd704067d9983741c858fab897362b086179219ad80e029"
+    },
+    {
+      "path": "crates/leselang-command/Cargo.toml",
+      "sha256": "51753fa79fce986890ef1948ad092f9875b370be116b228c49513375066e462f"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_audit_recovery.rs",
+      "sha256": "e8bd1f2852965234b7e718dcb2137df69878c3933ceb5846cb876fc1caa7326f"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "af78c04f293977ffb31f403eaf1c2c02a90b4202ed7774a00bae15f1f4289ae3"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/audit_recovery_contract_tests.rs",
+      "sha256": "b43ccef615f9f94b8e7715f1c82ddf986e55cd348c9f20bec690cdb2f98d34a2"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "a89a6b86b27ed40d065fd656eb0187bf8b3dbe3fa78f3149e72e8e584c8d4186"
+    },
+    {
+      "path": "crates/leselang-vm/Cargo.toml",
+      "sha256": "2f1d51815d543a85d8b69662dbb4578170e8c6b0672f52402e4dec5c05260e21"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "a4c1940d37a7792fac56500839069c77798521a113a1bd688186b633f91f1dc5"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "0fa0a8c0b32a7dba567cea1a008203d292c27531408759486902fb07f4fa9c0b"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "cb22bed08aab8997e9753ab6bda0022c24b0536a12a528ade5aeba017c7370e1"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "ea0eb4f6555b0b857e446e170092a97d3b795ddc864a30cfe81bf776bf9127e6"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "1f66d63900c59a724eec8fdb8f395d6538879992846c48a61271532df093c32e"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "3ef331a28a045dda40cb3fc2053c83b1024b20be49dd99b36432c511cb46fa65"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/private/tmp/leselang-audit-recovery-adapter-20261024.log",
+      "sha256": "dfcd3a01dacbd2579d80c99771fdafa102c43b2154bceb7b17ae08bbe3bb70e5"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-recovery-parity-20261024.log",
+      "sha256": "a6293a48c2d3dfe40326faa1f3f0fe23fc7b8a6a4b7fd0b1ef5642aaa22a5e8b"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-recovery-suite-20261024.log",
+      "sha256": "e329404494bd0d66d5920fd18d839a479e39286770ca6f5add7167838769501d"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-recovery-checkpoint-20261025.log",
+      "sha256": "c0bfdd46d1615c9611893754d27f13255c1a2fb19f3613a90085f4efc34f6786"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-recovery-public-audit-20261025.log",
+      "sha256": "bd6750b301bae06986355ca103cae2d907b3a4b54d0d74da9f316b65349347de"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-recovery-memory-20261025.log",
+      "sha256": "4ec70030a1d9dec75f0036748502e80ee727b4cb8ccef75ed58920e48cb01f2e"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-recovery-native-20261025.log",
+      "sha256": "6c9a93b709d70b97abb02cb00823887d60b5c99c51e73ea1ae9635a26f949d2e"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-recovery-clippy-20261025.log",
+      "sha256": "f6bf8df0e77529f0e93cd9c4b96e1a390ff1f1c798d43965d0d7218d156a781c"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-recovery-source-plan-20261025.log",
+      "sha256": "174eaa34bc2dacf093dddeb954f2f8f3e7c5be58c5f00734e519549106228710"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-recovery-dependencies-20261025.log",
+      "sha256": "2aa3528997c7c9640dc072977067c24f67ca4ff21ee912b534ce599bf644ac56"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-recovery-export-plan-20261025.log",
+      "sha256": "38000529a597e4719d58d915fbeb86aaa7145a3d4679312fe1d56593633d711a"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-recovery-final-parity-20261025.log",
+      "sha256": "7310cf31aa92f7fd825489d0886ce724e4ecb7efa5a8fc8f3cd7b7cc7726e8ab"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-recovery-architecture-status-20261025.log",
+      "sha256": "1cea0e46237390efaee159e75f5ded29bb0757e197d52a6c0fe0b5e6fe2347f5"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-recovery-catalog-20261025.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "architecture_documentation_status_tests_passed": 486,
+  "status_catalog_valid": true
+}

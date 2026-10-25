@@ -1,7 +1,8 @@
+use leselang_command::reference_admission::{
+    ReferenceAdmissionHost, RootAdmission as ReferenceRootAdmission,
+};
 use leselang_hir::HirProgram;
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
-use leselang_runtime_core::{Admission, AdmissionAdapter, AdmissionAttempt};
-use serde::Serialize;
 
 use crate::{Fault, Step, Vm};
 
@@ -19,33 +20,7 @@ pub use leselang_runtime_core::{
 /// fn poll_result() -> AdmissionPoll { AdmissionPoll::Finished }
 /// poll_result();
 /// ```
-#[must_use = "handle the admission outcome; accepted VM work is not cancelled by ignoring it"]
-#[derive(Debug, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
-pub enum AdmissionPoll {
-    Waiting(AdmissionWait),
-    Started(Box<Step>),
-    Rejected(Fault),
-    Finished,
-}
-
-impl From<leselang_runtime_core::AdmissionPoll<Box<Step>>> for AdmissionPoll {
-    fn from(outcome: leselang_runtime_core::AdmissionPoll<Box<Step>>) -> Self {
-        match outcome {
-            leselang_runtime_core::AdmissionPoll::Waiting(wait) => Self::Waiting(wait),
-            leselang_runtime_core::AdmissionPoll::Started(step) => Self::Started(step),
-            leselang_runtime_core::AdmissionPoll::Rejected(error) => Self::Rejected(error),
-            leselang_runtime_core::AdmissionPoll::Finished => Self::Finished,
-        }
-    }
-}
-
-struct AdmissionRoot {
-    program: HirProgram,
-    principal: Principal,
-    capabilities: CapabilitySet,
-    expected_revision: Option<Revision>,
-}
+pub use leselang_command::reference_admission::AdmissionPoll;
 
 /// The reference VM's authority-capturing adapter to the host-neutral lifecycle.
 ///
@@ -62,9 +37,14 @@ struct AdmissionRoot {
 /// ).unwrap();
 /// ```
 #[must_use = "retain or poll the root admission; dropping it discards pending input"]
-#[derive(Debug)]
 pub struct RootAdmission {
-    inner: Admission<AdmissionRoot>,
+    inner: ReferenceRootAdmission,
+}
+
+impl std::fmt::Debug for RootAdmission {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&self.inner, formatter)
+    }
 }
 
 impl RootAdmission {
@@ -95,14 +75,16 @@ impl RootAdmission {
         timeout_ms: u64,
         policy: AdmissionPolicy,
     ) -> Result<Self, Fault> {
-        let input = AdmissionRoot {
-            program,
-            principal,
-            capabilities,
-            expected_revision,
-        };
         Ok(Self {
-            inner: Admission::new(input, now_ms, timeout_ms, policy)?,
+            inner: ReferenceRootAdmission::new(
+                program,
+                principal,
+                capabilities,
+                expected_revision,
+                now_ms,
+                timeout_ms,
+                policy,
+            )?,
         })
     }
 
@@ -131,32 +113,29 @@ impl RootAdmission {
 
     /// Clock errors leave the active handle unchanged; terminal outcomes consume it.
     pub fn poll(&mut self, vm: &mut Vm, now_ms: u64) -> Result<AdmissionPoll, Fault> {
-        self.inner.poll(vm, now_ms).map(AdmissionPoll::from)
+        self.inner.poll(&mut NativeAdmissionOwner(vm), now_ms)
     }
 }
 
-impl AdmissionAdapter<AdmissionRoot> for Vm {
-    type Started = Box<Step>;
+struct NativeAdmissionOwner<'a>(&'a mut Vm);
 
-    fn try_admit(
+impl ReferenceAdmissionHost for NativeAdmissionOwner<'_> {
+    fn start_timed(
         &mut self,
-        input: &AdmissionRoot,
+        program: &HirProgram,
+        principal: Principal,
+        capabilities: CapabilitySet,
+        expected_revision: Option<Revision>,
         now_ms: u64,
-        deadline_at_ms: u64,
-    ) -> AdmissionAttempt<Self::Started> {
-        let step = self.start_timed(
-            &input.program,
-            input.principal.clone(),
-            input.capabilities.clone(),
-            input.expected_revision,
+        timeout_ms: u64,
+    ) -> Step {
+        self.0.start_timed(
+            program,
+            principal,
+            capabilities,
+            expected_revision,
             now_ms,
-            deadline_at_ms - now_ms,
-        );
-        match step {
-            // Only the VM's transactional, pre-publication capacity rejection is retryable.
-            Step::Fault(error) if error.code == "LSV2501" => AdmissionAttempt::Backpressured(error),
-            Step::Fault(error) => AdmissionAttempt::Rejected(error),
-            step => AdmissionAttempt::Started(Box::new(step)),
-        }
+            timeout_ms,
+        )
     }
 }

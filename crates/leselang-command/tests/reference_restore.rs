@@ -1,10 +1,265 @@
 use leselang_command::reference_request_build::{ReservedEffectInput, build_effect_request};
-use leselang_command::reference_restore::{ReferenceRestoreHost, restore, restore_request};
-use leselang_command::{ContinuationImage, ContinuationToken, EffectRequest};
+use leselang_command::reference_restore::{
+    ReferenceRestoreCache, ReferenceRestoreHost, restore, restore_request,
+};
+use leselang_command::{ContinuationImage, ContinuationToken, EffectRequest, Step};
 use leselang_hir::{Effect, Type};
 use leselang_host_contract::{CapabilitySet, Principal};
 use leselang_runtime_core::Fault;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
+
+fn cached_import(
+    cache: ReferenceRestoreCache<'_>,
+    request: EffectRequest,
+    full: bool,
+    commit: impl FnMut(&ContinuationImage, Option<&EffectRequest>) -> Result<(), Fault>,
+) -> Result<(), Fault> {
+    if full {
+        cache.restore_request(request, commit)
+    } else {
+        cache.restore(request.continuation, commit)
+    }
+}
+
+#[test]
+fn cached_import_keeps_owned_images_original_authority_and_monotonic_watermarks() {
+    let mut cases = 0;
+    for full in [false, true] {
+        for duplicate in [false, true] {
+            for initial in [0, 3, u64::MAX] {
+                let request = request();
+                let image_pointer = request.continuation.token.as_str().as_ptr();
+                let authority_pointer = request.operation.authority().0.id.as_ptr();
+                let expected = request.continuation.clone();
+                let mut pending = BTreeMap::new();
+                let mut completed = BTreeMap::new();
+                if duplicate {
+                    pending.insert(expected.token.clone(), expected.clone());
+                    // Pending equality deliberately precedes the completed observation.
+                    completed.insert(
+                        expected.token.clone(),
+                        Step::Fault(Fault {
+                            code: "EXISTING".into(),
+                            message: "untouched".into(),
+                        }),
+                    );
+                }
+                let previous_pointer = pending
+                    .get(&expected.token)
+                    .map(|v| v.token.as_str().as_ptr());
+                let completed_before = completed.clone();
+                let mut next = initial;
+                let mut calls = 0;
+                cached_import(
+                    ReferenceRestoreCache {
+                        pending: &mut pending,
+                        completed: &completed,
+                        next_sequence: &mut next,
+                    },
+                    request,
+                    full,
+                    |image, authority| {
+                        calls += 1;
+                        assert_eq!(image, &expected);
+                        if full {
+                            assert_eq!(
+                                authority.unwrap().operation.authority().0.id.as_ptr(),
+                                authority_pointer
+                            );
+                        } else {
+                            assert!(authority.is_none());
+                            assert_eq!(image.token.as_str().as_ptr(), image_pointer);
+                        }
+                        Ok(())
+                    },
+                )
+                .unwrap();
+                assert_eq!(calls, 1);
+                assert_eq!(next, if duplicate { initial } else { initial.max(8) });
+                assert_eq!(pending.get(&expected.token), Some(&expected));
+                let got_pointer = pending[&expected.token].token.as_str().as_ptr();
+                if duplicate {
+                    assert_eq!(Some(got_pointer), previous_pointer);
+                } else if !full {
+                    assert_eq!(got_pointer, image_pointer);
+                }
+                assert_eq!(completed, completed_before);
+                cases += 1;
+            }
+        }
+    }
+    assert_eq!(cases, 12);
+}
+
+#[test]
+fn cached_import_rejects_preflight_and_local_conflicts_without_native_calls() {
+    for full in [false, true] {
+        for defect in 0..4 {
+            let mut request = request();
+            let mut pending = BTreeMap::new();
+            let mut completed = BTreeMap::new();
+            let expected = match defect {
+                0 => {
+                    request.continuation.schema_version = 0;
+                    "LSV2001"
+                }
+                1 => {
+                    let mut conflicting = request.continuation.clone();
+                    conflicting.fuel_remaining -= 1;
+                    pending.insert(conflicting.token.clone(), conflicting);
+                    "LSV2002"
+                }
+                2 => {
+                    completed.insert(
+                        request.continuation.token.clone(),
+                        Step::Fault(Fault {
+                            code: "TERMINAL".into(),
+                            message: "untouched".into(),
+                        }),
+                    );
+                    "LSV2003"
+                }
+                _ => {
+                    request.continuation.schema_version = 6;
+                    request.continuation.group_result =
+                        Some(ContinuationToken::from_wire("merge-1".into()));
+                    "LSV1409"
+                }
+            };
+            let before = (pending.clone(), completed.clone());
+            let mut next = 3;
+            let error = cached_import(
+                ReferenceRestoreCache {
+                    pending: &mut pending,
+                    completed: &completed,
+                    next_sequence: &mut next,
+                },
+                request,
+                full,
+                |_, _| panic!("refused import entered native storage"),
+            )
+            .unwrap_err();
+            assert_eq!(error.code, expected, "full={full}, defect={defect}");
+            assert_eq!((pending, completed), before);
+            assert_eq!(next, 3);
+        }
+    }
+}
+
+#[test]
+fn cached_import_preserves_native_refusal_and_unwind_without_local_publication_or_retry() {
+    for full in [false, true] {
+        for duplicate in [false, true] {
+            for unwind in [false, true] {
+                let request = request();
+                let mut pending = BTreeMap::new();
+                if duplicate {
+                    pending.insert(
+                        request.continuation.token.clone(),
+                        request.continuation.clone(),
+                    );
+                }
+                let completed = BTreeMap::new();
+                let before = pending.clone();
+                let mut next = 3;
+                let mut calls = 0;
+                let error = Fault {
+                    code: "NATIVE".into(),
+                    message: "native boundary".into(),
+                };
+                let pointer = error.message.as_ptr();
+                let mut error = Some(error);
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    cached_import(
+                        ReferenceRestoreCache {
+                            pending: &mut pending,
+                            completed: &completed,
+                            next_sequence: &mut next,
+                        },
+                        request,
+                        full,
+                        |_, _| {
+                            // A trusted callback may have effects before failure; do not compensate them.
+                            calls += 1;
+                            assert!(!unwind, "native unwind");
+                            Err(error.take().unwrap())
+                        },
+                    )
+                }));
+                if unwind {
+                    assert!(result.is_err());
+                } else {
+                    assert_eq!(result.unwrap().unwrap_err().message.as_ptr(), pointer);
+                }
+                assert_eq!(calls, 1);
+                assert_eq!(pending, before);
+                assert_eq!(next, 3);
+                assert!(completed.is_empty());
+            }
+        }
+    }
+}
+
+#[test]
+fn commit_capture_cleanup_unwind_preserves_the_original_publication_boundary() {
+    use std::cell::Cell;
+    struct DropBomb(Rc<Cell<usize>>);
+    impl Drop for DropBomb {
+        fn drop(&mut self) {
+            self.0.set(self.0.get() + 1);
+            panic!("trusted commit capture cleanup");
+        }
+    }
+    for full in [false, true] {
+        for stage in 0..3 {
+            let mut request = request();
+            if stage == 0 {
+                request.continuation.schema_version = 0;
+            }
+            let image = request.continuation.clone();
+            let mut pending = BTreeMap::new();
+            let completed = BTreeMap::new();
+            let mut next = 3;
+            let calls = Rc::new(Cell::new(0));
+            let observed_calls = calls.clone();
+            let drops = Rc::new(Cell::new(0));
+            let bomb = DropBomb(drops.clone());
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                cached_import(
+                    ReferenceRestoreCache {
+                        pending: &mut pending,
+                        completed: &completed,
+                        next_sequence: &mut next,
+                    },
+                    request,
+                    full,
+                    move |_, _| {
+                        let _keep = &bomb;
+                        calls.set(calls.get() + 1);
+                        if stage == 1 {
+                            Err(Fault {
+                                code: "NATIVE".into(),
+                                message: "refused".into(),
+                            })
+                        } else {
+                            Ok(())
+                        }
+                    },
+                )
+            }));
+            assert!(result.is_err());
+            assert_eq!(drops.get(), 1);
+            assert_eq!(observed_calls.get(), usize::from(stage != 0));
+            if stage == 2 {
+                assert_eq!(next, 8);
+                assert_eq!(pending.get(&image.token), Some(&image));
+            } else {
+                assert!(pending.is_empty());
+                assert_eq!(next, 3);
+            }
+        }
+    }
+}
 
 fn request() -> EffectRequest {
     build_effect_request(ReservedEffectInput {

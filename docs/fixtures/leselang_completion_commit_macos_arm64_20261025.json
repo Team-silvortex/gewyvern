@@ -1,0 +1,165 @@
+{
+  "kind": "leselang-reference-ordinary-result-completion-commit-parity",
+  "validated_on": "2026-10-25",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.163.0",
+  "direct_adapter_tests": 7,
+  "frozen_memory_cases": 700,
+  "native_memory_sequence_and_partial_mutation_cases": 4,
+  "public_memory_replay_cases": 2,
+  "frozen_sqlite_cases": 150,
+  "durable_reopen_cases": 10,
+  "native_image_proposal_admission_before_transaction_retained": true,
+  "backend_specific_sequence_lease_precedence_preserved": true,
+  "memory_lease_retention_and_terminal_replacement_preserved": true,
+  "public_entry_replays_original_winner": true,
+  "native_partial_memory_mutation_preserved": true,
+  "native_write_order_and_distinct_diagnostics_preserved": true,
+  "failed_sqlite_writes_and_commits_roll_back_all_tables": true,
+  "transaction_owner_consumed_without_retry": true,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "Ordinary record_completed memory and SQLite policy over unchanged native admission, bounded codecs, sequence/group primitives, history/counter reads, writes and consuming immediate transactions.",
+  "limitations": [
+    "Frozen orchestration shares native codecs/storage and sequence/group primitives, not migrated ordinary-completion policy.",
+    "Corrupt SQLite fixtures restore constraints before production calls. They are not valid recovery checkpoints or new dispatch authority.",
+    "The low-level memory primitive checks sequence readiness first, accepts absent dispatches and replaces acknowledged terminals without clearing the lease field or adding image/proposal validation. Public VM entry still owns admission and authoritative winner replay.",
+    "Durable native input admission precedes completed replay. Replay skips dispatch and sequence reads; pending completion checks native dispatch history and lease state before sequence readiness. Missing dispatches and raw non-completed states preserve released behavior, not new recovery admission.",
+    "Public reopen cases inspect persisted member terminals separately from group-level visibility.",
+    "Direct hooks model quota errors and uncertain commits/unwinds; native triggers and deferred constraints exercise rollback. No physical disk-full or power-loss experiment is claimed.",
+    "No new Linux, remote CI, live GUI, standalone exported-source execution, full host-neutral durable recovery or throughput benchmark is claimed."
+  ],
+  "related_crate_tests_passed": 1436,
+  "adapter_has_no_vm_or_sqlite_normal_dependency": true,
+  "source_export_dry_run_files": 280,
+  "source_export_dry_run_bytes": 6784528,
+  "memory_profile_unit_tests_passed": 135,
+  "source_planning_tests_passed": 23,
+  "strict_workspace_all_features_all_targets_clippy_passed": true,
+  "verification_status": "passed",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_completion_commit.rs",
+      "sha256": "d5e26c62cbf95ab856a4887c5ea2895807b7ae413fbb1d7cddae6298a1cc9adb"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "bf6058aedfde47dca87e4a3e043cfe564387f41916d8d471be6cc523f7085952"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_recovery.rs",
+      "sha256": "6361bdb796bf24a5b19146cadae19646bd45606d9363defa2d5a95721bb73d11"
+    },
+    {
+      "path": "crates/leselang-command/Cargo.toml",
+      "sha256": "51753fa79fce986890ef1948ad092f9875b370be116b228c49513375066e462f"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_completion_commit.rs",
+      "sha256": "0a47faf4d568e2b773cadfa7c6938971d3e9761b29052e16fcefae29f889e14f"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "f8443cb07d3de427dc113be47e95d8a61cad39c955da7b72c2c2631bde3cfdb9"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/completion_commit.rs",
+      "sha256": "9a702e65912fc1df0d6759158eeeccf6e76a19442f45c1166ddcc5e48c791c97"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/completion_commit_contract_tests.rs",
+      "sha256": "5694fb93f2dd6abe145e5b382f5b7192cc4112bf6f1b54ef99366428f05860a6"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "a89a6b86b27ed40d065fd656eb0187bf8b3dbe3fa78f3149e72e8e584c8d4186"
+    },
+    {
+      "path": "crates/leselang-vm/Cargo.toml",
+      "sha256": "2f1d51815d543a85d8b69662dbb4578170e8c6b0672f52402e4dec5c05260e21"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "b8f703a613ee2e8ed67a466b3423ad9d654fccaf73d9426c9de460614b3c72a1"
+    },
+    {
+      "path": "tests/leselang_native_profile_tdd.rs",
+      "sha256": "315c7b8b5131eb4dd626050d5f6816feb1572897f36bfba9a34b5a7621325eb1"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "917fddee97e31789cc70ae6b3adea607e009a5c088d352d61a2722a636868ebf"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "570ead9be38579f02e611a6ba02ce2c16556f538ca36864fc1de6dda2531b2ea"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "e1e350cd7477a76152b30ece0ad64539a51e69ca0e22899f47461fe46dbfa60b"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "64c0b4604328ce51aa5e1aad815b9e55104fa256d3d252e0600b4023761dc846"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "2b98fb68908318877e5dc899bcbc8170cda4da31e0b27d0e31da537f8fe943bd"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/private/tmp/leselang-completion-commit-adapter-20261025.log",
+      "sha256": "408f165b9d34d826d95d8a9cd826fee841ae9f81b27b2762fb2e5b98f4758d39"
+    },
+    {
+      "path": "/private/tmp/leselang-completion-commit-parity-20261025.log",
+      "sha256": "99704ef38c375fcb3a9d185fc0df08d18b444d8d054d59ec9a715494be7d368c"
+    },
+    {
+      "path": "/private/tmp/leselang-completion-commit-suite-20261025.log",
+      "sha256": "2ca045f6052a05d604abde1e9562c196ede84addb20f6645e1541876b167d6df"
+    },
+    {
+      "path": "/private/tmp/leselang-completion-commit-memory-20261025.log",
+      "sha256": "2d36a5082798199d324e51818343280b403d93ff702b503ac7cd52e4a84d3b1f"
+    },
+    {
+      "path": "/private/tmp/leselang-completion-commit-native-20261025.log",
+      "sha256": "6faf060d09625611c11b10ede4e883ff0d5120d2b96bcab5d209b58a7c55d418"
+    },
+    {
+      "path": "/private/tmp/leselang-completion-commit-clippy-20261025.log",
+      "sha256": "a1bbc677caa5022e0e8033c425c2769cef9a2e961ca65d038653e7cf2c915981"
+    },
+    {
+      "path": "/private/tmp/leselang-completion-commit-source-plan-20261025.log",
+      "sha256": "8f191254844e5571bd2b3c8e89dd14775ba3083c9273371f1c9f0e8332cbef1f"
+    },
+    {
+      "path": "/private/tmp/leselang-completion-commit-dependencies-20261025.log",
+      "sha256": "2aa3528997c7c9640dc072977067c24f67ca4ff21ee912b534ce599bf644ac56"
+    },
+    {
+      "path": "/private/tmp/leselang-completion-commit-export-plan-20261025.log",
+      "sha256": "583613c903c3e6b0b09815be0ce90d7eabdf05fc7c38626a80683948058fcaf2"
+    },
+    {
+      "path": "/private/tmp/leselang-completion-commit-architecture-status-20261025.log",
+      "sha256": "8a39f93e87dda1b8d9f1f51f18f1cefe02999dde50f77934408268c323e4bca0"
+    },
+    {
+      "path": "/private/tmp/leselang-completion-commit-catalog-20261025.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "architecture_documentation_status_tests_passed": 498,
+  "status_catalog_valid": true
+}

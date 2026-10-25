@@ -1591,12 +1591,12 @@ fn semantic_retry_planning_reuses_numeric_kernels_and_stays_outside_host_storage
     assert!(!adapter.contains("fn retry_delay("));
     assert!(!profile.contains("fn retry_delay("));
     let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
-    assert_eq!(
-        journal
-            .matches("validate_proposed_retry(dispatch.retry_count, schedule, now_ms)?;")
-            .count(),
-        2
-    );
+    let commit =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_retry_commit.rs"))
+            .unwrap();
+    assert_eq!(commit.matches("validate_proposed_retry(").count(), 2);
+    assert!(journal.contains("reference_retry_commit::report_memory("));
+    assert!(journal.contains("reference_retry_commit::report_durable("));
     let dispatch =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_dispatch.rs"))
             .unwrap();

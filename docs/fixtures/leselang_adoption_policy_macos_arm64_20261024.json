@@ -1,0 +1,172 @@
+{
+  "kind": "leselang-import-cache-publication-and-claim-adoption-parity",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.154.0",
+  "new_direct_cache_tests": 5,
+  "commit_capture_cleanup_cases": 6,
+  "existing_frozen_import_cases": 2240,
+  "existing_schema_import_cases": 66,
+  "existing_sqlite_import_cases": 24,
+  "existing_frozen_claim_cases": 2800,
+  "existing_sqlite_claim_cases": 176,
+  "new_sqlite_cases": 11,
+  "complete_import_cache_adapter_reuses_preflight": true,
+  "native_commit_before_local_watermark_and_owned_image": true,
+  "duplicate_import_preserves_local_buffers_and_watermark": true,
+  "commit_capture_cleanup_can_unwind_after_publication": true,
+  "single_entry_claim_adoption_preserves_occupied_buffers": true,
+  "adoption_conflict_keeps_native_lease_committed": true,
+  "no_retry_compensation_or_new_vm_mutation_trait": true,
+  "native_journal_implementation_unchanged": true,
+  "journal_schema_changed": false,
+  "wire_format_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Local product cache coordination and frozen VM parity over unchanged native journals.",
+  "limitations": [
+    "No remote CI, Linux, live GUI or standalone source execution rerun is claimed.",
+    "Peer scenarios are deterministic native-storage interleavings, not a throughput benchmark.",
+    "Commit callbacks and capture cleanup remain trusted. Cleanup unwind after success retains published cache state.",
+    "Storage and cache publication are not one new atomic transaction.",
+    "The broad related-crate run is supplemented by the final direct cache suite including capture-cleanup unwind."
+  ],
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_restore.rs",
+      "sha256": "1e77ad07dab09442a603ed033ae6397d50dd649480e6ec2f708a7f75d182c2d8"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_claim.rs",
+      "sha256": "aef8fc2567e360e13d32d4fd4df0c61177668a0e3df94a25e076aa8bae576ff6"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_restore.rs",
+      "sha256": "560bff3399ff2b66afe0a1a5e995ff3bbff58af2a72db7cea396811a6aa17294"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_claim.rs",
+      "sha256": "d4ea221456f0e8bc996591bd7dc6ce4ddd71d7aec86cc564df21c833e28c0731"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "c56b3287f8f222d738d2e369c37ff2c2893e390e6ac3a96c2cbc98263f2d9502"
+    },
+    {
+      "path": "crates/leselang-vm/src/adoption_contract_tests.rs",
+      "sha256": "ad83d9239236c94df80963f9faffb1ae417d4d319f1f5b322ee29330905395c0"
+    },
+    {
+      "path": "crates/leselang-vm/src/restore_contract_tests.rs",
+      "sha256": "4c54a859c8489d36bd2f1cf74fb1bc13f14528e289d234f95e780927a2a6a991"
+    },
+    {
+      "path": "crates/leselang-vm/src/claim_contract_tests.rs",
+      "sha256": "153bb7b4c3eb1fbb4b90f540bd95c7a83713530805d0cab79cbc75d3091cc82c"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "c8b1993298578d827cb129564a6e4f92fde75fdf07ebceaa16913b57948118c5"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "b289e505ecd4810ef14769c6a9487f8ac8fa9c6a583149547788cd066da2f768"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "85f63e17c82b9d5c302868d36ace31fb055d6259d675fd999bb32efede841ee7"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "1fdc09ef26b15cc9046684edb960e64a7a9d3e02ad378e7e74e7633406b83863"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "ff46d3daeab28b7b119f8cd1c771f58d540c2d881dd570188ebef6dca8d5aac2"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "f74b6ed9f0b96ef24de403483e1883879ea206a0f7f2d371eee623e05cfb9f39"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "88545ca9ad69f1b138a9deadd742473479fcb69096fdf8ad498ff4d1344ebd20"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "6c8edd98b06ace34fc8cb822ea711a976d24fc0fd0423a7e73f1e40ee87976e5"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/private/tmp/leselang-adoption-adapter-20261024.log",
+      "sha256": "66745d0abeef81c8db5554cb4cd487fb5c8eeaab21165f593a340b0b5f120a3c"
+    },
+    {
+      "path": "/private/tmp/leselang-adoption-sqlite-20261024.log",
+      "sha256": "bb510a054ac00a4ca27cf88ef3b7caa8e92ca7f63261e65b8000efedabf28d42"
+    },
+    {
+      "path": "/private/tmp/leselang-adoption-restore-parity-20261024.log",
+      "sha256": "66b44f8248c570e15817a01c832c0efd9187f3fa4638faa7325e477e66b987c4"
+    },
+    {
+      "path": "/private/tmp/leselang-adoption-claim-parity-20261024.log",
+      "sha256": "765ce82f86ca8bb930dfce32aa66367c1db6041652e1b27fe2a4dcd31d97e08b"
+    },
+    {
+      "path": "/private/tmp/leselang-adoption-suite-20261024.log",
+      "sha256": "e32e5122e5464c0e7c76a131772288fac7e40f563dd4159131e36f005845a96c"
+    },
+    {
+      "path": "/private/tmp/leselang-adoption-architecture-20261024.log",
+      "sha256": "eea4924852d6d2baaa4a7a31e008f5512d60d9c7fd6eb056d7b2380e83728a85"
+    },
+    {
+      "path": "/private/tmp/leselang-adoption-memory-20261024.log",
+      "sha256": "c838c3eb3500535e637d56c5c173aeb059432d022d0a46d154b24a7400c9661e"
+    },
+    {
+      "path": "/private/tmp/leselang-adoption-clippy-20261024.log",
+      "sha256": "cc19f91e5a4418710f822d71604e60737812cc7ac5be8c3922fd773d41763229"
+    },
+    {
+      "path": "/private/tmp/leselang-adoption-dependencies-20261024.log",
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "path": "/private/tmp/leselang-adoption-status-20261024.log",
+      "sha256": "f87d13114c295b9aa9acb0645ea8cba5f91d3bf4ba8694574a7c3dbdc8e79108"
+    },
+    {
+      "path": "/private/tmp/leselang-adoption-native-20261024.log",
+      "sha256": "d038f1e2fc70aa2cb24bcf5086925cbf46e73e2340f80f6e61ed19035a507406"
+    },
+    {
+      "path": "/private/tmp/leselang-adoption-export-plan-20261024.log",
+      "sha256": "272ceeebc081d081ba40d3f113d01d333b1de7ba72b6f88bb6391402aa00b8d5"
+    },
+    {
+      "path": "/private/tmp/leselang-adoption-catalog-20261024.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    },
+    {
+      "path": "/private/tmp/leselang-adoption-source-plan-20261024.log",
+      "sha256": "c08376e97bd212eaa1dacfb6eb02c891213e41408f9a6fd209b9e6abe67986b4"
+    }
+  ],
+  "related_crate_suite_passed": 1358,
+  "final_direct_adapter_tests_passed": 13,
+  "memory_library_tests_passed": 122,
+  "architecture_tests_passed": 143,
+  "status_reliability_tests_passed": 265,
+  "source_export_plan_tests_passed": 23,
+  "source_export_inventory_validated": true,
+  "standalone_export_execution_rerun": false
+}

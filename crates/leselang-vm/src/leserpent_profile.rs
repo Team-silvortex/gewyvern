@@ -26,7 +26,7 @@ use leselang_runtime_core::SequenceWatermarkRequirement;
 #[cfg(test)]
 use leselang_runtime_core::{ResourceBudgetError, ResourceBudgetLimits};
 use leserpent_domain::CommandId;
-#[cfg(any(test, feature = "sqlite-journal"))]
+#[cfg(test)]
 use leserpent_domain::IdempotencyKey;
 #[cfg(test)]
 use leserpent_domain::{DOMAIN_SCHEMA_VERSION, QueryEnvelope};
@@ -37,6 +37,10 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer};
 
 mod admission;
+#[cfg(test)]
+mod admission_contract_tests;
+#[cfg(all(test, feature = "sqlite-journal"))]
+mod adoption_contract_tests;
 #[cfg(test)]
 mod allocation_contract_tests;
 #[cfg(test)]
@@ -427,15 +431,28 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
     }
 
     pub fn restore(&mut self, image: ContinuationImage) -> Result<(), Fault> {
-        leselang_command::reference_restore::restore(image, &mut ReferenceRestoreOwner(self))
+        leselang_command::reference_restore::ReferenceRestoreCache {
+            pending: &mut self.pending,
+            completed: &self.completed,
+            next_sequence: &mut self.next_effect_id,
+        }
+        .restore(image, |image, request| {
+            self.journal
+                .record_pending(image, request, self.scheduler_limits)
+        })
     }
 
     /// Restores a continuation together with its original host-owned authority envelope.
     pub fn restore_request(&mut self, request: EffectRequest) -> Result<(), Fault> {
-        leselang_command::reference_restore::restore_request(
-            request,
-            &mut ReferenceRestoreOwner(self),
-        )
+        leselang_command::reference_restore::ReferenceRestoreCache {
+            pending: &mut self.pending,
+            completed: &self.completed,
+            next_sequence: &mut self.next_effect_id,
+        }
+        .restore_request(request, |image, request| {
+            self.journal
+                .record_pending(image, request, self.scheduler_limits)
+        })
     }
 
     pub fn resume(&mut self, image: &ContinuationImage, result: EffectResult) -> Step {
@@ -481,16 +498,7 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
     }
 
     fn adopt_claimed_image(&mut self, image: &ContinuationImage) -> Result<(), Fault> {
-        match self.pending.entry(image.token.clone()) {
-            std::collections::btree_map::Entry::Occupied(entry) => {
-                leselang_command::reference_claim::validate_claimed_image(entry.get(), image)?;
-            }
-            std::collections::btree_map::Entry::Vacant(entry) => {
-                // Another engine may have admitted this request after our startup snapshot.
-                entry.insert(image.clone());
-            }
-        }
-        Ok(())
+        leselang_command::reference_claim::adopt_claimed_image(&mut self.pending, image)
     }
 
     pub fn acknowledge_effect(
@@ -920,39 +928,6 @@ impl leselang_command::reference_reply::ReferenceReplyHost for ReferenceReplyOwn
     }
 }
 
-struct ReferenceRestoreOwner<'a>(&'a mut Vm);
-
-impl leselang_command::reference_restore::ReferenceRestoreHost for ReferenceRestoreOwner<'_> {
-    fn pending(&self, token: &ContinuationToken) -> Option<&ContinuationImage> {
-        self.0.pending.get(token)
-    }
-    fn is_completed(&self, token: &ContinuationToken) -> bool {
-        self.0.completed.contains_key(token)
-    }
-    fn commit_existing(
-        &mut self,
-        image: &ContinuationImage,
-        request: Option<&EffectRequest>,
-    ) -> Result<(), Fault> {
-        self.0
-            .journal
-            .record_pending(image, request, self.0.scheduler_limits)
-    }
-    fn commit_new(
-        &mut self,
-        image: ContinuationImage,
-        request: Option<&EffectRequest>,
-        next_sequence: u64,
-    ) -> Result<(), Fault> {
-        self.0
-            .journal
-            .record_pending(&image, request, self.0.scheduler_limits)?;
-        self.0.next_effect_id = self.0.next_effect_id.max(next_sequence);
-        self.0.pending.insert(image.token.clone(), image);
-        Ok(())
-    }
-}
-
 struct ReferenceStartOwner<'a>(&'a mut Vm);
 
 impl leselang_command::reference_group_start::ReferenceGroupStartHost for ReferenceStartOwner<'_> {
@@ -1068,7 +1043,7 @@ fn validate_scheduler_time(now_ms: u64) -> Result<(), Fault> {
     leselang_runtime_core::validate_clock(now_ms)
 }
 
-#[cfg(any(test, feature = "sqlite-journal"))]
+#[cfg(test)]
 fn validate_debugger_audit(audit: &DebuggerAuditContext) -> Result<(), Fault> {
     leselang_command::reference_cancellation::validate_audit(audit)
 }

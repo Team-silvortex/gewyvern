@@ -1,0 +1,148 @@
+{
+  "kind": "leselang-root-admission-lifecycle-parity",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.155.0",
+  "direct_adapter_tests": 7,
+  "frozen_constructor_cases": 20,
+  "frozen_memory_lifecycle_cases": 72,
+  "frozen_sqlite_lifecycle_cases": 72,
+  "public_admission_tests": 22,
+  "related_crate_tests_passed": 1951,
+  "memory_profile_unit_tests_passed": 124,
+  "source_planning_tests_passed": 23,
+  "generic_scheduler_unchanged": true,
+  "native_timed_start_and_journals_unchanged": true,
+  "public_vm_api_and_redacted_debug_preserved": true,
+  "only_prepublication_pressure_retried": true,
+  "host_unwind_seals_unknown_publication": true,
+  "captured_program_and_authority_preserved": true,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Reference root admission policy over the unchanged generic scheduler and native timed start, with compatible VM facade.",
+  "limitations": [
+    "Frozen adapter comparisons share the original core scheduler and native journals; they are not independent scheduler or storage proofs.",
+    "The broad related-crate run is supplemented by the final expanded lifecycle matrix covering both accepting and undersized group capacity.",
+    "Captured capabilities are static input, not live dispatch permission; the dispatch host retains current access checks.",
+    "No new remote CI, Linux, live GUI, standalone source execution or throughput benchmark is claimed."
+  ],
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_admission.rs",
+      "sha256": "6022102d8906c2ae7ac8c20aa2ead5bb672ce36f88d1065aa9d17340b8f7e630"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "be209228f0cee55c482fe2e91132a9ef15c98b9ebc15738478ef7769db919fef"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_admission.rs",
+      "sha256": "cdf8e80553b3241f542bcf5c738b133aaa7558f2ab8b67de61982638f8e9bb7d"
+    },
+    {
+      "path": "crates/leselang-vm/src/admission.rs",
+      "sha256": "8ffa23ac495a91a9a8c4815cc192f9736a800dec557ea6f7399e5a0010284c20"
+    },
+    {
+      "path": "crates/leselang-vm/src/admission_contract_tests.rs",
+      "sha256": "242b58e6d1ce5cf2dead3feadadfe409717dd3e430045f0b12dd20fe515291c7"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "8c840c3b2c3dd3ef3eb5200de5bf4b4781c0eafef1ff0e6eb04ecb3726ed1070"
+    },
+    {
+      "path": "crates/leselang-vm/tests/admission.rs",
+      "sha256": "1db3b5a3e4bf28841c82f82351dc0a6b6e10dbe151ca70b34ba4f44116916567"
+    },
+    {
+      "path": "crates/leselang-runtime-core/src/lib.rs",
+      "sha256": "f82ab635dae723aa692c335907574ae0ce46f280259689df84859baecaf68cdf"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "a7063084b875ec2a211b70977f68d80585e704e2ef4960341e11eca0808da6d3"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "962919c7d9a80710c67844d3380a75384900f9eb878da7277149cb5d43d6ac0a"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "c4c47aba1d5433572d2c27c4716c968ad7ba7c04958bedf86b350aa7aeeac716"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "34dc3b3503a3432e91a3c9c7f0ac5e9bfd3f990e1b69a08487028e939cdfd472"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "fa26a7ade54dbfc0c65d41f49d6d371efc21e5e158ba5b26070ba898c6572846"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "debf56e3c98a14095afa9a87eea70eb91482d2e557dab4572691a67d71255c16"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/private/tmp/leselang-admission-adapter-20261024.log",
+      "sha256": "b9308ad33f79d6f3a02ea33ac6c217274c1af07b0a780e7127ebd56c77ced362"
+    },
+    {
+      "path": "/private/tmp/leselang-admission-parity-20261024.log",
+      "sha256": "6dbe1f12fc0af0e3ea439ba63d32c0644e5dc7940480bddbabc085368ac208f2"
+    },
+    {
+      "path": "/private/tmp/leselang-admission-integration-20261024.log",
+      "sha256": "58d38af91a192ae4afb2b2eca2d8e42f39abb0a0f2580518590723735036e847"
+    },
+    {
+      "path": "/private/tmp/leselang-admission-suite-20261024.log",
+      "sha256": "ac143dec0e3f064c62bfc0dbae11e24b67e57753bebb3ecab587d7ada5cb6768"
+    },
+    {
+      "path": "/private/tmp/leselang-admission-memory-20261024.log",
+      "sha256": "14800540c1eb8915cb43a7eaa273593069ac3b9587c372bbcd6d5dff9d9e688f"
+    },
+    {
+      "path": "/private/tmp/leselang-admission-native-20261024.log",
+      "sha256": "19c7d339b4005a4b806c4702591d05093488aaa8325e20bb98cef34eb2dc2605"
+    },
+    {
+      "path": "/private/tmp/leselang-admission-clippy-20261024.log",
+      "sha256": "36a9356b9e199ded614fdc58d29cf3ad1244e75816494aa90ecf83bcd56a6bc0"
+    },
+    {
+      "path": "/private/tmp/leselang-admission-source-plan-20261024.log",
+      "sha256": "6a5502d764e73e411284e81c630ee89f15a5d0501ba685ea5ccf456c4fd6a956"
+    },
+    {
+      "path": "/private/tmp/leselang-admission-dependencies-20261024.log",
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "path": "/private/tmp/leselang-admission-architecture-status-20261024.log",
+      "sha256": "18684f4e12bf6935630beb539bbffd1093dfd9932c7312d9847268ae429d2a2d"
+    },
+    {
+      "path": "/private/tmp/leselang-admission-export-plan-20261024.log",
+      "sha256": "fc9fa72d729b7fd55d9ce59cfced15fc0c1bd02c86e23fa341edf14736868ad4"
+    },
+    {
+      "path": "/private/tmp/leselang-admission-catalog-20261024.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "architecture_documentation_status_tests_passed": 482,
+  "source_export_dry_run_files": 280,
+  "source_export_dry_run_bytes": 6784528
+}

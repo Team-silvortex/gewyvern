@@ -19,6 +19,24 @@ use crate::{ContinuationImage, ContinuationToken, MAX_CONTINUATION_BYTES, Step};
 pub const MAX_JOURNAL_ENTRY_BYTES: usize = 8 * 1024 * 1024;
 pub type RecoveredEffectRecord = RecoveryRecord<ContinuationToken, ContinuationImage, Step>;
 
+/// Raw native effect observation. This is not an admitted recovery record or a
+/// live cancellation/replay grant; each consuming policy retains its own checks.
+pub struct StoredEffect {
+    pub image: Vec<u8>,
+    pub state: String,
+    pub terminal_step: Option<Vec<u8>>,
+}
+
+/// Native dispatch observation, not a validated checkpoint or live lease grant.
+pub struct StoredDispatch {
+    pub request: Vec<u8>,
+    pub state: String,
+    pub attempt: u32,
+    pub lease_expires_at_ms: Option<u64>,
+    pub ready_at_ms: u64,
+    pub retry_count: u32,
+}
+
 /// Storage access and graph proofs from the same original snapshot as the header.
 /// Read errors retain their native diagnostics. Hooks must bound their own work,
 /// must not dispatch or commit, and must not repair corrupt stored observations.

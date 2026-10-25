@@ -12,22 +12,25 @@ use crate::MAX_SEMANTIC_RETRIES;
 use crate::validate_effect_error;
 #[cfg(feature = "sqlite-journal")]
 use crate::validate_image;
-#[cfg(any(test, feature = "sqlite-journal"))]
+#[cfg(test)]
 use crate::{Cancellation, CancellationReason};
 #[cfg(feature = "sqlite-journal")]
 use leselang_command::debugger_audit::command_origin_label;
+#[cfg(test)]
 use leselang_command::debugger_audit::{audit_matches_record, debugger_audit_record};
 #[cfg(feature = "sqlite-journal")]
 use leselang_command::reference_checkpoint::{ReferenceCheckpointSource, recover_checkpoint};
+#[cfg(any(test, feature = "sqlite-journal"))]
+use leselang_command::reference_completion::validate_cancellation_step;
 use leselang_command::reference_completion::{
-    deadline_cancellation, sequence_stop, terminal_step_outcome, validate_cancellation_step,
-    validate_terminal_step,
+    deadline_cancellation, sequence_stop, terminal_step_outcome, validate_terminal_step,
 };
 #[cfg(test)]
 pub(super) use leselang_command::reference_dispatch::validate_lease_clock;
+#[cfg(test)]
+use leselang_command::reference_dispatch::validate_proposed_retry;
 use leselang_command::reference_dispatch::{
     lease_expiration, next_attempt, validate_dispatch_clock, validate_observed_lease,
-    validate_proposed_retry,
 };
 #[cfg(feature = "sqlite-journal")]
 use leselang_command::reference_dispatch_recovery::{
@@ -64,17 +67,40 @@ use crate::{
     validate_value,
 };
 
+mod acknowledgement_commit;
+#[cfg(test)]
+mod acknowledgement_commit_contract_tests;
+mod audit_commit;
+#[cfg(test)]
+mod audit_commit_contract_tests;
+#[cfg(feature = "sqlite-journal")]
+mod audit_read;
+#[cfg(all(test, feature = "sqlite-journal"))]
+mod audit_read_contract_tests;
+#[cfg(all(test, feature = "sqlite-journal"))]
+mod audit_recovery_contract_tests;
 #[cfg(all(test, feature = "sqlite-journal"))]
 mod bounded_decode_tests;
+mod cancellation_commit;
+#[cfg(test)]
+mod cancellation_commit_contract_tests;
+mod completion_commit;
+#[cfg(test)]
+mod completion_commit_contract_tests;
 mod group_binding;
 #[cfg(test)]
 mod reference_completion_contract_tests;
 #[cfg(test)]
 mod retention_tests;
+mod retry_commit;
+#[cfg(test)]
+mod retry_commit_contract_tests;
+#[cfg(all(test, feature = "sqlite-journal"))]
+mod schema_contract_tests;
 mod successor;
 
-pub const JOURNAL_SCHEMA_VERSION: u32 = 10;
 pub use leselang_command::reference_checkpoint::MAX_JOURNAL_TOTAL_BYTES;
+pub use leselang_command::reference_journal_schema::JOURNAL_SCHEMA_VERSION;
 pub use leselang_command::reference_recovery::MAX_JOURNAL_ENTRY_BYTES;
 pub use leselang_command::retention_policy::MAX_JOURNAL_RECORDS;
 #[cfg(feature = "sqlite-journal")]
@@ -199,14 +225,7 @@ struct JournalRecord {
 }
 
 #[cfg(feature = "sqlite-journal")]
-struct DispatchRecord {
-    request: Vec<u8>,
-    state: String,
-    attempt: u32,
-    lease_expires_at_ms: Option<u64>,
-    ready_at_ms: u64,
-    retry_count: u32,
-}
+use leselang_command::reference_recovery::StoredDispatch as DispatchRecord;
 
 #[cfg(feature = "sqlite-journal")]
 type RawDispatchRow = (Vec<u8>, String, i64, Option<i64>, i64, i64, Option<Vec<u8>>);
@@ -636,24 +655,7 @@ impl EphemeralJournal {
     }
 
     fn record_completed(&mut self, image: &ContinuationImage, step: &Step) -> Result<Step, Fault> {
-        if !self.sequence_ready(&image.token) {
-            return Err(journal_fault(
-                "LSV2410",
-                "sequential predecessor has not completed",
-            ));
-        }
-        if let Some(dispatch) = self.dispatches.get_mut(&image.token) {
-            if dispatch.lease_expires_at_ms.is_some() && !dispatch.acknowledged {
-                return Err(journal_fault(
-                    "LSV4024",
-                    "leased effect must be completed through dispatch acknowledgement",
-                ));
-            }
-            dispatch.acknowledged = true;
-            dispatch.terminal_step = Some(step.clone());
-        }
-        self.finalize_merge_group(&image.token)?;
-        Ok(step.clone())
+        leselang_command::reference_completion_commit::complete_memory(self, image, step)
     }
 
     fn acknowledge_dispatch(
@@ -662,31 +664,13 @@ impl EphemeralJournal {
         now_ms: u64,
         step: &Step,
     ) -> Result<Step, Fault> {
-        validate_terminal_step(step)?;
-        let token = &lease.request.continuation.token;
-        let Some(dispatch) = self.dispatches.get_mut(token) else {
-            return Err(journal_fault("LSV4021", "dispatch lease is unknown"));
-        };
-        if dispatch.acknowledged {
-            return Ok(step.clone());
-        }
-        validate_ephemeral_lease(dispatch, lease, now_ms)?;
-        dispatch.acknowledged = true;
-        dispatch.lease_expires_at_ms = None;
-        dispatch.terminal_step = Some(step.clone());
-        self.finalize_merge_group(token)?;
-        Ok(step.clone())
+        leselang_command::reference_acknowledgement_commit::acknowledge_memory(
+            self, lease, now_ms, step,
+        )
     }
 
     fn cancel(&mut self, image: &ContinuationImage, step: &Step) -> Result<Step, Fault> {
-        validate_cancellation_step(image, step)?;
-        if let Some(dispatch) = self.dispatches.get_mut(&image.token) {
-            dispatch.acknowledged = true;
-            dispatch.lease_expires_at_ms = None;
-            dispatch.terminal_step = Some(step.clone());
-        }
-        self.finalize_merge_group(&image.token)?;
-        Ok(step.clone())
+        leselang_command::reference_cancellation_commit::cancel_memory(self, image, step)
     }
 
     fn cancel_audited(
@@ -696,62 +680,7 @@ impl EphemeralJournal {
         audit: &DebuggerAuditContext,
         now_ms: u64,
     ) -> Result<(Step, DebuggerAuditRecord), Fault> {
-        let command_id = audit.command_id.as_str();
-        if let Some(existing) = self.debugger_audits.get(command_id) {
-            if existing.token == image.token
-                && existing.idempotency_key == audit.idempotency_key.as_str()
-                && existing.principal_id == audit.principal.id
-                && audit_matches_record(audit, &existing.record)
-            {
-                let authoritative = self
-                    .dispatches
-                    .get(&image.token)
-                    .and_then(|dispatch| dispatch.terminal_step.clone())
-                    .ok_or_else(|| {
-                        journal_fault("LSV4032", "debugger audit has no terminal step")
-                    })?;
-                return Ok((authoritative, existing.record.clone()));
-            }
-            return Err(journal_fault("LSV4033", "debugger command audit conflicts"));
-        }
-        if self.debugger_audits.values().any(|existing| {
-            existing.principal_id == audit.principal.id
-                && existing.idempotency_key == audit.idempotency_key.as_str()
-        }) {
-            return Err(journal_fault(
-                "LSV4033",
-                "debugger idempotency key was reused",
-            ));
-        }
-        let dispatch = self
-            .dispatches
-            .get(&image.token)
-            .ok_or_else(|| journal_fault("LSV4013", "pending continuation is missing"))?;
-        if dispatch.request.continuation != *image {
-            return Err(journal_fault(
-                "LSV4014",
-                "continuation image conflicts with journal state",
-            ));
-        }
-        // Only an exact replay above may attribute an already completed cancellation.
-        if dispatch.acknowledged {
-            return Err(journal_fault(
-                "LSV4033",
-                "completed effect has no matching debugger audit",
-            ));
-        }
-        let authoritative = self.cancel(image, step)?;
-        let record = debugger_audit_record(audit, now_ms);
-        self.debugger_audits.insert(
-            command_id.to_string(),
-            EphemeralDebuggerAudit {
-                token: image.token.clone(),
-                idempotency_key: audit.idempotency_key.as_str().to_string(),
-                principal_id: audit.principal.id.clone(),
-                record: record.clone(),
-            },
-        );
-        Ok((authoritative, record))
+        leselang_command::reference_audit_commit::cancel_memory(self, image, step, audit, now_ms)
     }
 
     fn expire_due(&mut self, now_ms: u64) -> Result<Vec<(ContinuationImage, Step)>, Fault> {
@@ -783,30 +712,7 @@ impl EphemeralJournal {
         now_ms: u64,
         disposition: &RetryDisposition,
     ) -> Result<RetryDisposition, Fault> {
-        let token = &lease.request.continuation.token;
-        let Some(dispatch) = self.dispatches.get_mut(token) else {
-            return Err(journal_fault("LSV4021", "dispatch lease is unknown"));
-        };
-        validate_ephemeral_lease(dispatch, lease, now_ms)?;
-        match disposition {
-            RetryDisposition::Scheduled(schedule) => {
-                validate_proposed_retry(dispatch.retry_count, schedule, now_ms)?;
-                dispatch.retry_count = schedule.retry_count;
-                dispatch.ready_at_ms = schedule.ready_at_ms;
-                dispatch.last_error = Some(schedule.error.clone());
-                dispatch.lease_expires_at_ms = None;
-            }
-            RetryDisposition::Terminal(step) => {
-                validate_terminal_step(step)?;
-                dispatch.acknowledged = true;
-                dispatch.lease_expires_at_ms = None;
-                dispatch.terminal_step = Some(step.clone());
-            }
-        }
-        if matches!(disposition, RetryDisposition::Terminal(_)) {
-            self.finalize_merge_group(token)?;
-        }
-        Ok(disposition.clone())
+        leselang_command::reference_retry_commit::report_memory(self, lease, now_ms, disposition)
     }
 
     fn finalize_merge_group(&mut self, branch_token: &ContinuationToken) -> Result<(), Fault> {
@@ -1171,224 +1077,11 @@ impl SqliteJournal {
         let version: u32 = connection
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .map_err(|error| journal_error("LSV4003", "failed to read journal version", error))?;
-        if version == 0 {
+        leselang_command::reference_journal_schema::migrate(version, |sql, context| {
             connection
-                .execute_batch(
-                    "BEGIN IMMEDIATE;
-                     CREATE TABLE IF NOT EXISTS vm_metadata (
-                       singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
-                       next_sequence INTEGER NOT NULL CHECK (next_sequence >= 1)
-                     ) STRICT;
-                     INSERT OR IGNORE INTO vm_metadata(singleton, next_sequence) VALUES (1, 1);
-                     CREATE TABLE IF NOT EXISTS vm_effects (
-                       token TEXT PRIMARY KEY,
-                       state TEXT NOT NULL CHECK (state IN ('pending', 'completed')),
-                       image BLOB NOT NULL,
-                       deadline_at_ms INTEGER CHECK (deadline_at_ms IS NULL OR deadline_at_ms >= 0),
-                       terminal_step BLOB,
-                       CHECK ((state = 'pending' AND terminal_step IS NULL) OR
-                              (state = 'completed' AND terminal_step IS NOT NULL))
-                     ) STRICT;
-                     CREATE TABLE IF NOT EXISTS vm_dispatches (
-                       token TEXT PRIMARY KEY REFERENCES vm_effects(token) ON DELETE CASCADE,
-                       request BLOB NOT NULL,
-                       state TEXT NOT NULL CHECK (state IN ('ready', 'leased', 'acknowledged')),
-                       attempt INTEGER NOT NULL CHECK (attempt >= 0),
-                       lease_expires_at_ms INTEGER,
-                       ready_at_ms INTEGER NOT NULL DEFAULT 0 CHECK (ready_at_ms >= 0),
-                       retry_count INTEGER NOT NULL DEFAULT 0
-                         CHECK (retry_count >= 0 AND retry_count <= 16),
-                       last_error BLOB,
-                       CHECK ((state = 'ready' AND lease_expires_at_ms IS NULL) OR
-                              (state = 'leased' AND lease_expires_at_ms IS NOT NULL) OR
-                              (state = 'acknowledged' AND lease_expires_at_ms IS NULL))
-                     ) STRICT;
-                     CREATE INDEX vm_effect_deadline_idx
-                       ON vm_effects(state, deadline_at_ms);
-                     CREATE INDEX vm_dispatch_ready_idx
-                       ON vm_dispatches(state, ready_at_ms, lease_expires_at_ms);
-                     PRAGMA user_version = 4;
-                     COMMIT;",
-                )
-                .map_err(|error| journal_error("LSV4003", "failed to initialize journal", error))?;
-        } else if version == 1 {
-            connection
-                .execute_batch(
-                    "BEGIN IMMEDIATE;
-                     CREATE TABLE vm_dispatches (
-                       token TEXT PRIMARY KEY REFERENCES vm_effects(token) ON DELETE CASCADE,
-                       request BLOB NOT NULL,
-                       state TEXT NOT NULL CHECK (state IN ('ready', 'leased', 'acknowledged')),
-                       attempt INTEGER NOT NULL CHECK (attempt >= 0),
-                       lease_expires_at_ms INTEGER,
-                       ready_at_ms INTEGER NOT NULL DEFAULT 0 CHECK (ready_at_ms >= 0),
-                       retry_count INTEGER NOT NULL DEFAULT 0
-                         CHECK (retry_count >= 0 AND retry_count <= 16),
-                       last_error BLOB,
-                       CHECK ((state = 'ready' AND lease_expires_at_ms IS NULL) OR
-                              (state = 'leased' AND lease_expires_at_ms IS NOT NULL) OR
-                              (state = 'acknowledged' AND lease_expires_at_ms IS NULL))
-                     ) STRICT;
-                     ALTER TABLE vm_effects ADD COLUMN deadline_at_ms INTEGER
-                       CHECK (deadline_at_ms IS NULL OR deadline_at_ms >= 0);
-                     CREATE INDEX vm_effect_deadline_idx
-                       ON vm_effects(state, deadline_at_ms);
-                     CREATE INDEX vm_dispatch_ready_idx
-                       ON vm_dispatches(state, ready_at_ms, lease_expires_at_ms);
-                     PRAGMA user_version = 4;
-                     COMMIT;",
-                )
-                .map_err(|error| journal_error("LSV4003", "failed to migrate journal", error))?;
-        } else if version == 2 {
-            connection
-                .execute_batch(
-                    "BEGIN IMMEDIATE;
-                     ALTER TABLE vm_effects ADD COLUMN deadline_at_ms INTEGER
-                       CHECK (deadline_at_ms IS NULL OR deadline_at_ms >= 0);
-                     CREATE INDEX vm_effect_deadline_idx
-                       ON vm_effects(state, deadline_at_ms);
-                     ALTER TABLE vm_dispatches ADD COLUMN ready_at_ms INTEGER NOT NULL DEFAULT 0
-                       CHECK (ready_at_ms >= 0);
-                     ALTER TABLE vm_dispatches ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0
-                       CHECK (retry_count >= 0 AND retry_count <= 16);
-                     ALTER TABLE vm_dispatches ADD COLUMN last_error BLOB;
-                     CREATE INDEX vm_dispatch_ready_idx
-                       ON vm_dispatches(state, ready_at_ms, lease_expires_at_ms);
-                     PRAGMA user_version = 4;
-                     COMMIT;",
-                )
-                .map_err(|error| journal_error("LSV4003", "failed to migrate journal", error))?;
-        } else if version == 3 {
-            connection
-                .execute_batch(
-                    "BEGIN IMMEDIATE;
-                     ALTER TABLE vm_dispatches ADD COLUMN ready_at_ms INTEGER NOT NULL DEFAULT 0
-                       CHECK (ready_at_ms >= 0);
-                     ALTER TABLE vm_dispatches ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0
-                       CHECK (retry_count >= 0 AND retry_count <= 16);
-                     ALTER TABLE vm_dispatches ADD COLUMN last_error BLOB;
-                     CREATE INDEX vm_dispatch_ready_idx
-                       ON vm_dispatches(state, ready_at_ms, lease_expires_at_ms);
-                     PRAGMA user_version = 4;
-                     COMMIT;",
-                )
-                .map_err(|error| journal_error("LSV4003", "failed to migrate journal", error))?;
-        } else if !matches!(version, 4 | 5 | 6 | 7 | 8 | 9 | JOURNAL_SCHEMA_VERSION) {
-            return Err(journal_fault(
-                "LSV4004",
-                format!(
-                    "unsupported journal version {version}, expected 1 through {JOURNAL_SCHEMA_VERSION}"
-                ),
-            ));
-        }
-
-        if version < 5 {
-            connection
-                .execute_batch(
-                    "BEGIN IMMEDIATE;
-                 CREATE TABLE vm_merge_groups (
-                   token TEXT PRIMARY KEY,
-                   plan BLOB NOT NULL,
-                   state TEXT NOT NULL CHECK (state IN ('pending', 'completed')),
-                   terminal_step BLOB,
-                   CHECK ((state = 'pending' AND terminal_step IS NULL) OR
-                          (state = 'completed' AND terminal_step IS NOT NULL))
-                 ) STRICT;
-                 CREATE TABLE vm_merge_branches (
-                   group_token TEXT NOT NULL
-                     REFERENCES vm_merge_groups(token) ON DELETE CASCADE,
-                   branch_token TEXT NOT NULL UNIQUE
-                     REFERENCES vm_effects(token) ON DELETE CASCADE,
-                   branch_name TEXT NOT NULL,
-                   position INTEGER NOT NULL CHECK (position >= 0 AND position < 64),
-                   PRIMARY KEY (group_token, branch_name),
-                   UNIQUE (group_token, position)
-                 ) STRICT;
-                 CREATE INDEX vm_merge_branch_group_idx
-                   ON vm_merge_branches(group_token, position);
-                 PRAGMA user_version = 5;
-                 COMMIT;",
-                )
-                .map_err(|error| {
-                    journal_error("LSV4003", "failed to migrate merge journal", error)
-                })?;
-        }
-
-        if version < 6 {
-            connection
-                .execute_batch(
-                    "BEGIN IMMEDIATE;
-                     CREATE TABLE vm_debugger_audit (
-                       command_id TEXT PRIMARY KEY,
-                       principal_id TEXT NOT NULL,
-                       idempotency_key TEXT NOT NULL,
-                       origin TEXT NOT NULL CHECK (origin IN ('gui', 'cli', 'leselang', 'model', 'compatibility_adapter')),
-                       session_id TEXT NOT NULL,
-                       expected_revision INTEGER NOT NULL CHECK (expected_revision >= 0),
-                       observed_at_ms INTEGER NOT NULL CHECK (observed_at_ms >= 0),
-                       continuation_token TEXT NOT NULL
-                         REFERENCES vm_effects(token) ON DELETE CASCADE,
-                       UNIQUE (principal_id, idempotency_key)
-                     ) STRICT;
-                     CREATE INDEX vm_debugger_audit_token_idx
-                       ON vm_debugger_audit(continuation_token);
-                     PRAGMA user_version = 6;
-                     COMMIT;",
-                )
-                .map_err(|error| {
-                    journal_error("LSV4003", "failed to migrate debugger audit journal", error)
-                })?;
-        }
-
-        if version < 7 {
-            connection.execute_batch(
-                "BEGIN IMMEDIATE;
-                 ALTER TABLE vm_merge_groups ADD COLUMN execution_order TEXT NOT NULL DEFAULT 'parallel'
-                   CHECK (execution_order IN ('parallel', 'sequential'));
-                 PRAGMA user_version = 7;
-                 COMMIT;"
-            ).map_err(|error| journal_error("LSV4003", "failed to migrate control flow journal", error))?;
-        }
-
-        if version < 8 {
-            connection
-                .execute_batch("BEGIN IMMEDIATE; PRAGMA user_version = 8; COMMIT;")
-                .map_err(|error| {
-                    journal_error("LSV4003", "failed to migrate result-chain journal", error)
-                })?;
-        }
-
-        if version < 9 {
-            connection
-                .execute_batch("BEGIN IMMEDIATE; PRAGMA user_version = 9; COMMIT;")
-                .map_err(|error| {
-                    journal_error("LSV4003", "failed to migrate dataflow journal", error)
-                })?;
-        }
-
-        if version < 10 {
-            connection
-                .execute_batch("BEGIN IMMEDIATE; PRAGMA user_version = 10; COMMIT;")
-                .map_err(|error| {
-                    journal_error(
-                        "LSV4003",
-                        "failed to migrate conditional-exit journal",
-                        error,
-                    )
-                })?;
-        }
-
-        // Canonical tokens share one prefix and have no leading zeroes, so length/text
-        // order is numeric admission order without casts or a new persisted sequence.
-        connection
-            .execute_batch(
-                "CREATE INDEX IF NOT EXISTS vm_dispatch_attempt_order_idx
-                 ON vm_dispatches(attempt, length(token), token)
-                 WHERE state IN ('ready', 'leased');",
-            )
-            .map_err(|error| {
-                journal_error("LSV4003", "failed to index dispatch ordering", error)
-            })?;
+                .execute_batch(sql)
+                .map_err(|error| journal_error("LSV4003", context, error))
+        })?;
 
         Ok(Self { connection })
     }
@@ -1971,58 +1664,13 @@ impl SqliteJournal {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| journal_error("LSV4012", "failed to lock journal", error))?;
-        let Some(existing) = load_record(&transaction, image.token.as_str())? else {
-            return Err(journal_fault(
-                "LSV4013",
-                "pending continuation is missing from durable journal",
-            ));
-        };
-        if existing.image != image_bytes {
-            return Err(journal_fault(
-                "LSV4014",
-                "continuation image conflicts with durable journal state",
-            ));
-        }
-        if existing.state == "completed" {
-            let bytes = existing.terminal_step.ok_or_else(|| {
-                journal_fault("LSV4007", "completed journal record has no terminal step")
-            })?;
-            let authoritative: Step = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
-            validate_terminal_step(&authoritative)?;
-            transaction.commit().map_err(|error| {
-                journal_error("LSV4012", "failed to close journal transaction", error)
-            })?;
-            return Ok(authoritative);
-        }
-        if let Some(dispatch) = load_dispatch(&transaction, image.token.as_str())?
-            && dispatch.state == "leased"
-        {
-            return Err(journal_fault(
-                "LSV4024",
-                "leased effect must be completed through dispatch acknowledgement",
-            ));
-        }
-        ensure_sequence_ready(&transaction, image.token.as_str())?;
-        ensure_growth(&transaction, step_bytes.len())?;
-        transaction
-            .execute(
-                "UPDATE vm_effects SET state = 'completed', terminal_step = ?2 WHERE token = ?1",
-                params![image.token.as_str(), step_bytes],
-            )
-            .map_err(|error| journal_error("LSV4012", "failed to complete effect", error))?;
-        transaction
-            .execute(
-                "UPDATE vm_dispatches
-                 SET state = 'acknowledged', lease_expires_at_ms = NULL
-                 WHERE token = ?1",
-                [image.token.as_str()],
-            )
-            .map_err(|error| journal_error("LSV4012", "failed to acknowledge dispatch", error))?;
-        finalize_merge_group(&transaction, image.token.as_str())?;
-        transaction.commit().map_err(|error| {
-            journal_error("LSV4012", "failed to commit completed effect", error)
-        })?;
-        Ok(step.clone())
+        leselang_command::reference_completion_commit::complete_durable(
+            completion_commit::SqliteCompletionTransaction(transaction),
+            image,
+            step,
+            &image_bytes,
+            &step_bytes,
+        )
     }
 
     fn acknowledge_dispatch(
@@ -2044,52 +1692,14 @@ impl SqliteJournal {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| journal_error("LSV4020", "failed to lock dispatch journal", error))?;
-        let Some(existing) = load_record(&transaction, image.token.as_str())? else {
-            return Err(journal_fault("LSV4021", "dispatch continuation is unknown"));
-        };
-        if existing.image != image_bytes {
-            return Err(journal_fault(
-                "LSV4014",
-                "dispatch continuation conflicts with durable journal state",
-            ));
-        }
-        if existing.state == "completed" {
-            let bytes = existing.terminal_step.ok_or_else(|| {
-                journal_fault("LSV4007", "completed journal record has no terminal step")
-            })?;
-            let authoritative: Step = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
-            validate_terminal_step(&authoritative)?;
-            transaction.commit().map_err(|error| {
-                journal_error("LSV4020", "failed to close dispatch transaction", error)
-            })?;
-            return Ok(authoritative);
-        }
-        let Some(dispatch) = load_dispatch(&transaction, image.token.as_str())? else {
-            return Err(journal_fault("LSV4021", "dispatch lease is unknown"));
-        };
-        let durable_request: EffectRequest =
-            decode_bounded(&dispatch.request, MAX_JOURNAL_ENTRY_BYTES)?;
-        validate_stored_lease(&dispatch, lease, now_ms, durable_request == lease.request)?;
-        ensure_growth(&transaction, step_bytes.len())?;
-        transaction
-            .execute(
-                "UPDATE vm_effects SET state = 'completed', terminal_step = ?2 WHERE token = ?1",
-                params![image.token.as_str(), step_bytes],
-            )
-            .map_err(|error| journal_error("LSV4020", "failed to complete dispatch", error))?;
-        transaction
-            .execute(
-                "UPDATE vm_dispatches
-                 SET state = 'acknowledged', lease_expires_at_ms = NULL
-                 WHERE token = ?1",
-                [image.token.as_str()],
-            )
-            .map_err(|error| journal_error("LSV4020", "failed to acknowledge dispatch", error))?;
-        finalize_merge_group(&transaction, image.token.as_str())?;
-        transaction
-            .commit()
-            .map_err(|error| journal_error("LSV4020", "failed to commit dispatch result", error))?;
-        Ok(step.clone())
+        leselang_command::reference_acknowledgement_commit::acknowledge_durable(
+            acknowledgement_commit::SqliteAcknowledgementTransaction(transaction),
+            lease,
+            now_ms,
+            step,
+            &image_bytes,
+            &step_bytes,
+        )
     }
 
     fn report_error(
@@ -2105,72 +1715,13 @@ impl SqliteJournal {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| journal_error("LSV4026", "failed to lock retry journal", error))?;
-        let Some(existing) = load_record(&transaction, image.token.as_str())? else {
-            return Err(journal_fault("LSV4021", "dispatch continuation is unknown"));
-        };
-        if existing.image != image_bytes {
-            return Err(journal_fault(
-                "LSV4014",
-                "dispatch continuation conflicts with durable journal state",
-            ));
-        }
-        if existing.state == "completed" {
-            let authoritative: Step = decode_bounded(
-                &existing.terminal_step.ok_or_else(|| {
-                    journal_fault("LSV4007", "completed journal record has no terminal step")
-                })?,
-                MAX_JOURNAL_ENTRY_BYTES,
-            )?;
-            validate_terminal_step(&authoritative)?;
-            transaction.commit().map_err(|error| {
-                journal_error("LSV4026", "failed to close retry transaction", error)
-            })?;
-            return Ok(RetryDisposition::Terminal(authoritative));
-        }
-        let Some(dispatch) = load_dispatch(&transaction, image.token.as_str())? else {
-            return Err(journal_fault("LSV4021", "dispatch lease is unknown"));
-        };
-        let durable_request: EffectRequest =
-            decode_bounded(&dispatch.request, MAX_JOURNAL_ENTRY_BYTES)?;
-        validate_stored_lease(&dispatch, lease, now_ms, durable_request == lease.request)?;
-
-        match disposition {
-            RetryDisposition::Scheduled(schedule) => {
-                validate_proposed_retry(dispatch.retry_count, schedule, now_ms)?;
-                let error_bytes = encode_json_capped(&schedule.error, 2_048, "effect error")?;
-                let ready_at_ms = i64::try_from(schedule.ready_at_ms)
-                    .map_err(|_| journal_fault("LSV4026", "retry clock is invalid"))?;
-                ensure_growth(&transaction, error_bytes.len())?;
-                transaction
-                    .execute(
-                        "UPDATE vm_dispatches
-                         SET state = 'ready', retry_count = ?2, ready_at_ms = ?3,
-                             last_error = ?4, lease_expires_at_ms = NULL
-                         WHERE token = ?1",
-                        params![
-                            image.token.as_str(),
-                            i64::from(schedule.retry_count),
-                            ready_at_ms,
-                            error_bytes
-                        ],
-                    )
-                    .map_err(|error| {
-                        journal_error("LSV4026", "failed to schedule effect retry", error)
-                    })?;
-            }
-            RetryDisposition::Terminal(step) => {
-                validate_terminal_step(step)?;
-                let step_bytes =
-                    encode_json_capped(step, MAX_JOURNAL_ENTRY_BYTES, "terminal step")?;
-                ensure_growth(&transaction, step_bytes.len())?;
-                complete_terminal_record(&transaction, image.token.as_str(), &step_bytes)?;
-                finalize_merge_group(&transaction, image.token.as_str())?;
-            }
-        }
-        transaction
-            .commit()
-            .map_err(|error| journal_error("LSV4026", "failed to commit effect retry", error))?;
-        Ok(disposition.clone())
+        leselang_command::reference_retry_commit::report_durable(
+            retry_commit::SqliteRetryTransaction(transaction),
+            lease,
+            now_ms,
+            disposition,
+            &image_bytes,
+        )
     }
 
     fn cancel(&mut self, image: &ContinuationImage, step: &Step) -> Result<Step, Fault> {
@@ -2184,35 +1735,13 @@ impl SqliteJournal {
             .map_err(|error| {
                 journal_error("LSV4025", "failed to lock cancellation journal", error)
             })?;
-        let Some(existing) = load_record(&transaction, image.token.as_str())? else {
-            return Err(journal_fault("LSV4013", "pending continuation is missing"));
-        };
-        if existing.image != image_bytes {
-            return Err(journal_fault(
-                "LSV4014",
-                "continuation image conflicts with durable journal state",
-            ));
-        }
-        if existing.state == "completed" {
-            let authoritative: Step = decode_bounded(
-                &existing.terminal_step.ok_or_else(|| {
-                    journal_fault("LSV4007", "completed journal record has no terminal step")
-                })?,
-                MAX_JOURNAL_ENTRY_BYTES,
-            )?;
-            validate_terminal_step(&authoritative)?;
-            transaction.commit().map_err(|error| {
-                journal_error("LSV4025", "failed to close cancellation transaction", error)
-            })?;
-            return Ok(authoritative);
-        }
-        ensure_growth(&transaction, step_bytes.len())?;
-        complete_terminal_record(&transaction, image.token.as_str(), &step_bytes)?;
-        finalize_merge_group(&transaction, image.token.as_str())?;
-        transaction.commit().map_err(|error| {
-            journal_error("LSV4025", "failed to commit effect cancellation", error)
-        })?;
-        Ok(step.clone())
+        leselang_command::reference_cancellation_commit::cancel_durable(
+            cancellation_commit::SqliteCancellationTransaction(transaction),
+            image,
+            step,
+            &image_bytes,
+            &step_bytes,
+        )
     }
 
     fn cancel_audited(
@@ -2232,83 +1761,15 @@ impl SqliteJournal {
             .map_err(|error| {
                 journal_error("LSV4032", "failed to lock debugger audit journal", error)
             })?;
-        if let Some((existing_command, token, idempotency_key, record)) =
-            load_debugger_audit(&transaction, audit)?
-        {
-            if existing_command == audit.command_id.as_str()
-                && token == image.token.as_str()
-                && idempotency_key == audit.idempotency_key.as_str()
-                && audit_matches_record(audit, &record)
-            {
-                let existing = load_record(&transaction, image.token.as_str())?
-                    .ok_or_else(|| journal_fault("LSV4032", "debugger audit effect is missing"))?;
-                let authoritative: Step = decode_bounded(
-                    &existing.terminal_step.ok_or_else(|| {
-                        journal_fault("LSV4032", "debugger audit has no terminal step")
-                    })?,
-                    MAX_JOURNAL_ENTRY_BYTES,
-                )?;
-                transaction.commit().map_err(|error| {
-                    journal_error("LSV4032", "failed to close debugger audit replay", error)
-                })?;
-                return Ok((authoritative, record));
-            }
-            return Err(journal_fault("LSV4033", "debugger command audit conflicts"));
-        }
-        let existing = load_record(&transaction, image.token.as_str())?
-            .ok_or_else(|| journal_fault("LSV4013", "pending continuation is missing"))?;
-        if existing.image != image_bytes {
-            return Err(journal_fault(
-                "LSV4014",
-                "continuation image conflicts with durable journal state",
-            ));
-        }
-        if existing.state == "completed" {
-            return Err(journal_fault(
-                "LSV4033",
-                "completed effect has no matching debugger audit",
-            ));
-        }
-        let record = debugger_audit_record(audit, now_ms);
-        transaction
-            .execute(
-                "INSERT INTO vm_debugger_audit(
-                    command_id, principal_id, idempotency_key, origin, session_id,
-                    expected_revision, observed_at_ms, continuation_token
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                params![
-                    audit.command_id.as_str(),
-                    audit.principal.id.as_str(),
-                    audit.idempotency_key.as_str(),
-                    command_origin_label(audit.origin),
-                    audit.session_id.as_str(),
-                    i64::try_from(audit.expected_revision.0).map_err(|_| {
-                        journal_fault("LSV4033", "debugger audit revision is out of range")
-                    })?,
-                    i64::try_from(now_ms).map_err(|_| {
-                        journal_fault("LSV4033", "debugger audit clock is out of range")
-                    })?,
-                    image.token.as_str(),
-                ],
-            )
-            .map_err(|error| {
-                journal_error(
-                    "LSV4033",
-                    "failed to store debugger cancellation audit",
-                    error,
-                )
-            })?;
-        ensure_growth(&transaction, step_bytes.len())?;
-        complete_terminal_record(&transaction, image.token.as_str(), &step_bytes)?;
-        finalize_merge_group(&transaction, image.token.as_str())?;
-        transaction.commit().map_err(|error| {
-            journal_error(
-                "LSV4032",
-                "failed to commit debugger cancellation audit",
-                error,
-            )
-        })?;
-        Ok((step.clone(), record))
+        leselang_command::reference_audit_commit::cancel_durable(
+            audit_commit::SqliteAuditTransaction(transaction),
+            image,
+            step,
+            audit,
+            now_ms,
+            &image_bytes,
+            &step_bytes,
+        )
     }
 
     fn debugger_audit(&self, command_id: &str) -> Result<Option<DebuggerAuditRecord>, Fault> {
@@ -2318,7 +1779,7 @@ impl SqliteJournal {
                         expected_revision, observed_at_ms
                  FROM vm_debugger_audit WHERE command_id = ?1",
                 [command_id],
-                decode_debugger_audit_row,
+                audit_read::decode_record,
             )
             .optional()
             .map_err(|error| {
@@ -2752,38 +2213,17 @@ fn complete_terminal_record(
     Ok(())
 }
 
-#[cfg(feature = "sqlite-journal")]
+#[cfg(all(test, feature = "sqlite-journal"))]
 fn parse_command_origin(value: &str) -> rusqlite::Result<leselang_host_contract::CommandOrigin> {
     leselang_command::debugger_audit::parse_command_origin(value)
         .ok_or(rusqlite::Error::InvalidQuery)
 }
 
 #[cfg(feature = "sqlite-journal")]
-fn decode_debugger_audit_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DebuggerAuditRecord> {
-    let command_id = crate::CommandId::new(row.get::<_, String>(0)?)
-        .map_err(|_| rusqlite::Error::InvalidQuery)?;
-    let principal_id = row.get::<_, String>(1)?;
-    let origin = parse_command_origin(&row.get::<_, String>(2)?)?;
-    let session_id = row.get::<_, String>(3)?;
-    let expected_revision =
-        u64::try_from(row.get::<_, i64>(4)?).map_err(|_| rusqlite::Error::InvalidQuery)?;
-    let observed_at_ms =
-        u64::try_from(row.get::<_, i64>(5)?).map_err(|_| rusqlite::Error::InvalidQuery)?;
-    Ok(DebuggerAuditRecord {
-        command_id,
-        principal_id,
-        origin,
-        session_id,
-        expected_revision: crate::Revision(expected_revision),
-        observed_at_ms,
-    })
-}
-
-#[cfg(feature = "sqlite-journal")]
 fn load_debugger_audit(
     transaction: &rusqlite::Transaction<'_>,
     audit: &DebuggerAuditContext,
-) -> Result<Option<(String, String, String, DebuggerAuditRecord)>, Fault> {
+) -> Result<Option<leselang_command::reference_audit_read::StoredAudit>, Fault> {
     transaction
         .query_row(
             "SELECT command_id, continuation_token, idempotency_key,
@@ -2795,25 +2235,7 @@ fn load_debugger_audit(
                 audit.principal.id.as_str(),
                 audit.idempotency_key.as_str(),
             ],
-            |row| {
-                let command_id = row.get::<_, String>(0)?;
-                let token = row.get::<_, String>(1)?;
-                let idempotency_key = row.get::<_, String>(2)?;
-                let record = DebuggerAuditRecord {
-                    command_id: crate::CommandId::new(command_id.clone())
-                        .map_err(|_| rusqlite::Error::InvalidQuery)?,
-                    principal_id: row.get(3)?,
-                    origin: parse_command_origin(&row.get::<_, String>(4)?)?,
-                    session_id: row.get(5)?,
-                    expected_revision: crate::Revision(
-                        u64::try_from(row.get::<_, i64>(6)?)
-                            .map_err(|_| rusqlite::Error::InvalidQuery)?,
-                    ),
-                    observed_at_ms: u64::try_from(row.get::<_, i64>(7)?)
-                        .map_err(|_| rusqlite::Error::InvalidQuery)?,
-                };
-                Ok((command_id, token, idempotency_key, record))
-            },
+            audit_read::decode_replay,
         )
         .optional()
         .map_err(|error| {
@@ -3317,129 +2739,101 @@ impl leselang_runtime_core::CheckpointFinalizer for SqliteRecoveryFinalizer<'_> 
 
 #[cfg(feature = "sqlite-journal")]
 fn validate_debugger_audit_records(connection: &Connection) -> Result<(), Fault> {
-    let index_count: u32 = connection
-        .query_row(
-            "SELECT COUNT(*) FROM sqlite_master
+    leselang_command::reference_audit_recovery::validate_audit_records(&mut SqliteAuditSource {
+        connection,
+    })
+}
+
+#[cfg(feature = "sqlite-journal")]
+struct SqliteAuditSource<'a> {
+    connection: &'a Connection,
+}
+
+#[cfg(feature = "sqlite-journal")]
+impl leselang_command::reference_audit_recovery::ReferenceAuditSource for SqliteAuditSource<'_> {
+    fn index_count(&mut self) -> Result<u32, Fault> {
+        self.connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
              WHERE type = 'index' AND name = 'vm_debugger_audit_token_idx'",
-            [],
-            |row| row.get(0),
-        )
-        .map_err(|error| {
-            journal_error("LSV4005", "failed to validate debugger audit schema", error)
-        })?;
-    if index_count != 1 {
-        return Err(journal_fault(
-            "LSV4007",
-            "debugger audit schema is incomplete",
-        ));
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|error| {
+                journal_error("LSV4005", "failed to validate debugger audit schema", error)
+            })
     }
-
-    let audit_count: u32 = connection
-        .query_row("SELECT COUNT(*) FROM vm_debugger_audit", [], |row| {
-            row.get(0)
-        })
-        .map_err(|error| journal_error("LSV4005", "failed to count debugger audits", error))?;
-
-    let mut statement = connection
-        .prepare(
-            "SELECT a.command_id, a.principal_id, a.idempotency_key, a.origin,
+    fn audit_count(&mut self) -> Result<u32, Fault> {
+        self.connection
+            .query_row("SELECT COUNT(*) FROM vm_debugger_audit", [], |row| {
+                row.get(0)
+            })
+            .map_err(|error| journal_error("LSV4005", "failed to count debugger audits", error))
+    }
+    fn inspect_records(&mut self) -> Result<u32, Fault> {
+        let mut statement = self
+            .connection
+            .prepare(
+                "SELECT a.command_id, a.principal_id, a.idempotency_key, a.origin,
                     a.session_id, a.expected_revision, a.observed_at_ms,
                     a.continuation_token, e.state, e.terminal_step
              FROM vm_debugger_audit a
              JOIN vm_effects e ON e.token = a.continuation_token
              ORDER BY a.command_id ASC",
-        )
-        .map_err(|error| {
-            journal_error("LSV4005", "failed to prepare debugger audit load", error)
-        })?;
-    let mut rows = statement
-        .query([])
-        .map_err(|error| journal_error("LSV4005", "failed to load debugger audits", error))?;
-    let mut validated_count = 0_u32;
-    while let Some(row) = rows
-        .next()
-        .map_err(|error| journal_error("LSV4005", "failed to read debugger audit", error))?
-    {
-        let command_id =
-            crate::CommandId::new(row.get::<_, String>(0).map_err(|error| {
-                journal_error("LSV4005", "invalid debugger audit command", error)
-            })?)
-            .map_err(|_| journal_fault("LSV4007", "debugger audit command is invalid"))?;
-        let principal_id = row
-            .get::<_, String>(1)
-            .map_err(|error| journal_error("LSV4005", "invalid debugger audit principal", error))?;
-        let idempotency_key =
-            crate::IdempotencyKey::new(row.get::<_, String>(2).map_err(|error| {
-                journal_error("LSV4005", "invalid debugger audit idempotency key", error)
-            })?)
-            .map_err(|_| journal_fault("LSV4007", "debugger audit idempotency key is invalid"))?;
-        let origin =
-            parse_command_origin(&row.get::<_, String>(3).map_err(|error| {
-                journal_error("LSV4005", "invalid debugger audit origin", error)
-            })?)
-            .map_err(|error| journal_error("LSV4007", "debugger audit origin is invalid", error))?;
-        let session_id = row
-            .get::<_, String>(4)
-            .map_err(|error| journal_error("LSV4005", "invalid debugger audit session", error))?;
-        let expected_revision =
-            u64::try_from(row.get::<_, i64>(5).map_err(|error| {
-                journal_error("LSV4005", "invalid debugger audit revision", error)
-            })?)
-            .map_err(|_| journal_fault("LSV4007", "debugger audit revision is invalid"))?;
-        let observed_at_ms =
-            u64::try_from(row.get::<_, i64>(6).map_err(|error| {
-                journal_error("LSV4005", "invalid debugger audit clock", error)
-            })?)
-            .map_err(|_| journal_fault("LSV4007", "debugger audit clock is invalid"))?;
-        let token = ContinuationToken::from_wire(row.get::<_, String>(7).map_err(|error| {
-            journal_error("LSV4005", "invalid debugger audit continuation", error)
-        })?);
-        let context = DebuggerAuditContext {
-            command_id,
-            idempotency_key,
-            principal: crate::Principal { id: principal_id },
-            origin,
-            session_id,
-            expected_revision: crate::Revision(expected_revision),
-        };
-        crate::validate_debugger_audit(&context)
-            .map_err(|_| journal_fault("LSV4007", "debugger audit identity is invalid"))?;
-        if !valid_continuation_token(&token)
-            || row.get::<_, String>(8).map_err(|error| {
-                journal_error("LSV4005", "invalid debugger audit effect state", error)
-            })? != "completed"
+            )
+            .map_err(|error| {
+                journal_error("LSV4005", "failed to prepare debugger audit load", error)
+            })?;
+        let mut rows = statement
+            .query([])
+            .map_err(|error| journal_error("LSV4005", "failed to load debugger audits", error))?;
+        let mut validated_count = 0_u32;
+        while let Some(row) = rows
+            .next()
+            .map_err(|error| journal_error("LSV4005", "failed to read debugger audit", error))?
         {
-            return Err(journal_fault(
-                "LSV4007",
-                "debugger audit continuation is invalid",
-            ));
+            leselang_command::reference_audit_recovery::inspect_audit_record(
+                &mut SqliteAuditRow { row },
+            )?;
+            validated_count += 1;
         }
-        let terminal_bytes = row.get::<_, Vec<u8>>(9).map_err(|error| {
+        Ok(validated_count)
+    }
+}
+
+#[cfg(feature = "sqlite-journal")]
+struct SqliteAuditRow<'a, 'row> {
+    row: &'a rusqlite::Row<'row>,
+}
+
+#[cfg(feature = "sqlite-journal")]
+impl leselang_command::reference_audit_recovery::ReferenceAuditRow for SqliteAuditRow<'_, '_> {
+    type Bytes = Vec<u8>;
+    type InvalidOrigin = rusqlite::Error;
+    fn read_text(
+        &mut self,
+        column: leselang_command::reference_audit_recovery::AuditTextColumn,
+    ) -> Result<String, Fault> {
+        self.row
+            .get(column.index())
+            .map_err(|error| journal_error("LSV4005", column.error_context(), error))
+    }
+    fn read_integer(
+        &mut self,
+        column: leselang_command::reference_audit_recovery::AuditIntegerColumn,
+    ) -> Result<i64, Fault> {
+        self.row
+            .get(column.index())
+            .map_err(|error| journal_error("LSV4005", column.error_context(), error))
+    }
+    fn read_terminal(&mut self) -> Result<Vec<u8>, Fault> {
+        self.row.get(9).map_err(|error| {
             journal_error("LSV4005", "invalid debugger audit terminal step", error)
-        })?;
-        let terminal: Step = decode_bounded(&terminal_bytes, MAX_JOURNAL_ENTRY_BYTES)?;
-        if !matches!(
-            terminal,
-            Step::Cancelled(Cancellation {
-                continuation,
-                reason: CancellationReason::Requested,
-                observed_at_ms: terminal_observed_at,
-            }) if continuation == token && terminal_observed_at == observed_at_ms
-        ) {
-            return Err(journal_fault(
-                "LSV4007",
-                "debugger audit does not match its terminal cancellation",
-            ));
-        }
-        validated_count += 1;
+        })
     }
-    if validated_count != audit_count {
-        return Err(journal_fault(
-            "LSV4007",
-            "debugger audit references a missing continuation",
-        ));
+    fn invalid_origin(&mut self) -> rusqlite::Error {
+        rusqlite::Error::InvalidQuery
     }
-    Ok(())
 }
 
 struct MergeGraphHost;

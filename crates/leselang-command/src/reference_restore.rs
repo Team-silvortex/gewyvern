@@ -9,8 +9,87 @@ use crate::reference_continuation::{
     invalid_continuation_sequence_fault, validate_continuation_size,
 };
 use crate::reference_request::validate_effect_request;
-use crate::{ContinuationImage, ContinuationToken, EffectRequest};
+use crate::{ContinuationImage, ContinuationToken, EffectRequest, Step};
 use leselang_runtime_core::{Fault, SequenceWatermarkRequirement};
+use std::collections::BTreeMap;
+
+/// Borrowed reference-cache state, not journal authority or a recovery snapshot.
+/// Import uses the existing preflight, then a trusted native commit that must
+/// recheck current authority and capacity. No local state changes before commit;
+/// success advances the watermark before moving the original image into cache.
+/// Native side effects on refusal/unwind are not retried or compensated. Cache
+/// publication and native storage are not one atomic transaction.
+/// Callback-capture cleanup is trusted and can unwind after successful publication.
+pub struct ReferenceRestoreCache<'a> {
+    pub pending: &'a mut BTreeMap<ContinuationToken, ContinuationImage>,
+    pub completed: &'a BTreeMap<ContinuationToken, Step>,
+    pub next_sequence: &'a mut u64,
+}
+
+impl ReferenceRestoreCache<'_> {
+    pub fn restore(
+        self,
+        image: ContinuationImage,
+        commit: impl FnMut(&ContinuationImage, Option<&EffectRequest>) -> Result<(), Fault>,
+    ) -> Result<(), Fault> {
+        restore(
+            image,
+            &mut CacheImport {
+                cache: self,
+                commit,
+            },
+        )
+    }
+
+    pub fn restore_request(
+        self,
+        request: EffectRequest,
+        commit: impl FnMut(&ContinuationImage, Option<&EffectRequest>) -> Result<(), Fault>,
+    ) -> Result<(), Fault> {
+        restore_request(
+            request,
+            &mut CacheImport {
+                cache: self,
+                commit,
+            },
+        )
+    }
+}
+
+struct CacheImport<'a, Commit> {
+    cache: ReferenceRestoreCache<'a>,
+    commit: Commit,
+}
+
+impl<Commit> ReferenceRestoreHost for CacheImport<'_, Commit>
+where
+    Commit: FnMut(&ContinuationImage, Option<&EffectRequest>) -> Result<(), Fault>,
+{
+    fn pending(&self, token: &ContinuationToken) -> Option<&ContinuationImage> {
+        self.cache.pending.get(token)
+    }
+    fn is_completed(&self, token: &ContinuationToken) -> bool {
+        self.cache.completed.contains_key(token)
+    }
+    fn commit_existing(
+        &mut self,
+        image: &ContinuationImage,
+        request: Option<&EffectRequest>,
+    ) -> Result<(), Fault> {
+        (self.commit)(image, request)
+    }
+    fn commit_new(
+        &mut self,
+        image: ContinuationImage,
+        request: Option<&EffectRequest>,
+        next_sequence: u64,
+    ) -> Result<(), Fault> {
+        (self.commit)(&image, request)?;
+        *self.cache.next_sequence = (*self.cache.next_sequence).max(next_sequence);
+        self.cache.pending.insert(image.token.clone(), image);
+        Ok(())
+    }
+}
 
 /// Trusted owner of local observations and transactional import. Observations are
 /// not durable authority: both commit hooks must validate against current journal

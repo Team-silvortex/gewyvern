@@ -1,0 +1,162 @@
+{
+  "kind": "leselang-reference-ordinary-cancellation-commit-parity",
+  "validated_on": "2026-10-25",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.160.0",
+  "direct_adapter_tests": 7,
+  "frozen_memory_cases": 980,
+  "native_memory_partial_mutation_cases": 2,
+  "frozen_sqlite_cases": 216,
+  "durable_reopen_cases": 9,
+  "native_admission_before_transaction_retained": true,
+  "ordinary_replay_terminal_validation_preserved": true,
+  "memory_missing_dispatch_and_partial_mutation_preserved": true,
+  "native_write_order_and_atomic_rollback_preserved": true,
+  "transaction_owner_consumed_without_retry": true,
+  "ordinary_cancellation_does_not_create_audit": true,
+  "stored_effect_compatibility_reexport_preserved": true,
+  "adapter_has_no_vm_or_sqlite_normal_dependency": true,
+  "source_export_dry_run_files": 280,
+  "source_export_dry_run_bytes": 6784528,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "Ordinary memory and SQLite cancellation policy over unchanged native validation, bounded codecs, storage writes, group finalization and transaction ownership.",
+  "limitations": [
+    "Frozen policy shares native storage, input codecs/admission and group-finalization primitives, not the extracted ordinary cancellation orchestration.",
+    "Disposable corrupt SQLite fixtures restore constraints before invoking the production transaction. They are not valid recovery checkpoints.",
+    "The internal memory primitive retains missing-dispatch finalization and terminal replacement. The public VM entry still owns authority and replay; native memory mutations are not rolled back on later finalization failure.",
+    "Ordinary durable replay retains original terminal validation, not new image/terminal correspondence. Unknown non-completed raw states retain their original write branch, not new recovery admission.",
+    "Quota hook errors and uncertain commit/unwind are modeled directly; SQLite trigger and deferred-constraint failures exercise real rollback. No physical disk-full or power-loss experiment is claimed.",
+    "No new Linux, remote CI, live GUI, standalone exported-source execution, complete host-neutral durable recovery or throughput benchmark is claimed."
+  ],
+  "related_crate_tests_passed": 1401,
+  "memory_profile_unit_tests_passed": 127,
+  "strict_workspace_all_features_all_targets_clippy_passed": true,
+  "source_planning_tests_passed": 23,
+  "verification_status": "passed",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_cancellation_commit.rs",
+      "sha256": "9eb7c888598d441b775fbc965eee2a7bf7e757f978b9ec1a0a2c53b004ae26fd"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "76d518a393656d3738fb35cf3928ed9d2cdc1209685fb49fdc8aa8af3aa0205d"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_recovery.rs",
+      "sha256": "0fa7788e3d749a90a3c698d273fa28c46838ecb9f39532c5d1ab40987e5c28e0"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_audit_commit.rs",
+      "sha256": "79b628e503b435daf9f5b5fd8bb283c7f21cede97d3a0c43c1f9160e5b32dfce"
+    },
+    {
+      "path": "crates/leselang-command/Cargo.toml",
+      "sha256": "51753fa79fce986890ef1948ad092f9875b370be116b228c49513375066e462f"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_cancellation_commit.rs",
+      "sha256": "08234cc865cc8b62870391a767bca73c76b5be6d77f0c9e6dc4c87936e2bc991"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "0010a19e6669559e84c283d5dfb2fba08639cd0d3db2051fb552bfad59fabbfe"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/cancellation_commit.rs",
+      "sha256": "4a64bef40fac2a813f014f6f3526b1b362a0f5e3e6af4a81cac4544c8cb85e84"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/cancellation_commit_contract_tests.rs",
+      "sha256": "42561ef85ddca2543dbac36f0a2e6873b41919e4fd9599d6563e89e4507ef156"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "a89a6b86b27ed40d065fd656eb0187bf8b3dbe3fa78f3149e72e8e584c8d4186"
+    },
+    {
+      "path": "crates/leselang-vm/Cargo.toml",
+      "sha256": "2f1d51815d543a85d8b69662dbb4578170e8c6b0672f52402e4dec5c05260e21"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "f3d1e3bcab8fd65680994b3e87f5d0899843c8fd7f73d8168360df1d2e4c56b2"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "ded014ae646d961d79d177531acf61f872ff19213fa74ee2cf8b52604b2b6df8"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "5fd066f1f9a91de8d02186a2aaa9cd95cea3b0f63ea51ff8c9ca3af10d8bf2d7"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "5a1c8f62ea3ced06f1045a099e98a5439160d4d57945cfcaa1d6cbb4e26555e3"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "6a78d6908ddf3c331b302bd25ebc22aa254cf93a8f55a88dd4a50964bc424264"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "a8b6802b8c567e1d10dd63ea637522332133e179ecc9734449c8eda4fbfc5af6"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/private/tmp/leselang-cancellation-commit-adapter-20261025.log",
+      "sha256": "4bcea22713f0abac81a9603be2619f60c82fb87ac9bfea589a79b79e93dd385a"
+    },
+    {
+      "path": "/private/tmp/leselang-cancellation-commit-parity-20261025.log",
+      "sha256": "7a191d8f143919a6e0b2c924d36a163776ea8af458bf4d83ac674df6ddc1f707"
+    },
+    {
+      "path": "/private/tmp/leselang-cancellation-commit-suite-20261025.log",
+      "sha256": "946f2131f840adcf645a83f4947fee9c58d95facb36ee4cba011e2ef4358408c"
+    },
+    {
+      "path": "/private/tmp/leselang-cancellation-commit-memory-20261025.log",
+      "sha256": "144a092cfbb489b8ef44b00d709037e8b9138ef5518c8091170070fba11a47bf"
+    },
+    {
+      "path": "/private/tmp/leselang-cancellation-commit-native-20261025.log",
+      "sha256": "6c9a93b709d70b97abb02cb00823887d60b5c99c51e73ea1ae9635a26f949d2e"
+    },
+    {
+      "path": "/private/tmp/leselang-cancellation-commit-clippy-20261025.log",
+      "sha256": "d9813b995fc92c32017d6443b1c07e6dddafe115f3d3cfe6fe58a8eb4bf4f983"
+    },
+    {
+      "path": "/private/tmp/leselang-cancellation-commit-source-plan-20261025.log",
+      "sha256": "65f98721bdbad19a79f892abb687f6c74ef0914ca4964fcaf4ef30d473489353"
+    },
+    {
+      "path": "/private/tmp/leselang-cancellation-commit-dependencies-20261025.log",
+      "sha256": "2aa3528997c7c9640dc072977067c24f67ca4ff21ee912b534ce599bf644ac56"
+    },
+    {
+      "path": "/private/tmp/leselang-cancellation-commit-export-plan-20261025.log",
+      "sha256": "824279387ff78e14eb7be4337f5427174f44f504bc182eb1f998ee07c3c53d8c"
+    },
+    {
+      "path": "/private/tmp/leselang-cancellation-commit-architecture-status-20261025.log",
+      "sha256": "e67c92f4c37af8961c3a64217a58bcb026f891df87b1f329a1c42b0ef6afab4f"
+    },
+    {
+      "path": "/private/tmp/leselang-cancellation-commit-catalog-20261025.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "architecture_documentation_status_tests_passed": 492,
+  "status_catalog_valid": true
+}

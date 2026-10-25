@@ -161,6 +161,59 @@ jobs:
       - name: Test native publication failures and shared-owner admission races
         run: cargo +1.98.0 test -p leselang-vm --locked --lib publication_contract_tests
 
+      - name: Test import publication and committed lease adoption across restart
+        run: cargo +1.98.0 test -p leselang-vm --locked --lib adoption_contract_tests
+
+      - name: Test adapter-owned root admission lifecycle
+        run: cargo +1.98.0 test -p leselang-command --locked --test reference_admission
+
+      - name: Test root admission compatibility and native storage boundaries
+        run: |
+          cargo +1.98.0 test -p leselang-vm --locked --lib admission_contract_tests
+          cargo +1.98.0 test -p leselang-vm --locked --test admission
+
+      - name: Test reference journal schema ownership and legacy migration parity
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_journal_schema
+          cargo +1.98.0 test -p leselang-vm --locked --lib schema_contract_tests
+          cargo +1.98.0 test -p leselang-vm --locked --lib journal_v
+
+      - name: Test audit recovery policy and atomic checkpoint publication
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_audit_recovery
+          cargo +1.98.0 test -p leselang-vm --locked --lib audit_recovery_contract_tests
+          cargo +1.98.0 test -p leselang-vm --locked --test debugger_audit_durable --test debugger_audit_memory
+
+      - name: Test audited cancellation policy and native commit parity
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_audit_commit
+          cargo +1.98.0 test -p leselang-vm --locked --lib audit_commit_contract_tests
+
+      - name: Test audit record projections and native lookup diagnostics
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_audit_read
+          cargo +1.98.0 test -p leselang-vm --locked --lib audit_read_contract_tests
+
+      - name: Test ordinary cancellation policy and native commit parity
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_cancellation_commit
+          cargo +1.98.0 test -p leselang-vm --locked --lib cancellation_commit_contract_tests
+
+      - name: Test retry journal policy and native commit parity
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_retry_commit
+          cargo +1.98.0 test -p leselang-vm --locked --lib retry_commit_contract_tests
+
+      - name: Test dispatch acknowledgement policy and native commit parity
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_acknowledgement_commit
+          cargo +1.98.0 test -p leselang-vm --locked --lib acknowledgement_commit_contract_tests
+
+      - name: Test ordinary completion policy and native commit parity
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_completion_commit
+          cargo +1.98.0 test -p leselang-vm --locked --lib completion_commit_contract_tests
+
       - name: Test native settlement peer-winner publication
         run: cargo +1.98.0 test -p leselang-vm --locked --lib settlement_contract_tests::settlement_sqlite
 

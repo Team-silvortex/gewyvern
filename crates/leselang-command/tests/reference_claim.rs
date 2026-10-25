@@ -29,6 +29,47 @@ fn lease() -> Box<DispatchLease> {
         lease_expires_at_ms: 62,
     })
 }
+
+#[test]
+fn cache_adoption_clones_only_vacancies_and_preserves_equal_or_conflicting_entries() {
+    use std::collections::BTreeMap;
+    for state in 0..4 {
+        let lease = lease();
+        let image = &lease.request.continuation;
+        let bytes = serde_json::to_vec(&lease).unwrap();
+        let mut pending = BTreeMap::new();
+        if state != 0 {
+            let mut stored = image.clone();
+            if state == 2 {
+                stored.fuel_remaining -= 1;
+            }
+            if state == 3 {
+                stored.token =
+                    leselang_command::ContinuationToken::from_wire("continuation-8".into());
+            }
+            pending.insert(image.token.clone(), stored);
+        }
+        let pointer = pending.get(&image.token).map(|i| i.token.as_str().as_ptr());
+        let before = pending.clone();
+        let got = reference_claim::adopt_claimed_image(&mut pending, image);
+        if state < 2 {
+            got.unwrap();
+            assert_eq!(&pending[&image.token], image);
+        } else {
+            assert_eq!(got.unwrap_err().code, "LSV2005");
+            assert_eq!(pending, before);
+        }
+        if let Some(pointer) = pointer {
+            assert_eq!(pending[&image.token].token.as_str().as_ptr(), pointer);
+        } else {
+            assert_ne!(
+                pending[&image.token].token.as_str().as_ptr(),
+                image.token.as_str().as_ptr()
+            );
+        }
+        assert_eq!(serde_json::to_vec(&lease).unwrap(), bytes);
+    }
+}
 #[derive(Default)]
 struct Host {
     trace: Rc<RefCell<Vec<&'static str>>>,

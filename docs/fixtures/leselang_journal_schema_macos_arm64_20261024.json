@@ -1,0 +1,150 @@
+{
+  "kind": "leselang-reference-journal-schema-migration-parity",
+  "validated_on": "2026-10-24",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.156.0",
+  "direct_adapter_tests": 5,
+  "supported_version_paths": 11,
+  "native_batch_boundaries": 60,
+  "native_sqlite_failure_cases": 180,
+  "native_future_version_cases": 3,
+  "existing_legacy_migration_tests": 5,
+  "related_crate_tests_passed": 1361,
+  "memory_profile_unit_tests_passed": 124,
+  "source_planning_tests_passed": 23,
+  "source_export_dry_run_files": 280,
+  "source_export_dry_run_bytes": 6784528,
+  "historical_sql_and_commit_boundaries_preserved": true,
+  "native_file_safety_and_recovery_unchanged": true,
+  "current_version_still_repairs_dispatch_index": true,
+  "failure_stops_without_retries_or_compensation": true,
+  "native_callback_cleanup_can_unwind_after_commit": true,
+  "schema_version_reexport_preserved": true,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Reference schema version and complete ordered migration policy over unchanged native connection execution and checkpoint recovery.",
+  "limitations": [
+    "The frozen schema policy shares the native SQLite engine and payload validators; it is not independent storage or host-neutral durable recovery.",
+    "Failures are deterministic before, during and after batch execution, not power-loss, disk-full or multi-host fault injection.",
+    "The broad related-crate run is supplemented by the final SQLite matrix including exact SQL batch-byte comparison.",
+    "Each historical step remains separately committed. The adapter adds no compensation or all-or-nothing migration guarantee.",
+    "No new remote CI, Linux, live GUI, standalone source execution or throughput benchmark is claimed."
+  ],
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_journal_schema.rs",
+      "sha256": "69161353d10072a6c1f2af40b3734a0f52044914b0df7bcbb9846c409471bad5"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "1198892a62176775184237327d6cb9e82039df7b3077df4c7c7c757948f96a84"
+    },
+    {
+      "path": "crates/leselang-command/Cargo.toml",
+      "sha256": "51753fa79fce986890ef1948ad092f9875b370be116b228c49513375066e462f"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_journal_schema.rs",
+      "sha256": "c79b6efd873dc89f988b7621ab3a78ffa657cf18cb40d008e0410995ac6c2447"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "9f98529f8622ff7c4cdbb4996ca3144e40144b22e729450bce05273bcf4afcd7"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/schema_contract_tests.rs",
+      "sha256": "daf6886f0395fb9ac205d063c2a6ff217a784aad80c7845bf73781e8b847af6f"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "8c840c3b2c3dd3ef3eb5200de5bf4b4781c0eafef1ff0e6eb04ecb3726ed1070"
+    },
+    {
+      "path": "crates/leselang-vm/Cargo.toml",
+      "sha256": "2f1d51815d543a85d8b69662dbb4578170e8c6b0672f52402e4dec5c05260e21"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "363ab3f7588c057e8584998de23dac4f65edb1a58ed5145cd84af5ee6c18aee9"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "83b09b0b588eae40709a14c2dabbc77a547b51b51ab82cc5746e06081cf248f1"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "74963795527d3232c8da5ef812a071c43732dcce6523cad57d94b993e6ea3ce9"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "4fd4afc8c1a1dc1712132aa075d223bf509fcb2676687461537de7c0a36d484d"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "76d89cae3924cd020f4dba058b89f9228d95269713482bfb77744670c6316d57"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "89362a517a0e59b8a1aeb928fa65b2309f6c28d7f662005a10a654b762b01313"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/private/tmp/leselang-schema-adapter-20261024.log",
+      "sha256": "465452184b332410bfb361671bd3c7db265dd4df57b2581f545e7b5eede7e126"
+    },
+    {
+      "path": "/private/tmp/leselang-schema-parity-20261024.log",
+      "sha256": "cdde80d66269ec0618a56f192fafb48c92d071683fdf499c5003519c74084b84"
+    },
+    {
+      "path": "/private/tmp/leselang-schema-legacy-20261024.log",
+      "sha256": "29340450e0fa621e4ba0d373905d46e47ab3f952fcb500e47f3c4e9c8fe9fa5b"
+    },
+    {
+      "path": "/private/tmp/leselang-schema-suite-20261024.log",
+      "sha256": "7e7ecfcf1249023cd4308167f5d4219f273b5be9a0c2bfb4a911740f722d758b"
+    },
+    {
+      "path": "/private/tmp/leselang-schema-memory-20261024.log",
+      "sha256": "0af0b66f6cb1a4ade6b2979b05ce7d79e50a935e0aecbb5c3072b755793e5a82"
+    },
+    {
+      "path": "/private/tmp/leselang-schema-native-20261024.log",
+      "sha256": "6faf060d09625611c11b10ede4e883ff0d5120d2b96bcab5d209b58a7c55d418"
+    },
+    {
+      "path": "/private/tmp/leselang-schema-clippy-20261024.log",
+      "sha256": "10024ab8fec0d60c0f8e65083437f4e674137e699ab6385a1ac815eec550f1a2"
+    },
+    {
+      "path": "/private/tmp/leselang-schema-source-plan-20261024.log",
+      "sha256": "4ec27ff73666c7b6aa3a1999723d41d91371e8ed3caa890feaeee20b751c8f46"
+    },
+    {
+      "path": "/private/tmp/leselang-schema-dependencies-20261024.log",
+      "sha256": "aaa665314fcf5a37febf25c12f4b0493277f2cd238bafc35024a1d3afc972bff"
+    },
+    {
+      "path": "/private/tmp/leselang-schema-export-plan-20261024.log",
+      "sha256": "7b5d4038c47286f62b7aa45ee34eb7c4a175c5ae4c40a64a10e8e80f6a1c6e96"
+    },
+    {
+      "path": "/private/tmp/leselang-schema-architecture-status-20261024.log",
+      "sha256": "eb22433bc2f950868685bcaf6558fb6fd7b6dd686f96ffd53ea11d19b180f9df"
+    },
+    {
+      "path": "/private/tmp/leselang-schema-catalog-20261024.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "architecture_documentation_status_tests_passed": 484
+}

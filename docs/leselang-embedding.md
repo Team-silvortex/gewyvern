@@ -309,7 +309,9 @@ plan or completion as retryable admission pressure.
 The host-neutral `leselang-runtime-core` implements this lifecycle once as
 `Admission<Input>` and `AdmissionAdapter<Input>`. Its input/output types are opaque,
 with no HIR, command, GUI, database or account dependency. `RootAdmission` below
-is the reference VM adapter, not a second scheduler implementation. The core's
+is the reference adapter in `leselang-command::reference_admission`, exposed by
+the compatible `leselang_vm::RootAdmission` facade.
+It is not a second scheduler implementation. The core's
 `AdmissionAttempt::{Started, Backpressured, Rejected}` classification is explicit:
 hosts must prove that `Backpressured` published no accepted work. The core does
 not inspect host error-code strings, validate product authority or preempt callbacks.
@@ -10436,11 +10438,353 @@ not a threaded throughput benchmark. The race oracle shares preparation; the
 existing group oracle retains independent preparation. Native journals remain
 unchanged and shared, not an independent storage implementation.
 
-Reference execution is now `1.153.0`; native embedding `0.172.0`, HIR `0.184.0`,
+This slice established reference execution `1.153.0`; native embedding `0.172.0`, HIR `0.184.0`,
 product version, wire formats and journal schema 10 remain unchanged. Native
 journal ownership, complete host-neutral durable recovery, full host verticals
 and physical extraction remain open. Completion/maturity and extraction gates
 are not promoted. No new remote CI, Linux, live GUI or standalone export is claimed.
+
+### Import Cache Publication And Claim Adoption
+
+`reference_restore::ReferenceRestoreCache` now owns the complete reference-cache
+import path over borrowed pending/completed maps and the local sequence watermark.
+The VM supplies only those field borrows and its native journal commit closure;
+the former private VM restore-policy implementation is gone. Existing generic
+`ReferenceRestoreHost`, `restore` and `restore_request` entries remain compatible.
+Both cache entries reuse their original preflight rather than exposing raw
+post-validation publication as another public shortcut.
+
+Exact duplicate pending images still enter native storage once, before considering
+completed state, without replacing original cache buffers or advancing the local
+watermark. Fresh imports commit first, then advance the local watermark with
+`max`, then move the original image into the cache. Full-request import retains
+its existing image clone and original borrowed authority envelope; bare import
+moves the caller's image. Invalid frames/local conflicts cannot call native storage.
+Refusal/unwind while the native commit hook runs leaves cache and watermark
+unchanged without retries or compensation for effects inside the trusted callback.
+Callback-capture cleanup remains trusted: its unwind after success retains the
+already published watermark and image, rather than pretending to roll them back.
+The native transaction must
+still enforce current authority, capacity and terminal/identity conflicts.
+
+`reference_claim::adopt_claimed_image` also owns the existing single-entry cache
+operation: equal occupied entries keep their original buffers, conflicts preserve
+`LSV2005`, and only a vacant entry clones the borrowed claimed image. It changes
+neither completed state nor the allocation watermark. Adoption follows native
+lease issuance; a local conflict must not revoke/refund that committed lease.
+The entry operation adds no second map lookup or clone of an occupied image.
+
+The [adoption proof](fixtures/leselang_adoption_policy_macos_arm64_20261024.json)
+records direct cache/ownership tests and unchanged frozen import/claim oracles.
+Eleven additional real SQLite cases cover deferred commit failures, deterministic
+peer capacity/terminal/conflicting-image winners between preflight and commit,
+and committed-lease expiry/reopen/replay after local adoption conflict. These are
+native storage interleavings, not independent storage or a throughput benchmark.
+
+This slice advanced reference execution to `1.154.0`; native embedding `0.172.0`, HIR
+`0.184.0`, journal schema 10, wire forms and product version remain unchanged.
+The borrowed cache is not durable authority, an authenticated recovery snapshot,
+or an atomic storage-plus-cache transaction. Native journal ownership, complete
+host-neutral durable recovery, full host verticals and physical extraction remain
+open; completion/maturity and extraction gates are not promoted.
+
+### Root Admission Lifecycle
+
+`leselang-command::reference_admission` owns the reference root's captured HIR,
+authority snapshot, outcome DTO and retryable-pressure classification. The
+unchanged `leselang-runtime-core::Admission` still owns attempts, clock validation,
+backoff, cancellation and terminal/unwind sealing. The command adapter borrows a
+trusted `ReferenceAdmissionHost`, including local non-Send owners or trait objects;
+it has no VM, SQLite, timer or background-worker dependency.
+
+`leselang_vm::RootAdmission::poll(&mut vm, now_ms)` remains source-compatible.
+Its private native owner calls the original `Vm::start_timed`; no public mutation
+trait is implemented on `Vm`. `AdmissionPoll` is re-exported without new wire
+forms. Normal/pretty Debug stays redacted and byte-equivalent, and both the handle
+and outcome retain `must_use`. Retries borrow the same captured program, preserve
+authority/revision and spend only the original deadline's remaining time. Only
+the exact `LSV2501` means retryable pre-publication pressure; other faults move
+unchanged. A host unwind propagates and seals the handle as `HostUncertain`, not
+an invitation to replay potentially published work.
+
+The [root-admission proof](fixtures/leselang_root_admission_policy_macos_arm64_20261024.json)
+covers direct adapter tests, 20 frozen constructor comparisons, 72 memory and 72
+SQLite lifecycle comparisons including reopen, plus the unchanged public admission
+suite. The frozen adapter shares the original core scheduler and native storage:
+these are compatibility proofs, not independent storage or throughput evidence.
+Native timed start still checks clocks, expiry and static authorization, with
+capacity rechecked at native commit. Live dispatch permission remains the host's
+responsibility. Accepted effects remain native-owned after the local handle ends.
+
+This slice advanced reference execution to `1.155.0`; native embedding `0.172.0`, HIR `0.184.0`,
+journal schema 10 and the product version are unchanged. Native journal ownership,
+complete host-neutral durable recovery, full host verticals and physical extraction
+remain open. This migration does not promote their completion or maturity.
+
+### Reference Journal Schema
+
+`leselang-command::reference_journal_schema` owns schema version 10, historical
+SQL batches and their ordered migration policy. The native journal still validates
+paths, creates private files, opens/configures the connection, reads its version
+and executes the batches with the original SQLite error mapping. Checkpoint
+recovery, live transactions, leases and payload admission remain native-owned;
+the adapter adds no SQLite dependency to the language core or command crate.
+
+Versions 0 through 10 retain the exact upgrade path. Each historical step commits
+separately, and the current version still repairs the dispatch-order index. Unknown
+versions refuse before schema writes. Native failure or unwind stops immediately,
+without retries or compensation. Earlier commits survive; unfinished transaction
+rollback remains with SQLite and the native connection's lifetime. A post-commit
+callback/cleanup fault does not undo that commit or permit replay from an old version.
+
+The [schema proof](fixtures/leselang_journal_schema_macos_arm64_20261024.json)
+compares the frozen original schema policy with all 11 supported versions, original
+rows, recovery, receipt replay and reopen. It also covers 180 real SQLite failure
+cases before, inside and after native batches, plus unknown-version refusal.
+These checks share the native storage engine and payload validators; they are not
+host-neutral durable recovery or an independent storage implementation.
+
+This slice advanced reference execution to `1.156.0`. Native embedding `0.172.0`, HIR `0.184.0`,
+the product version, wire formats and journal schema 10 are unchanged. Native
+storage ownership, complete host-neutral durable recovery, full host verticals
+and physical extraction remain open; no maturity or completion gate is promoted.
+
+### Debugger Audit Recovery
+
+`leselang-command::reference_audit_recovery` owns the complete audit-validation
+pass and each joined row's product rules. Schema presence precedes the audit
+count and ordered scan; the final count still detects missing continuation joins.
+Rows retain command/principal/key/origin/session/revision/clock/token order,
+followed by context validation, lazy effect-state access and bounded terminal
+decoding. Evidence must be the original requested cancellation with matching
+token and observation time. No broad terminal validation or repair is added.
+
+Native owners retain SQL, row reads and cursor lifetimes inside the same original
+checkpoint transaction. Read errors and the native invalid-origin diagnostic
+remain unchanged. Invalid identity/token skips later state and payload reads;
+failure or unwind never retries, commits, advances the allocator or dispatches.
+The borrowed-row protocol accepts local owners and borrowed bytes without Clone
+or Send requirements. These observations are not a live grant or permission to
+restore an arbitrary saved frame.
+
+The [audit-recovery proof](fixtures/leselang_audit_recovery_macos_arm64_20261024.json)
+covers 640 frozen SQLite row/precedence cases across all five origins, native
+query and payload-bound failures, and 35 full checkpoint refusal/reopen cases.
+Corrupt-audit refusal leaves the allocation watermark and original tables
+unchanged; after explicit fixture repair, reopen preserves the committed receipt
+and timestamp without dispatch replay. Full-checkpoint test corruption bypasses
+constraints only while constructing disposable fixtures; enforcement is restored
+before recovery. Separate raw-row fixtures deliberately omit schema constraints.
+
+This slice advanced reference execution to `1.157.0`. Native embedding `0.172.0`, HIR `0.184.0`,
+journal schema 10, product version and wire forms remain unchanged. The native
+storage engine and bounded decoder are shared with the frozen oracle, not new
+independent implementations. Native journal ownership, full host-neutral durable
+recovery, complete host verticals and physical extraction remain open.
+
+### Audited Cancellation Commit
+
+`leselang-command::reference_audit_commit` owns the memory and durable journal
+decisions for exact replay, command/principal-key conflicts, image correspondence,
+completed-effect attribution, and fresh audit/cancellation ordering. These are
+reference product rules, not generic language semantics or debugger authority.
+
+Memory observations remain borrowed from the original maps without collection
+copies. Exact replay retains the original terminal and audit timestamp, even when
+new inputs differ. Only a fresh cancellation enters the native mutation hook;
+audit insertion follows successful cancellation/group finalization. A native
+failure can already have mutated memory, as before: no rollback is invented.
+
+Durable image/cancellation admission and bounded encoding still precede the native
+immediate transaction. The adapter consumes that transaction owner exactly once:
+replay closes it without new writes, while a fresh record is inserted before quota
+checking, terminal/dispatch writes, group finalization and commit. Original native
+faults, revision-before-clock range checks, raw terminal replay decoding and commit
+diagnostics are retained. Errors/unwinds drop the native transaction without retry
+or compensation. Only native SQLite owns atomic commit/rollback; the protocol is
+not an independent persistence engine or an authorization grant.
+
+The [commit-policy proof](fixtures/leselang_audit_commit_macos_arm64_20261025.json)
+covers 1,260 memory comparisons across all 70 operations, 625 SQLite comparisons
+across five origins and five atomic/group programs, and 25 reopen/replay cases.
+SQLite insert, terminal, dispatch, group and deferred commit failures compare exact
+faults and all table contents with the frozen pre-extraction policy. Disposable
+corruption fixtures restore constraint enforcement before entering the native
+transaction. Existing input/codec/storage/group primitives remain shared.
+
+This slice advanced reference execution to `1.158.0`; native embedding stays `0.172.0`, HIR `0.184.0`
+and journal schema 10. Product versions and wire formats are unchanged. Native
+record reading/decoding and ordinary cancellation were not moved in that slice.
+Complete host-neutral durable recovery, complete host verticals and physical extraction remain open.
+
+### Audit Read Projections
+
+`leselang-command::reference_audit_read` owns both released row projections:
+record lookup validates command identity immediately; replay lookup reads the raw
+command/token/key first, then validates command identity. Each keeps exact origin
+labels and signed counter conversion, lazy read order and the native invalid-data
+error. Native SQL selection, optional-row handling, database bounds, error context
+and transaction ownership are unchanged. The compatibility `StoredAudit` alias
+remains available from `reference_audit_commit` through a re-export.
+
+Read errors move unchanged without requiring Clone, Display or Send. Text buffers
+move into the returned projection; only the original replay command clone remains.
+Principal/session and replay token/key stay raw observations, not new identity
+admission, cancellation evidence or replay authority. No normalization, repair,
+retry or transaction is added by the decoder.
+
+The [read-projection proof](fixtures/leselang_audit_read_macos_arm64_20261025.json)
+covers 1,610 frozen SQLite projection cases and 180 two-path native lookup scenarios,
+including conflicting field errors, absent rows, schema faults and the unchanged
+command-or-principal-key query. These raw fixtures intentionally omit constraints;
+they prove read compatibility, not valid checkpoints. Existing commit/recovery
+regressions remain required for the full reference path.
+
+This slice advanced reference execution to `1.159.0`; native embedding `0.172.0`, HIR `0.184.0`, journal
+schema 10 and product/wire versions stay unchanged. Complete host-neutral durable
+recovery and full host verticals remain separate extraction gates.
+
+### Ordinary Cancellation Commit
+
+`leselang-command::reference_cancellation_commit` owns ordinary cancellation
+coordination, separate from debugger-audited cancellation. The memory adapter
+borrows the native dispatch slots exclusively: validation precedes acknowledgement,
+lease removal and terminal replacement, then group finalization runs even when
+the dispatch is missing. This low-level primitive retains replacement and partial
+mutation on finalization failure; public VM entry policy still owns authority and
+replay checks. It does not acquire transaction semantics or a retry loop.
+
+SQLite keeps native image/proposal admission and bounded encoding before opening
+the immediate transaction. The adapter compares the original image before decoding
+an existing terminal, retains ordinary replay's terminal validation (unlike audit
+replay), and returns the original winner. Fresh writes keep quota, terminal/dispatch,
+group-finalization and consuming commit order. Native owners retain SQL, atomic
+rollback and exact fault contexts; an uncertain commit is not retried or compensated.
+Raw non-completed states retain their original branch, not new recovery admission.
+The shared raw `StoredEffect` lives in `reference_recovery`; its existing audited
+commit path remains available through a compatibility re-export.
+
+The [cancellation proof](fixtures/leselang_cancellation_commit_macos_arm64_20261025.json)
+covers 7 direct adapter tests, 980 frozen memory comparisons across all 70 operations,
+2 real memory group-finalization failures, 216 frozen SQLite cases and 9 reopen
+cases. Exact results, whole-table snapshots, native write counts and audit absence
+are compared. Native codecs, storage and group-finalization primitives remain shared;
+disposable corruption fixtures restore constraints before the production call.
+Quota/uncertain-commit hooks are not a physical disk-full or power-loss experiment.
+
+This slice advanced reference execution to `1.160.0`; native embedding `0.172.0`, HIR `0.184.0`, journal
+schema 10 and product/wire versions remain unchanged. This is reference-adapter
+policy extraction, not completion of host-neutral durable recovery or the complete
+independent language VM. Full vertical and repository extraction gates remain open.
+
+### Retry Journal Commit
+
+`leselang-command::reference_retry_commit` owns the released retry journal
+coordination, separate from planning and public retry-entry policy. Memory uses
+exclusive native slots and a same-snapshot lease observation: lease fencing precedes
+proposal checks even for acknowledged records. A scheduled retry updates its count,
+ready clock and last error, then clears the lease without finalizing a group. A
+terminal proposal acknowledges and clears the lease before group finalization;
+later failure retains those original memory mutations. No retry or rollback is added.
+
+SQLite retains request/image admission and bounded encoding before opening the
+immediate transaction. Matching completed rows validate and return their saved
+terminal before reading a dispatch or checking the new proposal. Pending rows
+decode the original request and fence the lease first, then validate the proposal,
+encode the error/terminal, enforce growth and write. Terminal completion also
+finalizes its group before the consuming commit. Native SQL, bounded codec faults,
+dispatch counter/history decoding, rollback and commit diagnostics remain native.
+The original inclusive lease-expiration boundary and raw non-completed state branch
+are preserved, not tightened into new recovery admission. `StoredDispatch` is raw
+observation data in `reference_recovery`, not a live lease or a checkpoint certificate.
+
+The [retry commit proof](fixtures/leselang_retry_commit_macos_arm64_20261025.json)
+covers 7 direct adapter tests, 1,540 frozen memory comparisons across 70 operations,
+2 real memory finalization failures, 170 frozen SQLite cases and 10 reopen cases.
+New and frozen policies compare exact results, whole-table state and native write
+counts, including stale leases, replay before invalid proposals, malformed storage,
+scheduled/terminal write failures and deferred commit failure. Reopen keeps retry
+counts and readiness, rejects the old lease and never redispatches a terminal effect.
+Frozen policy shares native storage/codecs/lease and group primitives; disposable
+corruption fixtures restore constraints before the production call. Mock quota and
+uncertain-commit failures are not physical disk-full or power-loss experiments.
+
+This slice advanced reference execution to `1.161.0`; native embedding `0.172.0`, HIR `0.184.0`, journal
+schema 10 and product/wire versions are unchanged. Complete host-neutral durable
+recovery, full host verticals and physical repository extraction remain open.
+
+### Dispatch Acknowledgement Commit
+
+`leselang-command::reference_acknowledgement_commit` owns the ordinary dispatch
+acknowledgement journal policy. Memory validates the proposed terminal before any
+lookup. Already-acknowledged records return that valid proposal without comparing
+the request, checking the lease, replacing the saved terminal or finalizing a group.
+This is the released low-level behavior, not public replay policy: the public VM
+entry still returns its original winner. Pending records compare borrowed original
+request/lease fields, then acknowledge, clear the lease and store the terminal before
+group finalization. Finalization failure retains prior memory mutations; there is
+no fabricated transaction or retry. No map/request copies are added at admission.
+
+SQLite preserves request and proposed-terminal validation, dispatch attempt bounds,
+and all three bounded encodings before opening its immediate transaction. Unlike
+retry reporting, invalid acknowledgement proposals/attempts fail even when a saved
+winner exists. After image equality, completed rows validate and return that winner
+without dispatch lookup; pending rows decode and compare the original request/lease
+before quota, effect write, dispatch write, group finalization and consuming commit.
+The two writes retain their distinct original diagnostics rather than substituting
+the ordinary cancellation helper. Native storage, codecs, rollback and commit stay
+native; uncertain commits are never retried or compensated.
+
+The [acknowledgement proof](fixtures/leselang_acknowledgement_commit_macos_arm64_20261025.json)
+covers 7 direct adapter tests, 1,400 frozen memory cases across all 70 operations,
+2 real memory finalization failures, 2 public memory replay cases, 180 frozen SQLite
+cases and 10 reopen cases. Exact faults, complete table contents and native write
+counts are compared, including invalid proposals versus completed rows, oversized
+terminals, effect/dispatch/group writes and deferred commit failure. Reopen checks
+the raw member terminal separately from group visibility and does not redispatch
+acknowledged work. Native codecs, lease/storage/group primitives remain shared by
+the frozen oracle; corrupt fixtures restore constraints before production calls.
+Quota/uncertain-commit hook failures are not physical disk-full or power-loss tests.
+
+This slice advanced reference execution to `1.162.0`; native embedding `0.172.0`, HIR `0.184.0`, journal
+schema 10 and product/wire versions remain unchanged. Complete independent VM,
+host-neutral durable recovery and full repository extraction are still open gates.
+
+### Ordinary Result Completion Commit
+
+`leselang-command::reference_completion_commit` owns ordinary `record_completed`
+journal coordination, distinct from result conversion and dispatch acknowledgement.
+The memory primitive checks sequential readiness before dispatch lookup and lease
+refusal. Missing dispatches still finalize the group; acknowledged records replace
+their terminal without clearing the existing lease field. Input admission and
+winner replay remain at the public entry. Group-finalization failures retain prior
+memory mutations. These released semantics are preserved rather than normalized.
+
+SQLite retains image/proposed-terminal validation and bounded encoding before its
+immediate transaction, even for completed replay. Image equality precedes saved
+terminal decoding; validated completed results skip dispatch and sequence reads.
+Pending records retain native dispatch-history checks and lease refusal before
+sequence readiness, then quota, effect write, dispatch acknowledgement, group
+finalization and consuming commit. Unlike memory, the native dispatch write clears
+the lease. Native storage owns transactions, rollback and the original distinct
+`LSV4012` write/commit diagnostics; uncertain commits are not retried.
+
+The [completion proof](fixtures/leselang_completion_commit_macos_arm64_20261025.json)
+covers 7 direct adapter tests, 700 frozen memory cases across all 70 operations,
+4 native sequence/partial-finalization cases, 2 public memory replay cases,
+150 frozen SQLite cases and 10 reopen cases. Exact faults, all table contents,
+write counts, transaction closure and no audit writes are compared. Coverage
+includes competing sequence/lease failures, missing dispatches, completed replay
+versus invalid proposals, corrupt/oversized terminals, failed writes and deferred
+commit failure. Reopen tests distinguish persisted member results from group
+visibility and prevent redispatch of settled work. The oracle shares native
+codecs/storage/group primitives, not migrated orchestration. Corrupt fixtures
+restore checks before production calls; mock quota/uncertain-commit failures do
+not claim physical disk-full or power-loss testing.
+
+Reference execution is `1.163.0`; native embedding `0.172.0`, HIR `0.184.0`, journal
+schema 10 and product/wire versions are unchanged. Complete independent VM,
+host-neutral durable recovery and repository extraction remain open gates.
 
 **The current 2.3.0-and-later phase closes acceptance gates; physical extraction is deferred.**
 It is not an automatic version-triggered move. No replacement extraction version

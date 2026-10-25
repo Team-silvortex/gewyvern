@@ -1,0 +1,152 @@
+{
+  "kind": "leselang-reference-audited-cancellation-commit-parity",
+  "validated_on": "2026-10-25",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.4.0",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.158.0",
+  "direct_adapter_tests": 6,
+  "frozen_memory_cases": 1260,
+  "frozen_sqlite_cases": 625,
+  "durable_reopen_cases": 25,
+  "related_crate_tests_passed": 1381,
+  "memory_profile_unit_tests_passed": 125,
+  "source_planning_tests_passed": 23,
+  "source_export_dry_run_files": 280,
+  "source_export_dry_run_bytes": 6784528,
+  "native_admission_before_transaction_retained": true,
+  "original_replay_attribution_preserved": true,
+  "memory_partial_mutation_semantics_preserved": true,
+  "failed_sqlite_writes_roll_back_all_tables": true,
+  "native_commit_faults_and_callback_order_preserved": true,
+  "transaction_owner_consumed_without_retry": true,
+  "adapter_has_no_vm_or_sqlite_normal_dependency": true,
+  "strict_workspace_all_features_all_targets_clippy_passed": true,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "verification_status": "passed",
+  "scope": "Reference audited-cancellation decisions and write ordering for borrowed in-memory state and a single consumed native SQLite transaction, after native durable admission and encoding.",
+  "limitations": [
+    "The frozen policy shares native storage, row decoding, input admission, codecs, cancellation and group finalization primitives. It is not independent persistence or complete host-neutral recovery.",
+    "Memory cancellation retains existing partial mutation semantics when its native finalization fails; audit insertion follows successful cancellation. No transactional rollback is claimed for memory.",
+    "Disposable corruption fixtures restore foreign-key/check enforcement before invoking the native cancellation transaction. They are not valid arbitrary saved-frame import examples.",
+    "SQLite failures cover audit insertion, terminal/dispatch/group writes and deferred constraint failure at commit. Quota callback failure and native unwinds are direct adapter tests, not physical disk-full or power-loss testing.",
+    "The transaction and memory hooks remain trusted native owners, not debugger authorization grants. Native record reading/decoding and ordinary cancellation remain separate work.",
+    "No new Linux, remote CI, live GUI, standalone exported-source execution, physical multi-host or throughput benchmark is claimed."
+  ],
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_audit_commit.rs",
+      "sha256": "2b0dec347724c5ca86760a606cb23568d7eceb9ad138de5fadd2aa9c6a65fb1f"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "65b90805e9b38fef6ffe2488e0c8805687c286e0fe331d3b6b3cfe5f36412cef"
+    },
+    {
+      "path": "crates/leselang-command/Cargo.toml",
+      "sha256": "51753fa79fce986890ef1948ad092f9875b370be116b228c49513375066e462f"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_audit_commit.rs",
+      "sha256": "0e8af6c2d7eb91b916f1d31d49d26c6f2f508cfb8536c5becb6bf227f7d5adba"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "ceb9dad5b1bdbf75cb51dbaf4b70cbce489550e240174dc62f723f2ca4fef9c4"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/audit_commit.rs",
+      "sha256": "823081e54daf141ee60e19a0faa4be86643f16272fa4b975885d4229c9188247"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/audit_commit_contract_tests.rs",
+      "sha256": "524f386d9ee3f93d99146d54a91076fe56e023f16a755ffcd36e151eda196d33"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "a89a6b86b27ed40d065fd656eb0187bf8b3dbe3fa78f3149e72e8e584c8d4186"
+    },
+    {
+      "path": "crates/leselang-vm/Cargo.toml",
+      "sha256": "2f1d51815d543a85d8b69662dbb4578170e8c6b0672f52402e4dec5c05260e21"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "c338fd3f3cf7898689f429fa9e98ffbdda9d14a894bd19c203fcd2021ba1671d"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "5203b74174095bc1f94818e81949e94b9a53309ff26523f4fef40ffa9e3cfa14"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "550d91a4da4b86476a900bf83f44cbd396e30a7563e4977f8fd3322f736e0151"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "4d1234afb5085f1b7953b0a99cc7ed7677627f944213dd31a358d3cc3c6da6e6"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "7dbb78b4d3276af539a5c5bf0e598068d5e9fb73f100ca08bf9590c6f48075ed"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "d003b050c2e1d274f3b853f2d62d64cbea478eb09353e7cb44ad3671b5ae9bf8"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/private/tmp/leselang-audit-commit-adapter-20261025.log",
+      "sha256": "40d1bf648fe7e8831ccd7c740a9e129fbd8b43343547ede4496736b47d659995"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-commit-parity-20261025.log",
+      "sha256": "9bd6b8266f0cad8e5088f9306830ddee26f4793f238f48e05187facf975357ba"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-commit-suite-20261025.log",
+      "sha256": "f3d3e563bc9459658c2b1b26e1bc000a3597d315440c1366fc27775b580ed928"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-commit-memory-20261025.log",
+      "sha256": "7e4f9fdfb5e4edf3579b810e3caa418283271d922579a7a77809ad3bdb5f5a2e"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-commit-native-20261025.log",
+      "sha256": "d038f1e2fc70aa2cb24bcf5086925cbf46e73e2340f80f6e61ed19035a507406"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-commit-clippy-20261025.log",
+      "sha256": "6fe915c7236e6ab965a0d0005996a5121824869f49fba9e6b7496f63ac7adcf3"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-commit-source-plan-20261025.log",
+      "sha256": "ce925699803cf474a7637992944d771396223263626988f20464a5af01462f3b"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-commit-dependencies-20261025.log",
+      "sha256": "2aa3528997c7c9640dc072977067c24f67ca4ff21ee912b534ce599bf644ac56"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-commit-export-plan-20261025.log",
+      "sha256": "6ec0d2b8710a36e36d633de4e09e6332bd53d0faad5735a5c1f57dbdfe4a33a6"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-commit-architecture-status-20261025.log",
+      "sha256": "ffb3e9ec43038f16e6945788a586805b48d8623325d61e0bd8d0b40fa14cd1c0"
+    },
+    {
+      "path": "/private/tmp/leselang-audit-commit-catalog-20261025.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "architecture_documentation_status_tests_passed": 488,
+  "status_catalog_valid": true
+}

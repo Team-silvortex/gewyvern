@@ -1,7 +1,10 @@
 //! Product dispatch-claim coordination, without queue or lease ownership.
 
-use crate::{ContinuationImage, DispatchClaim, DispatchLease, SchedulerPressure};
+use crate::{
+    ContinuationImage, ContinuationToken, DispatchClaim, DispatchLease, SchedulerPressure,
+};
 use leselang_runtime_core::{Fault, validate_clock};
+use std::collections::{BTreeMap, btree_map::Entry};
 
 /// Trusted synchronous owner. Claim selection, fairness, capacity and lease
 /// issuance remain atomic under the native journal owner. Idle and backpressure
@@ -43,6 +46,23 @@ pub fn try_claim_effect<Host: ReferenceClaimHost + ?Sized>(
         host.adopt_claimed_image(&lease.request.continuation)?;
     }
     Ok(claim)
+}
+
+/// Adopt only an already committed native lease. An occupied cache entry keeps
+/// its original buffers; only a vacant entry clones the borrowed claimed image.
+/// A conflict does not revoke or retry the issued lease, touch completion state,
+/// advance the allocation watermark, or authenticate the request.
+pub fn adopt_claimed_image(
+    pending: &mut BTreeMap<ContinuationToken, ContinuationImage>,
+    image: &ContinuationImage,
+) -> Result<(), Fault> {
+    match pending.entry(image.token.clone()) {
+        Entry::Occupied(entry) => validate_claimed_image(entry.get(), image)?,
+        Entry::Vacant(entry) => {
+            entry.insert(image.clone());
+        }
+    }
+    Ok(())
 }
 
 /// Local correspondence only. The owner keeps its occupied entry unchanged and

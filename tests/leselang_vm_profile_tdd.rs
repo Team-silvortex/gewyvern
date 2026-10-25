@@ -1,5 +1,932 @@
 use std::{fs, path::Path, process::Command};
 
+#[test]
+fn ordinary_completion_policy_preserves_backend_precedence_and_native_transaction_ownership() {
+    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let ordered = |source: &str, fragments: &[&str]| {
+        let mut offset = 0;
+        for fragment in fragments {
+            offset += source[offset..].find(fragment).expect(fragment) + fragment.len();
+        }
+    };
+    let adapter = read("crates/leselang-command/src/reference_completion_commit.rs");
+    for required in [
+        "pub trait MemoryCompletionJournal",
+        "pub trait DurableCompletionTransaction",
+        "fn commit(self, kind: CompletionCommit)",
+        "pub lease_expires_at_ms: Option<u64>",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "catch_unwind",
+        "loop {",
+        "thread",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let memory = adapter
+        .split("pub fn complete_memory")
+        .nth(1)
+        .unwrap()
+        .split("pub enum CompletionCommit")
+        .next()
+        .unwrap();
+    ordered(
+        memory,
+        &[
+            "host.sequence_ready(&image.token)",
+            "host.dispatch(&image.token)",
+            "state.lease_expires_at_ms.is_some() && !*state.acknowledged",
+            "*state.acknowledged = true",
+            "*state.terminal_step = Some(step.clone())",
+            "host.finalize_group(&image.token)?",
+        ],
+    );
+    assert!(!memory.contains("validate_terminal_step"));
+    assert!(!memory.contains("lease_expires_at_ms ="));
+    let durable = adapter.split("pub fn complete_durable").nth(1).unwrap();
+    ordered(
+        durable,
+        &[
+            "host.effect(token)?",
+            "if existing.image != image_bytes",
+            "if existing.state == \"completed\"",
+            "decode_journal_value(&bytes",
+            "validate_terminal_step(&authoritative)?",
+            "host.commit(CompletionCommit::Replay)?",
+            "return Ok(authoritative)",
+            "host.dispatch(token)?",
+            "dispatch.state == \"leased\"",
+            "host.ensure_sequence_ready(token)?",
+            "host.ensure_growth(step_bytes.len())?",
+            "host.complete_effect(token, step_bytes)?",
+            "host.acknowledge_dispatch(token)?",
+            "host.finalize_group(token)?",
+            "host.commit(CompletionCommit::Completion)?",
+        ],
+    );
+    assert!(!durable.contains("decode_journal_value(&dispatch.request"));
+    let journal = read("crates/leselang-vm/src/journal.rs");
+    assert!(journal.contains("reference_completion_commit::complete_memory(self, image, step)"));
+    let native = journal
+        .split("impl SqliteJournal {")
+        .nth(1)
+        .unwrap()
+        .split("fn record_completed(")
+        .nth(1)
+        .unwrap()
+        .split("fn acknowledge_dispatch(")
+        .next()
+        .unwrap();
+    ordered(
+        native,
+        &[
+            "validate_image(image)?",
+            "validate_terminal_step(step)?",
+            "encode_json_capped(image",
+            "encode_json_capped(step",
+            "transaction_with_behavior(TransactionBehavior::Immediate)",
+            "reference_completion_commit::complete_durable(",
+            "completion_commit::SqliteCompletionTransaction(transaction)",
+        ],
+    );
+    assert!(!native.contains("existing.state"));
+    let owner = read("crates/leselang-vm/src/journal/completion_commit.rs");
+    for required in [
+        "rusqlite::Transaction<'a>",
+        "load_record(&self.0, token)",
+        "load_dispatch(&self.0, token)",
+        "ensure_sequence_ready(&self.0, token)",
+        "ensure_growth(&self.0, additional)",
+        "UPDATE vm_effects",
+        "UPDATE vm_dispatches",
+        "finalize_merge_group(&self.0",
+        "self.0.commit()",
+        "failed to complete effect",
+        "failed to acknowledge dispatch",
+        "failed to close journal transaction",
+        "failed to commit completed effect",
+    ] {
+        assert!(owner.contains(required), "{required}");
+    }
+    assert!(!owner.contains("complete_terminal_record"));
+    let cases = read("crates/leselang-vm/src/journal/completion_commit_contract_tests.rs");
+    assert!(!cases.contains("reference_completion_commit::"));
+    assert_eq!(cases.matches("fn frozen_record_completed(").count(), 2);
+    for count in [700, 4, 2, 150, 10] {
+        assert!(cases.contains(&format!("assert_eq!(cases, {count})")));
+    }
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_completion_commit"));
+    assert!(ci.contains("--lib completion_commit_contract_tests"));
+}
+
+#[test]
+fn acknowledgement_policy_keeps_native_admission_and_distinct_memory_replay_semantics() {
+    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let ordered = |source: &str, fragments: &[&str]| {
+        let mut offset = 0;
+        for fragment in fragments {
+            offset += source[offset..].find(fragment).expect(fragment) + fragment.len();
+        }
+    };
+    let adapter = read("crates/leselang-command/src/reference_acknowledgement_commit.rs");
+    for required in [
+        "pub trait MemoryAcknowledgementJournal",
+        "pub trait DurableAcknowledgementTransaction",
+        "fn commit(self, kind: AcknowledgementCommit)",
+        "pub request: &'a EffectRequest",
+        "pub acknowledged: &'a mut bool",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "catch_unwind",
+        "loop {",
+        "thread",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let memory = adapter.split("pub fn acknowledge_memory").nth(1).unwrap();
+    ordered(
+        memory,
+        &[
+            "validate_terminal_step(step)?",
+            ".dispatch(token)",
+            "if *state.acknowledged",
+            "return Ok(step.clone())",
+            "validate_observed_lease(",
+            "same_request: state.request == &lease.request",
+            "*state.acknowledged = true",
+            "*state.lease_expires_at_ms = None",
+            "*state.terminal_step = Some(step.clone())",
+            "host.finalize_group(token)?",
+        ],
+    );
+    let durable = adapter.split("pub fn acknowledge_durable").nth(1).unwrap();
+    ordered(
+        durable,
+        &[
+            ".effect(token)?",
+            "if existing.image != image_bytes",
+            "if existing.state == \"completed\"",
+            "decode_journal_value(&bytes",
+            "validate_terminal_step(&authoritative)?",
+            "host.commit(AcknowledgementCommit::Replay)?",
+            "return Ok(authoritative)",
+            ".dispatch(token)?",
+            "decode_journal_value(&dispatch.request",
+            "validate_observed_lease(",
+            "same_request: request == lease.request",
+            "active: dispatch.state == \"leased\"",
+            "host.ensure_growth(step_bytes.len())?",
+            "host.complete_effect(token, step_bytes)?",
+            "host.acknowledge_dispatch(token)?",
+            "host.finalize_group(token)?",
+            "host.commit(AcknowledgementCommit::Acknowledgement)?",
+        ],
+    );
+    let journal = read("crates/leselang-vm/src/journal.rs");
+    assert!(journal.contains("reference_acknowledgement_commit::acknowledge_memory("));
+    let native = journal
+        .split("impl SqliteJournal {")
+        .nth(1)
+        .unwrap()
+        .split("fn acknowledge_dispatch(")
+        .nth(1)
+        .unwrap()
+        .split("fn report_error(")
+        .next()
+        .unwrap();
+    ordered(
+        native,
+        &[
+            "validate_effect_request(&lease.request)?",
+            "validate_terminal_step(step)?",
+            "if lease.attempt == 0 || lease.attempt > MAX_DISPATCH_ATTEMPTS",
+            "encode_json_capped(image",
+            "encode_json_capped(&lease.request",
+            "encode_json_capped(step",
+            "transaction_with_behavior(TransactionBehavior::Immediate)",
+            "reference_acknowledgement_commit::acknowledge_durable(",
+            "acknowledgement_commit::SqliteAcknowledgementTransaction(transaction)",
+        ],
+    );
+    assert!(!native.contains("existing.state"));
+    let owner = read("crates/leselang-vm/src/journal/acknowledgement_commit.rs");
+    for required in [
+        "request: &dispatch.request",
+        "rusqlite::Transaction<'a>",
+        "load_record(&self.0, token)",
+        "load_dispatch(&self.0, token)",
+        "ensure_growth(&self.0, additional)",
+        "UPDATE vm_effects",
+        "UPDATE vm_dispatches",
+        "finalize_merge_group(&self.0",
+        "self.0.commit()",
+        "failed to complete dispatch",
+        "failed to acknowledge dispatch",
+        "failed to close dispatch transaction",
+        "failed to commit dispatch result",
+    ] {
+        assert!(owner.contains(required), "{required}");
+    }
+    assert!(!owner.contains("complete_terminal_record"));
+    assert!(!owner.contains("dispatch.request =="));
+    let cases = read("crates/leselang-vm/src/journal/acknowledgement_commit_contract_tests.rs");
+    assert!(!cases.contains("reference_acknowledgement_commit::"));
+    assert_eq!(cases.matches("fn frozen_acknowledge_dispatch(").count(), 2);
+    for count in [1400, 2, 180, 10] {
+        assert!(cases.contains(&format!("assert_eq!(cases, {count})")));
+    }
+    assert!(cases.contains(
+        "public_memory_acknowledgement_replays_winner_despite_low_level_proposal_semantics"
+    ));
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_acknowledgement_commit"));
+    assert!(ci.contains("--lib acknowledgement_commit_contract_tests"));
+}
+
+#[test]
+fn retry_journal_policy_keeps_native_storage_and_distinct_lease_replay_order() {
+    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let ordered = |source: &str, fragments: &[&str]| {
+        let mut offset = 0;
+        for fragment in fragments {
+            offset += source[offset..].find(fragment).expect(fragment) + fragment.len();
+        }
+    };
+    let adapter = read("crates/leselang-command/src/reference_retry_commit.rs");
+    for required in [
+        "pub trait MemoryRetryJournal",
+        "pub trait DurableRetryTransaction",
+        "fn commit(self, kind: RetryCommit)",
+        "pub retry_count: &'a mut u32",
+        "pub observation: DispatchLeaseObservation",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "catch_unwind",
+        "loop {",
+        "thread",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    ordered(
+        &adapter,
+        &[
+            "host",
+            ".dispatch(lease)",
+            "validate_observed_lease(lease, now_ms, state.observation)?",
+            "validate_proposed_retry(*state.retry_count, schedule, now_ms)?",
+            "*state.retry_count = schedule.retry_count",
+            "*state.ready_at_ms = schedule.ready_at_ms",
+            "*state.last_error = Some(schedule.error.clone())",
+            "*state.lease_expires_at_ms = None",
+            "validate_terminal_step(step)?",
+            "*state.acknowledged = true",
+            "*state.lease_expires_at_ms = None",
+            "*state.terminal_step = Some(step.clone())",
+            "if matches!(disposition, RetryDisposition::Terminal(_))",
+            "host.finalize_group(",
+        ],
+    );
+    let durable = adapter.split("pub fn report_durable").nth(1).unwrap();
+    ordered(
+        durable,
+        &[
+            ".effect(token)?",
+            "if existing.image != image_bytes",
+            "if existing.state == \"completed\"",
+            "decode_journal_value(",
+            "validate_terminal_step(&authoritative)?",
+            "host.commit(RetryCommit::Replay)?",
+            "return Ok(RetryDisposition::Terminal(authoritative))",
+            ".dispatch(token)?",
+            "decode_journal_value(&dispatch.request",
+            "validate_observed_lease(",
+            "same_request: request == lease.request",
+            "active: dispatch.state == \"leased\"",
+            "validate_proposed_retry(dispatch.retry_count, schedule, now_ms)?",
+            "host.encode_error(&schedule.error)?",
+            "i64::try_from(schedule.ready_at_ms)",
+            "host.ensure_growth(error_bytes.len())?",
+            "host.schedule(",
+            "validate_terminal_step(step)?",
+            "host.encode_terminal(step)?",
+            "host.ensure_growth(step_bytes.len())?",
+            "host.complete(token, &step_bytes)?",
+            "host.finalize_group(token)?",
+            "host.commit(RetryCommit::Retry)?",
+        ],
+    );
+    let journal = read("crates/leselang-vm/src/journal.rs");
+    assert!(
+        journal.contains("reference_retry_commit::report_memory(self, lease, now_ms, disposition)")
+    );
+    let native = journal
+        .split("impl SqliteJournal {")
+        .nth(1)
+        .unwrap()
+        .split("fn report_error(")
+        .nth(1)
+        .unwrap()
+        .split("fn cancel(")
+        .next()
+        .unwrap();
+    ordered(
+        native,
+        &[
+            "validate_effect_request(&lease.request)?",
+            "encode_json_capped(image",
+            "transaction_with_behavior(TransactionBehavior::Immediate)",
+            "reference_retry_commit::report_durable(",
+            "retry_commit::SqliteRetryTransaction(transaction)",
+        ],
+    );
+    assert!(!native.contains("existing.state"));
+    assert!(journal.contains("reference_recovery::StoredDispatch as DispatchRecord"));
+    let owner = read("crates/leselang-vm/src/journal/retry_commit.rs");
+    for required in [
+        "rusqlite::Transaction<'a>",
+        "load_record(&self.0, token)",
+        "load_dispatch(&self.0, token)",
+        "encode_json_capped(error, 2_048, \"effect error\")",
+        "encode_json_capped(step, MAX_JOURNAL_ENTRY_BYTES, \"terminal step\")",
+        "ensure_growth(&self.0, additional)",
+        "UPDATE vm_dispatches",
+        "complete_terminal_record(&self.0",
+        "finalize_merge_group(&self.0",
+        "self.0.commit()",
+        "same_request: dispatch.request == lease.request",
+        "failed to close retry transaction",
+        "failed to commit effect retry",
+    ] {
+        assert!(owner.contains(required), "{required}");
+    }
+    let cases = read("crates/leselang-vm/src/journal/retry_commit_contract_tests.rs");
+    assert!(!cases.contains("reference_retry_commit::"));
+    assert_eq!(cases.matches("fn frozen_report_error(").count(), 2);
+    for count in [1540, 2, 170, 10] {
+        assert!(cases.contains(&format!("assert_eq!(cases, {count})")));
+    }
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_retry_commit"));
+    assert!(ci.contains("--lib retry_commit_contract_tests"));
+}
+
+#[test]
+fn ordinary_cancellation_policy_preserves_native_ownership_and_distinct_replay_validation() {
+    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let ordered = |source: &str, fragments: &[&str]| {
+        let mut offset = 0;
+        for fragment in fragments {
+            offset += source[offset..].find(fragment).expect(fragment) + fragment.len();
+        }
+    };
+    let adapter = read("crates/leselang-command/src/reference_cancellation_commit.rs");
+    for required in [
+        "pub trait MemoryCancellationJournal",
+        "pub trait DurableCancellationTransaction",
+        "fn commit(self, kind: CancellationCommit)",
+        "pub acknowledged: &'a mut bool",
+        "pub lease_expires_at_ms: &'a mut Option<u64>",
+        "pub terminal_step: &'a mut Option<Step>",
+        "pub use crate::reference_recovery::StoredEffect;",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "catch_unwind",
+        "loop {",
+        "thread",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    ordered(
+        &adapter,
+        &[
+            "validate_cancellation_step(image, step)?",
+            "if let Some(state) = host.dispatch(&image.token)",
+            "*state.acknowledged = true;",
+            "*state.lease_expires_at_ms = None;",
+            "*state.terminal_step = Some(step.clone());",
+            "}\n    host.finalize_group(&image.token)?;",
+        ],
+    );
+    let durable = adapter.split("pub fn cancel_durable").nth(1).unwrap();
+    ordered(
+        durable,
+        &[
+            ".effect(image.token.as_str())?",
+            "if existing.image != image_bytes",
+            "if existing.state == \"completed\"",
+            "decode_journal_value(",
+            "validate_terminal_step(&authoritative)?",
+            "host.commit(CancellationCommit::Replay)?",
+            "return Ok(authoritative)",
+            "host.ensure_growth(step_bytes.len())?",
+            "host.complete(image.token.as_str(), step_bytes)?",
+            "host.finalize_group(image.token.as_str())?",
+            "host.commit(CancellationCommit::Cancellation)?",
+        ],
+    );
+    let journal = read("crates/leselang-vm/src/journal.rs");
+    assert!(journal.contains("reference_cancellation_commit::cancel_memory(self, image, step)"));
+    let native = journal
+        .split("impl SqliteJournal {")
+        .nth(1)
+        .unwrap()
+        .split("fn cancel(")
+        .nth(1)
+        .unwrap()
+        .split("fn cancel_audited(")
+        .next()
+        .unwrap();
+    ordered(
+        native,
+        &[
+            "validate_image(image)?",
+            "validate_cancellation_step(image, step)?",
+            "encode_json_capped(image",
+            "encode_json_capped(step",
+            "transaction_with_behavior(TransactionBehavior::Immediate)",
+            "reference_cancellation_commit::cancel_durable(",
+            "cancellation_commit::SqliteCancellationTransaction(transaction)",
+        ],
+    );
+    assert!(!native.contains("existing.state"));
+    let owner = read("crates/leselang-vm/src/journal/cancellation_commit.rs");
+    for required in [
+        "rusqlite::Transaction<'a>",
+        "load_record(&self.0, token)",
+        "ensure_growth(&self.0, additional)",
+        "complete_terminal_record(&self.0",
+        "finalize_merge_group(&self.0",
+        "self.0.commit()",
+        ".get_mut(token)",
+        "failed to close cancellation transaction",
+        "failed to commit effect cancellation",
+    ] {
+        assert!(owner.contains(required), "{required}");
+    }
+    assert!(
+        read("crates/leselang-command/src/reference_recovery.rs")
+            .contains("pub struct StoredEffect")
+    );
+    assert!(
+        read("crates/leselang-command/src/reference_audit_commit.rs")
+            .contains("pub use crate::reference_recovery::StoredEffect;")
+    );
+    let cases = read("crates/leselang-vm/src/journal/cancellation_commit_contract_tests.rs");
+    assert!(!cases.contains("reference_cancellation_commit::"));
+    assert_eq!(cases.matches("fn frozen_cancel(").count(), 2);
+    for count in [980, 2, 216, 9] {
+        assert!(cases.contains(&format!("assert_eq!(cases, {count})")));
+    }
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_cancellation_commit"));
+    assert!(ci.contains("--lib cancellation_commit_contract_tests"));
+}
+
+#[test]
+fn audit_read_projection_is_adapter_owned_without_native_query_or_error_ownership() {
+    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let adapter = read("crates/leselang-command/src/reference_audit_read.rs");
+    for required in [
+        "pub trait ReferenceAuditReadRow",
+        "type Error;",
+        "pub fn decode_record",
+        "pub fn decode_replay",
+        "CommandId::new(row.text(0)?)",
+        "CommandId::new(command_id.clone())",
+        "row.invalid_data()",
+        "pub type StoredAudit",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "Fault",
+        "validate_debugger_audit(",
+        "valid_continuation_token(",
+        "IdempotencyKey::new",
+        "std::fs",
+        "catch_unwind",
+        "fn commit",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let replay = adapter.split("pub fn decode_replay").nth(1).unwrap();
+    let mut offset = 0;
+    for ordered in [
+        "row.text(0)?",
+        "row.text(1)?",
+        "row.text(2)?",
+        "CommandId::new(command_id.clone())",
+        "row.text(3)?",
+        "row.text(4)?",
+        "row.text(5)?",
+        "row.integer(6)?",
+        "row.integer(7)?",
+    ] {
+        offset += replay[offset..].find(ordered).unwrap() + ordered.len();
+    }
+    let journal = read("crates/leselang-vm/src/journal.rs");
+    let record = journal
+        .split("impl SqliteJournal {")
+        .nth(1)
+        .unwrap()
+        .split("fn debugger_audit(&self, command_id: &str)")
+        .nth(1)
+        .unwrap()
+        .split("fn expire_due(")
+        .next()
+        .unwrap();
+    for required in [
+        "WHERE command_id = ?1",
+        "audit_read::decode_record",
+        ".optional()",
+        "failed to read debugger cancellation audit",
+    ] {
+        assert!(record.contains(required), "{required}");
+    }
+    let replay = journal
+        .split("fn load_debugger_audit(")
+        .nth(1)
+        .unwrap()
+        .split("fn finalize_merge_group(")
+        .next()
+        .unwrap();
+    for required in [
+        "WHERE command_id = ?1 OR (principal_id = ?2 AND idempotency_key = ?3)",
+        "audit_read::decode_replay",
+        ".optional()",
+        "failed to load debugger cancellation audit",
+    ] {
+        assert!(replay.contains(required), "{required}");
+    }
+    assert!(!replay.contains("CommandId::new"));
+    assert!(!record.contains("CommandId::new"));
+    let owner = read("crates/leselang-vm/src/journal/audit_read.rs");
+    assert_eq!(owner.matches("self.0.get(column)").count(), 2);
+    assert!(owner.contains("type Error = rusqlite::Error"));
+    assert!(owner.contains("rusqlite::Error::InvalidQuery"));
+    assert!(owner.contains("reference_audit_read::decode_record"));
+    assert!(owner.contains("reference_audit_read::decode_replay"));
+    for absent in ["CommandId::new", "parse_command_origin", "Revision("] {
+        assert!(!owner.contains(absent));
+    }
+    assert!(
+        read("crates/leselang-command/src/reference_audit_commit.rs")
+            .contains("pub use crate::reference_audit_read::StoredAudit;")
+    );
+    let cases = read("crates/leselang-vm/src/journal/audit_read_contract_tests.rs");
+    let frozen = cases.split("// Frozen released projection").nth(1).unwrap();
+    assert!(!frozen.contains("reference_audit_read"));
+    assert!(!frozen.contains("audit_read::"));
+    assert!(cases.contains("assert_eq!(cases, 1610)"));
+    assert!(cases.contains("assert_eq!(cases, 180)"));
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_audit_read"));
+    assert!(ci.contains("--lib audit_read_contract_tests"));
+}
+
+#[test]
+fn audit_commit_policy_moves_but_native_transaction_and_memory_mutation_ownership_remain() {
+    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let adapter = read("crates/leselang-command/src/reference_audit_commit.rs");
+    for required in [
+        "pub trait MemoryAuditJournal",
+        "pub trait DurableAuditTransaction",
+        "fn commit(self, kind: AuditCommit)",
+        "pub fn cancel_memory",
+        "pub fn cancel_durable",
+        "audit_matches_record(audit, &record)",
+        "debugger idempotency key was reused",
+        "MAX_JOURNAL_ENTRY_BYTES",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "std::thread",
+        "catch_unwind",
+        "validate_terminal_step(",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let mut offset = adapter.find("let revision =").unwrap();
+    for ordered in [
+        "let observed_at_ms =",
+        "host.insert(",
+        "host.ensure_growth(",
+        "host.complete(",
+        "host.finalize_group(",
+        "host.commit(AuditCommit::Cancellation)?",
+    ] {
+        offset += adapter[offset..].find(ordered).unwrap() + ordered.len();
+    }
+    let journal = read("crates/leselang-vm/src/journal.rs");
+    assert!(
+        journal.contains("reference_audit_commit::cancel_memory(self, image, step, audit, now_ms)")
+    );
+    let durable = journal
+        .split("impl SqliteJournal {")
+        .nth(1)
+        .unwrap()
+        .split("fn cancel_audited(")
+        .nth(1)
+        .unwrap()
+        .split("fn debugger_audit(")
+        .next()
+        .unwrap();
+    let mut offset = 0;
+    for ordered in [
+        "validate_image(image)?",
+        "validate_cancellation_step(image, step)?",
+        "encode_json_capped(image",
+        "encode_json_capped(step",
+        "transaction_with_behavior(TransactionBehavior::Immediate)",
+        "reference_audit_commit::cancel_durable(",
+    ] {
+        offset += durable[offset..].find(ordered).unwrap() + ordered.len();
+    }
+    assert!(!durable.contains("audit_matches_record"));
+    let owner = read("crates/leselang-vm/src/journal/audit_commit.rs");
+    for required in [
+        "rusqlite::Transaction<'a>",
+        "load_debugger_audit(&self.0, audit)",
+        "load_record(&self.0, token)",
+        "INSERT INTO vm_debugger_audit",
+        "complete_terminal_record(&self.0",
+        "finalize_merge_group(&self.0",
+        "self.0.commit()",
+        "EphemeralJournal::cancel(self, image, step)",
+    ] {
+        assert!(owner.contains(required), "{required}");
+    }
+    assert!(!owner.contains("audit_matches_record"));
+    let cases = read("crates/leselang-vm/src/journal/audit_commit_contract_tests.rs");
+    assert!(!cases.contains("reference_audit_commit::"));
+    for count in [1260, 625, 25] {
+        assert!(cases.contains(&format!("assert_eq!(cases, {count})")));
+    }
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_audit_commit"));
+    assert!(ci.contains("--lib audit_commit_contract_tests"));
+}
+
+#[test]
+fn audit_recovery_policy_is_adapter_owned_while_native_reads_stay_in_the_checkpoint() {
+    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let adapter = read("crates/leselang-command/src/reference_audit_recovery.rs");
+    for required in [
+        "pub trait ReferenceAuditRow",
+        "pub trait ReferenceAuditSource",
+        "pub fn inspect_audit_record",
+        "pub fn validate_audit_records",
+        "validate_debugger_audit(&context)",
+        "valid_continuation_token(&token)",
+        "CancellationReason::Requested",
+        "terminal_observed_at == observed_at_ms",
+        "decode_journal_value(terminal_bytes.as_ref(), MAX_JOURNAL_ENTRY_BYTES)",
+        "row.invalid_origin()",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "std::thread",
+        "catch_unwind",
+        "validate_terminal_step(",
+        "transaction.commit()",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    assert!(
+        adapter.find("source.index_count()?").unwrap()
+            < adapter.find("source.audit_count()?").unwrap()
+    );
+    assert!(
+        adapter.find("source.audit_count()?").unwrap()
+            < adapter.find("source.inspect_records()?").unwrap()
+    );
+    let journal = read("crates/leselang-vm/src/journal.rs");
+    let owner = journal
+        .split("fn validate_debugger_audit_records(")
+        .nth(1)
+        .unwrap()
+        .split("struct MergeGraphHost")
+        .next()
+        .unwrap();
+    for required in [
+        "reference_audit_recovery::validate_audit_records",
+        "reference_audit_recovery::inspect_audit_record",
+        "ORDER BY a.command_id ASC",
+        "self.row",
+        ".get(column.index())",
+        "column.error_context()",
+        "rusqlite::Error::InvalidQuery",
+    ] {
+        assert!(owner.contains(required), "{required}");
+    }
+    for forbidden in [
+        "DebuggerAuditContext",
+        "CommandId::new",
+        "IdempotencyKey::new",
+        "CancellationReason",
+        "decode_bounded",
+        "transaction.commit()",
+    ] {
+        assert!(!owner.contains(forbidden), "{forbidden}");
+    }
+    assert!(journal.contains("validate_debugger_audit_records(self.connection()?)"));
+    let cases = read("crates/leselang-vm/src/journal/audit_recovery_contract_tests.rs");
+    let frozen = cases.split("fn frozen_validate_audits(").nth(1).unwrap();
+    assert!(!frozen.contains("reference_audit_recovery"));
+    assert!(frozen.contains("crate::validate_debugger_audit(&context)"));
+    assert!(cases.contains("assert_eq!(cases, 640)"));
+    assert!(cases.contains("assert_eq!(cases, 35)"));
+    let ci = read(".github/workflows/ci.yml");
+    for required in [
+        "--test reference_audit_recovery",
+        "--lib audit_recovery_contract_tests",
+        "--test debugger_audit_durable --test debugger_audit_memory",
+    ] {
+        assert!(ci.contains(required), "{required}");
+    }
+}
+
+#[test]
+fn reference_journal_schema_moves_without_native_file_or_transaction_ownership() {
+    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let adapter = read("crates/leselang-command/src/reference_journal_schema.rs");
+    for required in [
+        "pub const JOURNAL_SCHEMA_VERSION: u32 = 10",
+        "pub fn migrate(",
+        "FnMut(&'static str, &'static str) -> Result<(), Fault>",
+        "BEGIN IMMEDIATE;",
+        "CREATE TABLE vm_debugger_audit",
+        "CREATE INDEX IF NOT EXISTS vm_dispatch_attempt_order_idx",
+        "unsupported journal version",
+        "LSV4004",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for absent in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "std::thread",
+        "Connection",
+        "catch_unwind",
+        "ROLLBACK",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    let journal = read("crates/leselang-vm/src/journal.rs");
+    let open = journal
+        .split("impl SqliteJournal {")
+        .nth(1)
+        .unwrap()
+        .split("fn load(")
+        .next()
+        .unwrap();
+    for required in [
+        "create_private_journal(path)?",
+        "SQLITE_OPEN_NOFOLLOW",
+        "tighten_permissions(path)?",
+        "Limit::SQLITE_LIMIT_LENGTH",
+        "busy_timeout(JOURNAL_BUSY_TIMEOUT)",
+        "PRAGMA trusted_schema = OFF",
+        "query_row(\"PRAGMA user_version\"",
+        "reference_journal_schema::migrate(version, |sql, context|",
+        ".execute_batch(sql)",
+        "journal_error(\"LSV4003\", context, error)",
+    ] {
+        assert!(open.contains(required), "{required}");
+    }
+    for absent in [
+        "CREATE TABLE",
+        "if version <",
+        "PRAGMA user_version =",
+        "unsupported journal version",
+    ] {
+        assert!(!open.contains(absent), "{absent}");
+    }
+    assert!(
+        open.find("PRAGMA trusted_schema = OFF").unwrap()
+            < open.find("reference_journal_schema::migrate").unwrap()
+    );
+    assert!(
+        journal.contains(
+            "pub use leselang_command::reference_journal_schema::JOURNAL_SCHEMA_VERSION;"
+        )
+    );
+    let cases = read("crates/leselang-vm/src/journal/schema_contract_tests.rs");
+    let frozen = cases.split("fn frozen_schema(").nth(1).unwrap();
+    assert!(!frozen.contains("reference_journal_schema"));
+    assert!(frozen.contains("const JOURNAL_SCHEMA_VERSION: u32 = 10"));
+    assert!(frozen.contains("CREATE TABLE vm_dispatches"));
+    assert!(cases.contains("assert_eq!(cases, 180)"));
+    let ci = read(".github/workflows/ci.yml");
+    for required in [
+        "--test reference_journal_schema",
+        "--lib schema_contract_tests",
+        "--lib journal_v",
+    ] {
+        assert!(ci.contains(required), "{required}");
+    }
+}
+
+#[test]
+fn root_admission_lifecycle_is_adapter_owned_with_a_compatible_private_vm_port() {
+    let adapter =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_admission.rs"))
+            .unwrap();
+    for required in [
+        "pub trait ReferenceAdmissionHost",
+        "pub struct RootAdmission",
+        "pub enum AdmissionPoll",
+        "inner: Admission<AdmissionRoot>",
+        "deadline_at_ms - now_ms",
+        "error.code == \"LSV2501\"",
+        "host: &mut Host",
+        "AdmissionOwner(host)",
+        "#[must_use",
+    ] {
+        assert!(adapter.contains(required), "{required}");
+    }
+    for absent in [
+        "leselang_vm",
+        "rusqlite",
+        "std::fs",
+        "std::thread",
+        "std::time",
+        "unsafe",
+        "catch_unwind",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    let facade = fs::read_to_string(root().join("crates/leselang-vm/src/admission.rs")).unwrap();
+    for required in [
+        "pub use leselang_command::reference_admission::AdmissionPoll;",
+        "inner: ReferenceRootAdmission",
+        "std::fmt::Debug::fmt(&self.inner, formatter)",
+        "NativeAdmissionOwner(vm)",
+        "impl ReferenceAdmissionHost for NativeAdmissionOwner<'_>",
+        "self.0.start_timed(",
+        "#[must_use",
+    ] {
+        assert!(facade.contains(required), "{required}");
+    }
+    for absent in [
+        "LSV2501",
+        "AdmissionAttempt",
+        "struct AdmissionRoot",
+        "pub enum AdmissionPoll",
+        "impl ReferenceAdmissionHost for Vm",
+        "impl AdmissionAdapter",
+    ] {
+        assert!(!facade.contains(absent), "{absent}");
+    }
+    let parity =
+        fs::read_to_string(root().join("crates/leselang-vm/src/admission_contract_tests.rs"))
+            .unwrap();
+    let frozen = parity.split("mod frozen {").nth(1).unwrap();
+    assert!(!frozen.contains("reference_admission"));
+    assert!(frozen.contains("impl AdmissionAdapter<AdmissionRoot> for Vm"));
+    assert!(frozen.contains("error.code == \"LSV2501\""));
+    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    for required in [
+        "--test reference_admission",
+        "--lib admission_contract_tests",
+        "--test admission",
+    ] {
+        assert!(ci.contains(required), "{required}");
+    }
+}
+
 fn root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
 }
@@ -878,14 +1805,19 @@ fn claim_entries_preserve_native_issuance_and_post_commit_cache_adoption() {
         "rusqlite",
         "std::fs",
         "std::time",
-        "std::collections",
         "Fuel::new",
-        ".clone()",
     ] {
         assert!(!adapter.contains(absent), "{absent}");
     }
     assert!(adapter.contains("ReferenceClaimHost + ?Sized"));
-    let entry = adapter.split_once("pub fn try_claim_effect<").unwrap().1;
+    let entry = adapter
+        .split_once("pub fn try_claim_effect<")
+        .unwrap()
+        .1
+        .split_once("pub fn adopt_claimed_image(")
+        .unwrap()
+        .0;
+    assert!(!entry.contains(".clone()"));
     let mut offset = 0;
     for ordered in [
         "validate_clock(now_ms)?",
@@ -924,10 +1856,20 @@ fn claim_entries_preserve_native_issuance_and_post_commit_cache_adoption() {
         .split_once("pub fn acknowledge_effect(")
         .unwrap()
         .0;
-    assert!(adoption.contains("self.pending.entry(image.token.clone())"));
-    assert!(adoption.contains("reference_claim::validate_claimed_image(entry.get(), image)?"));
-    assert!(adoption.contains("entry.insert(image.clone())"));
-    assert_eq!(adoption.matches(".clone()").count(), 2);
+    assert!(adoption.contains("reference_claim::adopt_claimed_image(&mut self.pending, image)"));
+    assert!(!adoption.contains(".clone()"));
+    assert!(!adoption.contains(".entry("));
+    let cache = adapter
+        .split_once("pub fn adopt_claimed_image(")
+        .unwrap()
+        .1
+        .split_once("pub fn validate_claimed_image(")
+        .unwrap()
+        .0;
+    assert!(cache.contains("pending.entry(image.token.clone())"));
+    assert!(cache.contains("validate_claimed_image(entry.get(), image)?"));
+    assert!(cache.contains("entry.insert(image.clone())"));
+    assert_eq!(cache.matches(".clone()").count(), 2);
     let owner = vm
         .split_once("struct ReferenceClaimOwner")
         .unwrap()
@@ -1451,7 +2393,7 @@ fn product_reply_entries_preserve_distinct_replay_order_and_native_settlement() 
         .split_once("struct ReferenceReplyOwner")
         .unwrap()
         .1
-        .split_once("struct ReferenceRestoreOwner")
+        .split_once("struct ReferenceStartOwner")
         .unwrap()
         .0;
     for hook in [
@@ -1528,35 +2470,40 @@ fn product_restore_keeps_preflight_duplicates_and_native_commit_before_publicati
         .split_once("pub fn resume(")
         .unwrap()
         .0;
-    for absent in [
-        "LSV",
-        "validate_",
-        "record_pending",
-        "self.pending",
-        ".clone()",
-    ] {
+    for absent in ["LSV", "validate_", ".insert(", ".max(", ".clone()"] {
         assert!(!bridge.contains(absent), "{absent}");
     }
-    assert!(bridge.contains("reference_restore::restore(image,"));
-    assert!(bridge.contains("reference_restore::restore_request("));
-    let owner = vm
-        .split_once("struct ReferenceRestoreOwner")
+    assert_eq!(
+        bridge
+            .matches("reference_restore::ReferenceRestoreCache")
+            .count(),
+        2
+    );
+    assert!(bridge.contains(".restore(image,"));
+    assert!(bridge.contains(".restore_request(request,"));
+    assert_eq!(
+        bridge
+            .matches(".record_pending(image, request, self.scheduler_limits)")
+            .count(),
+        2
+    );
+    assert!(!vm.contains("struct ReferenceRestoreOwner"));
+    let owner = adapter
+        .split_once("impl<Commit> ReferenceRestoreHost for CacheImport")
         .unwrap()
         .1
-        .split_once("struct ReferenceStartOwner")
+        .split_once("/// Trusted owner")
         .unwrap()
         .0;
     let fresh = owner.split_once("fn commit_new(").unwrap().1;
     let compact: String = fresh.chars().filter(|c| !c.is_whitespace()).collect();
     assert!(
-        compact
-            .find(".record_pending(&image,request,self.0.scheduler_limits)?")
-            .unwrap()
-            < compact.find("self.0.next_effect_id=").unwrap()
+        compact.find("(self.commit)(&image,request)?").unwrap()
+            < compact.find("*self.cache.next_sequence=").unwrap()
     );
     assert!(
-        compact.find("self.0.next_effect_id=").unwrap()
-            < compact.find("self.0.pending.insert(").unwrap()
+        compact.find("*self.cache.next_sequence=").unwrap()
+            < compact.find("self.cache.pending.insert(").unwrap()
     );
     let existing = owner
         .split_once("fn commit_existing(")
@@ -1565,8 +2512,8 @@ fn product_restore_keeps_preflight_duplicates_and_native_commit_before_publicati
         .split_once("fn commit_new(")
         .unwrap()
         .0;
-    assert!(existing.contains(".record_pending(image, request, self.0.scheduler_limits)"));
-    assert!(!existing.contains("next_effect_id"));
+    assert!(existing.contains("(self.commit)(image, request)"));
+    assert!(!existing.contains("next_sequence"));
     let oracle =
         fs::read_to_string(root().join("crates/leselang-vm/src/restore_contract_tests.rs"))
             .unwrap();
@@ -2333,13 +3280,22 @@ fn static_dispatch_policy_is_adapter_owned_while_observations_and_commit_stay_lo
         "same_request: dispatch.request == lease.request",
         "active: !dispatch.acknowledged",
         "active: dispatch.state == \"leased\"",
-        "durable_request == lease.request",
-        "validate_proposed_retry(dispatch.retry_count, schedule, now_ms)?",
         "TransactionBehavior::Immediate",
-        "JOURNAL_SCHEMA_VERSION: u32 = 10",
+        "pub use leselang_command::reference_journal_schema::JOURNAL_SCHEMA_VERSION;",
     ] {
         assert!(journal.contains(retained), "{retained}");
     }
+    let retry =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_retry_commit.rs"))
+            .unwrap();
+    assert!(retry.contains("validate_proposed_retry(dispatch.retry_count, schedule, now_ms)?"));
+    assert!(retry.contains("validate_proposed_retry(*state.retry_count, schedule, now_ms)?"));
+    assert!(retry.contains("same_request: request == lease.request"));
+    let acknowledgement = fs::read_to_string(
+        root().join("crates/leselang-command/src/reference_acknowledgement_commit.rs"),
+    )
+    .unwrap();
+    assert!(acknowledgement.contains("same_request: request == lease.request"));
     let tests =
         fs::read_to_string(root().join("crates/leselang-command/tests/reference_dispatch.rs"))
             .unwrap();
@@ -2657,18 +3613,18 @@ fn continuation_codec_is_adapter_owned_while_restore_and_consumers_keep_executio
             .unwrap_or_else(|| panic!("lost restore gate {gate}"))
             .1;
     }
-    let owner = vm
-        .split_once("struct ReferenceRestoreOwner")
+    let owner = restore
+        .split_once("impl<Commit> ReferenceRestoreHost for CacheImport")
         .unwrap()
         .1
-        .split_once("struct ReferenceStartOwner")
+        .split_once("/// Trusted owner")
         .unwrap()
         .0;
     let mut rest = owner.split_once("fn commit_new(").unwrap().1;
     for gate in [
-        ".record_pending(&image, request, self.0.scheduler_limits)?",
-        "self.0.next_effect_id =",
-        "self.0.pending.insert(",
+        "(self.commit)(&image, request)?",
+        "*self.cache.next_sequence =",
+        "self.cache.pending.insert(",
     ] {
         rest = rest.split_once(gate).unwrap().1;
     }
@@ -2954,7 +3910,9 @@ fn concrete_product_request_and_static_policy_move_without_execution_authority()
         .split_once("pub fn resume(")
         .unwrap()
         .0;
-    assert!(restore.contains("reference_restore::restore_request("));
+    assert!(restore.contains("reference_restore::ReferenceRestoreCache"));
+    assert!(restore.contains(".restore_request(request,"));
+    assert!(restore.contains(".record_pending(image, request, self.scheduler_limits)"));
     let restore =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_restore.rs"))
             .unwrap();
@@ -2965,14 +3923,7 @@ fn concrete_product_request_and_static_policy_move_without_execution_authority()
                 .unwrap()
     );
     assert!(restore.contains("validate_continuation_size(&image)?"));
-    let owner = vm
-        .split_once("struct ReferenceRestoreOwner")
-        .unwrap()
-        .1
-        .split_once("struct ReferenceStartOwner")
-        .unwrap()
-        .0;
-    assert!(owner.contains(".record_pending(&image, request, self.0.scheduler_limits)?"));
+    assert!(restore.contains("(self.commit)(&image, request)?"));
     let continuation =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_continuation.rs"))
             .unwrap();
@@ -3521,7 +4472,7 @@ fn product_debugger_audit_metadata_is_adapter_owned_without_moving_commit_author
     assert!(journal.contains("use leselang_command::debugger_audit::{"));
     assert!(!journal.contains("fn debugger_audit_record("));
     assert!(!journal.contains("fn audit_matches_record("));
-    assert!(journal.contains("leselang_command::debugger_audit::parse_command_origin(value)"));
+    assert!(journal.contains("audit_read::decode_record"));
     assert!(observe.contains(
         "use leselang_command::{\n    CommandPlan, ContinuationImage, DebuggerAuditContext, DebuggerCancelResult, encode_continuation,\n}"
     ));
@@ -3557,15 +4508,23 @@ fn product_debugger_audit_metadata_is_adapter_owned_without_moving_commit_author
     ] {
         offset += cancel[offset..].find(ordered).unwrap() + ordered.len();
     }
-    for still_owned in [
-        "existing.token == image.token",
+    let commit =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_audit_commit.rs"))
+            .unwrap();
+    for moved in [
+        "existing.token == &image.token",
         "existing.idempotency_key == audit.idempotency_key.as_str()",
-        "audit_matches_record(audit, &existing.record)",
+        "audit_matches_record(audit, existing.record)",
         "completed effect has no matching debugger audit",
-        "crate::validate_debugger_audit(&context)",
     ] {
-        assert!(journal.contains(still_owned), "{still_owned}");
+        assert!(commit.contains(moved), "{moved}");
     }
+    assert!(!journal.contains("crate::validate_debugger_audit(&context)"));
+    assert!(journal.contains("reference_audit_recovery::validate_audit_records"));
+    let recovery =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_audit_recovery.rs"))
+            .unwrap();
+    assert!(recovery.contains("validate_debugger_audit(&context)"));
     let frozen =
         fs::read_to_string(root().join("crates/leselang-vm/src/debugger_audit_adapter_tests.rs"))
             .unwrap();
@@ -3712,7 +4671,11 @@ fn complete_checkpoint_finalization_is_shared_without_importing_product_audit_po
             "{boundary}"
         );
     }
-    assert!(code.contains("crate::validate_debugger_audit(&context)"));
+    assert!(code.contains("reference_audit_recovery::validate_audit_records"));
+    let audit =
+        fs::read_to_string(root().join("crates/leselang-command/src/reference_audit_recovery.rs"))
+            .unwrap();
+    assert!(audit.contains("validate_debugger_audit(&context)"));
     let frozen = fs::read_to_string(
         root().join("crates/leselang-vm/src/journal/finalization_contract_tests.rs"),
     )
@@ -6882,7 +7845,7 @@ fn request_construction_is_static_policy_not_live_journal_authority() {
         fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
     assert!(vm.contains("reference_allocation::allocate_sequence("));
     assert!(vm.contains("self.0.journal.allocate_sequence(local_next)"));
-    assert!(vm.contains(".record_pending(&image, request, self.0.scheduler_limits)?"));
+    assert!(vm.contains(".record_pending(image, request, self.scheduler_limits)"));
     assert!(vm.contains(".claim_dispatch(now_ms, lease_ms, self.0.scheduler_limits)"));
     let oracle =
         fs::read_to_string(root().join("crates/leselang-vm/src/operation_request_tests.rs"))
@@ -7023,16 +7986,18 @@ fn shared_watermark_planning_keeps_native_validation_reads_and_commit_before_pub
             < next
     );
     assert!(next < restore.rfind("host.commit_new(").unwrap());
-    let owner = vm
-        .split_once("struct ReferenceRestoreOwner")
+    assert!(vm.contains(".record_pending(image, request, self.scheduler_limits)"));
+    let owner = restore
+        .split_once("impl<Commit> ReferenceRestoreHost for CacheImport")
         .unwrap()
         .1
-        .split_once("struct ReferenceStartOwner")
+        .split_once("/// Trusted owner")
         .unwrap()
         .0;
     let commit = owner.split_once("fn commit_new(").unwrap().1;
     assert!(
-        commit.find(".record_pending(").unwrap() < commit.find("self.0.next_effect_id =").unwrap()
+        commit.find("(self.commit)(&image, request)?").unwrap()
+            < commit.find("*self.cache.next_sequence =").unwrap()
     );
     assert!(journal.contains("watermark_planning_preserves_frozen_sqlite_fault_order_and_writes"));
     assert!(
