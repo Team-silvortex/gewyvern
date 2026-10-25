@@ -1,6 +1,6 @@
 # Architecture Evolution
 
-This page describes how the released `2.4.x` architecture should deepen
+This page describes how the released `2.5.x` architecture should deepen
 without dissolving its boundaries. It is directional guidance, not a promise
 that a feature belongs to a particular version.
 
@@ -40,7 +40,7 @@ direction and future OS shell profile without expanding Leserpent's scope.
 
 ### Horizon 1: Protect The Released Loop
 
-Current `2.4.x` work should:
+Current `2.5.x` work should:
 
 - preserve machine and wire compatibility
 - keep Linux evidence collection reliable and bounded

@@ -17,6 +17,7 @@ For `gewyvern`, the middle numeric component is treated as the **minor** line:
 - `v2.1.x`
 - `v2.3.x`
 - `v2.4.x`
+- `v2.5.x`
 
 The rule from here forward is simple:
 
@@ -88,8 +89,11 @@ background cleanup.
   Shared release alignment and acceptance-gated Leselang extraction readiness,
   without a version-triggered repository move.
 - [docs/history/v2.4.x.md](v2.4.x.md)
-  Current maintenance line with continued Leselang independence, shared-owner
+  Historical maintenance line with continued Leselang independence, shared-owner
   restoration, and isolated native source verification.
+- [docs/history/v2.5.x.md](v2.5.x.md)
+  Current maintenance line with command-adapter separation, preserved native
+  transaction authority, and evidence-safe shared version alignment.
 - [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md)
   Forward-looking minor-line plan from `0.15.x` through `0.20.x`, intended to
   make `v1.0.0` the direct next step after the final pre-`1.0` seal.
@@ -117,7 +121,8 @@ background cleanup.
 | `v2.0.0` | Released protocolized network-debugging infrastructure with Rust control authority and replaceable operator frontends | sealed release baseline | [docs/history/v2.0.0-release-notes.md](v2.0.0-release-notes.md) |
 | `v2.1.x` | Post-release maintenance and bounded Leselang computation/control-flow development without relabeling frozen contracts | historical snapshot | [docs/history/v2.1.x.md](v2.1.x.md) |
 | `v2.3.x` | Shared release alignment and acceptance-gated Leselang extraction readiness | historical snapshot | [docs/history/v2.3.x.md](v2.3.x.md) |
-| `v2.4.x` | Shared maintenance line with continued Leselang independence and isolated native source verification | active line | [docs/history/v2.4.x.md](v2.4.x.md) |
+| `v2.4.x` | Shared maintenance line with continued Leselang independence and isolated native source verification | historical snapshot | [docs/history/v2.4.x.md](v2.4.x.md) |
+| `v2.5.x` | Shared release alignment with command-adapter separation and preserved native transaction authority | active line | [docs/history/v2.5.x.md](v2.5.x.md) |
 | `v1.0.0 release` | Formal stable-release note for the first sealed mainline ship | release note | [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md) |
 | `v0.15.x -> v1.0.0` | Forward roadmap through `v0.20.x` with `v1.0.0` as the intended direct successor | completed roadmap | [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md) |
 

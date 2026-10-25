@@ -1,12 +1,12 @@
 # Release Checklist
 
 This page is the shortest practical release checklist for the active
-`2.4.x` line.
+`2.5.x` line.
 
 Use it when the question is not "how does packaging work?" or "what does field
 validation mean?", but simply:
 
-- can we still ship `2.4.x` with confidence?
+- can we still ship `2.5.x` with confidence?
 - did we exercise the real packaged artifacts?
 - did standalone and multi-project paths both survive?
 
@@ -57,9 +57,9 @@ For those, use:
   for the protocol-breadth and physical-host validation baseline that this line
   inherits
 
-## Current `2.4.x` Gate
+## Current `2.5.x` Gate
 
-Treat `2.4.x` as release-ready only when all of the following stay true:
+Treat `2.5.x` as release-ready only when all of the following stay true:
 
 1. current native artifacts are rebuilt from the current source tree
 2. packaged `deb` and `rpm` install smoke both pass
@@ -129,7 +129,7 @@ Expected outputs:
 
 The `<version>` value is read from the root `gewyvern` package metadata in
 `Cargo.toml`. Always use that exact semantic version in concrete artifact
-names; `2.4.x` identifies the active minor line and is never itself a package
+names; `2.5.x` identifies the active minor line and is never itself a package
 version.
 
 The package smoke must always verify the artifacts that the tree actually
@@ -166,10 +166,19 @@ cargo run --quiet --bin gewyvern_validate -- release-gate --skip-debugger-cross
 cargo run --quiet --bin gewyvern_validate -- release-gate --skip-pathology
 cargo run --quiet --bin gewyvern_validate -- release-gate --leserpent-proof
 cargo run --quiet --bin gewyvern_validate -- release-gate \
-  --macos-release-preflight docs/fixtures/leserpent_macos_release_preflight.json
+  --macos-release-preflight /tmp/leserpent-macos-preflight.json
 cargo run --quiet --bin gewyvern_validate -- release-gate --remote-host-validation
 cargo run --quiet --bin gewyvern_validate -- release-gate --deb
 cargo run --quiet --bin gewyvern_validate -- release-gate --rpm
+```
+
+Generate the optional macOS report from the current packaged app before using
+that input; retained historical fixtures are not current-release evidence:
+
+```bash
+cargo run --quiet --bin gewyvern_leserpent_release -- preflight \
+  --app artifacts/leserpent-avalonia/Leserpent.app \
+  > /tmp/leserpent-macos-preflight.json
 ```
 
 The same narrowing paths also work with `--json` placed before the command:
@@ -523,7 +532,7 @@ Use this triage order:
 
 ## Ship Read
 
-For the active `2.4.x` line, a good practical ship read is:
+For the active `2.5.x` line, a good practical ship read is:
 
 - current artifacts rebuilt
 - `release_gate.sh` green, or the equivalent build + packaged release check +

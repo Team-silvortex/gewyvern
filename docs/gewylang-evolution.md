@@ -209,7 +209,7 @@ Bad changes here:
 
 - export surfaces that bury the source-to-runtime story
 
-## What 2.4.x Should Keep Improving
+## What 2.5.x Should Keep Improving
 
 For the current line, the best `gewylang`-adjacent work is:
 

@@ -1310,10 +1310,13 @@ mod tests {
     }
 
     fn blocked_preflight_fixture() -> serde_json::Value {
-        serde_json::from_str(include_str!(
+        let mut report: serde_json::Value = serde_json::from_str(include_str!(
             "../../docs/fixtures/leserpent_macos_release_preflight.json"
         ))
-        .unwrap()
+        .unwrap();
+        // Synthetic gate input, not a fresh observation of the retained binaries.
+        report["version"] = env!("CARGO_PKG_VERSION").into();
+        report
     }
 
     #[test]

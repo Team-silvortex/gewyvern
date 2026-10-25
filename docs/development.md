@@ -103,11 +103,14 @@ Before cutting a release, use `cargo dev version check` to verify that Cargo,
 product version. Preview a deliberate version change before applying it:
 
 ```bash
-cargo dev version set 2.4.0 --dry-run
+cargo dev version set 2.5.0 --dry-run
 ```
 
 Removing `--dry-run` applies the update transactionally. It does not create a
 Git tag or rewrite retained historical evidence.
+In particular, a retained macOS preflight report keeps its recorded product
+version and binary hashes. Current-version gate tests use temporary synthetic
+inputs; release validation still requires a fresh report for the actual bundle.
 
 Type-check the Rust workspace without code generation while incrementally
 building the managed stacks in parallel:

@@ -143,12 +143,15 @@ bash scripts/packaging/release_gate.sh
 This is the highest-signal single entrypoint. It rebuilds native artifacts,
 runs packaged release validation, and then runs the three-module stack smoke.
 
-To fold a Leserpent Apple readiness report into the same machine gate without
-running signing commands again:
+To inspect the current Leserpent bundle and fold its Apple readiness report
+into the same machine gate without running signing commands again:
 
 ```bash
+cargo run --quiet --bin gewyvern_leserpent_release -- preflight \
+  --app artifacts/leserpent-avalonia/Leserpent.app \
+  > /tmp/leserpent-macos-preflight.json
 cargo run --quiet --bin gewyvern_validate -- --json release-gate \
-  --macos-release-preflight docs/fixtures/leserpent_macos_release_preflight.json
+  --macos-release-preflight /tmp/leserpent-macos-preflight.json
 ```
 
 The input is bounded and strictly cross-checked. A consistent blocked report is
@@ -156,6 +159,8 @@ retained as evidence and marks `extra.stages.macos_release_preflight_blocked`,
 while malformed or contradictory evidence fails the command. When all product
 and Linux stages pass but Apple credentials remain absent, the aggregate signal
 is `apple_credentials_blocked`, never `ready`.
+Reports from earlier product versions are rejected; do not edit their version
+or reuse the retained fixture as proof for a newly packaged bundle.
 
 The Apple preflight and release stages share one fixed system-tool inventory:
 the six host commands are executed by absolute `/usr/bin` or `/usr/sbin` path
@@ -812,10 +817,11 @@ counts valid Developer ID Application identities. Add `--keychain-profile
 leserpent-notary` after storing credentials to verify that profile through
 `notarytool history` without exposing its secret.
 Only a complete toolchain, at least one valid identity, and a validated profile
-produce `release_ready=true`. The current retained fixture at
+produce `release_ready=true`. The historical fixture at
 `docs/fixtures/leserpent_macos_release_preflight.json` is explicitly blocked by
-the absent identity and unrequested profile; it is readiness evidence, not an
-Apple release claim.
+the absent identity and unrequested profile; it records an earlier readiness
+observation, not a current-artifact or Apple release claim. Its version and
+binary hashes are not rewritten during release alignment.
 
 The credentials command is intentionally interactive. The release CLI has no
 Apple ID, password, API private-key, or Team ID input surface. It requires a

@@ -285,10 +285,6 @@ fn check_surfaces(root: &Path, version: &ProductVersion) -> Result<(), String> {
             "docs/development.md",
             format!("cargo dev version set {exact} --dry-run"),
         ),
-        (
-            "docs/fixtures/leserpent_macos_release_preflight.json",
-            format!("\"version\": \"{exact}\""),
-        ),
     ] {
         check_contains(root, path, &expected, &mut errors);
     }
@@ -588,11 +584,6 @@ fn plan_update(
         "docs/development.md",
         &format!("cargo dev version set {current} --dry-run"),
         &format!("cargo dev version set {target} --dry-run"),
-    )?;
-    updates.replace_once(
-        "docs/fixtures/leserpent_macos_release_preflight.json",
-        &format!("\"version\": \"{current}\""),
-        &format!("\"version\": \"{target}\""),
     )?;
     for path in [
         "apps/leserpent-avalonia/src/Leserpent.Avalonia/packages.development.lock.json",
@@ -1112,5 +1103,29 @@ mod tests {
             .unwrap();
         let version = root_version(root).unwrap();
         check_surfaces(root, &version).unwrap();
+    }
+
+    #[test]
+    fn release_alignment_never_relabels_retained_evidence() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(Path::parent)
+            .unwrap();
+        let current = root_version(root).unwrap();
+        let target =
+            ProductVersion::parse(&format!("{}.{}.0", current.major, current.minor + 1)).unwrap();
+        let updates = plan_update(root, &current, &target).unwrap();
+        for path in updates.relative_paths() {
+            assert!(
+                !path.starts_with("docs/fixtures"),
+                "evidence relabeled: {}",
+                path.display()
+            );
+            assert!(
+                !path.starts_with("docs/history"),
+                "history rewritten: {}",
+                path.display()
+            );
+        }
     }
 }

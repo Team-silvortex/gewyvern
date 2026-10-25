@@ -102,6 +102,6 @@ If you are validating current LDAP support, the shortest useful order is:
 
 ## Stability Note
 
-This page is the lookup hub for the LDAP family in the current `2.4.x` line.
+This page is the lookup hub for the LDAP family in the current `2.5.x` line.
 New LDAP command families should prefer landing behind this shelf instead of
 being linked from multiple higher-level pages independently.

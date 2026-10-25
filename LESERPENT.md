@@ -1,4 +1,4 @@
-# Leserpent v2.4.x
+# Leserpent v2.5.x
 
 <p align="center">
   <a href="README.md">Gewyvern</a> ·
@@ -134,6 +134,6 @@ Linux host. See [packaging](docs/packaging.md) and
 - [Native CLI reference](docs/leserpent-cli.md)
 - [GUI function chains](docs/leserpent-gui-function-chains.md)
 - [Leselang language](docs/leselang-language.md)
-- [Current maintenance notes](docs/history/v2.4.x.md)
+- [Current maintenance notes](docs/history/v2.5.x.md)
 - [2.0.0 release baseline](docs/history/v2.0.0-release-notes.md)
 - [Implementation and compatibility-bridge notes](apps/leserpent/README.md)

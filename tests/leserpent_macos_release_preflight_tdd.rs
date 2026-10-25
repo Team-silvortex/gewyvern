@@ -65,7 +65,8 @@ fn macos_release_preflight_is_machine_readable_and_fail_closed() {
     assert!(developer_workflow.contains("desktop-apple-notarize"));
     assert!(developer_workflow.contains("desktop-apple-release-verify"));
     assert_eq!(report["schema_version"], 2);
-    assert_eq!(report["version"], env!("CARGO_PKG_VERSION"));
+    // Retained evidence is not relabeled when the workspace version advances.
+    assert_eq!(report["version"], "2.4.0");
     assert_eq!(
         report["daemon_executable_sha256"].as_str().unwrap().len(),
         64

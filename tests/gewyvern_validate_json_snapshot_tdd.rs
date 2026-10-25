@@ -235,9 +235,26 @@ fn minimal_release_gate_json_matches_fixture() {
 #[test]
 fn release_gate_retains_valid_blocked_macos_preflight() {
     let _evidence = ReleaseGateEvidenceGuard::acquire();
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("docs/fixtures/leserpent_macos_release_preflight.json");
-    let fixture = fixture.to_str().unwrap();
+    // This synthetic current-version input tests the gate, not an actual bundle.
+    // Keep the checked-in report and its historical binary hashes unchanged.
+    let mut report = read_fixture("docs/fixtures/leserpent_macos_release_preflight.json");
+    report["version"] = env!("CARGO_PKG_VERSION").into();
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let fixture = std::env::temp_dir().join(format!(
+        "gewyvern-synthetic-blocked-preflight-{}-{unique}.json",
+        std::process::id()
+    ));
+    struct TemporaryFixture(PathBuf);
+    impl Drop for TemporaryFixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_file(&self.0);
+        }
+    }
+    let fixture = TemporaryFixture(fixture);
+    fs::write(&fixture.0, serde_json::to_vec(&report).unwrap()).unwrap();
     let (ok, stdout, stderr) = run_validate_json(&[
         "--json",
         "release-gate",
@@ -247,7 +264,7 @@ fn release_gate_retains_valid_blocked_macos_preflight() {
         "--skip-debugger-cross",
         "--skip-pathology",
         "--macos-release-preflight",
-        fixture,
+        fixture.0.to_str().unwrap(),
     ]);
 
     assert!(ok, "blocked preflight is valid evidence, stderr: {stderr}");
@@ -271,6 +288,32 @@ fn release_gate_retains_valid_blocked_macos_preflight() {
             .join("target/validation/leserpent-macos-release-preflight/release-gate-preflight.json")
             .is_file()
     );
+}
+
+#[test]
+fn release_gate_rejects_historical_macos_preflight_without_relabeling_it() {
+    let _evidence = ReleaseGateEvidenceGuard::acquire();
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("docs/fixtures/leserpent_macos_release_preflight.json");
+    let before = fs::read(&fixture).unwrap();
+    let report: Value = serde_json::from_slice(&before).unwrap();
+    assert_ne!(report["version"], env!("CARGO_PKG_VERSION"));
+    let (ok, stdout, stderr) = run_validate_json(&[
+        "--json",
+        "release-gate",
+        "--skip-build",
+        "--skip-release-check",
+        "--skip-stack",
+        "--skip-debugger-cross",
+        "--skip-pathology",
+        "--macos-release-preflight",
+        fixture.to_str().unwrap(),
+    ]);
+    assert!(!ok, "historical preflight must not validate a new release");
+    assert!(
+        format!("{stdout}{stderr}").contains("identity or version does not match this release")
+    );
+    assert_eq!(fs::read(fixture).unwrap(), before);
 }
 
 #[test]

@@ -6,6 +6,11 @@ product-independent. The [language contract](leselang-language.md) describes
 implemented syntax; the [control-flow contract](leselang-control-flow.md)
 separates shipped mechanisms from remaining language work.
 
+For the active product release, see the [current maintenance notes](history/v2.5.x.md).
+Product versions in the dated proofs and incremental sections below describe
+their original checkpoints, not the current package version. Release alignment
+does not relabel those records or promote extraction readiness.
+
 ## Identity
 
 Leselang is intended to become fully independent of Gewyvern and Leserpent,

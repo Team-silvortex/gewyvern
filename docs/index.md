@@ -15,7 +15,7 @@ that owns your question; do not scan the repository by filename.
 - System architect: [canonical architecture blueprint](architecture-blueprint.md)
 - Source ownership and extraction boundaries: [repository map](monorepo-stack.md)
 - Contributor: [project module](modules/project.md)
-- Current release: [v2.4.x maintenance notes](history/v2.4.x.md)
+- Current release: [v2.5.x maintenance notes](history/v2.5.x.md)
 - Architecture change protocol: [coordination](architecture-coordination.md)
 - Historical delivery record: [Leserpent 2.0 roadmap](leserpent-2-roadmap.md)
 - Sequential reading: [book](book/index.md)

@@ -1,7 +1,7 @@
 # gewyvern Roadmap
 
-This roadmap treats `v2.4.x` as the active stable line.
-The current shared community release is `v2.4.0`.
+This roadmap treats `v2.5.x` as the active stable line.
+The current shared community release is `v2.5.0`.
 
 `gewyvern` is no longer on the road to `1.0.0` or `2.0.0`; both seals are now
 release history. The current question is how to preserve the released Gewyvern
@@ -12,7 +12,7 @@ core and Rust control-plane/automation contracts while community evidence grows.
 - last fully documented historical validation baseline: `v0.10.0`
 - sealed stable baseline: `v1.0.0`
 - current documented checkpoint: the shared community release shown above
-- active line: `v2.4.x` maintenance, operator polish, and community validation
+- active line: `v2.5.x` maintenance, operator polish, and community validation
 - released architecture:
   [docs/leserpent-2-architecture.md](docs/leserpent-2-architecture.md)
 - completed delivery record and maintenance roadmap:
@@ -25,7 +25,7 @@ For the explicit `0.15.x -> 0.20.x -> 1.0.0` spine, see
 Machine-readable current progress is tracked by the
 [project status tensor](docs/project-status-system.md), not duplicated here.
 
-## What `v2.4.x` Means Right Now
+## What `v2.5.x` Means Right Now
 
 At the current checkpoint, the active line should be interpreted as:
 
@@ -47,7 +47,7 @@ It should not be interpreted as:
 
 ## Current Priorities
 
-### 1. `v2.4.x`: Release Maintenance And Operating Confidence
+### 1. `v2.5.x`: Release Maintenance And Operating Confidence
 
 - keep release-gate, remote-Linux, and target-lab validation paths easy to rerun
 - keep startup, stop, logs, persistence, and cleanup predictable under failed
