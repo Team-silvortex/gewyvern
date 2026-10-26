@@ -11,7 +11,7 @@ const FORMS: [&str; 6] = [
 ];
 
 fn program(expression: &str) -> HirProgram {
-    leselang_hir::lower(&leselang_syntax::parse(&format!(
+    leserpent_hir::lower(&leselang_syntax::parse(&format!(
         "fn main() = {expression}"
     )))
     .unwrap()
@@ -249,9 +249,9 @@ fn root_admission_sqlite_matches_frozen_lifecycle_and_reopen() {
 // admission core are intentionally shared: this proves adapter parity, not an
 // independent scheduler, storage implementation or host-neutral durable recovery.
 mod frozen {
-    use leselang_hir::HirProgram;
     use leselang_host_contract::{CapabilitySet, Principal, Revision};
     use leselang_runtime_core::{Admission, AdmissionAdapter, AdmissionAttempt};
+    use leserpent_hir::HirProgram;
     use serde::Serialize;
 
     use crate::{Fault, Step, Vm};
@@ -302,7 +302,7 @@ mod frozen {
     ///
     /// ```compile_fail
     /// #![deny(unused_must_use)]
-    /// use leselang_hir::lower;
+    /// use leserpent_hir::lower;
     /// use leselang_host_contract::{CapabilitySet, Principal};
     /// use leselang_syntax::parse;
     /// use leselang_vm::{AdmissionPolicy, RootAdmission};
@@ -322,7 +322,7 @@ mod frozen {
         /// Captures immutable input and authority without entering a VM or reserving identity.
         ///
         /// ```
-        /// use leselang_hir::lower;
+        /// use leserpent_hir::lower;
         /// use leselang_host_contract::{CapabilitySet, Principal, Revision};
         /// use leselang_syntax::parse;
         /// use leselang_vm::{AdmissionPolicy, AdmissionPoll, RootAdmission, Step, Vm};

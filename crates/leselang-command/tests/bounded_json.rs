@@ -90,7 +90,7 @@ fn product_plan_encoding_keeps_frozen_bytes_attempted_sizes_and_validation_order
             "fn main() = runtime.history(runtime_id: \"runtime-a\")",
             "fn main() = runtime.logs(runtime_id: \"runtime-a\")",
         ] {
-            let program = leselang_hir::lower(&leselang_syntax::parse(source)).unwrap();
+            let program = leserpent_hir::lower(&leselang_syntax::parse(source)).unwrap();
             let plan = lower_effect(&program.function.effect, &context).unwrap();
             let size = encode_plan(&plan).unwrap().len();
             for extra in [

@@ -1361,7 +1361,6 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use leselang_command::PresentationOperation;
-    use leselang_hir::CAPABILITY_UI_PRESENTATION;
     use leserpent_adapters::{
         GewyvernTargetCatalog, MutableSecretStore, SecretKey, SecretStore, SecretStoreError,
         SecretValue,
@@ -1371,6 +1370,7 @@ mod tests {
         CommandEnvelope, CommandId, CommandOrigin, CommandStatus, Confirmation,
         DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal, Revision, RuntimeId,
     };
+    use leserpent_hir::CAPABILITY_UI_PRESENTATION;
     use leserpent_protocol::{
         AuthorityWriterFence, DebuggerMutationStatus, DebuggerPresentationAcknowledgeRequest,
         DebuggerPresentationOutcome, DebuggerPresentationStatus, DebuggerSessionStartRequest,
@@ -3796,10 +3796,10 @@ mod tests {
         let source = decoded.source.unwrap();
         assert!(decoded.error.is_none());
         let parsed = leselang_syntax::parse(&source);
-        let program = leselang_hir::lower(&parsed).unwrap();
+        let program = leserpent_hir::lower(&parsed).unwrap();
         assert!(matches!(
             program.function.effect,
-            leselang_hir::Effect::RuntimeDeploy {
+            leserpent_hir::Effect::RuntimeDeploy {
                 runtime_id,
                 pipeline_kind,
                 target: Some(target),

@@ -8,12 +8,12 @@ use leselang_command::{
     ProjectedGroupBinding, ProjectedGroupExt, ProjectedResult, ResultBinding, StructuredField,
     Value,
 };
-use leselang_hir::{
+use leselang_host_contract::{CapabilitySet, Principal};
+use leselang_runtime_core::{CaptureCorrespondenceLimits, Fault, ScalarValue};
+use leserpent_hir::{
     Effect, HirBranch, Type, computation::Computation, host_call::HostOperation,
     result_field::ResultField,
 };
-use leselang_host_contract::{CapabilitySet, Principal};
-use leselang_runtime_core::{CaptureCorrespondenceLimits, Fault, ScalarValue};
 
 fn focus(name: &str) -> Value {
     Value::UiFocus {
@@ -82,7 +82,7 @@ fn frozen_capture(
         fields,
         operations,
         CaptureCorrespondenceLimits {
-            max_saved_bindings: leselang_hir::MAX_EFFECT_NESTING_DEPTH,
+            max_saved_bindings: leserpent_hir::MAX_EFFECT_NESTING_DEPTH,
             max_original_rows: MAX_MERGE_BRANCHES,
         },
         result_binding_limits().groups,
@@ -366,7 +366,7 @@ fn capture_limits_are_inclusive_and_correspondence_never_certifies_raw_values_or
         let limit = if collection == "rows" {
             MAX_MERGE_BRANCHES
         } else {
-            leselang_hir::MAX_EFFECT_NESTING_DEPTH
+            leserpent_hir::MAX_EFFECT_NESTING_DEPTH
         };
         match collection {
             "groups" => saved

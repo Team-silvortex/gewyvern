@@ -1,6 +1,6 @@
 use super::*;
 use crate::ExecutionOrder;
-use leselang_hir::computation::Computation;
+use leserpent_hir::computation::Computation;
 
 fn invalid() -> Fault {
     Fault {
@@ -276,7 +276,7 @@ fn group_plan_keeps_structure_then_correspondence_then_size_then_type_faults() {
     check(&binding, &plan, "LSV3002");
     binding.fuel_remaining = crate::MAX_EXECUTION_FUEL + 1;
     check(&binding, &plan, "LSV1409");
-    binding.binding.name = "x".repeat(leselang_hir::MAX_BRANCH_NAME_BYTES + 1);
+    binding.binding.name = "x".repeat(leserpent_hir::MAX_BRANCH_NAME_BYTES + 1);
     check(&binding, &plan, "LSV1405");
     binding.binding.name = "group".into();
     binding.fuel_remaining = 100;

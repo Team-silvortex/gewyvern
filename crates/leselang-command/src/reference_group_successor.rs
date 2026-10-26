@@ -1,7 +1,7 @@
 //! Product group-successor assembly around the caller's request builder.
 
-use leselang_hir::{Effect, host_call::HostOperation};
 use leselang_runtime_core::Fault;
+use leserpent_hir::{Effect, host_call::HostOperation};
 
 use crate::reference_continuation::validate_continuation_size;
 use crate::reference_merge::invalid_group_binding as invalid;

@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-public-fold-preparation-boundary",
+  "validated_at": "2026-10-26",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.5.0",
+  "hir_contract": "0.190.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.173.0",
+  "verification_status": "passed",
+  "product_private_helpers_replaced": 4,
+  "private_operand_type_removed_from_product_fold": true,
+  "public_fold_stages": 4,
+  "native_tests": 10,
+  "frozen_product_cases": 1920,
+  "baseline_sha256": {
+    "computation": "cd8cb23ed2fc3b84ca8af2737c416abf01365ef1b417be4c97148b9d3e361b6a",
+    "fold_coordinator": "e6022c1c99c8ec5292f19e8e494a6ae456b6d166182030fafa9b2fd131932eb8"
+  },
+  "frozen_coordinator_exact_after_rename": true,
+  "oracle_scope": "The pre-stage product fold coordinator is copied exactly except its function name. Shared scalar kernels and child lowering remain unchanged; 32 forms x 5 native prefixes x 4 source counters x 3 depths compare exact IR/type, diagnostics, counters and surviving scope. This is not a second compiler.",
+  "plan_scope": "Private original-source stages pair checked literal limits, collection, initial IR/metadata and original next observations. Native two-local scope policy precedes limits; collection lowering/admission precedes initial lowering/admission. Next lowering runs inside the native guard, while purity/state admission and construction stay after guard cleanup. Empty collections and zero limits still compile next. Purity is computed from bounded returned IR, not accepted as a host flag. Native callbacks retain complete cold-source/output, type/domain, current-policy and scope-guard responsibilities; the scalar kernels remain language-internal.",
+  "plan_is_source_or_authority_receipt": false,
+  "physical_hir_relocation_complete": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "file_count": 297,
+    "bytes": 7041031,
+    "manifest_sha256": "2f830d8c723387129849eff876e4e38fed40253822d33353160ce7ab313a58fb",
+    "consumer_test_byte_identity": true,
+    "all_copied_sources_byte_identical": true,
+    "verification_target_removed": true,
+    "tests_passed": 2707,
+    "complete_vm": false,
+    "full_extraction_gate": false
+  },
+  "remaining_boundaries": [
+    "primitive-scalar adaptation plus remaining private compiler references",
+    "acyclic compatibility-facade package layout and physical HIR specialization relocation",
+    "complete independent language and durable recovery acceptance"
+  ],
+  "verification_scope": "Local native/default-profile Rust tests, frozen product coordinator comparisons, HIR/command/VM regressions, strict Clippy, source-export workspace and separate consumer tests/lints, architecture/status/profile/GUI-function-chain/reliability gates. No Linux host, live GUI, remote CI, benchmark or repository publication claim.",
+  "source_hashes": [
+    {
+      "path": "Cargo.toml",
+      "sha256": "27e9a6e7d5c839b6099dc37c9f1ef55bea0c0ec8bf54293738713035d7a84313"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "21fe76fab4786239aca297ef989a98eb6c4e8cad898f7a2a2046da415c241b1f"
+    },
+    {
+      "path": "crates/leselang-hir/Cargo.toml",
+      "sha256": "7cc04569d0e06153a123db695c3422103c0bffe112897beb4056e675787a501b"
+    },
+    {
+      "path": "crates/leselang-hir/src/lib.rs",
+      "sha256": "71d03dce0aa0599db225a4ebca72eee0e8b224b96afe8a493e278f5a4d3ed906"
+    },
+    {
+      "path": "crates/leselang-hir/src/fold_source.rs",
+      "sha256": "0effe21b834acd78a37406ad51de884d207f12a4eca8bfab2b1816b8bfa1c748"
+    },
+    {
+      "path": "crates/leselang-hir/src/scalar_source.rs",
+      "sha256": "49c4e9f207618c9f3c587c3e01f23ebe4eb1d55ce4ec2e3d78616353a193075c"
+    },
+    {
+      "path": "crates/leselang-hir/src/scalar_source/fold.rs",
+      "sha256": "59f77543e0eaf356d0bec01b64c744789c045de5244f9933a1656cb7d9859a31"
+    },
+    {
+      "path": "crates/leselang-hir/src/ir.rs",
+      "sha256": "0ed1a9a843a219053cd08c49c21c9a5cc1d5d443942f2c69e22fc4917c6d0275"
+    },
+    {
+      "path": "crates/leselang-hir/src/computation.rs",
+      "sha256": "db6e7a4ccc64dbaa1f05b7af3e327e3ffc1a1d25854f01b27e4c468a553cfbac"
+    },
+    {
+      "path": "crates/leselang-hir/src/fold_preparation_contract_tests.rs",
+      "sha256": "cf852064fc4df3bea42e554d9144530f81de629af67af06264f7cb5f9d3291d5"
+    },
+    {
+      "path": "crates/leselang-hir/tests/fold_preparation.rs",
+      "sha256": "bb285631621b481f2c6d307fcb3840ccf03f3c8fc2e614e6ff3de3c2b886d152"
+    },
+    {
+      "path": "crates/gewyvern-dev/src/leselang.rs",
+      "sha256": "7baea93b99c408b1acdaa682e3adc3d02f5da19cbded6f82ee65dc029091a0b6"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "72281d7504edefbb8b981c7dbf9dc0e46268a1cafaccf306c77ba5b76f7539de"
+    },
+    {
+      "path": "tests/language_independence_tdd.rs",
+      "sha256": "6bf8b7f5113ab98d647b758f30cc8d55e8292d622d151ec046c41dee97c6651c"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "6077dc8b9f97bb8cb4d7b2887505a62bcc4a3c851004e50c4564eb65ed801da8"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "189edb314cb069bfddaa90425e651123ee8b1c7307fb1db6e1a3a39b74f34006"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "55b7ca65c72fbc7ab7cde71e1cc3b275196c2efa1ec221e113c94ea4416049a8"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "5f19eaef04e3ebd93d3c1c9b8317822c6a7beb13d7239d2df9fd0f6d1b6f1ad1"
+    }
+  ],
+  "logs": [
+    {
+      "path": "/private/tmp/leselang-fold-preparation-architecture-20261026.log",
+      "sha256": "c0edd34a4d4efa2e4f085cb1f1cae3ace3486af8773ce877104aa3a40273d111",
+      "passed": 107
+    },
+    {
+      "path": "/private/tmp/leselang-fold-preparation-clippy-20261026.log",
+      "sha256": "d496220b59c9c6053fe397384b140165ee1a1545a3771f28423655dfe9e6731f",
+      "passed": 0
+    },
+    {
+      "path": "/private/tmp/leselang-fold-preparation-export-20261026.log",
+      "sha256": "36ba55b201497ca36c6b322c05c7adbe9452481a8d8a5a9631aae6607aa61a8c",
+      "passed": 2707
+    },
+    {
+      "path": "/private/tmp/leselang-fold-preparation-export-plan-20261026.log",
+      "sha256": "804b62c558b8421fef0379dc0a4410ef74f696e6d599a9664b99f427d90a71df",
+      "passed": 23
+    },
+    {
+      "path": "/private/tmp/leselang-fold-preparation-native-20261026.log",
+      "sha256": "61a37463d0b51dbfb9728b0fc10804aa05a7e90f2dfaef1bbaa85ea10140d002",
+      "passed": 10
+    },
+    {
+      "path": "/private/tmp/leselang-fold-preparation-native-clippy-20261026.log",
+      "sha256": "38184fc4eedbab52d601e36453377f5e36b677125d915a221f432860aad3498e",
+      "passed": 0
+    },
+    {
+      "path": "/private/tmp/leselang-fold-preparation-parity-20261026.log",
+      "sha256": "97199ff7cb046fb26ec57ae0856a08fff57f329b2e45ea3b90abb6a2c3728510",
+      "passed": 1
+    },
+    {
+      "path": "/private/tmp/leselang-fold-preparation-root-clippy-20261026.log",
+      "sha256": "814ec5687e0a14ecaf388488f423cce904ab51f594afc09fe770bd9e06b47e7c",
+      "passed": 0
+    },
+    {
+      "path": "/private/tmp/leselang-fold-preparation-suite-20261026.log",
+      "sha256": "ea002eca7994fa66b4903a49c46146c70edd8564e77ec1225e0419c104b30cfa",
+      "passed": 3332
+    },
+    {
+      "path": "/private/tmp/leselang-fold-preparation-final-gates-20261026.log",
+      "sha256": "6e97d3c1ed0e005384f1449e1b7ae14944e7e5deb3ce32b1607aec6a0e8aeb44",
+      "passed": 572
+    }
+  ]
+}

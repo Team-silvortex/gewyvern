@@ -141,7 +141,7 @@ fn seed(path: &Path, target: u32) {
     frozen_schema(&Owner::new(&connection), 0).unwrap();
     let mut vm = crate::Vm::default();
     for state in ["pending", "completed"] {
-        let program = leselang_hir::lower(&leselang_syntax::parse(
+        let program = leserpent_hir::lower(&leselang_syntax::parse(
             r#"fn main() = ui.focus(node_id: "target")"#,
         ))
         .unwrap();

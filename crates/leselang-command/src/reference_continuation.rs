@@ -4,8 +4,8 @@
 //! Hosts still own authentication, complete group journals, live-state conflicts,
 //! consumed receipts, clocks, scheduler admission and identity allocation.
 
-use leselang_hir::canonical_source;
 use leselang_runtime_core::Fault;
+use leserpent_hir::canonical_source;
 
 use crate::bounded_json::{self, BoundedJsonDecodeError, BoundedJsonError};
 use crate::continuation_identity::canonical_continuation_sequence;

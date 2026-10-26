@@ -2,9 +2,9 @@ use leselang_command::reference_group_start::{
     GroupStartContext, ReferenceGroupStartHost, prepare_group_start,
 };
 use leselang_command::{ExecutionOrder, ResultBinding};
-use leselang_hir::{Effect, HirBranch, Type};
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_runtime_core::Fault;
+use leserpent_hir::{Effect, HirBranch, Type};
 use std::{cell::RefCell, rc::Rc};
 
 #[path = "support/group_start_fixture.rs"]

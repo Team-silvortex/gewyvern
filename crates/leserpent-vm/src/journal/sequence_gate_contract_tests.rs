@@ -2,10 +2,10 @@ use super::*;
 
 fn request(n: u64) -> EffectRequest {
     crate::Vm::build_effect_request(
-        &leselang_hir::Effect::UiFocus {
+        &leserpent_hir::Effect::UiFocus {
             node_id: format!("node-{n}"),
         },
-        leselang_hir::Type::UiFocus,
+        leserpent_hir::Type::UiFocus,
         n,
         crate::Principal::new("operator").unwrap(),
         crate::CapabilitySet::new(["ui.presentation"]),
@@ -148,12 +148,12 @@ fn memory_gate_matches_frozen_for_all_order_labels_prefixes_and_terminal_classes
 }
 
 fn start_group(vm: &mut crate::Vm, order: ExecutionOrder, kind: usize) {
-    let branches = ["left", "right"].map(|name| leselang_hir::HirBranch {
+    let branches = ["left", "right"].map(|name| leserpent_hir::HirBranch {
         name: name.into(),
-        effect: leselang_hir::Effect::UiFocus {
+        effect: leserpent_hir::Effect::UiFocus {
             node_id: name.into(),
         },
-        result_type: leselang_hir::Type::UiFocus,
+        result_type: leserpent_hir::Type::UiFocus,
     });
     assert!(!matches!(
         vm.start_group(

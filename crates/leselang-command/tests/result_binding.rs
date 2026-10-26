@@ -3,12 +3,12 @@ use leselang_command::{
     ProjectedResult, ResultBinding, ResultBindingLimits, Value, validate_result_binding,
     validate_result_binding_structure,
 };
-use leselang_hir::{
-    Effect, Type, computation::Computation, host_call::HostOperation,
-    projection_access::ProjectionAccessLimits, result_field::ResultField,
-};
+use leselang_hir_core::projection_access::ProjectionAccessLimits;
 use leselang_runtime_core::{
     CaptureValidationLimits, GroupCaptureLimits, ScalarBinding, ScalarType, ScalarValue,
+};
+use leserpent_hir::{
+    Effect, Type, computation::Computation, host_call::HostOperation, result_field::ResultField,
 };
 
 fn limits() -> ResultBindingLimits {

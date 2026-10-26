@@ -6,9 +6,9 @@ use leselang_command::reference_request::MAX_EXECUTION_FUEL;
 use leselang_command::reference_request_build::{ReservedEffectInput, build_effect_request};
 use leselang_command::reference_startup::{self, RecoveredJournal};
 use leselang_command::{ContinuationToken, SchedulerLimits, Step};
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::{CapabilitySet, Principal};
 use leselang_runtime_core::Fault;
+use leserpent_hir::{Effect, Type};
 
 struct Journal<'a>(&'a RefCell<Vec<&'static str>>);
 impl Drop for Journal<'_> {

@@ -7,9 +7,11 @@ license.workspace = true
 
 [features]
 default = ["leserpent-profile"]
-leserpent-profile = ["dep:leselang-host-contract"]
+leserpent-profile = ["dep:leserpent-hir", "dep:leselang-host-contract"]
 
 [dependencies]
+leselang-hir-core = { path = "../leselang-hir-core" }
+leserpent-hir = { path = "../leserpent-hir", optional = true }
 leselang-host-contract = { path = "../leselang-host-contract", optional = true }
 leselang-runtime-core = { path = "../leselang-runtime-core" }
 leselang-syntax = { path = "../leselang-syntax" }

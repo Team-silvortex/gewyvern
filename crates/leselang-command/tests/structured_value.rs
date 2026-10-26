@@ -3,8 +3,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use leselang_command::{
     StructuredField, Value, ValueBoundsError, ValueValidationLimits, validate_value_items,
 };
-use leselang_hir::computation::{ScalarValue, StringListValue};
 use leselang_host_contract::Revision;
+use leserpent_hir::computation::{ScalarValue, StringListValue};
 
 const LIMITS: ValueValidationLimits = ValueValidationLimits {
     max_depth: 4,

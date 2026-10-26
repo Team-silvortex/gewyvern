@@ -1,9 +1,9 @@
 use super::*;
-use leselang_hir::computation::{ComputedArgument, ComputedBranch, GroupKind, UnaryOperator};
+use leserpent_hir::computation::{ComputedArgument, ComputedBranch, GroupKind, UnaryOperator};
 
 struct Frozen;
 
-impl<'a> PureEvaluationEnvironment<leselang_hir::result_field::ResultField, HostOperation>
+impl<'a> PureEvaluationEnvironment<leserpent_hir::result_field::ResultField, HostOperation>
     for &'a Frozen
 {
     type Result = ResultView<'a>;
@@ -12,7 +12,7 @@ impl<'a> PureEvaluationEnvironment<leselang_hir::result_field::ResultField, Host
     fn field(
         &self,
         result: &Self::Result,
-        field: &leselang_hir::result_field::ResultField,
+        field: &leserpent_hir::result_field::ResultField,
     ) -> Result<ScalarValue, Fault> {
         result.field(*field)
     }
@@ -30,10 +30,10 @@ impl<'a> PureEvaluationEnvironment<leselang_hir::result_field::ResultField, Host
 impl<'a>
     EffectEvaluationEnvironment<
         'a,
-        leselang_hir::result_field::ResultField,
+        leserpent_hir::result_field::ResultField,
         HostOperation,
         Effect,
-        leselang_hir::Type,
+        leserpent_hir::Type,
     > for &'a Frozen
 {
     type Request = Cow<'a, Effect>;
@@ -98,7 +98,7 @@ impl<'a>
                         scope,
                         self,
                         fuel,
-                        leselang_hir::call_evaluation::CallEvaluationLimits {
+                        leselang_hir_core::call_evaluation::CallEvaluationLimits {
                             pure: execution_limits().pure,
                             max_arguments: MAX_CALL_ARGUMENTS,
                         },
@@ -180,16 +180,20 @@ fn effect_preparation_preserves_frozen_requests_fuel_fault_order_and_scope() {
         },
         literal(ScalarValue::None),
         group(vec![]),
-        group(vec![branch("a", call.clone(), leselang_hir::Type::UiFocus)]),
         group(vec![branch(
             "a",
             call.clone(),
-            leselang_hir::Type::UiActivate,
+            leserpent_hir::Type::UiFocus,
+        )]),
+        group(vec![branch(
+            "a",
+            call.clone(),
+            leserpent_hir::Type::UiActivate,
         )]),
         group(vec![branch(
             "a",
             literal(ScalarValue::None),
-            leselang_hir::Type::UiFocus,
+            leserpent_hir::Type::UiFocus,
         )]),
         focus_call(Computation::Unary {
             operator: UnaryOperator::ParseInteger,
@@ -204,7 +208,7 @@ fn effect_preparation_preserves_frozen_requests_fuel_fault_order_and_scope() {
             let source = format!(
                 "fn main() = bind(prefix: \"p-\", body: {mode}(a: ui.focus(node_id: prefix), b: {tail}))",
             );
-            let program = leselang_hir::lower(&leselang_syntax::parse(&source)).unwrap();
+            let program = leserpent_hir::lower(&leselang_syntax::parse(&source)).unwrap();
             let Effect::Compute { expression } = program.function.effect else {
                 panic!()
             };

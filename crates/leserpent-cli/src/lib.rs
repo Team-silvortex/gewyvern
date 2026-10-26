@@ -3419,10 +3419,10 @@ mod tests {
             source,
             "fn main() = runtime.refresh_capabilities(runtime_id: \"runtime-a\")\n"
         );
-        let program = leselang_hir::lower(&parse_leselang(&source)).unwrap();
+        let program = leserpent_hir::lower(&parse_leselang(&source)).unwrap();
         assert!(matches!(
             program.function.effect,
-            leselang_hir::Effect::RuntimeCapabilitiesRefresh { runtime_id }
+            leserpent_hir::Effect::RuntimeCapabilitiesRefresh { runtime_id }
                 if runtime_id.as_str() == "runtime-a"
         ));
     }

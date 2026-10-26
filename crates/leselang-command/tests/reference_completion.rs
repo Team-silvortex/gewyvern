@@ -7,9 +7,9 @@ use leselang_command::{
     BranchOutcome, Cancellation, CancellationReason, ContinuationImage, ContinuationToken,
     EffectError, EffectErrorClass, FailedEffect, MergeWait, Step, StructuredField, Value,
 };
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::Revision;
 use leselang_runtime_core::Fault;
+use leserpent_hir::{Effect, Type};
 
 fn image() -> ContinuationImage {
     ContinuationImage {

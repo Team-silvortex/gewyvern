@@ -2,13 +2,13 @@ use leselang_command::{
     EffectOperation, LoweringContext, LoweringError, PresentationEnvelope, PresentationOperation,
     PresentationResult, lower_effect,
 };
-use leselang_hir::{
-    Effect, UiFocusNavigationDirection, UiFormInputKind, UiFormRequirementState, UiSelectionState,
-    UiSemanticActionKind, UiSemanticNodeKind, lower,
-};
 use leselang_host_contract::{CapabilitySet, CommandOrigin, Confirmation, Principal};
 use leselang_syntax::parse;
 use leserpent_domain::{CommandId, IdempotencyKey};
+use leserpent_hir::{
+    Effect, UiFocusNavigationDirection, UiFormInputKind, UiFormRequirementState, UiSelectionState,
+    UiSemanticActionKind, UiSemanticNodeKind, lower,
+};
 use serde_json::{Value, json};
 
 mod request_correspondence {
@@ -17,9 +17,9 @@ mod request_correspondence {
         EffectRequestView, OperationRequestError, RequestCorrespondenceError as Error,
         ResultBinding, validate_preflighted_effect_request,
     };
-    use leselang_hir::{Type, computation::Computation, host_call::HostOperation};
     use leselang_host_contract::Revision;
     use leselang_runtime_core::{ContinuationFrame, ResourceBudget};
+    use leserpent_hir::{Type, computation::Computation, host_call::HostOperation};
     use std::{cell::Cell, rc::Rc};
 
     struct Request<Token> {
@@ -104,7 +104,7 @@ mod request_correspondence {
     }
 
     fn admission_limits() -> leselang_command::ContinuationAdmissionLimits {
-        use leselang_hir::projection_access::ProjectionAccessLimits;
+        use leselang_hir_core::projection_access::ProjectionAccessLimits;
         use leselang_runtime_core::{
             CaptureValidationLimits, GroupCaptureLimits, ResourceBudgetLimits,
         };
@@ -632,7 +632,7 @@ fn request_construction_covers_seventy_operations_and_moves_original_gui_authori
         let principal_buffer = principal.id.as_ptr();
         let request = build_effect_request(ReservedEffectInput {
             effect: &effect,
-            result_type: leselang_hir::host_call::HostOperation::for_effect(&effect)
+            result_type: leserpent_hir::host_call::HostOperation::for_effect(&effect)
                 .unwrap()
                 .result_type(),
             sequence: 9,
@@ -672,7 +672,7 @@ fn request_construction_debits_before_shape_checks_without_repairing_public_inpu
     for (effect, operation) in request_admission_cases() {
         let input = |fuel| ReservedEffectInput {
             effect: &effect,
-            result_type: leselang_hir::Type::Structured,
+            result_type: leserpent_hir::Type::Structured,
             sequence: 0,
             principal: operation.authority().0.clone(),
             capabilities: operation.authority().1.clone(),
@@ -694,7 +694,7 @@ fn request_construction_preserves_the_existing_group_input_type() {
     };
     let input = ReservedEffectInput {
         effect: &effect,
-        result_type: leselang_hir::Type::UiFocus,
+        result_type: leserpent_hir::Type::UiFocus,
         sequence: 1,
         principal: Principal::new("operator").unwrap(),
         capabilities: CapabilitySet::new(["ui.presentation"]),
@@ -799,7 +799,7 @@ fn operation_lowering_identity_refusal_precedes_control_plane_capability_checks(
         assert_eq!(
             error,
             OperationLoweringError::Lowering(LoweringError::MissingCapability {
-                capability: leselang_hir::host_call::HostOperation::for_effect(&effect)
+                capability: leserpent_hir::host_call::HostOperation::for_effect(&effect)
                     .unwrap()
                     .required_capability(),
             })
@@ -913,7 +913,7 @@ fn operation_lowering_identity_factory_unwind_does_not_retry_or_retain_owned_cap
 fn request_context(effect: &Effect) -> leselang_command::OperationRequestContext<'_> {
     leselang_command::OperationRequestContext {
         effect,
-        required_capability: leselang_hir::host_call::HostOperation::for_effect(effect)
+        required_capability: leserpent_hir::host_call::HostOperation::for_effect(effect)
             .unwrap()
             .required_capability(),
         expected_command_id: "command-a",
@@ -1063,7 +1063,7 @@ fn operation_request_correspondence_is_not_source_or_live_authority_admission() 
     let effect = Effect::RuntimeList {
         filter: filter.clone(),
     };
-    assert!(leselang_hir::canonical_source(&effect).is_err());
+    assert!(leserpent_hir::canonical_source(&effect).is_err());
     let operation = EffectOperation::Query(leserpent_domain::QueryEnvelope {
         schema_version: leserpent_domain::DOMAIN_SCHEMA_VERSION,
         principal: Principal::new("declared-not-authenticated").unwrap(),
@@ -1566,7 +1566,7 @@ fn presentation_mapping_is_data_conversion_not_a_validation_certificate() {
             node_id: "bad node".into(),
         })
     );
-    assert!(!leselang_hir::validate_ui_node_id("bad node"));
+    assert!(!leserpent_hir::validate_ui_node_id("bad node"));
 }
 
 fn reply_cases() -> Vec<Case> {
@@ -1677,7 +1677,7 @@ fn presentation_value_conversion_is_not_validation_or_admission() {
         None
     ));
     let value = leselang_command::Value::from(reply);
-    assert_eq!(value.result_type(), leselang_hir::Type::UiWaitHidden);
+    assert_eq!(value.result_type(), leserpent_hir::Type::UiWaitHidden);
     assert_eq!(
         serde_json::to_value(value).unwrap(),
         json!({"kind":"ui_wait_hidden","node_id":"bad node"})
@@ -1687,12 +1687,12 @@ fn presentation_value_conversion_is_not_validation_or_admission() {
 #[test]
 fn product_value_types_include_scalars_domain_results_and_ordered_structures() {
     use leselang_command::{DebuggerCancelResult, StructuredField, Value as ProductValue};
-    use leselang_hir::{
+    use leselang_host_contract::{Revision, RuntimeId};
+    use leserpent_domain::{CommandResult, CommandStatus, RefreshStatus, RuntimeProjection};
+    use leserpent_hir::{
         Type,
         computation::{OptionalStringValue, ScalarType, ScalarValue, StringListValue},
     };
-    use leselang_host_contract::{Revision, RuntimeId};
-    use leserpent_domain::{CommandResult, CommandStatus, RefreshStatus, RuntimeProjection};
 
     let runtime = RuntimeProjection {
         id: RuntimeId::new("runtime-a").unwrap(),
@@ -1851,7 +1851,7 @@ fn product_value_types_include_scalars_domain_results_and_ordered_structures() {
 
 #[test]
 fn all_presentation_payload_and_leaf_bounds_preserve_identifiers_text_and_counts() {
-    use leselang_hir::{
+    use leserpent_hir::{
         MAX_UI_CHILD_COUNT, MAX_UI_EXPECTED_TEXT_BYTES, MAX_UI_FORM_FIELD_KEY_BYTES,
         MAX_UI_FORM_FIELD_MAX_LENGTH, MAX_UI_NODE_ID_BYTES,
     };
@@ -1946,7 +1946,7 @@ fn all_presentation_payload_and_leaf_bounds_preserve_identifiers_text_and_counts
 #[test]
 fn product_scalar_leaf_bounds_preserve_empty_lists_and_byte_budgets() {
     use leselang_command::Value as ProductValue;
-    use leselang_hir::computation::{
+    use leserpent_hir::computation::{
         MAX_SCALAR_STRING_BYTES, MAX_STRING_LIST_ITEMS, OptionalStringValue, ScalarValue,
         StringListValue,
     };
@@ -2148,8 +2148,8 @@ fn composed_effect_values_cover_seventy_operations_types_and_legacy_context() {
     use leselang_command::{
         EffectResult, EffectValueContext, EffectValueError, Value as ProductValue,
     };
-    use leselang_hir::{Type, host_call::HostOperation};
     use leselang_host_contract::Revision;
+    use leserpent_hir::{Type, host_call::HostOperation};
 
     let mut cases = control_plane_reply_cases();
     cases.extend(reply_cases().into_iter().map(|case| {
@@ -2199,9 +2199,9 @@ fn composed_effect_values_cover_seventy_operations_types_and_legacy_context() {
 #[test]
 fn composed_effect_values_preserve_query_revision_count_and_mismatch_precedence() {
     use leselang_command::{EffectResult, EffectValueContext, EffectValueError};
-    use leselang_hir::{Type, host_call::HostOperation};
     use leselang_host_contract::Revision;
     use leserpent_domain::{QueryResult, RuntimeLogLevel, RuntimeLogRecord};
+    use leserpent_hir::{Type, host_call::HostOperation};
 
     for (index, (effect, operation, reply)) in
         control_plane_reply_cases().into_iter().take(4).enumerate()
@@ -2292,9 +2292,9 @@ fn composed_effect_values_preserve_query_revision_count_and_mismatch_precedence(
 #[test]
 fn composed_effect_values_move_payloads_without_granting_admission() {
     use leselang_command::{EffectResult, EffectValueContext, Value as ProductValue};
-    use leselang_hir::{Type, host_call::HostOperation};
     use leselang_host_contract::Revision;
     use leserpent_domain::QueryResult;
+    use leserpent_hir::{Type, host_call::HostOperation};
 
     for (effect, operation, reply) in control_plane_reply_cases() {
         let pointer = match &reply {
@@ -2544,8 +2544,8 @@ fn control_plane_reply_matcher_rejects_all_gui_and_structured_operations() {
     }
 }
 
-fn control_plane_value_types() -> [(leselang_hir::Type, &'static str); 8] {
-    use leselang_hir::Type;
+fn control_plane_value_types() -> [(leserpent_hir::Type, &'static str); 8] {
+    use leserpent_hir::Type;
     [
         (Type::RuntimeList, "runtime_list"),
         (Type::RuntimeInspect, "runtime_inspect"),
@@ -2562,10 +2562,10 @@ fn control_plane_value_types() -> [(leselang_hir::Type, &'static str); 8] {
 }
 
 fn capture_cases() -> Vec<(
-    leselang_hir::host_call::HostOperation,
+    leserpent_hir::host_call::HostOperation,
     leselang_command::Value,
 )> {
-    use leselang_hir::host_call::HostOperation;
+    use leserpent_hir::host_call::HostOperation;
     let mut values = reply_cases()
         .into_iter()
         .map(|case| {
@@ -2598,8 +2598,8 @@ fn reference_group_binding_policy_covers_seventy_operations_and_five_saved_vocab
         ProjectedGroup, ProjectedGroupBinding, ProjectedResult, ResultBinding, StructuredField,
         Value as ProductValue,
     };
-    use leselang_hir::{HirBranch, computation::Computation, host_call::HostOperation};
     use leselang_runtime_core::ScalarValue;
+    use leserpent_hir::{HirBranch, computation::Computation, host_call::HostOperation};
     let requests = request_admission_cases();
     let mut comparisons = 0;
     for (operation, raw) in capture_cases() {
@@ -2725,12 +2725,12 @@ fn adapter_result_view_lifecycle_covers_seventy_operations_and_five_saved_vocabu
         validate_group_capture_correspondence, validate_result_binding,
         validate_result_binding_extension,
     };
-    use leselang_hir::{
-        HirBranch, computation::Computation, host_call::HostOperation,
-        projection_access::ProjectionAccessLimits, result_field::ResultField,
-    };
+    use leselang_hir_core::projection_access::ProjectionAccessLimits;
     use leselang_runtime_core::{
         CaptureCorrespondenceLimits, CaptureValidationLimits, GroupCaptureLimits, ScalarValue,
+    };
+    use leserpent_hir::{
+        HirBranch, computation::Computation, host_call::HostOperation, result_field::ResultField,
     };
     let mut cases = reply_cases()
         .into_iter()
@@ -2899,8 +2899,8 @@ fn capture_replay_comparisons_preserve_seventy_operations_and_five_legacy_versio
         ProjectedResult, ResultBinding, StructuredField, Value as ProductValue,
         validate_group_capture_correspondence, validate_result_binding_extension,
     };
-    use leselang_hir::{HirBranch, computation::Computation, host_call::HostOperation};
     use leselang_runtime_core::{CaptureCorrespondenceLimits, GroupCaptureLimits, ScalarValue};
+    use leserpent_hir::{HirBranch, computation::Computation, host_call::HostOperation};
     let mut cases = reply_cases()
         .into_iter()
         .map(|case| {
@@ -3011,11 +3011,9 @@ fn complete_binding_validation_covers_seventy_operations_and_five_closed_vocabul
         ProjectedBinding, ProjectedGroup, ProjectedGroupBinding, ProjectedResult, ResultBinding,
         ResultBindingLimits, validate_result_binding,
     };
-    use leselang_hir::{
-        Effect, Type, computation::Computation, projection_access::ProjectionAccessLimits,
-        result_field::ResultField,
-    };
+    use leselang_hir_core::projection_access::ProjectionAccessLimits;
     use leselang_runtime_core::{CaptureValidationLimits, GroupCaptureLimits};
+    use leserpent_hir::{Effect, Type, computation::Computation, result_field::ResultField};
     let limits = ResultBindingLimits {
         captures: CaptureValidationLimits {
             max_saved_bindings: 2,
@@ -3092,17 +3090,15 @@ fn captured_access_masks_cover_seventy_operations_five_versions_and_twelve_field
         ProjectedBinding, ProjectedGroup, ProjectedGroupBinding, ProjectedResult,
         validate_captured_projection_accesses,
     };
-    use leselang_hir::{
-        computation::Computation, projection_access::ProjectionAccessLimits,
-        result_field::ResultField,
-    };
+    use leselang_hir_core::projection_access::ProjectionAccessLimits;
     use leselang_runtime_core::{CapturedBindings, ScalarValue};
+    use leserpent_hir::{computation::Computation, result_field::ResultField};
 
     let limits = ProjectionAccessLimits {
         max_nodes: 100,
         max_depth: 16,
     };
-    let pending = leselang_hir::Effect::UiFocus {
+    let pending = leserpent_hir::Effect::UiFocus {
         node_id: "pending".into(),
     };
     for (operation, value) in capture_cases() {
@@ -3210,8 +3206,8 @@ fn group_captures_cover_seventy_operations_with_mixed_versions_and_exact_member_
     use leselang_command::{
         ProjectedGroup, ProjectedGroupExt, StructuredField, Value as ProductValue,
     };
-    use leselang_hir::{HirBranch, host_call::HostOperation, result_field::ResultField};
     use leselang_runtime_core::GroupCaptureLimits;
+    use leserpent_hir::{HirBranch, host_call::HostOperation, result_field::ResultField};
     let mut cases = reply_cases()
         .into_iter()
         .map(|case| {
@@ -3324,8 +3320,8 @@ fn group_capture_policy_is_explicit_and_name_hooks_keep_original_validation_orde
         InvalidProjectedResult, ProjectedBinding, ProjectedGroup, ProjectedGroupExt,
         ProjectedResult, StructuredField, Value as ProductValue,
     };
-    use leselang_hir::{HirBranch, Type, host_call::HostOperation};
     use leselang_runtime_core::GroupCaptureLimits;
+    use leserpent_hir::{HirBranch, Type, host_call::HostOperation};
     let value = ProductValue::UiFocus {
         node_id: "a".into(),
     };
@@ -3425,7 +3421,7 @@ fn group_capture_policy_is_explicit_and_name_hooks_keep_original_validation_orde
         Err(InvalidProjectedResult)
     );
     let wrong_shape = ProductValue::Scalar {
-        value: leselang_hir::computation::ScalarValue::None,
+        value: leserpent_hir::computation::ScalarValue::None,
     };
     assert_eq!(
         ProjectedGroup::capture(&branches, &wrong_shape, limits, |_| panic!("shape first")),
@@ -3436,7 +3432,7 @@ fn group_capture_policy_is_explicit_and_name_hooks_keep_original_validation_orde
 #[test]
 fn product_captures_preserve_seventy_operations_five_versions_and_exact_wire_order() {
     use leselang_command::{ProjectedField, ProjectedResult};
-    use leselang_hir::{computation::ScalarValue, result_field::ResultField};
+    use leserpent_hir::{computation::ScalarValue, result_field::ResultField};
 
     #[derive(serde::Serialize)]
     struct FrozenFrame<'a> {
@@ -3524,7 +3520,7 @@ fn product_captures_preserve_seventy_operations_five_versions_and_exact_wire_ord
 #[test]
 fn product_capture_validation_rejects_mutations_without_repair_or_payload_diagnostics() {
     use leselang_command::{InvalidProjectedResult, ProjectedResult};
-    use leselang_hir::computation::ScalarValue;
+    use leserpent_hir::computation::ScalarValue;
     for (operation, value) in capture_cases() {
         for version in 1..=5 {
             let original = ProjectedResult::capture_version(operation, &value, version).unwrap();
@@ -3569,7 +3565,7 @@ fn product_capture_validation_rejects_mutations_without_repair_or_payload_diagno
 #[test]
 fn product_capture_shape_never_certifies_raw_identity_or_trusted_restore_version() {
     use leselang_command::{ProjectedResult, Value as ProductValue};
-    use leselang_hir::{
+    use leserpent_hir::{
         computation::ScalarValue, host_call::HostOperation, result_field::ResultField,
     };
     let raw = ProductValue::UiActivate {
@@ -3613,8 +3609,8 @@ fn structured_validation_reuses_all_seventy_seven_value_types_without_vm_policy(
         ResultValueDomain, ResultValueError, ResultValueHost, StructuredField,
         Value as ProductValue, ValueBoundsError, ValueValidationLimits, validate_value_items,
     };
-    use leselang_hir::computation::{OptionalStringValue, ScalarValue, StringListValue};
     use leselang_runtime_core::{HostResultError, validate_host_result};
+    use leserpent_hir::computation::{OptionalStringValue, ScalarValue, StringListValue};
 
     struct EncodingVisits(std::cell::Cell<usize>);
     impl ResultValueHost for EncodingVisits {
@@ -3663,7 +3659,7 @@ fn structured_validation_reuses_all_seventy_seven_value_types_without_vm_policy(
             let expected = value
                 .bounded_leaf_items(max_query_items)
                 .ok_or(ValueBoundsError::Value);
-            for result_type in [value.result_type(), leselang_hir::Type::UiFocus] {
+            for result_type in [value.result_type(), leserpent_hir::Type::UiFocus] {
                 for max_output_items in [0, 1, 4] {
                     let host = EncodingVisits(std::cell::Cell::new(0));
                     let domain = ResultValueDomain {
@@ -3719,8 +3715,8 @@ fn structured_validation_reuses_all_seventy_seven_value_types_without_vm_policy(
 #[test]
 fn scalar_projection_covers_all_seventy_seven_types_and_twelve_explicit_fields() {
     use leselang_command::Value as ProductValue;
-    use leselang_hir::computation::{OptionalStringValue, ScalarValue, StringListValue};
-    use leselang_hir::result_field::ResultField;
+    use leserpent_hir::computation::{OptionalStringValue, ScalarValue, StringListValue};
+    use leserpent_hir::result_field::ResultField;
 
     let mut values: Vec<ProductValue> = reply_cases()
         .into_iter()
@@ -3809,8 +3805,8 @@ fn scalar_projection_covers_all_seventy_seven_types_and_twelve_explicit_fields()
 #[test]
 fn scalar_projection_keeps_optional_states_and_returns_independent_owned_strings() {
     use leselang_command::Value as ProductValue;
-    use leselang_hir::computation::{OptionalStringValue, ScalarValue};
-    use leselang_hir::result_field::ResultField;
+    use leserpent_hir::computation::{OptionalStringValue, ScalarValue};
+    use leserpent_hir::result_field::ResultField;
 
     for expected in [None, Some(String::new()), Some("ready".into())] {
         for value in [
@@ -3871,9 +3867,9 @@ fn scalar_projection_keeps_optional_states_and_returns_independent_owned_strings
 #[test]
 fn scalar_projection_is_not_bounds_validation_or_execution_admission() {
     use leselang_command::Value as ProductValue;
-    use leselang_hir::computation::ScalarValue;
-    use leselang_hir::result_field::ResultField;
     use leselang_host_contract::Revision;
+    use leserpent_hir::computation::ScalarValue;
+    use leserpent_hir::result_field::ResultField;
 
     for count in [0, 1, usize::MAX] {
         let value = ProductValue::UiAssertChildCount {
@@ -3885,7 +3881,7 @@ fn scalar_projection_is_not_bounds_validation_or_execution_admission() {
             Some(ScalarValue::Integer(count as u64))
         );
     }
-    let oversized = "x".repeat(leselang_hir::computation::MAX_SCALAR_STRING_BYTES + 1);
+    let oversized = "x".repeat(leserpent_hir::computation::MAX_SCALAR_STRING_BYTES + 1);
     let value = ProductValue::UiAssertText {
         node_id: "".into(),
         expected: oversized.clone(),
@@ -3950,7 +3946,7 @@ fn expected_control_plane_value_wire(reply: &leselang_command::EffectResult, tag
 #[test]
 fn control_plane_value_projection_keeps_closed_type_matrix_and_released_wire() {
     use leselang_command::{EffectResult, Value as ProductValue};
-    use leselang_hir::{Type, computation::ScalarType};
+    use leserpent_hir::{Type, computation::ScalarType};
     let accepted = control_plane_value_types();
     let mut rejected = vec![
         Type::Structured,
@@ -4296,7 +4292,7 @@ fn control_plane_correspondence_is_not_authority_canonicalization_or_identity_ge
                 "caller-key",
                 command.expected_revision
             ));
-            assert!(leselang_hir::canonical_source(&effect).is_err());
+            assert!(leserpent_hir::canonical_source(&effect).is_err());
         }
     }
     let filter = RuntimeListFilter {
@@ -4315,7 +4311,7 @@ fn control_plane_correspondence_is_not_authority_canonicalization_or_identity_ge
             filter: Default::default()
         }
     ));
-    assert!(leselang_hir::canonical_source(&effect).is_err());
+    assert!(leserpent_hir::canonical_source(&effect).is_err());
 }
 
 #[test]
@@ -4371,7 +4367,7 @@ fn all_presentation_requests_match_only_their_own_effect_without_mutation() {
         let effect = effect_from_wire(&case.operation_wire);
         let before = serde_json::to_vec(&(&effect, &case.operation)).unwrap();
         assert_eq!(
-            leselang_hir::host_call::HostOperation::for_effect(&effect)
+            leserpent_hir::host_call::HostOperation::for_effect(&effect)
                 .unwrap()
                 .required_capability(),
             "ui.presentation"
@@ -4568,15 +4564,15 @@ fn presentation_reply_navigation_and_count_boundaries_remain_product_rules() {
                 (json!(""), false),
                 (json!("bad node"), false),
                 (
-                    json!("x".repeat(leselang_hir::MAX_UI_NODE_ID_BYTES + 1)),
+                    json!("x".repeat(leserpent_hir::MAX_UI_NODE_ID_BYTES + 1)),
                     false,
                 ),
             ]
         } else {
             vec![
                 (json!(0), true),
-                (json!(leselang_hir::MAX_UI_CHILD_COUNT), true),
-                (json!(leselang_hir::MAX_UI_CHILD_COUNT + 1), false),
+                (json!(leserpent_hir::MAX_UI_CHILD_COUNT), true),
+                (json!(leserpent_hir::MAX_UI_CHILD_COUNT + 1), false),
             ]
         } {
             let mut operation_wire = case.operation_wire.clone();

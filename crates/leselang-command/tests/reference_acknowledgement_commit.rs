@@ -1,9 +1,9 @@
 use leselang_command::reference_acknowledgement_commit::*;
 use leselang_command::reference_request_build::{ReservedEffectInput, build_effect_request};
 use leselang_command::{ContinuationToken, DispatchLease, EffectRequest, Step, Value};
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::{CapabilitySet, Principal};
 use leselang_runtime_core::Fault;
+use leserpent_hir::{Effect, Type};
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,

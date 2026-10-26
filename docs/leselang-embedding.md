@@ -62,9 +62,8 @@ The source exporter runs that target again in its external consumer workspace.
 
 This removes one concrete cross-crate extraction blocker, not the whole HIR
 split. The declaration assembly boundary below replaces two private preflight
-entry points. Remaining scalar binding/loop/fold compiler contracts and an
-acyclic compatibility-facade dependency layout still need review before
-physically relocating the remaining HIR specialization.
+entry points. The later public-API and ownership gates below close the remaining
+compiler-private references and establish an acyclic core/product/facade layout.
 No syntax, serialized IR or journal schema changes, new interpreter, full
 language-coverage claim or independent durable-recovery claim are introduced.
 
@@ -152,9 +151,226 @@ fault spans, callback order, malformed metadata, output limits, purity, refusal
 and unwind. Eight separate-crate tests cover original borrowed/native buffers,
 strict ingress, current policy and cleanup. Their unchanged consumer copy and
 the frozen native unit tests are included in verified source export. This is
-not a second compiler or a completed HIR relocation. Scalar binding, loop/fold
-adaptation, remaining private-core references, acyclic package ownership and
+not a second compiler or a completed HIR relocation. Remaining private-core
+references, acyclic package ownership and
 complete independent-language/durable acceptance remain open.
+
+## Native Loop Boundary
+
+HIR contract `0.189.0` adds `loop_source::bind_loop_source`. The product loop
+compiler now uses public bound, prepared and lowered stages instead of private
+`LoopSource`, `Operand`, scalar-state and loop-body gates. The existing private
+scalar kernels remain shared inside the language crate; this is not a fork of
+the loop semantics. Ordinary `bind` already uses the public binding adapter.
+
+The stages retain original source borrows and move-only IR/metadata. Native
+scope checks still precede the literal iteration limit; that limit precedes
+initial lowering. Initial purity/type checks precede a guarded native local
+frame. Condition then next are lowered and checked exactly once, including
+zero-limit loops and false conditions. Purity is derived from returned IR, not
+an adapter-supplied boolean. A lowered stage pairs the original state and body;
+`finish` constructs the result after the adapter releases its lexical guard.
+Private fields prevent substituting another body or an unchecked limit.
+
+These stages are not whole-source, complete type or authority receipts. Native
+callbacks must bound all cold source/generated IR before returning, validate
+opaque observations and current policy, and guard their frames on error/unwind.
+The strict recursive scalar entry is unchanged. No execution, fuel debit,
+automatic retry, source-budget refund, wire or journal change is introduced.
+
+Eight separate-crate tests cover original buffers, metadata, limits, purity,
+fault order, scope cleanup, cancellation-by-discard and delayed native policy.
+They are copied unchanged to the isolated consumer. A frozen product loop
+coordinator compares 1,152 source/prefix/node-budget/depth cases, including exact
+diagnostics, counters and surviving scope. It shares scalar kernels and child
+lowering, not a second compiler. Remaining private references, physical HIR
+package ownership and complete independent
+language/durable acceptance remain separate extraction gates.
+
+## Native Fold Boundary
+
+HIR contract `0.190.0` adds `fold_source::bind_fold_source`. The product compiler
+no longer imports the private fold form or operand representation, nor calls
+private collection/state/next gates. Public bound, collection, prepared and
+lowered stages reuse the original scalar kernel without a second implementation.
+
+The original order remains: metadata and two-local scope policy, literal limit,
+collection lowering and string-list admission, then initial-state lowering and
+scalar admission. The native adapter installs both locals only for `next`, even
+with an empty collection or zero limit. `lower_next` retains the original output
+and observed type without checking them yet; after native scope cleanup, `finish`
+checks purity and state compatibility and assembles the paired original nodes.
+No unchecked limit, unrelated body or host-supplied purity flag can be inserted
+into these private-field stages. Native slots and metadata need no Clone/Debug/
+serde/Send bounds, and no fold iteration is executed at compilation time.
+
+These plans are not whole-source/type/authority receipts. Native callbacks own
+cold-source/output bounds, opaque type observations, fresh policy and guarded
+scope entry. An explicit `check_scope` quota includes the prefix plus two locals;
+`None` preserves the reference caller's separately bounded scope, not an implicit
+quota. The strict recursive scalar entry, source accounting, runtime fuel, wire
+format and journal schema remain unchanged.
+
+Ten separate-crate tests cover original ownership, shape/scope/limit priorities,
+deferred next admission, native refusal/unwind, discard and current policy. They
+are exported unchanged to the separate consumer. The frozen product coordinator
+compares 1,920 source/prefix/counter/depth cases with exact diagnostics, output,
+counters and remaining scope; shared kernels and child lowering are not a second
+compiler. Remaining private-reference audits, physical HIR ownership and
+complete independent-language/durable acceptance remain open.
+
+## Native Scalar Form Boundary
+
+HIR contract `0.191.0` adds `scalar_form::bind_scalar_form`. It classifies only
+an original literal or recognized scalar call and returns a consuming form;
+references, control forms and native callees remain caller dispatch. The product
+computation compiler no longer calls private `primitive`/`lower_form` helpers or
+constructs private `Operand` observations. Its remaining `scalar_source` imports
+are public diagnostic types. The shared scalar construction kernel stays inside
+the language crate rather than being copied or promoted into a product API.
+
+The form preserves native child order and derives purity from returned IR.
+Binary and recovery children still compile before their joint type gate, even
+when runtime evaluation would short-circuit. String-list labels and entries
+retain sequential checks; literal list and optional-string construction move
+the original owned buffers. No expression is executed and `recover` never
+swallows a compiler callback error. Shape/literal checks are deferred to lowering
+so root classification is not whole-source admission or an authority grant.
+Native callbacks remain responsible for bounded cold-source/output construction,
+complete opaque types, lexical scope and current policy. Strict recursive scalar
+entries, source accounting, runtime fuel, syntax, wire and journal formats remain
+unchanged.
+
+Twelve separate-crate tests include all 870 scalar operator/type combinations,
+original ownership, bounds, callback fault/unwind, cold purity and delayed native
+policy. These tests are copied unchanged into the independent consumer. A frozen
+product scalar-root/counter block compares 3,840 source/prefix/budget/depth cases,
+sharing scalar kernels and child lowering rather than defining a second compiler.
+Zero private scalar-kernel dependencies in this product computation file did not
+by itself establish cross-crate compatibility. The following gate now compiles
+the full production profile through the native public boundary. Physical package
+ownership and complete independent-language/durable acceptance remain separate.
+
+## Product HIR Compilation Boundary
+
+HIR contract `0.192.0` exposes `pure_typing::valid_local_name`, the existing
+allocation-free, ASCII-only base naming rule. The 64-byte inclusive limit and
+five exact reserved tokens are unchanged. A valid spelling does not admit a
+binding: contextual labels, collisions, quotas and lexical scope remain the
+caller/compiler's responsibility. Four native tests cover all ASCII bytes,
+reserved/contextual names, length/Unicode boundaries and agreement with pure IR
+admission, including rejection of active-name shadowing. They are exported
+unchanged to the independent consumer.
+
+The isolated workspace in
+[`tests/fixtures/leselang-product-hir-boundary`](../tests/fixtures/leselang-product-hir-boundary)
+originally included the real product source to check the public native boundary.
+It now consumes the actual `leserpent-hir` crate without source inclusion and
+keeps the compatibility language dependency default-free. This
+prevents root-workspace feature unification from hiding product dependencies.
+Rust now checks private visibility and foreign-type implementations for all
+production product-HIR modules. The old private name validator was reproduced
+as an `E0603` error before opening this boundary; no private language internals
+or unchecked scalar construction helpers are exposed to make the probe pass.
+
+Four cross-crate integration tests exercise generic IR identity/profile methods,
+nine canonical/wire round trips, capability validation and cold/form-specific
+refusals. The probe does not run the frozen oracles that deliberately inspect
+private kernels; the dedicated migration target still runs those. CI builds
+and lints the isolated production library and these integration tests.
+
+This closes the production HIR source's compiler-checked public-API boundary.
+Physical ownership progresses separately below; independent full-language
+coverage and native durable recovery are not promoted by this check. The probe
+is not a new distributable product library.
+
+```sh
+cargo +1.98.0 test --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml --locked --target-dir target --test product
+```
+
+Use the root target directory to share caches. When product package versions or
+registry locks change, refresh the fixture's lock consistently with the root
+lock; keep `default-features = false` and the separate workspace.
+
+## Native HIR Ownership
+
+HIR contract `0.193.0` moves the 69 existing native implementation/test-support
+files into `leselang-hir-core`. The new crate has no product feature, host contract
+or dependency on the compatibility facade. `leselang-hir` re-exports the exact
+core modules, preserving old type paths and the optional reference API without
+conversions, cloned trees or a second runtime. Native embedders can depend on the
+core directly; existing `default-features = false` consumers continue to work.
+
+That step established `leselang-hir -> leselang-hir-core -> syntax / runtime-core`.
+The product ownership step below completes the HIR graph. The adapter must not
+depend on the compatibility facade, which would create a re-export cycle.
+
+Core private declaration/preparation oracles run in the core crate. Three frozen
+product/scalar coordinators need both sides' private internals; they now run in
+the dedicated `migration_oracles` integration target, which includes the original
+source only for tests. This test crate is not an exported implementation or an
+independent compiler. Production library tests, the foreign-profile probe and
+explicit facade/core type-identity tests exercise the actual external-core path.
+No test-only private API or enableable testing feature was added to the core.
+
+The native source export now has five crates, including both HIR owner and facade.
+It still copies production source byte-for-byte and verifies an isolated consumer;
+product code and the private migration harness are excluded. Historical four-crate
+proofs remain historical. Syntax, wire/journal formats, native embedding maturity,
+complete-VM and full-extraction gates are unchanged.
+
+## Product HIR Ownership
+
+HIR contract `0.194.0` moves all 14 product implementation/test-support files,
+byte-for-byte, into `leserpent-hir`. It owns Leserpent effects, result fields,
+lowering, canonical formatting and capability policy, and consumes only public
+native HIR APIs. It has no facade dependency or product-enabling feature.
+
+```text
+leselang-hir (compatibility facade)
+  -> leselang-hir-core (native owner)
+  -> leserpent-hir (optional product owner)
+       -> leselang-hir-core
+```
+
+The facade now contains only core and feature-gated product re-exports. Existing
+command, VM, UI and daemon imports remain compatible. Type-identity tests cover
+the exact original program/computation borrows, diagnostic types and operation
+types, plus canonical/wire round trips, authority and cold diagnostic ordering.
+The isolated workspace consumes the actual adapter rather than assembling a
+second library from included sources. Only the private historical migration
+oracles still use source inclusion, in a non-exported test target.
+
+The native export remains five product-free crates. CI tests the new product
+owner directly, runs compatibility and isolated-consumer gates, and excludes
+both the adapter and product identity tests from the pure language artifact.
+This closes physical **production HIR** ownership, not complete language/VM,
+host-neutral durable recovery or repository extraction. Product version and
+wire/journal schemas are unchanged. Evidence:
+[`leserpent_hir_ownership_macos_arm64_20261026.json`](fixtures/leserpent_hir_ownership_macos_arm64_20261026.json).
+
+## Direct HIR Consumers
+
+The product dependency graph no longer routes through the HIR compatibility
+facade. `leselang-command`, `leserpent-vm`, `leselang-ui`, `leselang-observe` and
+`leserpentd` consume `leserpent-hir` directly. Runtime and CLI integration tests
+also use the product owner. Command and VM code separately import shared
+evaluation, typing and projection mechanics from `leselang-hir-core`; the
+product crate does not publicly re-export generic language modules to hide the
+distinction. No source-language, type identity, wire or journal format changed.
+
+Architecture gates reject either language compatibility facade in these seven
+packages' normal/build dependency closure, including optional dependencies, and
+reject old HIR imports in their source, tests and examples. Existing external
+facade APIs, root fuzz/documentation tests and released VM integration tests stay
+compatible. Two shared debugger-audit test wrappers explicitly alias the released
+HIR path to run the original product-owned oracle; this is test-only, not a
+product dependency or a duplicate implementation.
+
+This is downstream adoption of HIR contract `0.194.0`, not a new contract version
+or completion claim for full language/VM, native durable recovery or repository
+extraction. Evidence:
+[`leserpent_hir_consumers_macos_arm64_20261026.json`](fixtures/leserpent_hir_consumers_macos_arm64_20261026.json).
 
 ## Identity
 
@@ -235,10 +451,10 @@ profile, not an ever-growing core opcode list. This is not an untyped
 ### Optional Leserpent Profile
 
 `leselang-hir` now has an explicit `leserpent-profile` feature, enabled by default
-for compatibility. It owns the existing fixed operations, product result fields,
-UI DTOs, legacy lowerer/canonical formatter and their root API paths. The
-implementation is included from `leserpent_profile.rs` only when enabled; it is
-not a second IR or lowerer. Existing Leserpent consumers need no API or wire change.
+for compatibility. It re-exports the existing fixed operations, product result
+fields, UI DTOs and lowerer/canonical formatter from the optional `leserpent-hir`
+dependency. The implementation belongs to that product crate, not the facade;
+it is not a second IR or lowerer. Existing consumers need no API or wire change.
 
 An independent local consumer can omit that profile:
 

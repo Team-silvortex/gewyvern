@@ -5,8 +5,8 @@ use crate::execution_outcome::ComputationOutcome as Outcome;
 use crate::reference_request::{result_binding_limits, validate_effect_request};
 use crate::reference_request_build::{ReservedEffectInput, build_effect_request};
 use crate::{EffectRequest, ExecutionOrder, ResultBinding, Step, Value};
-use leselang_hir::{Effect, HirBranch, HirProgram, Type, authorize, canonical_source};
 use leselang_runtime_core::{Fault, Fuel};
+use leserpent_hir::{Effect, HirBranch, HirProgram, Type, authorize, canonical_source};
 
 /// Original authority, deadline and remaining root budget; not a fresh grant.
 pub use crate::reference_group_start::GroupStartContext as StartContext;
@@ -78,7 +78,7 @@ pub fn start<Host: ReferenceStartHost + ?Sized>(
         if let Err(error) = validate_binding(binding, effect) {
             return Step::Fault(error);
         }
-        match leselang_hir::host_call::HostOperation::for_effect(effect) {
+        match leserpent_hir::host_call::HostOperation::for_effect(effect) {
             Some(operation) => operation.result_type(),
             None if matches!(effect, Effect::All { .. } | Effect::Sequence { .. }) => {
                 Type::Structured

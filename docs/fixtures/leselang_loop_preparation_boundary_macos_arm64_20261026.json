@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-public-loop-preparation-boundary",
+  "validated_at": "2026-10-26",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.5.0",
+  "hir_contract": "0.189.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.173.0",
+  "verification_status": "passed",
+  "product_private_helpers_replaced": 3,
+  "private_operand_type_removed_from_product_loop": true,
+  "public_loop_stages": 3,
+  "native_tests": 8,
+  "frozen_product_cases": 1152,
+  "baseline_sha256": {
+    "computation": "4250e68898575dbce5ca9db1c0de5a13f23cf392037c3ceb9c3675ae1f1c55e4",
+    "loop_coordinator": "b500bba233f881dc8ed15fc14581421ad7f3ffd18aa6b89e517a49c424e65672"
+  },
+  "frozen_coordinator_exact_after_rename": true,
+  "oracle_scope": "The pre-stage product loop coordinator is copied exactly except its function name. Shared scalar kernels and child lowering remain unchanged; 24 forms x 4 native prefixes x 4 source counters x 3 depths compare exact IR/type, diagnostics, counters and surviving scope. This is not a second compiler.",
+  "plan_scope": "Private original-source stages pair checked limits, initial IR/metadata and cold body. Native scope policy precedes limits; initial lowering/purity precede condition then next. Successful assembly stays after native lexical guard cleanup. IR purity is computed, not accepted from a native flag. Native callbacks still own bounded cold-source/output construction, complete type/domain observations, current policy and scope guards. Ordinary bind already uses its public adapter; private scalar kernels remain language-internal.",
+  "plan_is_source_or_authority_receipt": false,
+  "physical_hir_relocation_complete": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "file_count": 294,
+    "bytes": 6989436,
+    "manifest_sha256": "868fc892ad7438645854b0813bce839ccfb6822672d84e4ea3132d82fcf19fb1",
+    "consumer_test_byte_identity": true,
+    "all_copied_sources_byte_identical": true,
+    "verification_target_removed": true,
+    "tests_passed": 2679,
+    "complete_vm": false,
+    "full_extraction_gate": false
+  },
+  "remaining_boundaries": [
+    "primitive-scalar and fold adaptation plus remaining private compiler references",
+    "acyclic compatibility-facade package layout and physical HIR specialization relocation",
+    "complete independent language and durable recovery acceptance"
+  ],
+  "verification_scope": "Local native/default-profile Rust tests, frozen product coordinator comparisons, HIR/command/VM regressions, strict Clippy, source-export workspace and separate consumer tests/lints, architecture/status/profile/GUI-function-chain/reliability gates. No Linux host, live GUI, remote CI, benchmark or repository publication claim.",
+  "source_hashes": [
+    {
+      "path": "Cargo.toml",
+      "sha256": "27e9a6e7d5c839b6099dc37c9f1ef55bea0c0ec8bf54293738713035d7a84313"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "21fe76fab4786239aca297ef989a98eb6c4e8cad898f7a2a2046da415c241b1f"
+    },
+    {
+      "path": "crates/leselang-hir/Cargo.toml",
+      "sha256": "7cc04569d0e06153a123db695c3422103c0bffe112897beb4056e675787a501b"
+    },
+    {
+      "path": "crates/leselang-hir/src/lib.rs",
+      "sha256": "126c9d26045763b62a2ac274dc03fb5910f92a7d65221393a2b84d1fe6869213"
+    },
+    {
+      "path": "crates/leselang-hir/src/loop_source.rs",
+      "sha256": "b1b57259afda342072bc03e336896223fa0f4da056ae6c8f48c0201d7784b935"
+    },
+    {
+      "path": "crates/leselang-hir/src/scalar_source.rs",
+      "sha256": "0e2983dfe7f9c923ce0c97bde48f2c660d209d65fcfea331c4d5b527cd0915ea"
+    },
+    {
+      "path": "crates/leselang-hir/src/ir.rs",
+      "sha256": "0ed1a9a843a219053cd08c49c21c9a5cc1d5d443942f2c69e22fc4917c6d0275"
+    },
+    {
+      "path": "crates/leselang-hir/src/computation.rs",
+      "sha256": "cd8cb23ed2fc3b84ca8af2737c416abf01365ef1b417be4c97148b9d3e361b6a"
+    },
+    {
+      "path": "crates/leselang-hir/src/loop_preparation_contract_tests.rs",
+      "sha256": "6873edc8696275b459919d42da679218d8a9bab9e255af1c5be24d5a3e9e88cf"
+    },
+    {
+      "path": "crates/leselang-hir/tests/loop_preparation.rs",
+      "sha256": "7e46aee2a6010ac6cadb479ad6bf07debafa1f39c6003c9452ce10640d9769f7"
+    },
+    {
+      "path": "crates/gewyvern-dev/src/leselang.rs",
+      "sha256": "9a8a564e35120795c49927f6c6c7fbe58d7381a8adabfa8e1dd193d73c9a8183"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "346e9373eb3a5a60ebdbf2f3498af4a4b3ab53866c35069e16706bcf996cf735"
+    },
+    {
+      "path": "tests/language_independence_tdd.rs",
+      "sha256": "4d84a2e8e6f07d319fde13ff33f79689e0197a7afb0d963cd6cf7abf027cdff9"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "69207be2955f798e0e22e24ed50da9e14a458bc9d530696c10626e17e3750bfc"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "34bc3a378511801718176c69b6778ec4d7ff0527d492c04a1e6a5a0096534197"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "887704b5b77b3e41b0cbfd4b19e9720e3c8128c424f4c8662822a6aca4402c24"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "f5b1a4bb50395f9aa5b916d8c76d3cccd42bba54ff28159641978e1cde18e167"
+    }
+  ],
+  "logs": [
+    {
+      "path": "/private/tmp/leselang-loop-preparation-architecture-20261026.log",
+      "sha256": "301d2d9a986e8a9ff76a33789b203e17b1819f5c3c20b0213d8b6088406387dd",
+      "passed": 106
+    },
+    {
+      "path": "/private/tmp/leselang-loop-preparation-clippy-20261026.log",
+      "sha256": "11b0b027de4f08c0068566822d7ad166df74e3b5688775d93bd350636daa632b",
+      "passed": 0
+    },
+    {
+      "path": "/private/tmp/leselang-loop-preparation-export-20261026.log",
+      "sha256": "8ac5de912f6d082a4d1fccd35c3d0c034cb489007a047ce2bdefb55de11f5e0a",
+      "passed": 2679
+    },
+    {
+      "path": "/private/tmp/leselang-loop-preparation-export-plan-20261026.log",
+      "sha256": "a666d713a0176dc462a11902a4c9c7db6cd8a7ece49b5e75ff9ef3761bb7c677",
+      "passed": 23
+    },
+    {
+      "path": "/private/tmp/leselang-loop-preparation-native-20261026.log",
+      "sha256": "6398c6d297079b3c997db4f64bc2b29834de7b05b490b40ef39513983a62c360",
+      "passed": 8
+    },
+    {
+      "path": "/private/tmp/leselang-loop-preparation-native-clippy-20261026.log",
+      "sha256": "677bd6c6279a1c057686096e2e819bbbc80b8a615fcf56c3de28c6ed22615803",
+      "passed": 0
+    },
+    {
+      "path": "/private/tmp/leselang-loop-preparation-parity-20261026.log",
+      "sha256": "e097c73a9ec4ba4e02b612371807a3bf5a7f0ff843e5c0c10e55c3285fc1d2a5",
+      "passed": 1
+    },
+    {
+      "path": "/private/tmp/leselang-loop-preparation-root-clippy-20261026.log",
+      "sha256": "aa010d806c34706d52c2c55323f3853e635d474d5fc1fd613d99b017b86b8627",
+      "passed": 0
+    },
+    {
+      "path": "/private/tmp/leselang-loop-preparation-suite-20261026.log",
+      "sha256": "ff210969cab899124ff1bfdd0523ac37a5fb6eca542591288390507d46f439bf",
+      "passed": 3313
+    },
+    {
+      "path": "/private/tmp/leselang-loop-preparation-final-gates-20261026.log",
+      "sha256": "e8f7aabf25664ee6f77a7148d25291658cc1cdec0dbbac70eee1ea8f4d06836a",
+      "passed": 570
+    }
+  ],
+  "preliminary_gate": {
+    "path": "/private/tmp/leselang-loop-preparation-profile-gates-20261026.log",
+    "sha256": "d3b5e974cc367e9fbabbb958330b406bbf081f9deb1ea9bffd4ac437b1085adf",
+    "outcome": "rejected_missing_pending_evidence",
+    "resolution": "The status CLI correctly rejected the not-yet-written new evidence file. After writing it, the complete final gate suite passed; no production failure was bypassed."
+  }
+}

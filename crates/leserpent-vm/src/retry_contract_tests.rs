@@ -232,7 +232,8 @@ fn retry_entry_sqlite_matches_frozen_write_failures_peer_races_and_restart() {
         r#"bind(r: all(a: ui.focus(node_id: "a"), b: ui.focus(node_id: "b")), body: bind(s: ui.focus(node_id: "c"), body: 7))"#,
     ] {
         let program =
-            leselang_hir::lower(&leselang_syntax::parse(&format!("fn main() = {source}"))).unwrap();
+            leserpent_hir::lower(&leselang_syntax::parse(&format!("fn main() = {source}")))
+                .unwrap();
         for route in 0..3 {
             for defect in 0..8 {
                 let scratch = Scratch(std::env::temp_dir().join(format!(

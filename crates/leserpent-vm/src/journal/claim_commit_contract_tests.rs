@@ -1,10 +1,10 @@
 use super::*;
 fn request(n: u64) -> EffectRequest {
     crate::Vm::build_effect_request(
-        &leselang_hir::Effect::UiFocus {
+        &leserpent_hir::Effect::UiFocus {
             node_id: "node".into(),
         },
-        leselang_hir::Type::UiFocus,
+        leserpent_hir::Type::UiFocus,
         n,
         crate::Principal::new("operator").unwrap(),
         crate::CapabilitySet::new(["ui.presentation"]),

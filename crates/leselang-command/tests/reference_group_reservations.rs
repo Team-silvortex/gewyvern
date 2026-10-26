@@ -5,8 +5,8 @@ use leselang_command::reference_group_reservations::{
 };
 use leselang_command::reference_merge::{invalid_group_binding, validate_merge_plan};
 use leselang_command::{ExecutionOrder, GroupResultBinding, MergePlan, ResultBinding};
-use leselang_hir::{Effect, HirBranch, Type, computation::Computation};
 use leselang_runtime_core::{Fault, ScalarValue};
+use leserpent_hir::{Effect, HirBranch, Type, computation::Computation};
 
 fn plan(parallel: bool, created: usize) -> MergePlan {
     let host = Computation::Host {

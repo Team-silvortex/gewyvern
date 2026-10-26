@@ -45,7 +45,7 @@ fn settlement_sqlite_publishes_peer_winner_instead_of_the_proposed_result() {
             let expected_path = scratch.0.join("expected.sqlite3");
             let mut actual = Vm::open_journal(&actual_path, 100).unwrap();
             let mut expected = Vm::open_journal(&expected_path, 100).unwrap();
-            let program = leselang_hir::lower(&leselang_syntax::parse(
+            let program = leserpent_hir::lower(&leselang_syntax::parse(
                 r#"fn main() = ui.focus(node_id: "a")"#,
             ))
             .unwrap();

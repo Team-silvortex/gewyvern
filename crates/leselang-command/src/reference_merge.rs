@@ -4,8 +4,8 @@
 //! authority or receipts. Hosts still own bounded ingress, complete request graphs,
 //! live state and durable settlement. Recheck mutable data after changes.
 
-use leselang_hir::Type;
 use leselang_runtime_core::Fault;
+use leserpent_hir::Type;
 
 use crate::bounded_json::{self, BoundedJsonError};
 use crate::continuation_identity::MAX_EFFECT_SEQUENCE;

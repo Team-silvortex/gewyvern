@@ -105,7 +105,7 @@ const SOURCES: [&str; 6] = [
 
 fn start_source(vm: &mut Vm, source: &str) -> Step {
     let program =
-        leselang_hir::lower(&leselang_syntax::parse(&format!("fn main() = {source}"))).unwrap();
+        leserpent_hir::lower(&leselang_syntax::parse(&format!("fn main() = {source}"))).unwrap();
     vm.start(
         &program,
         Principal::new("operator").unwrap(),

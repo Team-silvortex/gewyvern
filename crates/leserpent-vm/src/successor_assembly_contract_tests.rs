@@ -2,7 +2,7 @@ use super::settlement_contract_tests::frozen_record_result;
 use super::*;
 
 fn program(effect: Effect, kind: usize) -> HirProgram {
-    use leselang_hir::computation::Computation;
+    use leserpent_hir::computation::Computation;
     let scalar = || Computation::Literal {
         value: ScalarValue::Integer(7),
     };
@@ -48,7 +48,7 @@ fn program(effect: Effect, kind: usize) -> HirProgram {
             body: Box::new(body),
         }),
     };
-    leselang_hir::lower(&leselang_syntax::parse(&canonical_source(&effect).unwrap())).unwrap()
+    leserpent_hir::lower(&leselang_syntax::parse(&canonical_source(&effect).unwrap())).unwrap()
 }
 
 fn assert_state(actual: &Vm, expected: &Vm) {
@@ -143,7 +143,7 @@ fn successor_assembly_matches_frozen_vm_for_seventy_operations_and_native_refusa
                                 .get_or_insert_with(|| {
                                     crate::group_start_fixture::binding(1).unwrap()
                                 })
-                                .body = leselang_hir::computation::Computation::Literal {
+                                .body = leserpent_hir::computation::Computation::Literal {
                                 value: ScalarValue::String("x".repeat(70_000)),
                             };
                         }
@@ -326,7 +326,8 @@ fn successor_assembly_sqlite_matches_frozen_transaction_failures_and_restart() {
         r#"bind(r: all(a: ui.focus(node_id: "a"), b: ui.focus(node_id: "b")), body: bind(s: ui.focus(node_id: "c"), body: 7))"#,
     ] {
         let program =
-            leselang_hir::lower(&leselang_syntax::parse(&format!("fn main() = {source}"))).unwrap();
+            leserpent_hir::lower(&leselang_syntax::parse(&format!("fn main() = {source}")))
+                .unwrap();
         for mode in [1, 2] {
             for defect in 0..7 {
                 let scratch = Scratch(std::env::temp_dir().join(format!(
@@ -441,7 +442,7 @@ enum PreparedResult {
 fn materialize(image: &ContinuationImage, value: &Value) -> Result<PreparedResult, Fault> {
     let binding = image.result_binding.as_ref().ok_or_else(invalid)?;
     let mut fuel = Fuel::new(image.fuel_remaining);
-    let operation = leselang_hir::host_call::HostOperation::for_effect(&image.pending_effect)
+    let operation = leserpent_hir::host_call::HostOperation::for_effect(&image.pending_effect)
         .ok_or_else(invalid)?;
     let (effect, binding) = match computation::resume_outcome(binding, value, operation, &mut fuel)?
     {
@@ -456,7 +457,7 @@ fn materialize(image: &ContinuationImage, value: &Value) -> Result<PreparedResul
             message: "execution fuel exhausted before successor".into(),
         });
     }
-    if leselang_hir::host_call::HostOperation::for_effect(&effect).is_none() {
+    if leserpent_hir::host_call::HostOperation::for_effect(&effect).is_none() {
         return Err(invalid());
     }
     Ok(PreparedResult::Host {
@@ -536,7 +537,7 @@ pub(super) fn frozen_complete_successor(
         Err(error) => return Step::Fault(error),
     };
     let (principal, capabilities) = authority(&parent.operation);
-    let Some(operation) = leselang_hir::host_call::HostOperation::for_effect(&effect) else {
+    let Some(operation) = leserpent_hir::host_call::HostOperation::for_effect(&effect) else {
         return frozen_record_result(vm, image, lease, Step::Fault(invalid()));
     };
     let mut next = match Vm::build_effect_request(

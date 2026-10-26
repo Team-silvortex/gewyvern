@@ -1,5 +1,5 @@
-use leselang_hir::computation::ScalarValue;
-use leselang_hir::result_field::ResultField;
+use leserpent_hir::computation::ScalarValue;
+use leserpent_hir::result_field::ResultField;
 
 use crate::Value;
 
@@ -22,7 +22,7 @@ impl Value {
                 | Value::UiAssertActionUnavailableReason { expected, .. }
                 | Value::UiWaitActionUnavailableReason { expected, .. },
             ) => Some(ScalarValue::OptionalString(
-                leselang_hir::computation::OptionalStringValue(expected.clone()),
+                leserpent_hir::computation::OptionalStringValue(expected.clone()),
             )),
             (
                 Kind,
@@ -81,14 +81,14 @@ impl Value {
                 | Value::UiAssertSelection { state, .. }
                 | Value::UiWaitSelection { state, .. },
             ) => Some(ScalarValue::Boolean(
-                *state == leselang_hir::UiSelectionState::Selected,
+                *state == leserpent_hir::UiSelectionState::Selected,
             )),
             (
                 Required,
                 Value::UiAssertFormFieldRequired { state, .. }
                 | Value::UiWaitFormFieldRequired { state, .. },
             ) => Some(ScalarValue::Boolean(
-                *state == leselang_hir::UiFormRequirementState::Required,
+                *state == leserpent_hir::UiFormRequirementState::Required,
             )),
             (
                 Revision,

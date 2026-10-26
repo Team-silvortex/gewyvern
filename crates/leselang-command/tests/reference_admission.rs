@@ -2,10 +2,10 @@ use leselang_command::reference_admission::{
     AdmissionEnd, AdmissionPolicy, AdmissionPoll, ReferenceAdmissionHost, RootAdmission,
 };
 use leselang_command::{Step, Value};
-use leselang_hir::{HirProgram, lower};
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_runtime_core::{Fault, ScalarValue};
 use leselang_syntax::parse;
+use leserpent_hir::{HirProgram, lower};
 use std::{cell::RefCell, collections::VecDeque, rc::Rc};
 
 #[derive(Default)]

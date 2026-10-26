@@ -10,8 +10,8 @@ use crate::execution_outcome::ComputationOutcome;
 use crate::reference_computation as computation;
 use crate::reference_reply::CompletionLease;
 use crate::{ContinuationImage, EffectOperation, EffectResult, ResultBinding, Step, Value};
-use leselang_hir::Effect;
 use leselang_runtime_core::{Fault, Fuel, ScalarValue};
+use leserpent_hir::Effect;
 
 /// Trusted completion owner, entered only after bounded image/body and reply
 /// admission. This is not an untrusted-input entry point. Conversion keeps
@@ -116,7 +116,7 @@ enum PreparedResult {
 fn materialize(image: &ContinuationImage, value: &Value) -> Result<PreparedResult, Fault> {
     let binding = image.result_binding.as_ref().ok_or_else(invalid)?;
     let mut fuel = Fuel::new(image.fuel_remaining);
-    let operation = leselang_hir::host_call::HostOperation::for_effect(&image.pending_effect)
+    let operation = leserpent_hir::host_call::HostOperation::for_effect(&image.pending_effect)
         .ok_or_else(invalid)?;
     let (effect, binding) = match computation::resume_outcome(binding, value, operation, &mut fuel)?
     {
@@ -131,7 +131,7 @@ fn materialize(image: &ContinuationImage, value: &Value) -> Result<PreparedResul
             message: "execution fuel exhausted before successor".into(),
         });
     }
-    if leselang_hir::host_call::HostOperation::for_effect(&effect).is_none() {
+    if leserpent_hir::host_call::HostOperation::for_effect(&effect).is_none() {
         return Err(invalid());
     }
     Ok(PreparedResult::Host {

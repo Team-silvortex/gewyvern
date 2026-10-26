@@ -1,7 +1,7 @@
 //! Owned control-plane reply projection for the released Leserpent value format.
 
-use leselang_hir::Type;
 use leserpent_domain::QueryResult;
+use leserpent_hir::Type;
 
 use crate::{EffectResult, Value};
 

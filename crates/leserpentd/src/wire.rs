@@ -825,7 +825,6 @@ mod tests {
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     use leselang_command::PresentationOperation;
-    use leselang_hir::CAPABILITY_UI_PRESENTATION;
     use leselang_ui::DebuggerState;
     use leserpent_domain::bootstrap::{
         BOOTSTRAP_SESSION_PROTOCOL_VERSION, BootstrapId, BootstrapPhase, BootstrapTarget,
@@ -836,6 +835,7 @@ mod tests {
         CommandOrigin, Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal, Revision,
         RuntimeId,
     };
+    use leserpent_hir::CAPABILITY_UI_PRESENTATION;
     use leserpent_protocol::{
         AuthorityWriterClaimRequest, BootstrapHandoffRequest, BootstrapSessionBindRequest,
         CAPABILITY_AUTHORITY_WRITER, DebuggerMutationStatus,

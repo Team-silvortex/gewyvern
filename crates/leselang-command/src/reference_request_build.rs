@@ -1,9 +1,9 @@
 //! Product request construction; live reservation and dispatch remain host-owned.
 
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_runtime_core::{Fault, Fuel};
 use leserpent_domain::{CommandId, IdempotencyKey};
+use leserpent_hir::{Effect, Type};
 
 use crate::continuation_schema::CONTINUATION_SCHEMA_VERSION;
 use crate::reference_request::{DEFAULT_MAX_OUTPUT_ITEMS, validate_effect_request};

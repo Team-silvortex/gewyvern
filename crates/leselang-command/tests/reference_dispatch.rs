@@ -7,9 +7,9 @@ use leselang_command::{
     ContinuationImage, ContinuationToken, DispatchLease, EffectError, EffectErrorClass,
     EffectOperation, EffectRequest, PresentationEnvelope, PresentationOperation, RetrySchedule,
 };
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::{CapabilitySet, Principal};
 use leselang_runtime_core::{DispatchLeaseObservation, Fault};
+use leserpent_hir::{Effect, Type};
 
 fn lease() -> DispatchLease {
     let continuation = ContinuationImage {

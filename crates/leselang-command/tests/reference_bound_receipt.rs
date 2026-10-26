@@ -7,8 +7,8 @@ use leselang_command::{
     Cancellation, CancellationReason, ContinuationToken, ExecutionOrder, GroupResultBinding,
     MergePlan, ResultBinding, Step, Value,
 };
-use leselang_hir::{Effect, HirBranch, Type, computation::Computation};
 use leselang_runtime_core::{Fault, OrderedOutcomeSummary, OutcomeOrder, ScalarValue};
+use leserpent_hir::{Effect, HirBranch, Type, computation::Computation};
 
 fn fault(code: &str, message: &str) -> Fault {
     Fault {
@@ -427,7 +427,7 @@ fn frozen_receipt(
                                     || (binding.is_conditional()
                                         && saved.body.can_return_without_suspending())
                             }) && validate_group_binding(binding, plan)?
-                                == leselang_hir::Type::Scalar(value.scalar_type()) =>
+                                == leserpent_hir::Type::Scalar(value.scalar_type()) =>
                         {
                             Ok(())
                         }
@@ -464,7 +464,7 @@ fn frozen_receipt(
                         || (binding.is_conditional()
                             && binding.binding.body.can_return_without_suspending()))
                         && validate_group_binding(binding, plan)?
-                            == leselang_hir::Type::Scalar(value.scalar_type()) => {}
+                            == leserpent_hir::Type::Scalar(value.scalar_type()) => {}
                 Step::Fault(fault)
                     if matches!(
                         fault.code.as_str(),

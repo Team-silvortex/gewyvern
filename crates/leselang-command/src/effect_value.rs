@@ -2,9 +2,9 @@
 
 use std::fmt;
 
-use leselang_hir::{Effect, Type, host_call::HostOperation};
 use leselang_host_contract::Revision;
 use leserpent_domain::{MAX_RUNTIME_LOG_QUERY_ENTRIES, QueryResult};
+use leserpent_hir::{Effect, Type, host_call::HostOperation};
 
 use crate::{EffectOperation, EffectResult, Value};
 

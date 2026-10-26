@@ -6743,7 +6743,7 @@ fn adapter_captured_execution_proof_reuses_shared_hir_without_vm_or_storage() {
             .unwrap();
     let compact = source.split_whitespace().collect::<String>();
     for required in [
-        "leselang_hir::lower(&leselang_syntax::parse(source))",
+        "leserpent_hir::lower(&leselang_syntax::parse(source))",
         "evaluate_effects_in_scope(",
         "resume_preflighted_result_binding_in_scope(",
         "PreflightedResultEnvironment::new(",
@@ -6815,7 +6815,12 @@ fn adapter_captured_execution_proof_reuses_shared_hir_without_vm_or_storage() {
         String::from_utf8_lossy(&output.stderr)
     );
     let dependencies = String::from_utf8(output.stdout).unwrap();
-    for absent in ["leselang-vm ", "rusqlite ", "libsqlite3-sys "] {
+    for absent in [
+        "leselang-vm ",
+        "leselang-hir ",
+        "rusqlite ",
+        "libsqlite3-sys ",
+    ] {
         assert!(
             !dependencies.lines().any(|line| line.starts_with(absent)),
             "capture proof linked {absent}"
@@ -6823,7 +6828,8 @@ fn adapter_captured_execution_proof_reuses_shared_hir_without_vm_or_storage() {
     }
     for required in [
         "leselang-command ",
-        "leselang-hir ",
+        "leselang-hir-core ",
+        "leserpent-hir ",
         "leselang-runtime-core ",
         "leselang-syntax ",
     ] {
@@ -7839,7 +7845,7 @@ fn product_capture_access_policy_is_adapter_owned_without_bypassing_vm_admission
     assert!(production.contains(".map_err(projection_fault)"));
     assert!(production.contains("leselang_command::ContinuationAdmissionError::Binding"));
     for retained in [
-        "max_nodes: leselang_hir::computation::MAX_COMPUTATION_NODES",
+        "max_nodes: leserpent_hir::computation::MAX_COMPUTATION_NODES",
         "max_depth: MAX_EFFECT_NESTING_DEPTH",
         "LSV1405",
     ] {
@@ -9481,7 +9487,7 @@ fn successor_capture_extension_shares_retention_without_authority_or_saved_body_
     }
     for retained in [
         "leselang_command::validate_result_binding_extension(",
-        "leselang_hir::MAX_EFFECT_NESTING_DEPTH",
+        "leserpent_hir::MAX_EFFECT_NESTING_DEPTH",
         "leselang_command::CaptureReplayError::InvalidProjection",
         "leselang_command::CaptureReplayError::Mismatch => invalid()",
         "capture_extension_preserves_frozen_native_alias_retention_and_late_fault_order",
@@ -9558,7 +9564,7 @@ fn live_and_recovered_capture_correspondence_delegates_traversal_without_project
     for required in [
         "fields.len() < branches.len()",
         "fields.len() != operations.len()",
-        "max_saved_bindings: leselang_hir::MAX_EFFECT_NESTING_DEPTH",
+        "max_saved_bindings: leserpent_hir::MAX_EFFECT_NESTING_DEPTH",
         "max_original_rows: MAX_MERGE_BRANCHES",
         "crate::validate_group_capture_correspondence(",
         "result_binding_limits().groups",
@@ -10483,7 +10489,7 @@ fn actual_atomic_and_group_saved_bodies_use_the_shared_hir_entry_without_body_re
     }
     assert!(!reentry.contains("body:"));
     let shared =
-        fs::read_to_string(root().join("crates/leselang-hir/src/effect_reentry.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/effect_reentry.rs")).unwrap();
     for boundary in [
         "with_captured_scope_state(",
         "evaluate_resumable_effects_in_scope(body, scope, environment, fuel, limits)",

@@ -1,0 +1,28 @@
+[package]
+name = "leselang-product-hir-boundary"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Deliberately outside the root workspace: product feature unification must not
+# hide a dependency on the language crate's reference profile.
+[workspace]
+
+[lib]
+test = false
+doctest = false
+
+[dependencies]
+leselang-hir = { path = "../../../crates/leselang-hir", default-features = false }
+leserpent-hir = { path = "../../../crates/leserpent-hir" }
+leselang-host-contract = { path = "../../../crates/leselang-host-contract" }
+leselang-runtime-core = { path = "../../../crates/leselang-runtime-core" }
+leselang-syntax = { path = "../../../crates/leselang-syntax" }
+
+[dev-dependencies]
+serde_json = "1"
+
+[profile.lean]
+inherits = "dev"
+debug = 0
+incremental = false

@@ -1,7 +1,7 @@
 //! Product bound-record stream and capture-prefix coordination, without storage or execution.
 
-use leselang_hir::host_call::HostOperation;
 use leselang_runtime_core::{Fault, OrderedOutcomeSummary, OutcomeOrder};
+use leserpent_hir::host_call::HostOperation;
 
 use crate::reference_bound_receipt::validate_bound_group_receipt;
 use crate::reference_merge::invalid_group_binding as invalid;
@@ -128,7 +128,7 @@ pub fn inspect_bound_group_records<
                     .map_err(|_| invalid())?;
                 if binding.captures_successor() && binding.has_successor(plan) {
                     prefix_operations.push(
-                        leselang_hir::host_call::HostOperation::for_effect(
+                        leserpent_hir::host_call::HostOperation::for_effect(
                             &request.continuation.pending_effect,
                         )
                         .ok_or_else(invalid)?,

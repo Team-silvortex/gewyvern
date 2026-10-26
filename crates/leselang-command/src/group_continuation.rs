@@ -1,6 +1,6 @@
 //! Leserpent group continuation data and product classification, without VM state.
 
-use leselang_hir::Effect;
+use leserpent_hir::Effect;
 use serde::{Deserialize, Serialize};
 
 use crate::{ResultBinding, continuation_schema};

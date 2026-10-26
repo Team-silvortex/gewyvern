@@ -11,7 +11,7 @@ fn group_start_matches_frozen_whole_vm_policy_across_seventy_operations_and_nati
             for kind in 0..6 {
                 for defect in 0..18 {
                     let mut branches = ["a", "b"]
-                        .map(|name| leselang_hir::HirBranch {
+                        .map(|name| leserpent_hir::HirBranch {
                             name: name.into(),
                             effect: request.continuation.pending_effect.clone(),
                             result_type: request.continuation.result_type,
@@ -190,7 +190,7 @@ fn group_start_sqlite_publication_and_failed_writes_match_frozen_restart_state()
                         Connection::open(path).unwrap().execute_batch(&format!("CREATE TRIGGER reject_group_start BEFORE INSERT ON {table} BEGIN SELECT RAISE(ABORT, 'injected'); END;")).unwrap();
                     }
                 }
-                let branches = ["a", "b"].map(|name| leselang_hir::HirBranch {
+                let branches = ["a", "b"].map(|name| leserpent_hir::HirBranch {
                     name: name.into(),
                     effect: Effect::UiFocus {
                         node_id: name.into(),
@@ -259,7 +259,7 @@ fn group_start_sqlite_publication_and_failed_writes_match_frozen_restart_state()
 #[allow(clippy::too_many_arguments)]
 pub(super) fn frozen_start_group(
     vm: &mut Vm,
-    branches: &[leselang_hir::HirBranch],
+    branches: &[leserpent_hir::HirBranch],
     order: ExecutionOrder,
     principal: Principal,
     capabilities: CapabilitySet,

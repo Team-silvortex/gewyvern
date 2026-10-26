@@ -1,8 +1,8 @@
 // Shared by product-only integration targets, not part of the native VM module tree.
-use leselang_hir::lower;
 use leselang_host_contract::{CapabilitySet, CommandOrigin, Principal, Revision};
 use leselang_syntax::parse;
 use leserpent_domain::{CommandId, IdempotencyKey};
+use leserpent_hir::lower;
 use leserpent_vm::{
     DebuggerAuditContext, EffectRequest, EffectResult, PresentationResult, RetentionPolicy, Step,
     Vm,

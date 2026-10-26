@@ -10,26 +10,26 @@
 
 use std::borrow::Cow;
 
-use leselang_hir::call_evaluation::CallEvaluationError;
-use leselang_hir::call_typing::{CallTypeError, MAX_CALL_ARGUMENTS};
-use leselang_hir::computation::{Computation, ScalarValue};
-use leselang_hir::effect_evaluation::{
+use leselang_hir_core::call_evaluation::CallEvaluationError;
+use leselang_hir_core::call_typing::{CallTypeError, MAX_CALL_ARGUMENTS};
+use leselang_hir_core::effect_evaluation::{
     EffectEvaluationFailure, EffectEvaluationFault, EffectEvaluationLimits,
     EffectEvaluationOutcome, evaluate_effects_in_scope,
 };
-use leselang_hir::host_call::HostOperation;
-use leselang_hir::pure_evaluation::{
+use leselang_hir_core::pure_evaluation::{
     PureEvaluationFailure, PureEvaluationFault, PureEvaluationLimits, PureValue,
     scalar_copy_cost as string_cost,
 };
-use leselang_hir::pure_typing::{
+use leselang_hir_core::pure_typing::{
     MAX_TYPE_INFERENCE_BINDINGS, MAX_TYPE_INFERENCE_DEPTH, MAX_TYPE_INFERENCE_NODES,
 };
-use leselang_hir::{Effect, HirBranch};
 use leselang_runtime_core::{
     CalculationFailure, CaptureScopeError, CaptureSnapshotError, CaptureSnapshotLimits, FoldError,
     Fuel, LoopError, ScalarError, ScopeFrame,
 };
+use leserpent_hir::computation::{Computation, ScalarValue};
+use leserpent_hir::host_call::HostOperation;
+use leserpent_hir::{Effect, HirBranch};
 
 use crate::{ProjectedGroup, ProjectedResult};
 use crate::{ResultBinding, Value};
@@ -69,7 +69,7 @@ fn result_environment<'a>() -> crate::PreflightedResultEnvironment<'a, 'static, 
             captures: crate::ResultCaptureLimits {
                 snapshot: CaptureSnapshotLimits {
                     max_bindings: MAX_TYPE_INFERENCE_BINDINGS,
-                    max_name_bytes: leselang_hir::pure_typing::MAX_LOCAL_NAME_BYTES,
+                    max_name_bytes: leselang_hir_core::pure_typing::MAX_LOCAL_NAME_BYTES,
                 },
                 groups: group_capture_limits(),
             },
@@ -248,7 +248,7 @@ impl crate::ResultExecutionHost for ReferenceCaptureHost {
     fn prepared_effect(&self, _: &Effect) -> Result<(), Fault> {
         Ok(())
     }
-    fn before_projection(&self, _: leselang_hir::result_field::ResultField) -> Result<(), Fault> {
+    fn before_projection(&self, _: leserpent_hir::result_field::ResultField) -> Result<(), Fault> {
         Ok(())
     }
     fn valid_group_name(&self, name: &str) -> bool {
@@ -292,7 +292,7 @@ fn execution_limits() -> EffectEvaluationLimits {
             max_bindings: MAX_TYPE_INFERENCE_BINDINGS,
         },
         max_arguments: MAX_CALL_ARGUMENTS,
-        max_branches: leselang_hir::MAX_ALL_BRANCHES,
+        max_branches: leserpent_hir::MAX_ALL_BRANCHES,
     }
 }
 
@@ -412,20 +412,20 @@ fn fold_fault(failure: FoldError) -> Fault {
 }
 
 #[cfg(test)]
-use leselang_hir::{
+use leselang_hir_core::{
     effect_evaluation::EffectEvaluationEnvironment, pure_evaluation::PureEvaluationEnvironment,
 };
 
 #[cfg(test)]
 trait ReferenceResultView {
-    fn field(self, field: leselang_hir::result_field::ResultField) -> Result<ScalarValue, Fault>;
+    fn field(self, field: leserpent_hir::result_field::ResultField) -> Result<ScalarValue, Fault>;
     fn snapshot(self) -> Result<ProjectedResult, Fault>;
     fn snapshot_group(self) -> Result<ProjectedGroup, Fault>;
 }
 
 #[cfg(test)]
 impl ReferenceResultView for ResultView<'_> {
-    fn field(self, field: leselang_hir::result_field::ResultField) -> Result<ScalarValue, Fault> {
+    fn field(self, field: leserpent_hir::result_field::ResultField) -> Result<ScalarValue, Fault> {
         self.project_scalar(field).map_err(view_fault)
     }
 
@@ -450,7 +450,7 @@ mod result_view_tests;
 #[cfg(test)]
 mod recovery_tests {
     use super::*;
-    use leselang_hir::computation::UnaryOperator;
+    use leserpent_hir::computation::UnaryOperator;
 
     #[test]
     fn external_fault_codes_never_enter_the_scalar_recovery_channel() {
@@ -533,7 +533,7 @@ mod recovery_tests {
         drop(scope);
         let expression = Computation::Recover {
             value: Box::new(Computation::Unary {
-                operator: leselang_hir::computation::UnaryOperator::ParseInteger,
+                operator: leserpent_hir::computation::UnaryOperator::ParseInteger,
                 value: Box::new(Computation::Literal {
                     value: ScalarValue::String("invalid".into()),
                 }),
@@ -558,9 +558,9 @@ mod recovery_tests {
 mod captured_reentry_tests {
     use super::*;
     use crate::{ProjectedBinding, ProjectedField, ProjectedGroupBinding};
-    use leselang_hir::computation::{BinaryOperator, ComputedArgument, UnaryOperator};
-    use leselang_hir::result_field::ResultField;
     use leselang_runtime_core::ScalarBinding;
+    use leserpent_hir::computation::{BinaryOperator, ComputedArgument, UnaryOperator};
+    use leserpent_hir::result_field::ResultField;
 
     #[derive(Debug, PartialEq)]
     enum Observed {
@@ -1056,7 +1056,7 @@ mod captured_reentry_tests {
     #[test]
     fn snapshot_storage_preflight_rejects_untyped_oversize_before_preparation_without_dispatch() {
         let body = frame().body;
-        let oversized = "n".repeat(leselang_hir::pure_typing::MAX_LOCAL_NAME_BYTES + 1);
+        let oversized = "n".repeat(leselang_hir_core::pure_typing::MAX_LOCAL_NAME_BYTES + 1);
         let mut rows = vec![
             ("prefix", LocalValue::Scalar(ScalarValue::Integer(1))),
             (

@@ -1,7 +1,7 @@
 //! Borrowed payload correspondence for Leserpent presentation requests.
 
 use crate::PresentationOperation;
-use leselang_hir::{
+use leserpent_hir::{
     Effect, MAX_UI_CHILD_COUNT, UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS,
     UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS, UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS,
     UI_WAIT_ACTION_KIND_TIMEOUT_MS, UI_WAIT_ACTION_LABEL_TIMEOUT_MS,

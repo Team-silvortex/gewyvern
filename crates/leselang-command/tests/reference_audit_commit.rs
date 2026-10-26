@@ -5,10 +5,10 @@ use leselang_command::{
     Cancellation, CancellationReason, ContinuationImage, ContinuationToken, DebuggerAuditContext,
     DebuggerAuditRecord, Step,
 };
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::{CapabilitySet, CommandOrigin, Principal, Revision};
 use leselang_runtime_core::Fault;
 use leserpent_domain::{CommandId, IdempotencyKey};
+use leserpent_hir::{Effect, Type};
 use std::{cell::RefCell, rc::Rc};
 
 fn image() -> ContinuationImage {

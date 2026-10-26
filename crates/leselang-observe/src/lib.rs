@@ -7,7 +7,6 @@
 
 use leselang_command::reference_request::validate_effect_request;
 use leselang_command::{CommandPlan, EffectRequest};
-use leselang_hir::Effect;
 use leselang_host_contract::{Confirmation, Revision, RuntimeId};
 use leselang_runtime_core::Fault;
 use leselang_ui::{
@@ -20,6 +19,7 @@ use leserpent_domain::{
     Command, CommandPlanError, MAX_RUNTIME_LOG_MESSAGE_BYTES, PlannedOperation, RuntimeLogLevel,
     RuntimeLogRecord,
 };
+use leserpent_hir::Effect;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "vm-bridge")]
@@ -529,12 +529,12 @@ mod tests {
     use leselang_command::{
         DebuggerCancelResult, LoweringContext, LoweringError, plan_debugger_cancel,
     };
-    use leselang_hir::lower;
     use leselang_syntax::parse;
     use leserpent_domain::{
         CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_READ, CapabilitySet, CommandId,
         CommandOrigin, Confirmation, IdempotencyKey, Principal, Query, Revision,
     };
+    use leserpent_hir::lower;
     use leserpent_vm::{EffectOperation, Step, Vm};
 
     use super::*;

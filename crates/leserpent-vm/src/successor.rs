@@ -30,7 +30,7 @@ fn validate_extension(
         binding,
         effect,
         value,
-        leselang_hir::MAX_EFFECT_NESTING_DEPTH,
+        leserpent_hir::MAX_EFFECT_NESTING_DEPTH,
     )
     .map_err(|error| match error {
         leselang_command::CaptureReplayError::InvalidProjection => crate::result_binding::invalid(),
@@ -333,8 +333,8 @@ impl Vm {
 mod extension_tests {
     use super::*;
     use crate::result_binding::projection_fault;
-    use leselang_hir::UiFocusNavigationDirection;
-    use leselang_hir::host_call::HostOperation;
+    use leserpent_hir::UiFocusNavigationDirection;
+    use leserpent_hir::host_call::HostOperation;
 
     #[test]
     fn inherited_context_keeps_frozen_native_agreement_across_operation_domains() {
@@ -352,7 +352,7 @@ mod extension_tests {
         ]
         .map(|source| {
             let Step::Effect(request) = vm.start(
-                &leselang_hir::lower(&leselang_syntax::parse(source)).unwrap(),
+                &leserpent_hir::lower(&leselang_syntax::parse(source)).unwrap(),
                 Principal::new("operator").unwrap(),
                 CapabilitySet::new(["ui.presentation", "runtime.read"]),
                 Some(Revision(7)),
@@ -459,7 +459,7 @@ mod extension_tests {
                 bind(third: ui.focus(node_id: field(value: second, name: "node_id")), body: field(value: third, name: "node_id")))))"#;
         let mut vm = Vm::new(500);
         let first = effect(vm.start(
-            &leselang_hir::lower(&leselang_syntax::parse(source)).unwrap(),
+            &leserpent_hir::lower(&leselang_syntax::parse(source)).unwrap(),
             Principal::new("operator").unwrap(),
             CapabilitySet::new(["ui.presentation"]),
             Some(Revision(7)),

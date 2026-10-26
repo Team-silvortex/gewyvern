@@ -1,10 +1,10 @@
 use super::*;
 
 use leselang_command::reference_start::StartContext;
-use leselang_hir::computation::Computation;
+use leserpent_hir::computation::Computation;
 
 fn parse_program(expression: &str) -> HirProgram {
-    leselang_hir::lower(&leselang_syntax::parse(&format!(
+    leserpent_hir::lower(&leselang_syntax::parse(&format!(
         "fn main() = {expression}"
     )))
     .unwrap()
@@ -85,7 +85,7 @@ fn compare_start(
 
 fn forms(effect: Effect, ty: Type) -> Vec<HirProgram> {
     let branches = ["a", "b"]
-        .map(|name| leselang_hir::HirBranch {
+        .map(|name| leserpent_hir::HirBranch {
             name: name.into(),
             effect: effect.clone(),
             result_type: ty,
@@ -124,7 +124,7 @@ fn forms(effect: Effect, ty: Type) -> Vec<HirProgram> {
     ]
     .into_iter()
     .map(|effect| {
-        leselang_hir::lower(&leselang_syntax::parse(&canonical_source(&effect).unwrap())).unwrap()
+        leserpent_hir::lower(&leselang_syntax::parse(&canonical_source(&effect).unwrap())).unwrap()
     })
     .collect()
 }
@@ -420,7 +420,7 @@ fn frozen_start_inner(
         if let Err(error) = binding.validate(effect) {
             return Step::Fault(error);
         }
-        match leselang_hir::host_call::HostOperation::for_effect(effect) {
+        match leserpent_hir::host_call::HostOperation::for_effect(effect) {
             Some(operation) => operation.result_type(),
             None if matches!(effect, Effect::All { .. } | Effect::Sequence { .. }) => {
                 Type::Structured

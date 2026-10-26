@@ -2,16 +2,15 @@
 
 use std::{borrow::Cow, fmt, marker::PhantomData};
 
-use leselang_hir::{
-    Effect, Type,
-    computation::Computation,
+use leselang_hir_core::{
     effect_evaluation::{EffectEvaluationEnvironment, EffectEvaluationLimits},
-    host_call::HostOperation,
     pure_evaluation::{PureEvaluationEnvironment, PureValue},
-    result_field::ResultField,
 };
 use leselang_runtime_core::{
     CalculationFailure, CaptureSnapshotError, Fuel, ScalarValue, ScopeFrame,
+};
+use leserpent_hir::{
+    Effect, Type, computation::Computation, host_call::HostOperation, result_field::ResultField,
 };
 
 use crate::{

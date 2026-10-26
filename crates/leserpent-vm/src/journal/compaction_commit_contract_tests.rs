@@ -233,7 +233,7 @@ mod durable {
         let f = Fixture::new(single, 2);
         let mut vm = crate::Vm::open_journal(&f.0, 500).unwrap();
         for source in [SOURCES[0], single] {
-            let program = leselang_hir::lower(&leselang_syntax::parse(source)).unwrap();
+            let program = leserpent_hir::lower(&leselang_syntax::parse(source)).unwrap();
             assert!(matches!(
                 vm.start(
                     &program,
@@ -290,7 +290,7 @@ mod durable {
     fn public_compaction_reconciles_other_worker_cache_and_reopens_without_reusing_ids() {
         let f = Fixture::new(SOURCES[0], 2);
         let mut owner = crate::Vm::open_journal(&f.0, 500).unwrap();
-        let program = leselang_hir::lower(&leselang_syntax::parse(
+        let program = leserpent_hir::lower(&leselang_syntax::parse(
             r#"fn main() = ui.focus(node_id: "new")"#,
         ))
         .unwrap();

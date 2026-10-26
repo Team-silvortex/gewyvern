@@ -11,6 +11,7 @@ use serde_json::{Value, json};
 const CRATES: &[&str] = &[
     "leselang-syntax",
     "leselang-runtime-core",
+    "leselang-hir-core",
     "leselang-hir",
     "leselang-vm",
 ];
@@ -304,7 +305,24 @@ fn copy_crate(
             copy_rust_tree(root, &directory, plan)?;
         }
     }
-    for test in regular_children(root, &base.join("tests"))? {
+    let tests = base.join("tests");
+    let children = match fs::symlink_metadata(root.join(&tests)) {
+        Err(error)
+            if name == "leselang-hir-core" && error.kind() == std::io::ErrorKind::NotFound =>
+        {
+            Vec::new()
+        }
+        _ => regular_children(root, &tests)?,
+    };
+    for test in children {
+        if name == "leselang-hir" && test == base.join("tests/support") {
+            let children = regular_children(root, &test)?;
+            if children != [test.join("migration_computation.rs")] {
+                return Err("untracked HIR migration test support asset".into());
+            }
+            read_regular(root, &children[0])?;
+            continue;
+        }
         // Shared product-only fixtures are not part of the native closure.
         if name == "leselang-vm" && test == base.join("tests/support") {
             validate_reference_test_support(root, &test)?;
@@ -418,6 +436,7 @@ fn crate_manifest(
     let mut output = String::new();
     let mut features = false;
     let mut removed_contract = false;
+    let mut removed_profile = false;
     for line in source.lines() {
         if line.starts_with('[') {
             features = native_hir && line == "[features]";
@@ -426,7 +445,8 @@ fn crate_manifest(
             if !line.is_empty()
                 && line != "[features]"
                 && line != "default = [\"leserpent-profile\"]"
-                && line != "leserpent-profile = [\"dep:leselang-host-contract\"]"
+                && line
+                    != "leserpent-profile = [\"dep:leserpent-hir\", \"dep:leselang-host-contract\"]"
             {
                 return Err("native HIR feature boundary changed; review source export".into());
             }
@@ -437,6 +457,11 @@ fn crate_manifest(
                 == "leselang-host-contract = { path = \"../leselang-host-contract\", optional = true }"
         {
             removed_contract = true;
+            continue;
+        }
+        if native_hir && line == "leserpent-hir = { path = \"../leserpent-hir\", optional = true }"
+        {
+            removed_profile = true;
             continue;
         }
         let mapped = match line {
@@ -450,14 +475,17 @@ fn crate_manifest(
             "serde_json.workspace = true" => format!("serde_json = \"={}\"", registry.serde_json),
             _ => line.to_string(),
         };
-        if mapped.contains(".workspace") || mapped.contains("leselang-host-contract") {
+        if mapped.contains(".workspace")
+            || mapped.contains("leselang-host-contract")
+            || mapped.contains("leserpent-hir")
+        {
             return Err("unsupported source manifest inheritance or product dependency".into());
         }
         output.push_str(&mapped);
         output.push('\n');
     }
     if native_hir {
-        if !removed_contract {
+        if !removed_contract || !removed_profile {
             return Err("optional reference contract manifest boundary changed".into());
         }
         // Recognize the original unreachable reference guards without creating
@@ -596,7 +624,13 @@ fn lock_text(registry: &RegistryLock, version: &str, consumer: bool) -> String {
     let mut blocks = registry.blocks.clone();
     for name in CRATES {
         let mut names = match *name {
-            "leselang-hir" => vec!["leselang-runtime-core", "leselang-syntax", "serde"],
+            "leselang-hir" => vec![
+                "leselang-hir-core",
+                "leselang-runtime-core",
+                "leselang-syntax",
+                "serde",
+            ],
+            "leselang-hir-core" => vec!["leselang-runtime-core", "leselang-syntax", "serde"],
             "leselang-vm" => vec!["leselang-hir", "leselang-runtime-core", "leselang-syntax"],
             _ => vec!["serde"],
         };
@@ -613,7 +647,7 @@ fn lock_text(registry: &RegistryLock, version: &str, consumer: bool) -> String {
         );
     }
     if consumer {
-        blocks.insert(CONSUMER.into(), format!("name = {CONSUMER:?}\nversion = {version:?}\ndependencies = [\n \"leselang-hir\",\n \"leselang-runtime-core\",\n \"leselang-syntax\",\n \"leselang-vm\",\n \"serde\",\n \"serde_json\",\n]"));
+        blocks.insert(CONSUMER.into(), format!("name = {CONSUMER:?}\nversion = {version:?}\ndependencies = [\n \"leselang-hir\",\n \"leselang-hir-core\",\n \"leselang-runtime-core\",\n \"leselang-syntax\",\n \"leselang-vm\",\n \"serde\",\n \"serde_json\",\n]"));
     }
     let mut output = "# This file is generated from the source repository's locked registry closure.\nversion = 4\n".to_string();
     for block in blocks.values() {
@@ -661,11 +695,25 @@ fn prepare(root: &Path) -> Result<(Plan, String), String> {
     plan.generated("Cargo.toml", format!("[workspace]\nmembers = [{members}]\nexclude = [\"consumer\"]\nresolver = \"3\"\n\n[profile.lean]\ninherits = \"dev\"\ndebug = 0\nincremental = false\n"))?;
     plan.generated("Cargo.lock", lock_text(&registry, &version, false))?;
     let consumer_manifest = format!(
-        "[workspace]\n\n[package]\nname = {CONSUMER:?}\nversion = {version:?}\nedition = \"2024\"\nlicense = \"MIT\"\npublish = false\nautotests = false\n\n[dependencies]\nleselang-hir = {{ path = \"../crates/leselang-hir\" }}\nleselang-runtime-core = {{ path = \"../crates/leselang-runtime-core\" }}\nleselang-syntax = {{ path = \"../crates/leselang-syntax\" }}\nleselang-vm = {{ path = \"../crates/leselang-vm\", default-features = false }}\nserde = {{ version = \"={}\", features = [\"derive\"] }}\nserde_json = \"={}\"\n\n[profile.lean]\ninherits = \"dev\"\ndebug = 0\nincremental = false\n",
+        "[workspace]\n\n[package]\nname = {CONSUMER:?}\nversion = {version:?}\nedition = \"2024\"\nlicense = \"MIT\"\npublish = false\nautotests = false\n\n[dependencies]\nleselang-hir = {{ path = \"../crates/leselang-hir\" }}\nleselang-hir-core = {{ path = \"../crates/leselang-hir-core\" }}\nleselang-runtime-core = {{ path = \"../crates/leselang-runtime-core\" }}\nleselang-syntax = {{ path = \"../crates/leselang-syntax\" }}\nleselang-vm = {{ path = \"../crates/leselang-vm\", default-features = false }}\nserde = {{ version = \"={}\", features = [\"derive\"] }}\nserde_json = \"={}\"\n\n[profile.lean]\ninherits = \"dev\"\ndebug = 0\nincremental = false\n",
         registry.serde, registry.serde_json
     );
     let mut consumer_manifest = consumer_manifest;
     for (name, original) in [
+        (
+            "core_identity",
+            "crates/leselang-hir/tests/core_identity.rs",
+        ),
+        ("local_names", "crates/leselang-hir/tests/local_names.rs"),
+        ("scalar_form", "crates/leselang-hir/tests/scalar_form.rs"),
+        (
+            "fold_preparation",
+            "crates/leselang-hir/tests/fold_preparation.rs",
+        ),
+        (
+            "loop_preparation",
+            "crates/leselang-hir/tests/loop_preparation.rs",
+        ),
         (
             "source_preparation",
             "crates/leselang-hir/tests/source_preparation.rs",
@@ -803,6 +851,7 @@ fn prepare(root: &Path) -> Result<(Plan, String), String> {
             Path::new(&format!("consumer/tests/{name}.rs")),
         )?;
     }
+    consumer_manifest.push_str(REFERENCE_CFG);
     plan.generated("consumer/Cargo.toml", consumer_manifest)?;
     plan.generated("consumer/Cargo.lock", lock_text(&registry, &version, true))?;
     plan.generated(".github/workflows/ci.yml", CI.into())?;
@@ -1349,6 +1398,7 @@ mod tests {
             "[features]",
             "leselang-host-contract",
             "dep:leselang-host-contract",
+            "leserpent-hir",
             "default =",
         ] {
             assert!(!manifest.contains(absent));
@@ -1358,6 +1408,97 @@ mod tests {
         assert!(manifest.contains("check-cfg = ['cfg(feature, values(\"leserpent-profile\"))']"));
         let changed = source.replace("[features]", "[features]\nnew-language-feature = []");
         assert!(crate_manifest(&changed, true, "9.8.7", &registry).is_err());
+        let product_dependency = "leserpent-hir = { path = \"../leserpent-hir\", optional = true }";
+        for changed in [
+            source.replace(product_dependency, ""),
+            source.replace(
+                product_dependency,
+                "leserpent-hir = { path = \"../leserpent-hir\" }",
+            ),
+            source.replace("dep:leserpent-hir", "dep:unreviewed-profile"),
+        ] {
+            assert!(crate_manifest(&changed, true, "9.8.7", &registry).is_err());
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn missing_core_tests_are_optional_but_dangling_directory_links_are_rejected() {
+        use std::os::unix::fs::symlink;
+        let temp = Temp::new();
+        let base = temp.0.join("crates/leselang-hir-core");
+        fs::create_dir_all(base.join("src")).unwrap();
+        fs::write(base.join("src/lib.rs"), "#![forbid(unsafe_code)]\n").unwrap();
+        copy_crate(
+            &temp.0,
+            "leselang-hir-core",
+            &BTreeSet::new(),
+            &mut Plan::default(),
+        )
+        .unwrap();
+        symlink("missing-tests", base.join("tests")).unwrap();
+        assert!(
+            copy_crate(
+                &temp.0,
+                "leselang-hir-core",
+                &BTreeSet::new(),
+                &mut Plan::default()
+            )
+            .unwrap_err()
+            .contains("symlink")
+        );
+    }
+
+    #[test]
+    fn private_hir_migration_support_is_checked_but_never_exported() {
+        let temp = Temp::new();
+        let base = temp.0.join("crates/leselang-hir");
+        fs::create_dir_all(base.join("src")).unwrap();
+        fs::create_dir_all(base.join("tests/support")).unwrap();
+        fs::write(base.join("src/lib.rs"), "#![forbid(unsafe_code)]\n").unwrap();
+        fs::write(
+            base.join("tests/migration_oracles.rs"),
+            "#![cfg(feature = \"leserpent-profile\")]\n",
+        )
+        .unwrap();
+        fs::write(
+            base.join("tests/support/migration_computation.rs"),
+            "// private test harness\n",
+        )
+        .unwrap();
+        let mut plan = Plan::default();
+        copy_crate(&temp.0, "leselang-hir", &BTreeSet::new(), &mut plan).unwrap();
+        assert_eq!(plan.entries.len(), 1);
+        fs::write(
+            base.join("tests/support/unreviewed.rs"),
+            "// new private dependency\n",
+        )
+        .unwrap();
+        assert!(
+            copy_crate(
+                &temp.0,
+                "leselang-hir",
+                &BTreeSet::new(),
+                &mut Plan::default()
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn consumer_recognizes_unreachable_product_guards_without_enabling_a_feature() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap();
+        let (plan, _) = prepare(root).unwrap();
+        let manifest =
+            std::str::from_utf8(&plan.entries[Path::new("consumer/Cargo.toml")].bytes).unwrap();
+        assert!(manifest.contains(REFERENCE_CFG));
+        assert!(!manifest.contains("[features]"));
+        assert!(!manifest.contains("leselang-host-contract"));
+        assert!(manifest.contains("leselang-hir-core ="));
     }
 
     #[test]
@@ -1487,30 +1628,44 @@ mod tests {
             .unwrap();
         let (plan, version) = prepare(root).unwrap();
         for path in [
-            "crates/leselang-hir/src/source_preparation_contract_tests.rs",
+            "crates/leselang-hir-core/src/lib.rs",
+            "crates/leselang-hir/tests/core_identity.rs",
+            "consumer/tests/core_identity.rs",
+            "crates/leselang-hir/tests/local_names.rs",
+            "consumer/tests/local_names.rs",
+            "crates/leselang-hir-core/src/scalar_form.rs",
+            "crates/leselang-hir/tests/scalar_form.rs",
+            "consumer/tests/scalar_form.rs",
+            "crates/leselang-hir-core/src/fold_source.rs",
+            "crates/leselang-hir/tests/fold_preparation.rs",
+            "consumer/tests/fold_preparation.rs",
+            "crates/leselang-hir-core/src/loop_source.rs",
+            "crates/leselang-hir/tests/loop_preparation.rs",
+            "consumer/tests/loop_preparation.rs",
+            "crates/leselang-hir-core/src/source_preparation_contract_tests.rs",
             "crates/leselang-hir/tests/source_preparation.rs",
             "consumer/tests/source_preparation.rs",
-            "crates/leselang-hir/src/argument_binding_contract_tests.rs",
+            "crates/leselang-hir-core/src/argument_binding_contract_tests.rs",
             "crates/leselang-hir/tests/argument_binding.rs",
             "consumer/tests/argument_binding.rs",
-            "crates/leselang-hir/src/helper_declarations.rs",
-            "crates/leselang-hir/src/helper_body_source.rs",
-            "crates/leselang-hir/src/program_source.rs",
+            "crates/leselang-hir-core/src/helper_declarations.rs",
+            "crates/leselang-hir-core/src/helper_body_source.rs",
+            "crates/leselang-hir-core/src/program_source.rs",
             "crates/leselang-hir/tests/declaration_source.rs",
             "consumer/tests/declaration_source.rs",
-            "crates/leselang-hir/src/computation_profile.rs",
+            "crates/leselang-hir-core/src/computation_profile.rs",
             "crates/leselang-hir/tests/computation_profile.rs",
             "consumer/tests/computation_profile.rs",
-            "crates/leselang-hir/src/effect_session.rs",
-            "crates/leselang-hir/src/local_effect_session.rs",
-            "crates/leselang-hir/src/local_scope.rs",
-            "crates/leselang-hir/src/sequence_evaluation.rs",
-            "crates/leselang-hir/src/parallel_evaluation.rs",
-            "crates/leselang-hir/src/prepared_sequence.rs",
-            "crates/leselang-hir/src/prepared_parallel.rs",
-            "crates/leselang-hir/src/call_evaluation.rs",
+            "crates/leselang-hir-core/src/effect_session.rs",
+            "crates/leselang-hir-core/src/local_effect_session.rs",
+            "crates/leselang-hir-core/src/local_scope.rs",
+            "crates/leselang-hir-core/src/sequence_evaluation.rs",
+            "crates/leselang-hir-core/src/parallel_evaluation.rs",
+            "crates/leselang-hir-core/src/prepared_sequence.rs",
+            "crates/leselang-hir-core/src/prepared_parallel.rs",
+            "crates/leselang-hir-core/src/call_evaluation.rs",
             "crates/leselang-hir/tests/saved_call.rs",
-            "crates/leselang-hir/src/group_reply.rs",
+            "crates/leselang-hir-core/src/group_reply.rs",
             "crates/leselang-hir/tests/saved_group.rs",
             "crates/leselang-hir/tests/scoped_group_acceptance.rs",
             "crates/leselang-vm/src/lib.rs",
@@ -1575,9 +1730,15 @@ mod tests {
             );
         }
         for path in [
-            "crates/leselang-hir/src/leserpent_profile.rs",
-            "crates/leselang-hir/src/computation_profile_contract_tests.rs",
-            "crates/leselang-hir/src/host_call.rs",
+            "crates/leserpent-hir/src/leserpent_profile.rs",
+            "crates/leserpent-hir/Cargo.toml",
+            "crates/leserpent-hir/src/lib.rs",
+            "crates/leselang-hir/tests/product_identity.rs",
+            "crates/leserpent-hir/src/profile_modules.rs",
+            "crates/leselang-hir/tests/migration_oracles.rs",
+            "crates/leselang-hir/tests/support/migration_computation.rs",
+            "crates/leserpent-hir/src/computation_profile_contract_tests.rs",
+            "crates/leserpent-hir/src/host_call.rs",
             "crates/leselang-hir/tests/control_flow.rs",
             "crates/leserpent-vm/src/leserpent_profile.rs",
             "crates/leserpent-vm/src/journal.rs",
@@ -1837,7 +1998,7 @@ mod tests {
         };
         let error = export_with_verifier(source_root(), &options, |stage, _| {
             fs::write(
-                stage.join("crates/leselang-hir/src/effect_session.rs"),
+                stage.join("crates/leselang-hir-core/src/effect_session.rs"),
                 "changed",
             )
             .unwrap();

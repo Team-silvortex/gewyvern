@@ -4,7 +4,7 @@ use crate::ProjectedGroupExt;
 fn projection_fault(_: crate::InvalidProjectedResult) -> Fault {
     invalid_projection()
 }
-use leselang_hir::result_field::ResultField;
+use leserpent_hir::result_field::ResultField;
 
 fn frozen_field(view: ResultView<'_>, field: ResultField) -> Result<ScalarValue, Fault> {
     match view {
@@ -96,7 +96,7 @@ fn result_views_preserve_frozen_projection_selection_copy_and_fault_boundaries()
     malformed.projection_version = 0;
     let branches = [HirBranch {
         name: "member".into(),
-        result_type: leselang_hir::Type::UiActivate,
+        result_type: leserpent_hir::Type::UiActivate,
         effect: Effect::UiFocus {
             node_id: "different-argument".into(),
         },

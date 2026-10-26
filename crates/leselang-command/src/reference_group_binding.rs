@@ -1,7 +1,7 @@
 //! Released member/capture correspondence policy, without execution or storage authority.
 
-use leselang_hir::host_call::HostOperation;
 use leselang_runtime_core::{CaptureCorrespondenceLimits, Fault};
+use leserpent_hir::host_call::HostOperation;
 
 use crate::reference_merge::invalid_group_binding as invalid;
 use crate::reference_request::{continuation_admission_fault, result_binding_limits};
@@ -73,7 +73,7 @@ pub fn validate_saved_capture(
         fields,
         operations,
         CaptureCorrespondenceLimits {
-            max_saved_bindings: leselang_hir::MAX_EFFECT_NESTING_DEPTH,
+            max_saved_bindings: leserpent_hir::MAX_EFFECT_NESTING_DEPTH,
             max_original_rows: MAX_MERGE_BRANCHES,
         },
         result_binding_limits().groups,

@@ -5,9 +5,9 @@ use leselang_command::{
     BranchOutcome, Cancellation, CancellationReason, ContinuationToken, EffectError,
     EffectErrorClass, FailedEffect, StructuredField, Value,
 };
-use leselang_hir::computation::{ScalarValue, StringListValue};
 use leselang_host_contract::Revision;
 use leselang_runtime_core::Fault;
+use leserpent_hir::computation::{ScalarValue, StringListValue};
 
 fn focus(node: &str) -> Value {
     Value::UiFocus {

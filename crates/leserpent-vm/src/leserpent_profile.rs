@@ -7,11 +7,6 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 #[cfg(test)]
-use leselang_hir::CAPABILITY_UI_PRESENTATION;
-use leselang_hir::{Effect, HirProgram, Type};
-#[cfg(test)]
-use leselang_hir::{authorize, canonical_source};
-#[cfg(test)]
 use leselang_host_contract::CommandOrigin;
 #[cfg(test)]
 use leselang_host_contract::{
@@ -30,6 +25,11 @@ use leserpent_domain::CommandId;
 use leserpent_domain::IdempotencyKey;
 #[cfg(test)]
 use leserpent_domain::{DOMAIN_SCHEMA_VERSION, QueryEnvelope};
+#[cfg(test)]
+use leserpent_hir::CAPABILITY_UI_PRESENTATION;
+use leserpent_hir::{Effect, HirProgram, Type};
+#[cfg(test)]
+use leserpent_hir::{authorize, canonical_source};
 use serde::Serialize;
 #[cfg(test)]
 use serde::de::Error as _;
@@ -121,9 +121,9 @@ pub use admission::{
     MAX_ADMISSION_ATTEMPTS, MAX_ADMISSION_DELAY_MS, RootAdmission,
 };
 pub use group_binding::GroupResultBinding;
-pub use leselang_hir::computation::ScalarValue;
 pub use leselang_runtime_core::Fault;
 pub use leselang_runtime_core::ResourceBudget;
+pub use leserpent_hir::computation::ScalarValue;
 pub use result_binding::{
     ProjectedBinding, ProjectedField, ProjectedGroup, ProjectedGroupBinding, ProjectedResult,
     ResultBinding, ScalarBinding,
@@ -379,7 +379,7 @@ let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
     #[allow(clippy::too_many_arguments)]
     fn start_group(
         &mut self,
-        branches: &[leselang_hir::HirBranch],
+        branches: &[leserpent_hir::HirBranch],
         order: ExecutionOrder,
         principal: Principal,
         capabilities: CapabilitySet,
@@ -946,7 +946,7 @@ impl leselang_command::reference_group_start::ReferenceGroupStartHost for Refere
 impl leselang_command::reference_start::ReferenceStartHost for ReferenceStartOwner<'_> {
     fn start_group(
         &mut self,
-        branches: &[leselang_hir::HirBranch],
+        branches: &[leserpent_hir::HirBranch],
         order: ExecutionOrder,
         context: leselang_command::reference_start::StartContext,
         binding: Option<Box<ResultBinding>>,
@@ -1161,7 +1161,11 @@ fn fault(code: &str, message: impl Into<String>) -> Step {
 #[cfg(test)]
 #[cfg(feature = "sqlite-journal")]
 mod tests {
-    use leselang_hir::{
+    use leserpent_domain::{
+        Command, CommandResult, CommandStatus, MAX_RUNTIME_LOG_QUERY_ENTRIES, Query, QueryResult,
+        RuntimeLogRecord,
+    };
+    use leserpent_hir::{
         UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS, UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
         UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS, UI_WAIT_ACTION_KIND_TIMEOUT_MS,
         UI_WAIT_ACTION_LABEL_TIMEOUT_MS, UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS,
@@ -1175,14 +1179,10 @@ mod tests {
         UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection, UiFormInputKind,
         UiFormRequirementState, UiSelectionState, UiSemanticActionKind, UiSemanticNodeKind,
     };
-    use leserpent_domain::{
-        Command, CommandResult, CommandStatus, MAX_RUNTIME_LOG_QUERY_ENTRIES, Query, QueryResult,
-        RuntimeLogRecord,
-    };
     #[test]
     fn string_list_value_validation_counts_entries_and_fences_in_memory_payloads() {
         use super::{ScalarValue, Value, validate_value};
-        use leselang_hir::computation::StringListValue;
+        use leserpent_hir::computation::StringListValue;
         for (items, count) in [
             (vec![], 1),
             (vec![String::new(); 64], 64),
@@ -1221,12 +1221,12 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use leselang_hir::lower;
     use leselang_syntax::parse;
     use leserpent_domain::{
         CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, InMemoryControlPlane, RuntimeId,
         RuntimeListFilter,
     };
+    use leserpent_hir::lower;
 
     use super::*;
 
@@ -1530,7 +1530,7 @@ mod tests {
         let Effect::UiActivate { node_id } = &mut malformed.function.effect else {
             panic!("expected UI activate effect");
         };
-        *node_id = "x".repeat(leselang_hir::MAX_UI_NODE_ID_BYTES + 1);
+        *node_id = "x".repeat(leserpent_hir::MAX_UI_NODE_ID_BYTES + 1);
 
         let mut vm = Vm::default();
         assert!(matches!(

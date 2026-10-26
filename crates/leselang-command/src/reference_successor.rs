@@ -6,8 +6,8 @@ use crate::reference_reply::CompletionLease;
 use crate::reference_request::validate_effect_request;
 pub use crate::reference_request_build::ReservedEffectInput;
 use crate::{ContinuationImage, ContinuationToken, EffectRequest, ResultBinding, Step, Value};
-use leselang_hir::Effect;
 use leselang_runtime_core::Fault;
+use leserpent_hir::Effect;
 
 /// Trusted synchronous owner, entered with bounded/admitted original execution
 /// data and an evaluated successor. Request lookup returns original saved authority;
@@ -63,7 +63,7 @@ pub fn complete_successor<Host: ReferenceSuccessorHost + ?Sized>(
         Err(error) => return Step::Fault(error),
     };
     let (principal, capabilities) = parent.operation.authority();
-    let Some(operation) = leselang_hir::host_call::HostOperation::for_effect(&effect) else {
+    let Some(operation) = leserpent_hir::host_call::HostOperation::for_effect(&effect) else {
         return host.record_result(image, lease, Step::Fault(invalid()));
     };
     let mut next = match host.build_effect_request(ReservedEffectInput {

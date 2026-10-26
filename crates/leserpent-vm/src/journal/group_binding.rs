@@ -162,7 +162,7 @@ impl ReferenceBoundRecordProofs for BoundRecordProofs<'_> {
         binding: &crate::GroupResultBinding,
         request: &EffectRequest,
         fields: &[crate::StructuredField],
-        operations: &[leselang_hir::host_call::HostOperation],
+        operations: &[leserpent_hir::host_call::HostOperation],
     ) -> Result<(), Fault> {
         binding.validate_saved_capture(request, fields, operations)
     }

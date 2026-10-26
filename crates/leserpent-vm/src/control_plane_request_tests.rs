@@ -1,8 +1,8 @@
 use super::*;
-use leselang_hir::{host_call::HostOperation, lower};
 use leselang_host_contract::RuntimeId;
 use leselang_syntax::parse;
 use leserpent_domain::{Command, Query};
+use leserpent_hir::{host_call::HostOperation, lower};
 use serde_json::json;
 
 fn requests() -> Vec<EffectRequest> {

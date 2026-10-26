@@ -214,7 +214,8 @@ fn result_completion_sqlite_matches_frozen_failures_peer_replay_restart_and_succ
         r#"bind(r: all(a: ui.focus(node_id: "a"), b: ui.focus(node_id: "b")), body: bind(s: ui.focus(node_id: "c"), body: 7))"#,
     ] {
         let program =
-            leselang_hir::lower(&leselang_syntax::parse(&format!("fn main() = {source}"))).unwrap();
+            leserpent_hir::lower(&leselang_syntax::parse(&format!("fn main() = {source}")))
+                .unwrap();
         for mode in [1, 2] {
             for defect in 0..4 {
                 let scratch = Scratch(std::env::temp_dir().join(format!(
@@ -327,7 +328,7 @@ enum PreparedResult {
 fn materialize(image: &ContinuationImage, value: &Value) -> Result<PreparedResult, Fault> {
     let binding = image.result_binding.as_ref().ok_or_else(invalid)?;
     let mut fuel = Fuel::new(image.fuel_remaining);
-    let operation = leselang_hir::host_call::HostOperation::for_effect(&image.pending_effect)
+    let operation = leserpent_hir::host_call::HostOperation::for_effect(&image.pending_effect)
         .ok_or_else(invalid)?;
     let (effect, binding) = match computation::resume_outcome(binding, value, operation, &mut fuel)?
     {
@@ -342,7 +343,7 @@ fn materialize(image: &ContinuationImage, value: &Value) -> Result<PreparedResul
             message: "execution fuel exhausted before successor".into(),
         });
     }
-    if leselang_hir::host_call::HostOperation::for_effect(&effect).is_none() {
+    if leserpent_hir::host_call::HostOperation::for_effect(&effect).is_none() {
         return Err(invalid());
     }
     Ok(PreparedResult::Host {

@@ -3,8 +3,8 @@ use leselang_command::{
     EffectRequest, MergeWait, NamedEffectRequest, PresentationEnvelope, PresentationOperation,
     RetryDisposition, Step, StructuredEffectBatch, Value,
 };
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::{CapabilitySet, Principal};
+use leserpent_hir::{Effect, Type};
 use serde_json::json;
 
 fn request() -> EffectRequest {

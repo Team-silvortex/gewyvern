@@ -3,9 +3,9 @@ use leselang_command::reference_request_build::{ReservedEffectInput, build_effec
 use leselang_command::{
     Cancellation, CancellationReason, ContinuationImage, ContinuationToken, Step, Value,
 };
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_runtime_core::Fault;
+use leserpent_hir::{Effect, Type};
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,

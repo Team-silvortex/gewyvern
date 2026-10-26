@@ -2,12 +2,12 @@
 
 use std::fmt;
 
-use leselang_hir::{CAPABILITY_UI_PRESENTATION, Effect};
 use leselang_host_contract::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
     CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Principal, Revision,
 };
 use leserpent_domain::DOMAIN_SCHEMA_VERSION;
+use leserpent_hir::{CAPABILITY_UI_PRESENTATION, Effect};
 
 use crate::{EffectOperation, command_matches_effect, query_matches_effect};
 
@@ -131,7 +131,7 @@ impl EffectOperation {
                 )
             }
             (effect, EffectOperation::Presentation(presentation))
-                if leselang_hir::host_call::HostOperation::for_effect(effect).is_some_and(
+                if leserpent_hir::host_call::HostOperation::for_effect(effect).is_some_and(
                     |operation| operation.required_capability() == CAPABILITY_UI_PRESENTATION,
                 ) =>
             {

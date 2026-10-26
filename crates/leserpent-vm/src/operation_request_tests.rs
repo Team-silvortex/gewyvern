@@ -277,7 +277,7 @@ fn request_construction_matches_frozen_policy_across_competing_fault_boundaries(
 
 #[test]
 fn request_correspondence_preserves_cold_authority_identity_and_budget_fault_order() {
-    use leselang_hir::computation::Computation;
+    use leserpent_hir::computation::Computation;
     for original in requests() {
         for cold in [false, true] {
             for defect in 0..12 {
@@ -466,7 +466,7 @@ pub(super) fn frozen_validate_effect_request(request: &EffectRequest) -> Result<
             )
         }
         (effect, EffectOperation::Presentation(presentation))
-            if leselang_hir::host_call::HostOperation::for_effect(effect).is_some_and(
+            if leserpent_hir::host_call::HostOperation::for_effect(effect).is_some_and(
                 |operation| operation.required_capability() == CAPABILITY_UI_PRESENTATION,
             ) =>
         {
@@ -587,11 +587,11 @@ fn complete_request_admission_preserves_frozen_frame_before_correspondence_and_d
                     1 => {
                         image.schema_version = 0;
                         image.result_binding = Some(Box::new(ResultBinding {
-                            name: "x".repeat(leselang_hir::MAX_BRANCH_NAME_BYTES + 1),
+                            name: "x".repeat(leserpent_hir::MAX_BRANCH_NAME_BYTES + 1),
                             locals: vec![],
                             results: vec![],
                             groups: vec![],
-                            body: leselang_hir::computation::Computation::Literal {
+                            body: leserpent_hir::computation::Computation::Literal {
                                 value: ScalarValue::None,
                             },
                         }));

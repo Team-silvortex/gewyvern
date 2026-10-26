@@ -1,6 +1,6 @@
 use super::*;
-use leselang_hir::{host_call::HostOperation, lower};
 use leselang_syntax::parse;
+use leserpent_hir::{host_call::HostOperation, lower};
 use serde_json::json;
 
 fn build(
@@ -202,7 +202,7 @@ fn product_values_keep_nested_wire_and_legacy_unknown_field_policy() {
 
 #[test]
 fn product_leaf_validation_keeps_counts_and_saved_value_compatibility() {
-    use leselang_hir::computation::StringListValue;
+    use leserpent_hir::computation::StringListValue;
     for (value, items) in [
         (
             Value::Scalar {
@@ -240,7 +240,7 @@ fn product_leaf_validation_keeps_counts_and_saved_value_compatibility() {
             Value::UiNavigateFocus {
                 node_id: "a".into(),
                 focused_node_id: "a".into(),
-                direction: leselang_hir::UiFocusNavigationDirection::Next,
+                direction: leserpent_hir::UiFocusNavigationDirection::Next,
             },
             1,
         ),

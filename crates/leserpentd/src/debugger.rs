@@ -11,7 +11,6 @@ use leselang_command::{
     CancellationReason, EffectOperation, EffectRequest, EffectResult, PresentationOperation,
     PresentationResult, SchedulerLimits, Step,
 };
-use leselang_hir::{CAPABILITY_UI_PRESENTATION, lower, validate_ui_node_id};
 use leselang_observe::{execute_debugger_cancel, waiting_debugger_projection};
 use leselang_syntax::parse;
 use leselang_ui::{DebuggerFaultSummary, DebuggerProjection, DebuggerState, debugger_document};
@@ -20,6 +19,7 @@ use leserpent_domain::{
     CAPABILITY_RUNTIME_REFRESH, CapabilitySet, CommandEnvelope, CommandPlan, PlannedOperation,
     Principal, Revision, validate_debugger_session_id,
 };
+use leserpent_hir::{CAPABILITY_UI_PRESENTATION, lower, validate_ui_node_id};
 use leserpent_protocol::{
     DebuggerCancelResponse, DebuggerMutationStatus, DebuggerPresentationAcknowledgeRequest,
     DebuggerPresentationOutcome, DebuggerPresentationResponse, DebuggerPresentationStatus,
@@ -1329,7 +1329,7 @@ mod tests {
                 })
             ),
             Step::Done(leselang_command::Value::Scalar {
-                value: leselang_hir::computation::ScalarValue::Boolean(true)
+                value: leserpent_hir::computation::ScalarValue::Boolean(true)
             })
         );
     }
@@ -1382,7 +1382,7 @@ mod tests {
                 assert_eq!(
                     replay,
                     Step::Done(leselang_command::Value::Scalar {
-                        value: leselang_hir::computation::ScalarValue::Boolean(true)
+                        value: leserpent_hir::computation::ScalarValue::Boolean(true)
                     })
                 );
             } else {
@@ -1916,7 +1916,7 @@ mod tests {
                 })
             ),
             Step::Done(leselang_command::Value::Scalar {
-                value: leselang_hir::computation::ScalarValue::Boolean(true)
+                value: leserpent_hir::computation::ScalarValue::Boolean(true)
             })
         );
     }
@@ -1949,7 +1949,7 @@ mod tests {
             if index == 1 {
                 assert!(
                     matches!(&view.pending_presentation, Some(PresentationOperation::WaitActionKind { expected_kind, .. })
-                    if *expected_kind == leselang_hir::UiSemanticActionKind::RuntimeRefresh)
+                    if *expected_kind == leserpent_hir::UiSemanticActionKind::RuntimeRefresh)
                 );
             } else if index == 2 {
                 assert!(
@@ -2070,7 +2070,7 @@ mod tests {
                     })
                 ),
                 Step::Done(leselang_command::Value::Scalar {
-                    value: leselang_hir::computation::ScalarValue::Boolean(true)
+                    value: leserpent_hir::computation::ScalarValue::Boolean(true)
                 })
             );
         }
@@ -2139,8 +2139,8 @@ mod tests {
                 })
             ),
             Step::Done(leselang_command::Value::Scalar {
-                value: leselang_hir::computation::ScalarValue::StringList(
-                    leselang_hir::computation::StringListValue(vec![
+                value: leserpent_hir::computation::ScalarValue::StringList(
+                    leserpent_hir::computation::StringListValue(vec![
                         "ready-a".into(),
                         "ready-b".into()
                     ])
@@ -2219,7 +2219,7 @@ mod tests {
                     })
                 ),
                 Step::Done(leselang_command::Value::Scalar {
-                    value: leselang_hir::computation::ScalarValue::Boolean(!skip)
+                    value: leserpent_hir::computation::ScalarValue::Boolean(!skip)
                 })
             );
         }
@@ -2296,7 +2296,7 @@ mod tests {
                 })
             ),
             Step::Done(leselang_command::Value::Scalar {
-                value: leselang_hir::computation::ScalarValue::Boolean(true)
+                value: leserpent_hir::computation::ScalarValue::Boolean(true)
             })
         );
     }
@@ -2503,7 +2503,7 @@ mod tests {
                     })
                 ),
                 Step::Done(leselang_command::Value::Scalar {
-                    value: leselang_hir::computation::ScalarValue::Boolean(ready)
+                    value: leserpent_hir::computation::ScalarValue::Boolean(ready)
                 })
             );
         }
@@ -2685,7 +2685,7 @@ mod tests {
                     })
                 ),
                 Step::Done(leselang_command::Value::Scalar {
-                    value: leselang_hir::computation::ScalarValue::Boolean(true)
+                    value: leserpent_hir::computation::ScalarValue::Boolean(true)
                 })
             );
         }
@@ -2804,7 +2804,7 @@ mod tests {
                     })
                 ),
                 Step::Done(leselang_command::Value::Scalar {
-                    value: leselang_hir::computation::ScalarValue::Boolean(expected.is_some())
+                    value: leserpent_hir::computation::ScalarValue::Boolean(expected.is_some())
                 })
             );
         }
@@ -2963,7 +2963,7 @@ mod tests {
                 })
             ),
             Step::Done(leselang_command::Value::Scalar {
-                value: leselang_hir::computation::ScalarValue::Boolean(true)
+                value: leserpent_hir::computation::ScalarValue::Boolean(true)
             })
         );
         let public = serde_json::to_string(&view).unwrap();
@@ -3159,7 +3159,7 @@ mod tests {
                     }),
                 ),
                 Step::Done(leselang_command::Value::Scalar {
-                    value: leselang_hir::computation::ScalarValue::Integer(stop_at),
+                    value: leserpent_hir::computation::ScalarValue::Integer(stop_at),
                 }),
             );
         }
@@ -3259,7 +3259,7 @@ mod tests {
                 assert_eq!(
                     replay,
                     Step::Done(leselang_command::Value::Scalar {
-                        value: leselang_hir::computation::ScalarValue::Boolean(true)
+                        value: leserpent_hir::computation::ScalarValue::Boolean(true)
                     })
                 );
             }
@@ -3360,7 +3360,7 @@ mod tests {
                 assert_eq!(
                     result,
                     Step::Done(leselang_command::Value::Scalar {
-                        value: leselang_hir::computation::ScalarValue::Boolean(true)
+                        value: leserpent_hir::computation::ScalarValue::Boolean(true)
                     })
                 );
             }
@@ -3497,7 +3497,7 @@ mod tests {
             started.session.pending_presentation,
             Some(PresentationOperation::NavigateFocus {
                 ref node_id,
-                direction: leselang_hir::UiFocusNavigationDirection::Next,
+                direction: leserpent_hir::UiFocusNavigationDirection::Next,
             }) if node_id == "remote-fleet"
         ));
 

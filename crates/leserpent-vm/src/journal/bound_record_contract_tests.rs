@@ -292,7 +292,7 @@ fn frozen_records(
                     .map_err(|_| invalid())?;
                 if binding.captures_successor() && binding.has_successor(plan) {
                     prefix_operations.push(
-                        leselang_hir::host_call::HostOperation::for_effect(
+                        leserpent_hir::host_call::HostOperation::for_effect(
                             &request.continuation.pending_effect,
                         )
                         .ok_or_else(invalid)?,

@@ -8,12 +8,12 @@ use leselang_command::{
     ResultValueDomain, ResultValueError, ResultValueHost, StructuredField, Value, ValueBoundsError,
     ValueValidationLimits,
 };
-use leselang_hir::Type;
 use leselang_host_contract::Revision;
 use leselang_runtime_core::{
     HostResultError, LocalExecutionScope, PendingReply, ReplyAcceptanceError, ReplyAuthority,
     ReplyEnd, ReplyStatus, validate_host_result,
 };
+use leserpent_hir::Type;
 
 // Deliberately neither Clone nor Debug; native payloads must stay opaque.
 struct PrivateError(Box<str>);

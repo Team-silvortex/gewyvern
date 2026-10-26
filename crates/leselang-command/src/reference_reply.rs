@@ -2,8 +2,8 @@
 
 use crate::reference_request::{validate_continuation_image, validate_effect_request};
 use crate::{ContinuationImage, ContinuationToken, DispatchLease, EffectResult, Step};
-use leselang_hir::Effect;
 use leselang_runtime_core::{Fault, validate_clock};
+use leserpent_hir::Effect;
 
 pub type CompletionLease<'a> = Option<(&'a DispatchLease, u64)>;
 

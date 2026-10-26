@@ -13,7 +13,7 @@ sqlite-journal = ["vm-bridge", "leserpent-vm/sqlite-journal"]
 
 [dependencies]
 leselang-command = { path = "../leselang-command" }
-leselang-hir = { path = "../leselang-hir" }
+leserpent-hir = { path = "../leserpent-hir" }
 leselang-host-contract = { path = "../leselang-host-contract" }
 leselang-runtime-core = { path = "../leselang-runtime-core" }
 leselang-ui = { path = "../leselang-ui" }

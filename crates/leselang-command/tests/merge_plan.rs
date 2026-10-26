@@ -3,14 +3,14 @@ use leselang_command::{
     MergePlanShapeError, MergePlanShapeLimits, ResultBinding, valid_merge_branch_name,
 };
 use leselang_command::{GroupPlanLimits, InvalidGroupPlan};
-use leselang_hir::{Effect, HirBranch, Type, computation::Computation};
 use leselang_runtime_core::ScalarValue;
+use leserpent_hir::{Effect, HirBranch, Type, computation::Computation};
 
 #[cfg(test)]
 mod group_admission {
     use super::*;
     use leselang_command::{GroupBindingError, GroupBindingLimits, validate_group_binding};
-    use leselang_hir::projection_access::ProjectionAccessLimits;
+    use leselang_hir_core::projection_access::ProjectionAccessLimits;
     use leselang_runtime_core::{CaptureValidationLimits, GroupCaptureLimits};
     use std::{cell::Cell, rc::Rc};
 
@@ -55,7 +55,7 @@ mod group_admission {
                 let expected = if kind == 1 {
                     Type::UiFocus
                 } else {
-                    Type::Scalar(leselang_hir::computation::ScalarType::None)
+                    Type::Scalar(leserpent_hir::computation::ScalarType::None)
                 };
                 assert_eq!(result, Ok(expected));
                 assert_eq!(calls.get(), 1);
@@ -82,7 +82,7 @@ mod group_admission {
                     group.binding.body = Computation::Member {
                         group: "group".into(),
                         name: "a".into(),
-                        operation: leselang_hir::host_call::HostOperation::UiFocus,
+                        operation: leserpent_hir::host_call::HostOperation::UiFocus,
                     }
                 }
                 5 => {
@@ -112,7 +112,7 @@ mod group_admission {
                 0 | 3 | 4 => Err(GroupBindingError::Binding),
                 1 => Err(GroupBindingError::Plan),
                 2 => Err(GroupBindingError::Encoding("encoding refused")),
-                5 => Ok(Type::Scalar(leselang_hir::computation::ScalarType::None)),
+                5 => Ok(Type::Scalar(leserpent_hir::computation::ScalarType::None)),
                 _ => unreachable!(),
             };
             assert_eq!(result, expected, "defect {defect}");
@@ -159,7 +159,7 @@ mod group_admission {
                     members: vec![leselang_command::ProjectedBinding {
                         name: "member".into(),
                         result: leselang_command::ProjectedResult::capture(
-                            leselang_hir::host_call::HostOperation::UiFocus,
+                            leserpent_hir::host_call::HostOperation::UiFocus,
                             &leselang_command::Value::UiFocus {
                                 node_id: "node".into(),
                             },
@@ -498,7 +498,7 @@ mod group_requests {
                         Some(if kind == 1 {
                             Type::UiFocus
                         } else {
-                            Type::Scalar(leselang_hir::computation::ScalarType::None)
+                            Type::Scalar(leserpent_hir::computation::ScalarType::None)
                         })
                     );
                     assert_eq!(host.encodings.get(), 1);

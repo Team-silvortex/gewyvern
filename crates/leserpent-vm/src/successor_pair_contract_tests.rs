@@ -103,7 +103,7 @@ fn pairs() -> Vec<(EffectRequest, Step, EffectRequest)> {
     for source in sources() {
         let mut vm = Vm::new(1000);
         let mut step = vm.start(
-            &leselang_hir::lower(&leselang_syntax::parse(&source)).unwrap(),
+            &leserpent_hir::lower(&leselang_syntax::parse(&source)).unwrap(),
             Principal::new("operator").unwrap(),
             CapabilitySet::new(["ui.presentation"]),
             Some(Revision(7)),
@@ -191,7 +191,7 @@ fn mutate(request: &mut EffectRequest, result: &mut Step, defect: usize) {
                 match defect {
                     22 => binding.name = "bad name".into(),
                     23 => {
-                        binding.body = leselang_hir::computation::Computation::Literal {
+                        binding.body = leserpent_hir::computation::Computation::Literal {
                             value: ScalarValue::None,
                         }
                     }
@@ -213,7 +213,7 @@ fn mutate(request: &mut EffectRequest, result: &mut Step, defect: usize) {
                         }
                     }
                     29 => {
-                        binding.body = leselang_hir::computation::Computation::Local {
+                        binding.body = leserpent_hir::computation::Computation::Local {
                             name: "missing".into(),
                         }
                     }

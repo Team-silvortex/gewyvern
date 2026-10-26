@@ -1,6 +1,6 @@
 use leselang_command::ResultBinding;
-use leselang_hir::{Effect, computation::Computation};
 use leselang_runtime_core::ScalarValue;
+use leserpent_hir::{Effect, computation::Computation};
 
 pub fn binding(kind: usize) -> Option<Box<ResultBinding>> {
     if kind == 0 {

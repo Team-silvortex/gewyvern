@@ -181,12 +181,12 @@ fn memory(
 ) -> (EphemeralJournal, ContinuationToken, MergePlan, Step) {
     let mut vm = crate::Vm::new(500);
     vm.next_effect_id = 500;
-    let branches = ["left", "right"].map(|name| leselang_hir::HirBranch {
+    let branches = ["left", "right"].map(|name| leserpent_hir::HirBranch {
         name: name.into(),
-        effect: leselang_hir::Effect::UiFocus {
+        effect: leserpent_hir::Effect::UiFocus {
             node_id: name.into(),
         },
-        result_type: leselang_hir::Type::UiFocus,
+        result_type: leserpent_hir::Type::UiFocus,
     });
     let step = vm.start_group(
         &branches,
@@ -665,12 +665,12 @@ mod durable {
                 let f = Fixture::new();
                 let path = f.0.join("public.sqlite3");
                 let mut vm = crate::Vm::open_journal(&path, 500).unwrap();
-                let branches = ["left", "right"].map(|name| leselang_hir::HirBranch {
+                let branches = ["left", "right"].map(|name| leserpent_hir::HirBranch {
                     name: name.into(),
-                    effect: leselang_hir::Effect::UiFocus {
+                    effect: leserpent_hir::Effect::UiFocus {
                         node_id: name.into(),
                     },
-                    result_type: leselang_hir::Type::UiFocus,
+                    result_type: leserpent_hir::Type::UiFocus,
                 });
                 assert!(!matches!(
                     vm.start_group(

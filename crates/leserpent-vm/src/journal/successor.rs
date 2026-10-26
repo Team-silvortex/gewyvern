@@ -492,7 +492,7 @@ pub(super) fn validate_record(
                     || (!binding.body.is_pure()
                         && image.schema_version != crate::CONDITIONAL_CONTINUATION_SCHEMA_VERSION)
                     || binding.validate(&image.pending_effect)?
-                        != leselang_hir::Type::Scalar(value.scalar_type())
+                        != leserpent_hir::Type::Scalar(value.scalar_type())
                 {
                     return Err(invalid());
                 }

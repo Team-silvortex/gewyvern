@@ -8,10 +8,10 @@ use leselang_command::{
     ContinuationImage, ContinuationToken, EffectRequest, GroupResultBinding, ProjectedBinding,
     ProjectedGroup, ProjectedGroupBinding, ProjectedResult, ResultBinding, Value,
 };
-use leselang_hir::{Effect, HirBranch, Type, computation::Computation, host_call::HostOperation};
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_runtime_core::{Fault, Fuel, ScalarValue};
 use leserpent_domain::{CommandId, IdempotencyKey};
+use leserpent_hir::{Effect, HirBranch, Type, computation::Computation, host_call::HostOperation};
 use std::{cell::RefCell, rc::Rc};
 
 fn scalar() -> Computation {

@@ -3078,7 +3078,6 @@ fn retirement_phase_label(phase: RetirementPhase) -> &'static str {
 #[cfg(test)]
 mod tests {
     use leselang_command::{LoweringContext, PlannedOperation, lower_effect, plan_runtime_deploy};
-    use leselang_hir::lower;
     use leselang_syntax::parse;
     use leserpent_domain::{
         CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH,
@@ -3087,6 +3086,7 @@ mod tests {
         Revision, RuntimeCapabilityObservation, RuntimeCapabilitySnapshot,
         RuntimeSidecarStatusSnapshot, RuntimeStatusObservation, RuntimeStatusSnapshot,
     };
+    use leserpent_hir::lower;
     use rusqlite::{Connection, params};
     use std::collections::VecDeque;
     use std::fs;

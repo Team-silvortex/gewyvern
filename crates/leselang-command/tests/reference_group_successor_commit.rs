@@ -6,9 +6,9 @@ use leselang_command::reference_request_build::{ReservedEffectInput, build_effec
 use leselang_command::{
     ContinuationImage, ContinuationToken, EffectRequest, ExecutionOrder, MergePlan, Step, Value,
 };
-use leselang_hir::{Effect, HirBranch, Type};
 use leselang_host_contract::{CapabilitySet, Principal};
 use leselang_runtime_core::{Fault, ScalarValue};
+use leserpent_hir::{Effect, HirBranch, Type};
 use std::cell::RefCell;
 #[path = "support/group_start_fixture.rs"]
 mod fixture;

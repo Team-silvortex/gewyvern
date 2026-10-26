@@ -1,7 +1,7 @@
 //! Complete product plan and input-graph consistency, not journal recovery authority.
 
-use leselang_hir::Type;
 use leselang_runtime_core::{GroupGraphError, GroupGraphMember, validate_group_graph};
+use leserpent_hir::Type;
 
 use crate::{
     ContinuationAdmissionLimits, EffectRequestView, GroupBindingError, GroupBindingLimits,

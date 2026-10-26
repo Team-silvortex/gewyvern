@@ -2,9 +2,9 @@
 
 use std::fmt;
 
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::Revision;
 use leselang_runtime_core::{ContinuationFrame, ResourceBudget};
+use leserpent_hir::{Effect, Type};
 
 use crate::{EffectOperation, OperationRequestContext, OperationRequestError, ResultBinding};
 

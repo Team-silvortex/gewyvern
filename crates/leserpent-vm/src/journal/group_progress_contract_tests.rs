@@ -62,10 +62,10 @@ fn memory_projection_matches_frozen_for_all_operations_missing_rows_and_partial_
             for kind in 0..12 {
                 let mut j = EphemeralJournal::default();
                 let second = crate::Vm::build_effect_request(
-                    &leselang_hir::Effect::UiFocus {
+                    &leserpent_hir::Effect::UiFocus {
                         node_id: "second".into(),
                     },
-                    leselang_hir::Type::UiFocus,
+                    leserpent_hir::Type::UiFocus,
                     500,
                     crate::Principal::new("operator").unwrap(),
                     crate::CapabilitySet::new(["ui.presentation"]),
@@ -157,12 +157,12 @@ fn memory_projection_matches_frozen_for_all_operations_missing_rows_and_partial_
     assert_eq!(cases, 1680);
 }
 fn start_group(vm: &mut crate::Vm, order: ExecutionOrder, kind: usize) {
-    let branches = ["left", "right"].map(|name| leselang_hir::HirBranch {
+    let branches = ["left", "right"].map(|name| leserpent_hir::HirBranch {
         name: name.into(),
-        effect: leselang_hir::Effect::UiFocus {
+        effect: leserpent_hir::Effect::UiFocus {
             node_id: name.into(),
         },
-        result_type: leselang_hir::Type::UiFocus,
+        result_type: leserpent_hir::Type::UiFocus,
     });
     assert!(!matches!(
         vm.start_group(

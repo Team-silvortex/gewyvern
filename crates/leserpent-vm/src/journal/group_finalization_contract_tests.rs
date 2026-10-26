@@ -274,10 +274,10 @@ fn snapshot_memory(j: &EphemeralJournal) -> Vec<u8> {
 fn memory_fixture(input: &EffectRequest, order: ExecutionOrder, kind: usize) -> EphemeralJournal {
     let mut j = EphemeralJournal::default();
     let second = crate::Vm::build_effect_request(
-        &leselang_hir::Effect::UiFocus {
+        &leserpent_hir::Effect::UiFocus {
             node_id: "node".into(),
         },
-        leselang_hir::Type::UiFocus,
+        leserpent_hir::Type::UiFocus,
         500,
         crate::Principal::new("operator").unwrap(),
         crate::CapabilitySet::new(["ui.presentation"]),
@@ -399,12 +399,12 @@ fn memory_finalization_matches_frozen_lazy_stop_replay_and_partial_state_for_all
 fn bound_memory(order: ExecutionOrder, kind: usize) -> EphemeralJournal {
     let mut vm = crate::Vm::new(500);
     vm.next_effect_id = 500;
-    let branches = ["left", "right"].map(|name| leselang_hir::HirBranch {
+    let branches = ["left", "right"].map(|name| leserpent_hir::HirBranch {
         name: name.into(),
-        effect: leselang_hir::Effect::UiFocus {
+        effect: leserpent_hir::Effect::UiFocus {
             node_id: name.into(),
         },
-        result_type: leselang_hir::Type::UiFocus,
+        result_type: leserpent_hir::Type::UiFocus,
     });
     let result = vm.start_group(
         &branches,

@@ -2,11 +2,11 @@ use leselang_command::{
     InvalidProjectedResult, ProjectedBinding, ProjectedGroup, ProjectedGroupBinding,
     ProjectedResult, Value, validate_captured_projection_accesses,
 };
-use leselang_hir::{
-    Effect, computation::Computation, host_call::HostOperation, ir::ComputedArgument,
-    projection_access::ProjectionAccessLimits, result_field::ResultField,
-};
+use leselang_hir_core::{ir::ComputedArgument, projection_access::ProjectionAccessLimits};
 use leselang_runtime_core::{CapturedBindings, ScalarBinding, ScalarValue};
+use leserpent_hir::{
+    Effect, computation::Computation, host_call::HostOperation, result_field::ResultField,
+};
 
 type Frame = CapturedBindings<Computation, ProjectedResult, ProjectedGroup>;
 
@@ -234,7 +234,7 @@ fn saved_members_require_exact_names_and_operations_but_fallback_is_not_type_adm
             .body
             .validate_in_group_scope(
                 &[],
-                &[leselang_hir::computation::GroupLocalType {
+                &[leserpent_hir::computation::GroupLocalType {
                     name: "group".into(),
                     members: vec![("member".into(), HostOperation::UiAssertText)],
                 },]

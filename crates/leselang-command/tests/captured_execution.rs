@@ -16,26 +16,25 @@ use leselang_command::{
     ExecutionOrder, GroupBindingLimits, GroupPlanLimits, GroupResultBinding, MergePlan,
     MergePlanShapeLimits,
 };
-use leselang_hir::{
-    Effect, Type,
+use leselang_hir_core::{
     call_evaluation::CallEvaluationError,
-    computation::Computation,
     effect_evaluation::{
         EffectEvaluationFailure, EffectEvaluationFault, EffectEvaluationLimits,
         EffectEvaluationOutcome, evaluate_effects_in_scope,
     },
-    host_call::HostOperation,
     projection_access::ProjectionAccessLimits,
     pure_evaluation::{
         PureEvaluationFailure, PureEvaluationFault, PureEvaluationLimits, PureValue,
         scalar_copy_cost,
     },
-    result_field::ResultField,
 };
 use leselang_runtime_core::{
     CalculationFailure, CaptureCorrespondenceLimits, CaptureScopeError, CaptureSnapshotError,
     CaptureSnapshotLimits, CaptureValidationLimits, Fuel, GroupCaptureLimits, ScalarValue,
     ScopeFrame, validate_host_result,
+};
+use leserpent_hir::{
+    Effect, Type, computation::Computation, host_call::HostOperation, result_field::ResultField,
 };
 
 const LIMITS: EffectEvaluationLimits = EffectEvaluationLimits {
@@ -364,7 +363,7 @@ fn own(outcome: Evaluated<'_>) -> Result<Step, Failure> {
 }
 
 fn compile(source: &str) -> Computation {
-    let program = leselang_hir::lower(&leselang_syntax::parse(source)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(source)).unwrap();
     let Effect::Compute { expression } = program.function.effect else {
         panic!("expected control computation")
     };
@@ -1879,7 +1878,7 @@ fn invalid_frames_cold_fields_replies_and_revoked_admission_never_spend_or_prepa
                     HostOperation::UiSetSelection,
                     &Value::UiSetSelection {
                         node_id: "a".into(),
-                        state: leselang_hir::UiSelectionState::Selected,
+                        state: leserpent_hir::UiSelectionState::Selected,
                     },
                     1,
                 )

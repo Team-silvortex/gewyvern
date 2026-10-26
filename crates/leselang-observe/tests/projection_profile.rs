@@ -3,7 +3,6 @@ use leselang_command::{
     ContinuationImage, ContinuationToken, EffectOperation, EffectRequest, LoweringContext,
     plan_debugger_cancel,
 };
-use leselang_hir::{Effect, Type};
 use leselang_observe::{
     DebuggerMutationInspection, DebuggerMutationResult, DebuggerMutationStatus,
     MAX_RUNTIME_LOG_SOURCE_ENTRIES, ObserveError, inspect_debugger_cancel_plan,
@@ -19,6 +18,7 @@ use leserpent_domain::{
     MAX_RUNTIME_LOG_QUERY_ENTRIES, PlannedOperation, Principal, Query, QueryEnvelope, Revision,
     RuntimeId, RuntimeLogLevel, RuntimeLogRecord,
 };
+use leserpent_hir::{Effect, Type};
 
 // Received protocol data, deliberately constructed without starting or linking a VM.
 fn request(logs: bool) -> EffectRequest {
@@ -314,7 +314,7 @@ mod bridge {
     use leserpent_vm::{Step, Vm, encode_continuation};
 
     fn live() -> (Vm, EffectRequest) {
-        let program = leselang_hir::lower(&leselang_syntax::parse(
+        let program = leserpent_hir::lower(&leselang_syntax::parse(
             "fn main() = runtime.inspect(runtime_id: \"runtime-a\")",
         ))
         .unwrap();

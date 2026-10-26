@@ -1,26 +1,26 @@
 // Frozen pre-migration product computation policy. Test-only compatibility oracle.
 use std::borrow::Cow;
 
-use leselang_hir::call_evaluation::CallEvaluationError;
-use leselang_hir::call_typing::{CallTypeError, MAX_CALL_ARGUMENTS};
-use leselang_hir::computation::{Computation, ScalarValue};
-use leselang_hir::effect_evaluation::{
+use leselang_hir_core::call_evaluation::CallEvaluationError;
+use leselang_hir_core::call_typing::{CallTypeError, MAX_CALL_ARGUMENTS};
+use leselang_hir_core::effect_evaluation::{
     EffectEvaluationFailure, EffectEvaluationFault, EffectEvaluationLimits,
     EffectEvaluationOutcome, evaluate_effects_in_scope,
 };
-use leselang_hir::host_call::HostOperation;
-use leselang_hir::pure_evaluation::{
+use leselang_hir_core::pure_evaluation::{
     PureEvaluationFailure, PureEvaluationFault, PureEvaluationLimits, PureValue,
     scalar_copy_cost as string_cost,
 };
-use leselang_hir::pure_typing::{
+use leselang_hir_core::pure_typing::{
     MAX_TYPE_INFERENCE_BINDINGS, MAX_TYPE_INFERENCE_DEPTH, MAX_TYPE_INFERENCE_NODES,
 };
-use leselang_hir::{Effect, HirBranch};
 use leselang_runtime_core::{
     CalculationFailure, CaptureScopeError, CaptureSnapshotError, CaptureSnapshotLimits, FoldError,
     Fuel, LoopError, ScalarError, ScopeFrame,
 };
+use leserpent_hir::computation::{Computation, ScalarValue};
+use leserpent_hir::host_call::HostOperation;
+use leserpent_hir::{Effect, HirBranch};
 
 use crate::result_binding::{ProjectedGroup, ProjectedResult, group_capture_limits};
 use crate::{Fault, ResultBinding, Value};
@@ -45,7 +45,7 @@ fn result_environment<'a>()
             captures: leselang_command::ResultCaptureLimits {
                 snapshot: CaptureSnapshotLimits {
                     max_bindings: MAX_TYPE_INFERENCE_BINDINGS,
-                    max_name_bytes: leselang_hir::pure_typing::MAX_LOCAL_NAME_BYTES,
+                    max_name_bytes: leselang_hir_core::pure_typing::MAX_LOCAL_NAME_BYTES,
                 },
                 groups: group_capture_limits(),
             },
@@ -217,7 +217,7 @@ impl leselang_command::ResultExecutionHost for ReferenceCaptureHost {
     fn prepared_effect(&self, _: &Effect) -> Result<(), Fault> {
         Ok(())
     }
-    fn before_projection(&self, _: leselang_hir::result_field::ResultField) -> Result<(), Fault> {
+    fn before_projection(&self, _: leserpent_hir::result_field::ResultField) -> Result<(), Fault> {
         Ok(())
     }
     fn valid_group_name(&self, name: &str) -> bool {
@@ -261,7 +261,7 @@ fn execution_limits() -> EffectEvaluationLimits {
             max_bindings: MAX_TYPE_INFERENCE_BINDINGS,
         },
         max_arguments: MAX_CALL_ARGUMENTS,
-        max_branches: leselang_hir::MAX_ALL_BRANCHES,
+        max_branches: leserpent_hir::MAX_ALL_BRANCHES,
     }
 }
 

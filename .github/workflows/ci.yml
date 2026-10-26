@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install Rust toolchain
-        run: rustup toolchain install 1.98.0 --profile minimal --component clippy
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt,clippy
 
       - name: Package and verify isolated runtime core
         run: cargo +1.98.0 package -p leselang-runtime-core --locked
@@ -42,13 +42,27 @@ jobs:
       - name: Test host-defined HIR without the Leserpent profile
         run: cargo +1.98.0 test -p leselang-hir --locked --no-default-features
 
+      - name: Test and lint the product-free HIR owner
+        run: |
+          cargo +1.98.0 test -p leselang-hir-core --locked
+          cargo +1.98.0 clippy -p leselang-hir-core --locked --all-targets -- -D warnings
+
       - name: Lint native-only HIR and its tests
         run: cargo +1.98.0 clippy -p leselang-hir --locked --no-default-features --all-targets -- -D warnings
 
       - name: Verify foreign host computation policy and frozen product compatibility
         run: |
           cargo +1.98.0 test -p leselang-hir --locked --no-default-features --test computation_profile
-          cargo +1.98.0 test -p leselang-hir --locked --lib computation::profile_contract_tests
+          cargo +1.98.0 test -p leserpent-hir --locked --lib computation::profile_contract_tests
+
+      - name: Verify the product HIR owner and compatibility re-exports
+        run: |
+          cargo +1.98.0 test -p leserpent-hir --locked
+          cargo +1.98.0 test -p leselang-hir --locked --test product_identity
+          cargo +1.98.0 clippy -p leserpent-hir --locked --all-targets -- -D warnings
+
+      - name: Guard direct product HIR consumers against facade dependencies
+        run: cargo +1.98.0 test -p gewyvern --locked --test language_independence_tdd product_hir_consumers_do_not_depend_on_language_compatibility_facades
 
       - name: Verify checked declaration source receipts without the product profile
         run: cargo +1.98.0 test -p leselang-hir --locked --no-default-features --test declaration_source
@@ -56,20 +70,42 @@ jobs:
       - name: Verify public argument binding and frozen lowering compatibility
         run: |
           cargo +1.98.0 test -p leselang-hir --locked --no-default-features --test argument_binding
-          cargo +1.98.0 test -p leselang-hir --locked --no-default-features --lib argument_binding_contract_tests
+          cargo +1.98.0 test -p leselang-hir-core --locked --lib argument_binding_contract_tests
 
       - name: Verify public native source plans and frozen preparation order
         run: |
           cargo +1.98.0 test -p leselang-hir --locked --no-default-features --test source_preparation
-          cargo +1.98.0 test -p leselang-hir --locked --no-default-features --lib source_preparation_contract_tests
+          cargo +1.98.0 test -p leselang-hir-core --locked --lib source_preparation_contract_tests
 
       - name: Verify native source and separate consumer outside the monorepo
         run: >-
           cargo +1.98.0 run --locked -p gewyvern-dev --
           package leselang --output "$RUNNER_TEMP/leselang-native-source" --verify
 
+      - name: Verify public loop stages and frozen product compatibility
+        run: |
+          cargo +1.98.0 test -p leselang-hir --locked --no-default-features --test loop_preparation
+          cargo +1.98.0 test -p leselang-hir --locked --test migration_oracles computation::loop_preparation_contract_tests
+
+      - name: Verify public fold stages and frozen product compatibility
+        run: |
+          cargo +1.98.0 test -p leselang-hir --locked --no-default-features --test fold_preparation
+          cargo +1.98.0 test -p leselang-hir --locked --test migration_oracles computation::fold_preparation_contract_tests
+
+      - name: Verify public scalar forms and frozen product compatibility
+        run: |
+          cargo +1.98.0 test -p leselang-hir --locked --no-default-features --test scalar_form
+          cargo +1.98.0 test -p leselang-hir --locked --test migration_oracles computation::scalar_form_contract_tests
+
       - name: Test reference protocol and capture execution without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test captured_execution --test capture_scope --test structured_value --test result_domain --test host_protocol --test result_binding --test merge_plan --test continuation_admission --test reference_continuation --test reference_value --test reference_merge --test reference_completion --test reference_dispatch --test reference_recovery --test reference_dispatch_recovery --test reference_group_recovery --test reference_merge_output --test reference_group_batch --test reference_group_reservations --test reference_bound_receipt --test reference_bound_records --test reference_group_binding --test reference_checkpoint --test reference_group_successor --test reference_group_execution
+
+      - name: Compile the real product HIR across the native-only crate boundary
+        run: |
+          cargo +1.98.0 test -p leselang-hir --locked --no-default-features --test local_names
+          cargo +1.98.0 test --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml --locked --target-dir target --test product
+          cargo +1.98.0 clippy --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml --locked --target-dir target --lib --test product -- -D warnings
+          cargo +1.98.0 fmt --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml -- --check
 
       - name: Test product computation policy without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --lib --test reference_computation
@@ -335,7 +371,7 @@ jobs:
       - name: Check formatting
         run: |
           cargo fmt --all -- --check
-          rustfmt +1.98.0 --edition 2024 --check crates/leselang-hir/src/leserpent_profile.rs
+          rustfmt +1.98.0 --edition 2024 --check crates/leserpent-hir/src/leserpent_profile.rs
           rustfmt +1.98.0 --edition 2024 --check crates/leserpent-vm/src/leserpent_profile.rs
 
       - name: Run Clippy

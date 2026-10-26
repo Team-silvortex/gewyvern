@@ -1,14 +1,14 @@
 //! Closed-field observation for product captures, without execution authority.
 
-use leselang_hir::Effect;
-use leselang_hir::computation::Computation;
-use leselang_hir::host_call::HostOperation;
-use leselang_hir::projection_access::{
+use leselang_hir_core::projection_access::{
     ProjectionAccessError, ProjectionAccessLimits, ProjectionAccessPolicy,
     observe_projection_accesses,
 };
-use leselang_hir::result_field::ResultField;
 use leselang_runtime_core::{CaptureScopeError, CapturedBindings, ScopeFrame, with_captured_scope};
+use leserpent_hir::Effect;
+use leserpent_hir::computation::Computation;
+use leserpent_hir::host_call::HostOperation;
+use leserpent_hir::result_field::ResultField;
 
 use crate::{InvalidProjectedResult, ProjectedGroup, ProjectedResult};
 

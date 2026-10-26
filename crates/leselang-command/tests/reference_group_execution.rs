@@ -11,10 +11,10 @@ use leselang_command::{
     ProjectedGroup, ProjectedGroupBinding, ProjectedResult, ResultBinding, Step, StructuredField,
     Value,
 };
-use leselang_hir::{Effect, HirBranch, Type, computation::Computation, host_call::HostOperation};
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_runtime_core::{Fault, Fuel, ScalarValue};
 use leserpent_domain::{CommandId, IdempotencyKey};
+use leserpent_hir::{Effect, HirBranch, Type, computation::Computation, host_call::HostOperation};
 use std::{borrow::Cow, rc::Rc};
 
 fn fault(message: &str) -> Fault {

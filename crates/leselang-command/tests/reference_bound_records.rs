@@ -11,9 +11,9 @@ use leselang_command::{
     GroupResultBinding, MAX_MERGE_BRANCHES, MergePlan, PresentationEnvelope, PresentationOperation,
     ResultBinding, Step, StructuredField, Value,
 };
-use leselang_hir::{Effect, HirBranch, Type, computation::Computation, host_call::HostOperation};
 use leselang_host_contract::{CapabilitySet, Principal};
 use leselang_runtime_core::{Fault, OrderedOutcomeSummary, OutcomeOrder, ScalarValue};
+use leserpent_hir::{Effect, HirBranch, Type, computation::Computation, host_call::HostOperation};
 use std::{cell::RefCell, rc::Rc};
 
 fn fault(code: &str, message: &str) -> Fault {
@@ -652,7 +652,7 @@ fn frozen<Bytes: AsRef<[u8]>>(
                     .map_err(|_| invalid())?;
                 if binding.captures_successor() && binding.has_successor(plan) {
                     prefix_operations.push(
-                        leselang_hir::host_call::HostOperation::for_effect(
+                        leserpent_hir::host_call::HostOperation::for_effect(
                             &request.continuation.pending_effect,
                         )
                         .ok_or_else(invalid)?,

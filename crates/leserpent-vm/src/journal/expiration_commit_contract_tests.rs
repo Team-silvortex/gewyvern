@@ -20,7 +20,7 @@ const SOURCES: [&str; 5] = [
 fn start(vm: &mut crate::Vm, source: &str) {
     assert!(matches!(
         vm.start_timed(
-            &leselang_hir::lower(&leselang_syntax::parse(source)).unwrap(),
+            &leserpent_hir::lower(&leselang_syntax::parse(source)).unwrap(),
             crate::Principal::new("operator").unwrap(),
             crate::CapabilitySet::new(["ui.presentation"]),
             None,

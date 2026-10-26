@@ -1,11 +1,11 @@
 use super::*;
-use leselang_hir::lower;
 use leselang_host_contract::RuntimeId;
 use leselang_syntax::parse;
 use leserpent_domain::{
     CommandResult, CommandStatus, MAX_RUNTIME_LOG_QUERY_ENTRIES, QueryResult, RefreshStatus,
     RuntimeLogLevel, RuntimeLogRecord, RuntimeProjection,
 };
+use leserpent_hir::lower;
 
 struct Case {
     request: EffectRequest,
@@ -186,7 +186,7 @@ fn legacy_atomic_step_from_effect_result(
         }
         return Step::Done(value);
     }
-    if leselang_hir::host_call::HostOperation::for_effect(&image.pending_effect)
+    if leserpent_hir::host_call::HostOperation::for_effect(&image.pending_effect)
         .map(|operation| operation.result_type())
         != Some(image.result_type)
         || !result.matches_control_plane_effect(&image.pending_effect, operation)
@@ -270,7 +270,7 @@ fn composed_reply_conversion_matches_frozen_native_wire_and_refusal_order() {
             PresentationResult::WaitText {
                 node_id: "a".into(),
                 expected: "ready".into(),
-                timeout_ms: leselang_hir::UI_WAIT_TEXT_TIMEOUT_MS,
+                timeout_ms: leserpent_hir::UI_WAIT_TEXT_TIMEOUT_MS,
             },
         ),
         (
@@ -278,7 +278,7 @@ fn composed_reply_conversion_matches_frozen_native_wire_and_refusal_order() {
             PresentationResult::NavigateFocus {
                 node_id: "a".into(),
                 focused_node_id: "b".into(),
-                direction: leselang_hir::UiFocusNavigationDirection::Next,
+                direction: leserpent_hir::UiFocusNavigationDirection::Next,
             },
         ),
     ] {

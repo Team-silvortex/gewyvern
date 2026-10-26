@@ -3,8 +3,8 @@ use leselang_command::{
     ProjectedResult, ResultBinding, StructuredField, Value, validate_group_capture_correspondence,
     validate_result_binding_extension,
 };
-use leselang_hir::{Effect, HirBranch, computation::Computation, host_call::HostOperation};
 use leselang_runtime_core::{CaptureCorrespondenceLimits, GroupCaptureLimits, ScalarValue};
+use leserpent_hir::{Effect, HirBranch, computation::Computation, host_call::HostOperation};
 
 fn raw(node: &str) -> Value {
     Value::UiFocus {
@@ -365,7 +365,7 @@ fn comparisons_do_not_replace_frame_admission_raw_identity_or_original_arguments
     original[0].effect = Effect::UiFocus {
         node_id: "different-request-argument".into(),
     };
-    original[0].result_type = leselang_hir::Type::Scalar(leselang_runtime_core::ScalarType::None);
+    original[0].result_type = leserpent_hir::Type::Scalar(leselang_runtime_core::ScalarType::None);
     assert_eq!(
         validate_group_capture_correspondence(
             &saved,
@@ -389,7 +389,7 @@ fn comparisons_do_not_replace_frame_admission_raw_identity_or_original_arguments
                     max_name_bytes: 64
                 },
                 groups: group_limits(),
-                accesses: leselang_hir::projection_access::ProjectionAccessLimits {
+                accesses: leselang_hir_core::projection_access::ProjectionAccessLimits {
                     max_nodes: 100,
                     max_depth: 16
                 },

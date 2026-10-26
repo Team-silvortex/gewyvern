@@ -1,11 +1,11 @@
 use leselang_command::{LoweringContext, PlannedOperation, lower_effect};
-use leselang_hir::lower;
 use leselang_syntax::parse;
 use leserpent_cli::{CliCommand, export_leselang, parse_args, request_for};
 use leserpent_domain::{
     CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet,
     Command, CommandId, CommandOrigin, Confirmation, IdempotencyKey, Principal,
 };
+use leserpent_hir::lower;
 use leserpent_protocol::ProtocolRequest;
 
 #[test]

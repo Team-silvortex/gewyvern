@@ -222,7 +222,8 @@ fn cancellation_entries_sqlite_match_frozen_failures_peer_races_and_restart() {
         r#"bind(r: all(a: ui.focus(node_id: "a"), b: ui.focus(node_id: "b")), body: bind(s: ui.focus(node_id: "c"), body: 7))"#,
     ] {
         let program =
-            leselang_hir::lower(&leselang_syntax::parse(&format!("fn main() = {source}"))).unwrap();
+            leserpent_hir::lower(&leselang_syntax::parse(&format!("fn main() = {source}")))
+                .unwrap();
         for audited in [false, true] {
             for defect in 0..6 {
                 let scratch = Scratch(std::env::temp_dir().join(format!(

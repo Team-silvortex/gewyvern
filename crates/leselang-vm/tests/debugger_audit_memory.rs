@@ -1,3 +1,6 @@
+// Exercise the released HIR path with the same product-owned audit oracle.
+extern crate leselang_hir as leserpent_hir;
+
 #[path = "../../leserpent-vm/src/debugger_audit_contract_tests.rs"]
 mod contract;
 

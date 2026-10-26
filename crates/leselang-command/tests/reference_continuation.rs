@@ -5,9 +5,9 @@ use leselang_command::{
     ContinuationImage, ContinuationToken, MAX_CONTINUATION_BYTES, ResultBinding,
     decode_continuation, encode_continuation,
 };
-use leselang_hir::computation::{Computation, ScalarValue};
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::Revision;
+use leserpent_hir::computation::{Computation, ScalarValue};
+use leserpent_hir::{Effect, Type};
 
 fn image() -> ContinuationImage {
     ContinuationImage {

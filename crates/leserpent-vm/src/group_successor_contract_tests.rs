@@ -1,7 +1,7 @@
 use super::*;
 use crate::{EffectOperation, MAX_EFFECT_SEQUENCE, ScalarValue, Vm};
 use leselang_command::{ProjectedBinding, ProjectedGroup, ProjectedGroupBinding, ProjectedResult};
-use leselang_hir::computation::Computation;
+use leserpent_hir::computation::Computation;
 
 fn frozen_build(
     group: &GroupResultBinding,

@@ -84,7 +84,7 @@ pub(super) fn frozen_validate_image(image: &ContinuationImage) -> Result<(), Fau
             message: "continuation program counter is unsupported".to_string(),
         });
     }
-    let expected_type = leselang_hir::host_call::HostOperation::for_effect(&image.pending_effect)
+    let expected_type = leserpent_hir::host_call::HostOperation::for_effect(&image.pending_effect)
         .map(|operation| operation.result_type())
         .ok_or_else(|| Fault {
             code: "LSV2015".to_string(),
@@ -131,7 +131,7 @@ pub(super) fn frozen_validate_image(image: &ContinuationImage) -> Result<(), Fau
 }
 
 pub(super) fn bindings() -> Vec<Option<ResultBinding>> {
-    use leselang_hir::{computation::Computation, host_call::HostOperation};
+    use leserpent_hir::{computation::Computation, host_call::HostOperation};
     let pure = Computation::Literal {
         value: ScalarValue::None,
     };
@@ -259,12 +259,12 @@ fn continuation_schema_preserves_frozen_selection_and_frame_refusal_order() {
 
 #[test]
 fn continuation_structure_precedes_schema_even_for_oversized_body() {
-    use leselang_hir::computation::Computation;
+    use leserpent_hir::computation::Computation;
     let mut image = crate::continuation_contract_tests::requests()
         .remove(9)
         .continuation;
     let mut binding = bindings().remove(1).unwrap();
-    for _ in 0..=leselang_hir::MAX_EFFECT_NESTING_DEPTH {
+    for _ in 0..=leserpent_hir::MAX_EFFECT_NESTING_DEPTH {
         binding.body = Computation::Bind {
             name: "nested".into(),
             value: Box::new(Computation::Literal {

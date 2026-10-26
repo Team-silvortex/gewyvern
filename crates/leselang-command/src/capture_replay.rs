@@ -1,11 +1,11 @@
 //! Product capture comparisons, without evaluation or durable replay authority.
 
-use leselang_hir::{Effect, HirBranch, host_call::HostOperation};
 use leselang_runtime_core::{
     CaptureCorrespondenceError, CaptureCorrespondenceLimits, CaptureCorrespondenceSite,
     CaptureExtensionBindings, CaptureExtensionDomain, CaptureExtensionError, CurrentCapture,
     GroupCaptureLimits, validate_capture_correspondence, validate_capture_extension,
 };
+use leserpent_hir::{Effect, HirBranch, host_call::HostOperation};
 
 use crate::{
     InvalidProjectedResult, ProjectedBinding, ProjectedGroupBinding, ProjectedGroupExt,

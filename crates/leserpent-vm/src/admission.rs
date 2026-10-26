@@ -1,8 +1,8 @@
 use leselang_command::reference_admission::{
     ReferenceAdmissionHost, RootAdmission as ReferenceRootAdmission,
 };
-use leselang_hir::HirProgram;
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
+use leserpent_hir::HirProgram;
 
 use crate::{Fault, Step, Vm};
 
@@ -26,7 +26,7 @@ pub use leselang_command::reference_admission::AdmissionPoll;
 ///
 /// ```compile_fail
 /// #![deny(unused_must_use)]
-/// use leselang_hir::lower;
+/// use leserpent_hir::lower;
 /// use leselang_host_contract::{CapabilitySet, Principal};
 /// use leselang_syntax::parse;
 /// use leserpent_vm::{AdmissionPolicy, RootAdmission};
@@ -51,7 +51,7 @@ impl RootAdmission {
     /// Captures immutable input and authority without entering a VM or reserving identity.
     ///
     /// ```
-    /// use leselang_hir::lower;
+    /// use leserpent_hir::lower;
     /// use leselang_host_contract::{CapabilitySet, Principal, Revision};
     /// use leselang_syntax::parse;
     /// use leserpent_vm::{AdmissionPolicy, AdmissionPoll, RootAdmission, Step, Vm};

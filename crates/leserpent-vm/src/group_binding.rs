@@ -1,9 +1,9 @@
 pub use leselang_command::GroupResultBinding;
-#[cfg(test)]
-use leselang_hir::Type;
-use leselang_hir::host_call::HostOperation;
-use leselang_hir::{Effect, HirBranch};
 use leselang_runtime_core::Fuel;
+#[cfg(test)]
+use leserpent_hir::Type;
+use leserpent_hir::host_call::HostOperation;
+use leserpent_hir::{Effect, HirBranch};
 
 #[cfg(test)]
 #[path = "group_protocol_tests.rs"]
@@ -339,7 +339,7 @@ mod correspondence_tests {
         std::fs::create_dir(&directory).unwrap();
         let root = TempRoot(directory);
         let path = root.0.join("capture.sqlite3");
-        let program = leselang_hir::lower(&leselang_syntax::parse(
+        let program = leserpent_hir::lower(&leselang_syntax::parse(
             r#"fn main() = bind(g: seq(a: ui.focus(node_id: "a"), b: ui.focus(node_id: "b")),
                 body: bind(alias: g, body: bind(state: member(value: alias, name: "a"),
                     body: bind(r: ui.focus(node_id: "a"), body:

@@ -4,9 +4,9 @@ use leselang_command::{
     ContinuationImage, ContinuationToken, DispatchClaim, EffectRequest, SchedulerLimits,
     SchedulerPressure,
 };
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::{CapabilitySet, Principal};
 use leselang_runtime_core::Fault;
+use leserpent_hir::{Effect, Type};
 use std::{cell::RefCell, rc::Rc};
 
 fn request(n: u64) -> EffectRequest {

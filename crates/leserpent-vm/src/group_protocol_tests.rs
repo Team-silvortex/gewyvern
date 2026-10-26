@@ -1,5 +1,5 @@
 use super::*;
-use leselang_hir::computation::Computation;
+use leserpent_hir::computation::Computation;
 use serde::{Deserialize, Serialize};
 
 // Frozen released group data and protocol rules, independent of adapter implementation.

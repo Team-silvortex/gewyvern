@@ -2,10 +2,10 @@ use super::*;
 
 fn request(sequence: u64) -> EffectRequest {
     crate::Vm::build_effect_request(
-        &leselang_hir::Effect::UiFocus {
+        &leserpent_hir::Effect::UiFocus {
             node_id: "node".into(),
         },
-        leselang_hir::Type::UiFocus,
+        leserpent_hir::Type::UiFocus,
         sequence,
         crate::Principal::new("operator").unwrap(),
         crate::CapabilitySet::new(["ui.presentation"]),
@@ -111,7 +111,7 @@ fn memory_fixture(
             limits.max_pending_dispatches = 2;
         }
         10 => {
-            requests[1].continuation.pending_effect = leselang_hir::Effect::UiFocus {
+            requests[1].continuation.pending_effect = leserpent_hir::Effect::UiFocus {
                 node_id: "x".repeat(MAX_CONTINUATION_BYTES),
             }
         }
@@ -308,7 +308,7 @@ mod durable {
             22=>j.connection.execute_batch("DROP TABLE vm_dispatches;").unwrap(),
             23=>j.connection.execute_batch("ALTER TABLE vm_merge_groups RENAME TO saved_groups;CREATE VIEW vm_merge_groups AS SELECT x'00' AS plan,NULL AS terminal_step;").unwrap(),
             24=>p.branches[1]="x".repeat(MAX_CONTINUATION_BYTES),
-            25=>requests[1].continuation.pending_effect=leselang_hir::Effect::UiFocus { node_id:"x".repeat(MAX_CONTINUATION_BYTES) },
+            25=>requests[1].continuation.pending_effect=leserpent_hir::Effect::UiFocus { node_id:"x".repeat(MAX_CONTINUATION_BYTES) },
             26=>{j.connection.execute("UPDATE vm_merge_groups SET state='completed',terminal_step=?1",[serde_json::to_vec(&done()).unwrap()]).unwrap();},
             27=>t=ContinuationToken::from_wire("merge-500".into()),
             28=>t=ContinuationToken::from_wire("continuation-600".into()),
@@ -434,7 +434,7 @@ mod durable {
                 let source = format!(
                     "fn main() = {mode}(left: ui.focus(node_id: \"a\"), right: ui.focus(node_id: \"b\"))"
                 );
-                let program = leselang_hir::lower(&leselang_syntax::parse(&source)).unwrap();
+                let program = leserpent_hir::lower(&leselang_syntax::parse(&source)).unwrap();
                 let result = vm.start(
                     &program,
                     crate::Principal::new("operator").unwrap(),
@@ -487,12 +487,12 @@ mod durable {
             for kind in 0..6 {
                 let mut vm = crate::Vm::new(500);
                 vm.next_effect_id = 500;
-                let branches = ["left", "right"].map(|name| leselang_hir::HirBranch {
+                let branches = ["left", "right"].map(|name| leserpent_hir::HirBranch {
                     name: name.into(),
-                    effect: leselang_hir::Effect::UiFocus {
+                    effect: leserpent_hir::Effect::UiFocus {
                         node_id: name.into(),
                     },
-                    result_type: leselang_hir::Type::UiFocus,
+                    result_type: leserpent_hir::Type::UiFocus,
                 });
                 let started = vm.start_group(
                     &branches,

@@ -9,13 +9,13 @@ use crate::continuation_identity::{
     MAX_EFFECT_SEQUENCE, canonical_continuation_sequence, valid_continuation_token,
 };
 use crate::{ContinuationToken, EffectOperation, ResultBinding};
-use leselang_hir::projection_access::ProjectionAccessLimits;
-use leselang_hir::{Effect, MAX_BRANCH_NAME_BYTES, MAX_EFFECT_NESTING_DEPTH, Type};
+use leselang_hir_core::projection_access::ProjectionAccessLimits;
 use leselang_host_contract::Revision;
 use leselang_runtime_core::{
     CaptureValidationLimits, Fault, GroupCaptureLimits, ResourceBudget, ResourceBudgetError,
     ResourceBudgetLimits,
 };
+use leserpent_hir::{Effect, MAX_BRANCH_NAME_BYTES, MAX_EFFECT_NESTING_DEPTH, Type};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -85,7 +85,7 @@ pub fn result_binding_limits() -> crate::ResultBindingLimits {
             max_members: crate::MAX_MERGE_BRANCHES - 1,
         },
         accesses: ProjectionAccessLimits {
-            max_nodes: leselang_hir::computation::MAX_COMPUTATION_NODES,
+            max_nodes: leserpent_hir::computation::MAX_COMPUTATION_NODES,
             max_depth: MAX_EFFECT_NESTING_DEPTH,
         },
     }

@@ -1,0 +1,177 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-public-scalar-form-boundary",
+  "validated_at": "2026-10-26",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.5.0",
+  "hir_contract": "0.191.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.173.0",
+  "verification_status": "passed",
+  "product_private_helpers_replaced": 2,
+  "private_operand_type_removed_from_product_compiler": true,
+  "product_computation_scalar_private_dependencies_remaining": 0,
+  "native_tests": 12,
+  "native_operator_cases": 870,
+  "frozen_product_cases": 3840,
+  "baseline_sha256": {
+    "computation": "db6e7a4ccc64dbaa1f05b7af3e327e3ffc1a1d25854f01b27e4c468a553cfbac",
+    "scalar_root_block": "941c5ba93a1f482d912e9b218287767b4f6d4680838e043a45558525ac5de891"
+  },
+  "frozen_scalar_root_block_exact": true,
+  "oracle_scope": "The pre-stage product scalar root/counter block is copied unchanged into a boundary-only test function. Shared scalar kernels and descendant lowering remain unchanged; 64 forms x 5 native prefixes x 4 source counters x 3 depths compare exact IR/type, diagnostics, counters and surviving scope. This is not a second compiler. Separate native tests also cover all 23 binary x 6 x 6 and 7 unary x 6 scalar signatures.",
+  "plan_scope": "Private original-source classification selects only literals and recognized scalar calls. The consuming lowerer uses the original language constructor, derives purity from bounded returned IR and preserves semantic child ordering, sequential list-label checks and owned literal buffers. Binary/recovery cold operands still compile before joint type admission; compiler callback faults are not runtime recovery. Native callbacks retain full cold-source/output bounds, opaque type/domain, lexical scope and current-policy responsibilities. Only public scalar diagnostic types remain imported by product computation; other private modules are not declared fully audited.",
+  "plan_is_source_or_authority_receipt": false,
+  "physical_hir_relocation_complete": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "file_count": 300,
+    "bytes": 7082157,
+    "manifest_sha256": "e28dab238a824effcdc07e955bca5f114feca1c82c78183e05f64d4786b47b9e",
+    "consumer_test_byte_identity": true,
+    "all_copied_sources_byte_identical": true,
+    "verification_target_removed": true,
+    "tests_passed": 2733,
+    "complete_vm": false,
+    "full_extraction_gate": false
+  },
+  "remaining_boundaries": [
+    "private pure_typing::valid_local_name used by product computation::valid_local, plus a compiler-backed cross-crate reference audit",
+    "acyclic compatibility-facade package layout and physical HIR specialization relocation",
+    "complete independent language and durable recovery acceptance"
+  ],
+  "verification_scope": "Local native/default-profile Rust tests, frozen product boundary comparisons, HIR/command/VM regressions, strict Clippy, source-export workspace and separate consumer tests/lints, architecture/status/profile/GUI-function-chain/reliability gates. No Linux host, live GUI, remote CI, benchmark or repository publication claim.",
+  "source_hashes": [
+    {
+      "path": "Cargo.toml",
+      "sha256": "27e9a6e7d5c839b6099dc37c9f1ef55bea0c0ec8bf54293738713035d7a84313"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "21fe76fab4786239aca297ef989a98eb6c4e8cad898f7a2a2046da415c241b1f"
+    },
+    {
+      "path": "crates/leselang-hir/Cargo.toml",
+      "sha256": "7cc04569d0e06153a123db695c3422103c0bffe112897beb4056e675787a501b"
+    },
+    {
+      "path": "crates/leselang-hir/src/lib.rs",
+      "sha256": "4f1768a2caff33f3e4dbaaa81d27756ca03e0d83cce8310b08eda20c99d0b898"
+    },
+    {
+      "path": "crates/leselang-hir/src/scalar_form.rs",
+      "sha256": "f8d65e4ad42676f5276205c195a0836fc41893d4b33cea551d4663147a8e7ac3"
+    },
+    {
+      "path": "crates/leselang-hir/src/scalar_source.rs",
+      "sha256": "49c4e9f207618c9f3c587c3e01f23ebe4eb1d55ce4ec2e3d78616353a193075c"
+    },
+    {
+      "path": "crates/leselang-hir/src/ir.rs",
+      "sha256": "0ed1a9a843a219053cd08c49c21c9a5cc1d5d443942f2c69e22fc4917c6d0275"
+    },
+    {
+      "path": "crates/leselang-hir/src/computation.rs",
+      "sha256": "f61cd627932189ebbb160d65beafdf7e517673c5490f39189bb939d97cd574a0"
+    },
+    {
+      "path": "crates/leselang-hir/src/pure_typing.rs",
+      "sha256": "6129f2fae31a9f981545bbb890708fed29c7e11c4f102e14d14c6100c6195841"
+    },
+    {
+      "path": "crates/leselang-hir/src/scalar_form_contract_tests.rs",
+      "sha256": "c286f8b31633491e7286e36a507821420a53c96da40e5258adc9c0142908d452"
+    },
+    {
+      "path": "crates/leselang-hir/tests/scalar_form.rs",
+      "sha256": "eb65e85a49a239d9748c4224f3ec2101c122dd502e27fbefcdb8cc198c72c4e7"
+    },
+    {
+      "path": "crates/gewyvern-dev/src/leselang.rs",
+      "sha256": "60de801d39db1af5de96cb2a733c1714cbfbf64cd0630fe6d4d63f90c87deadc"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "814e56025579532926a4c874f39a1b77c68d228d84cc08d89bac94f61805e3d6"
+    },
+    {
+      "path": "tests/language_independence_tdd.rs",
+      "sha256": "af040ff63fe37a2dcbe7e5da574087ab90a61425a1e4ed820df5a3507d42b8de"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "189dd00ddf3f02ba9510784a77e015c39dfbcb5e8cf750950002043361a6a03c"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "115d50e5954eb516c96d705c0762689fb1768b4f08f26dda70b1414fb753498a"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "9ffdeecb9f480da1c2c0590fa297ffc8e2b9eab4fabb656cf2bd241fb332d0ac"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "40e9be21016dea6a8196dd48bbf7ecb56be1f04ee65fc7fc22e2596927bba465"
+    }
+  ],
+  "logs": [
+    {
+      "path": "/private/tmp/leselang-scalar-form-architecture-20261026.log",
+      "sha256": "08ac2c80894dabdbad670ac8d1d0eee62856ff33612d17965b6d8bcc6ea35db0",
+      "passed": 108
+    },
+    {
+      "path": "/private/tmp/leselang-scalar-form-clippy-20261026.log",
+      "sha256": "4e8e57b88b98b164da8250461a612972c1ab2c30c916b33c2c05f8428305d4d0",
+      "passed": 0
+    },
+    {
+      "path": "/private/tmp/leselang-scalar-form-export-20261026.log",
+      "sha256": "1ba92d7c3c2c0e0aeabe28d05229099830be45c76bea9a3e32e552c9afbab735",
+      "passed": 2733
+    },
+    {
+      "path": "/private/tmp/leselang-scalar-form-export-plan-20261026.log",
+      "sha256": "3bb0b7fffbb5aa7dbf97eefedb5b686307988102dc06f0132b6c3878073661b6",
+      "passed": 23
+    },
+    {
+      "path": "/private/tmp/leselang-scalar-form-native-20261026.log",
+      "sha256": "d8f813bb3f9936724d7a54e4c29a7c988eae784ca47ad7e1139aabc896eadcc1",
+      "passed": 12
+    },
+    {
+      "path": "/private/tmp/leselang-scalar-form-native-clippy-20261026.log",
+      "sha256": "cd4b516714e542cbbe4e9470b67621367de59170c5810f72f0de3438d11757f6",
+      "passed": 0
+    },
+    {
+      "path": "/private/tmp/leselang-scalar-form-parity-20261026.log",
+      "sha256": "8f51a67f735c04186ad358b5b2af0bf74606e5f630fcc4d217aa29dc7d3422be",
+      "passed": 1
+    },
+    {
+      "path": "/private/tmp/leselang-scalar-form-root-clippy-20261026.log",
+      "sha256": "7450897815244b3265945cb04d6a2d3f78b5ee8798f3a07d64a5cb04202cde57",
+      "passed": 0
+    },
+    {
+      "path": "/private/tmp/leselang-scalar-form-suite-20261026.log",
+      "sha256": "420b8de2887079d258ec2695c3a19ab9fe47c79f3e53280fdd3978f9983e9bd3",
+      "passed": 3347
+    },
+    {
+      "path": "/private/tmp/leselang-scalar-form-final-gates-20261026.log",
+      "sha256": "048feac60a279b35132885f563ae234cdabf30b12e34674d6d6085c045fc422b",
+      "passed": 574
+    }
+  ]
+}

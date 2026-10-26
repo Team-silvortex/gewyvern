@@ -44,7 +44,7 @@ pub fn validate_bound_group_receipt(
                                     || (binding.is_conditional()
                                         && saved.body.can_return_without_suspending())
                             }) && validate_group_binding(binding, plan)?
-                                == leselang_hir::Type::Scalar(value.scalar_type()) =>
+                                == leserpent_hir::Type::Scalar(value.scalar_type()) =>
                         {
                             Ok(())
                         }
@@ -81,7 +81,7 @@ pub fn validate_bound_group_receipt(
                         || (binding.is_conditional()
                             && binding.binding.body.can_return_without_suspending()))
                         && validate_group_binding(binding, plan)?
-                            == leselang_hir::Type::Scalar(value.scalar_type()) => {}
+                            == leserpent_hir::Type::Scalar(value.scalar_type()) => {}
                 Step::Fault(fault)
                     if matches!(
                         fault.code.as_str(),

@@ -6,8 +6,8 @@ use leselang_command::{
     ProjectedBinding, ProjectedGroup, ProjectedGroupExt, ProjectedResult, ResultView,
     ResultViewError as ViewError, StructuredField, Value,
 };
-use leselang_hir::{Effect, HirBranch, host_call::HostOperation, result_field::ResultField};
 use leselang_runtime_core::{GroupCaptureLimits, ScalarValue};
+use leserpent_hir::{Effect, HirBranch, host_call::HostOperation, result_field::ResultField};
 
 fn limits() -> GroupCaptureLimits {
     GroupCaptureLimits {
@@ -242,7 +242,7 @@ fn raw_capture_policy_keeps_projection_before_names_and_propagates_native_unwind
 fn diagnostics_are_payload_free_and_legacy_fields_are_never_filled_from_raw_catalogs() {
     let raw = Value::UiSetSelection {
         node_id: "private-node".into(),
-        state: leselang_hir::UiSelectionState::Selected,
+        state: leserpent_hir::UiSelectionState::Selected,
     };
     let projected =
         ProjectedResult::capture_version(HostOperation::UiSetSelection, &raw, 1).unwrap();

@@ -3,7 +3,9 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use leselang_command::{LoweringContext, LoweringError, lower_effect};
-use leselang_hir::{
+use leselang_host_contract::{Revision, RuntimeId, validate_deployment_intent};
+use leserpent_domain::{CommandPlan, QueryResult, RefreshStatus};
+use leserpent_hir::{
     Effect, HirBranch, MAX_UI_CHILD_COUNT, Type, UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS,
     UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS, UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS,
     UI_WAIT_ACTION_KIND_TIMEOUT_MS, UI_WAIT_ACTION_LABEL_TIMEOUT_MS,
@@ -20,8 +22,6 @@ use leselang_hir::{
     UiSemanticNodeKind as HirUiSemanticNodeKind, canonical_source, validate_ui_expected_text,
     validate_ui_form_field_key, validate_ui_form_value, validate_ui_node_id,
 };
-use leselang_host_contract::{Revision, RuntimeId, validate_deployment_intent};
-use leserpent_domain::{CommandPlan, QueryResult, RefreshStatus};
 use serde::{Deserialize, Serialize};
 
 pub const UI_SCHEMA_VERSION: u32 = 1;
@@ -5918,7 +5918,7 @@ mod tests {
                 &document,
                 &UiPresentationOperation::AssertText {
                     node_id: NodeId::new("fleet-title").unwrap(),
-                    expected: "x".repeat(leselang_hir::MAX_UI_EXPECTED_TEXT_BYTES + 1),
+                    expected: "x".repeat(leserpent_hir::MAX_UI_EXPECTED_TEXT_BYTES + 1),
                 },
             ),
             Err(UiError::InvalidPresentationText)
@@ -6040,7 +6040,7 @@ mod tests {
                 &document,
                 &UiPresentationOperation::WaitAccessibleName {
                     node_id: NodeId::new("fleet-title").unwrap(),
-                    expected: "x".repeat(leselang_hir::MAX_UI_EXPECTED_TEXT_BYTES + 1),
+                    expected: "x".repeat(leserpent_hir::MAX_UI_EXPECTED_TEXT_BYTES + 1),
                     timeout_ms: UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
                 },
             ),
@@ -6103,7 +6103,7 @@ mod tests {
                 &document,
                 &UiPresentationOperation::WaitText {
                     node_id: NodeId::new("fleet-title").unwrap(),
-                    expected: "x".repeat(leselang_hir::MAX_UI_EXPECTED_TEXT_BYTES + 1),
+                    expected: "x".repeat(leserpent_hir::MAX_UI_EXPECTED_TEXT_BYTES + 1),
                     timeout_ms: UI_WAIT_TEXT_TIMEOUT_MS,
                 },
             ),
@@ -6657,7 +6657,7 @@ mod tests {
                 &document,
                 &UiPresentationOperation::AssertActionUnavailableReason {
                     node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
-                    expected: Some("x".repeat(leselang_hir::MAX_UI_EXPECTED_TEXT_BYTES + 1)),
+                    expected: Some("x".repeat(leserpent_hir::MAX_UI_EXPECTED_TEXT_BYTES + 1)),
                 },
             ),
             Err(UiError::InvalidPresentationText)
@@ -7750,7 +7750,7 @@ mod tests {
                 &UiPresentationOperation::AssertFormFieldPlaceholder {
                     node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
                     field: "pipeline_kind".into(),
-                    expected: Some("x".repeat(leselang_hir::MAX_UI_EXPECTED_TEXT_BYTES + 1)),
+                    expected: Some("x".repeat(leserpent_hir::MAX_UI_EXPECTED_TEXT_BYTES + 1)),
                 },
             ),
             Err(UiError::InvalidPresentationText)
@@ -7868,7 +7868,7 @@ mod tests {
                 &UiPresentationOperation::WaitFormFieldPlaceholder {
                     node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
                     field: "pipeline_kind".into(),
-                    expected: Some("x".repeat(leselang_hir::MAX_UI_EXPECTED_TEXT_BYTES + 1)),
+                    expected: Some("x".repeat(leserpent_hir::MAX_UI_EXPECTED_TEXT_BYTES + 1)),
                     timeout_ms: UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
                 },
             ),

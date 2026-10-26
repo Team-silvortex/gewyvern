@@ -1,8 +1,8 @@
 //! Borrowed correspondence for released Leserpent control-plane requests.
 
-use leselang_hir::Effect;
 use leselang_host_contract::{CommandOrigin, Confirmation, Revision};
 use leserpent_domain::{Command, CommandEnvelope, MAX_RUNTIME_LOG_QUERY_ENTRIES, Query};
+use leserpent_hir::Effect;
 
 /// Match the original query payload, including the language's fixed log policy.
 ///

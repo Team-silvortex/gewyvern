@@ -14,6 +14,465 @@ fn repository_root() -> PathBuf {
 }
 
 #[test]
+fn direct_hir_consumer_adoption_preserves_contract_and_extraction_gates() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let hir = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-hir/typed-effects")
+        .unwrap();
+    assert_eq!(hir.contract.version, "0.194.0");
+    for surface in [
+        "direct-product-hir-consumers",
+        "explicit-native-mechanics-dependencies",
+        "product-closure-without-language-facades",
+    ] {
+        assert!(hir.contract.surfaces.iter().any(|s| s == surface));
+    }
+    let path = "docs/fixtures/leserpent_hir_consumers_macos_arm64_20261026.json";
+    assert!(
+        hir.evidence
+            .iter()
+            .any(|e| e.path == path && e.state == EvidenceState::Present)
+    );
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["hir_contract"], "0.194.0");
+    assert_eq!(proof["consumer_packages"].as_array().unwrap().len(), 7);
+    assert_eq!(
+        proof["production_direct_consumers"]
+            .as_array()
+            .unwrap()
+            .len(),
+        5
+    );
+    assert_eq!(
+        proof["test_only_direct_consumers"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    for flag in [
+        "product_closures_exclude_language_facades",
+        "explicit_core_mechanics_imports",
+        "released_facade_compatibility_preserved",
+        "previous_native_export_sources_unchanged",
+    ] {
+        assert_eq!(proof[flag], true, "{flag}");
+    }
+    for flag in [
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+        "wire_format_changed",
+        "journal_schema_changed",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.completion, 10);
+}
+
+#[test]
+fn product_hir_ownership_closes_only_the_physical_hir_boundary() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let hir = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-hir/typed-effects")
+        .unwrap();
+    assert_eq!(hir.contract.version, "0.194.0");
+    for surface in [
+        "physical-product-hir-adapter-owner",
+        "one-way-hir-core-profile-facade",
+        "real-isolated-product-hir-consumer",
+    ] {
+        assert!(hir.contract.surfaces.iter().any(|s| s == surface));
+    }
+    let path = "docs/fixtures/leserpent_hir_ownership_macos_arm64_20261026.json";
+    for source in [
+        path,
+        "crates/leserpent-hir/Cargo.toml",
+        "crates/leserpent-hir/src/lib.rs",
+        "crates/leselang-hir/tests/product_identity.rs",
+    ] {
+        assert!(
+            hir.evidence
+                .iter()
+                .any(|e| e.path == source && e.state == EvidenceState::Present)
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["hir_contract"], "0.194.0");
+    assert_eq!(proof["product_implementation_files_moved"], 14);
+    assert_eq!(proof["raw_source_identity_count"], 14);
+    assert_eq!(proof["compatibility_identity_tests"], 4);
+    assert_eq!(proof["migration_oracle_tests"], 121);
+    assert_eq!(proof["isolated_consumer_tests"], 4);
+    for flag in [
+        "native_hir_owner_complete",
+        "product_hir_owner_complete",
+        "physical_production_hir_relocation_complete",
+        "isolated_consumer_uses_actual_product_crate",
+    ] {
+        assert_eq!(proof[flag], true, "{flag}");
+    }
+    for flag in [
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+        "wire_format_changed",
+        "journal_schema_changed",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+    assert_eq!(proof["native_export"]["crate_count"], 5);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["product_free"], true);
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.completion, 10);
+}
+
+#[test]
+fn native_hir_ownership_records_real_movement_without_promoting_full_extraction() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let hir = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-hir/typed-effects")
+        .unwrap();
+    assert_eq!(hir.contract.version, "0.194.0");
+    for surface in [
+        "physical-native-hir-core-owner",
+        "exact-type-compatibility-hir-facade",
+        "private-migration-oracles-without-core-test-api",
+    ] {
+        assert!(hir.contract.surfaces.iter().any(|s| s == surface));
+    }
+    let path = "docs/fixtures/leselang_hir_core_ownership_macos_arm64_20261026.json";
+    for source in [
+        path,
+        "crates/leselang-hir-core/Cargo.toml",
+        "crates/leselang-hir-core/src/lib.rs",
+        "crates/leselang-hir/tests/core_identity.rs",
+        "crates/leselang-hir/tests/migration_oracles.rs",
+    ] {
+        assert!(
+            hir.evidence
+                .iter()
+                .any(|e| e.path == source && e.state == EvidenceState::Present)
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["hir_contract"], "0.193.0");
+    assert_eq!(proof["native_implementation_files_moved"], 69);
+    assert_eq!(proof["normalized_source_identity_count"], 69);
+    assert_eq!(proof["native_hir_owner_complete"], true);
+    assert_eq!(proof["compatibility_identity_tests"], 4);
+    assert_eq!(proof["migration_oracle_tests"], 121);
+    assert_eq!(proof["native_export"]["crate_count"], 5);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["consumer_test_byte_identity"], true);
+    for flag in [
+        "physical_product_hir_relocation_complete",
+        "public_test_api_added",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+        "wire_format_changed",
+        "journal_schema_changed",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.completion, 10);
+}
+
+#[test]
+fn foreign_product_hir_compilation_is_evidence_not_physical_extraction() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let hir = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-hir/typed-effects")
+        .unwrap();
+    assert_eq!(hir.contract.version, "0.194.0");
+    for surface in [
+        "public-base-local-name-rule",
+        "compiler-checked-foreign-product-hir-boundary",
+    ] {
+        assert!(hir.contract.surfaces.iter().any(|s| s == surface));
+    }
+    let path = "docs/fixtures/leselang_product_hir_boundary_macos_arm64_20261026.json";
+    for source in [
+        path,
+        "crates/leselang-hir/tests/local_names.rs",
+        "tests/fixtures/leselang-product-hir-boundary/tests/product.rs",
+    ] {
+        assert!(
+            hir.evidence
+                .iter()
+                .any(|e| e.path == source && e.state == EvidenceState::Present)
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["hir_contract"], "0.192.0");
+    assert_eq!(proof["native_tests"], 4);
+    assert_eq!(proof["foreign_product_tests"], 4);
+    assert_eq!(proof["canonical_wire_cases"], 9);
+    assert_eq!(proof["production_modules_compiled"], 9);
+    assert_eq!(proof["baseline_private_error"], "E0603: valid_local_name");
+    assert_eq!(proof["native_only_feature_graph"], true);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["consumer_test_byte_identity"], true);
+    for flag in [
+        "product_source_copied",
+        "physical_hir_relocation_complete",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+        "wire_format_changed",
+        "journal_schema_changed",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.completion, 10);
+}
+
+#[test]
+fn public_scalar_form_tracks_the_closed_product_boundary_without_promoting_extraction() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let hir = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-hir/typed-effects")
+        .unwrap();
+    assert_eq!(hir.contract.version, "0.194.0");
+    for surface in [
+        "public-original-source-scalar-form-binding",
+        "native-ir-derived-scalar-purity-and-cold-order",
+        "product-computation-without-private-scalar-kernel-access",
+    ] {
+        assert!(hir.contract.surfaces.iter().any(|s| s == surface));
+    }
+    let path = "docs/fixtures/leselang_scalar_form_boundary_macos_arm64_20261026.json";
+    for source in [
+        path,
+        "crates/leselang-hir/tests/scalar_form.rs",
+        "crates/leserpent-hir/src/scalar_form_contract_tests.rs",
+    ] {
+        assert!(
+            hir.evidence
+                .iter()
+                .any(|e| e.path == source && e.state == EvidenceState::Present)
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["hir_contract"], "0.191.0");
+    assert_eq!(proof["product_private_helpers_replaced"], 2);
+    assert_eq!(
+        proof["private_operand_type_removed_from_product_compiler"],
+        true
+    );
+    assert_eq!(
+        proof["product_computation_scalar_private_dependencies_remaining"],
+        0
+    );
+    assert_eq!(proof["native_tests"], 12);
+    assert_eq!(proof["native_operator_cases"], 870);
+    assert_eq!(proof["frozen_product_cases"], 3840);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["consumer_test_byte_identity"], true);
+    for flag in [
+        "physical_hir_relocation_complete",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+        "wire_format_changed",
+        "journal_schema_changed",
+        "plan_is_source_or_authority_receipt",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.completion, 10);
+}
+
+#[test]
+fn public_fold_stages_record_native_order_without_promoting_extraction() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let hir = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-hir/typed-effects")
+        .unwrap();
+    assert_eq!(hir.contract.version, "0.194.0");
+    for surface in [
+        "public-native-fold-source-stages",
+        "collection-before-state-with-two-native-locals",
+        "post-scope-fold-next-admission",
+    ] {
+        assert!(hir.contract.surfaces.iter().any(|s| s == surface));
+    }
+    let path = "docs/fixtures/leselang_fold_preparation_boundary_macos_arm64_20261026.json";
+    for source in [
+        path,
+        "crates/leselang-hir/tests/fold_preparation.rs",
+        "crates/leserpent-hir/src/fold_preparation_contract_tests.rs",
+    ] {
+        assert!(
+            hir.evidence
+                .iter()
+                .any(|e| e.path == source && e.state == EvidenceState::Present)
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["hir_contract"], "0.190.0");
+    assert_eq!(proof["product_private_helpers_replaced"], 4);
+    assert_eq!(
+        proof["private_operand_type_removed_from_product_fold"],
+        true
+    );
+    assert_eq!(proof["native_tests"], 10);
+    assert_eq!(proof["frozen_product_cases"], 1920);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["consumer_test_byte_identity"], true);
+    for flag in [
+        "physical_hir_relocation_complete",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+        "wire_format_changed",
+        "journal_schema_changed",
+        "plan_is_source_or_authority_receipt",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.completion, 10);
+}
+
+#[test]
+fn public_loop_stages_record_compatibility_without_promoting_extraction() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let hir = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-hir/typed-effects")
+        .unwrap();
+    assert_eq!(hir.contract.version, "0.194.0");
+    for surface in [
+        "public-native-loop-source-stages",
+        "paired-original-loop-state-body-and-limit",
+        "scope-cleanup-before-loop-assembly",
+    ] {
+        assert!(hir.contract.surfaces.iter().any(|s| s == surface));
+    }
+    let path = "docs/fixtures/leselang_loop_preparation_boundary_macos_arm64_20261026.json";
+    for source in [
+        path,
+        "crates/leselang-hir/tests/loop_preparation.rs",
+        "crates/leserpent-hir/src/loop_preparation_contract_tests.rs",
+    ] {
+        assert!(
+            hir.evidence
+                .iter()
+                .any(|e| e.path == source && e.state == EvidenceState::Present)
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["hir_contract"], "0.189.0");
+    assert_eq!(proof["product_private_helpers_replaced"], 3);
+    assert_eq!(
+        proof["private_operand_type_removed_from_product_loop"],
+        true
+    );
+    assert_eq!(proof["native_tests"], 8);
+    assert_eq!(proof["frozen_product_cases"], 1152);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["consumer_test_byte_identity"], true);
+    for flag in [
+        "physical_hir_relocation_complete",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+        "wire_format_changed",
+        "journal_schema_changed",
+        "plan_is_source_or_authority_receipt",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.completion, 10);
+}
+
+#[test]
 fn public_source_plans_record_native_order_without_claiming_source_or_execution_authority() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     let hir = catalog
@@ -21,7 +480,7 @@ fn public_source_plans_record_native_order_without_claiming_source_or_execution_
         .iter()
         .find(|c| c.id == "leselang/language-hir/typed-effects")
         .unwrap();
-    assert_eq!(hir.contract.version, "0.188.0");
+    assert_eq!(hir.contract.version, "0.194.0");
     for surface in [
         "public-original-source-host-root-plan",
         "public-field-operand-plan-with-native-diagnostic-order",
@@ -33,7 +492,7 @@ fn public_source_plans_record_native_order_without_claiming_source_or_execution_
     for source in [
         path,
         "crates/leselang-hir/tests/source_preparation.rs",
-        "crates/leselang-hir/src/source_preparation_contract_tests.rs",
+        "crates/leselang-hir-core/src/source_preparation_contract_tests.rs",
     ] {
         assert!(
             hir.evidence
@@ -82,7 +541,7 @@ fn public_argument_stages_record_frozen_compatibility_without_promoting_extracti
         .iter()
         .find(|c| c.id == "leselang/language-hir/typed-effects")
         .unwrap();
-    assert_eq!(hir.contract.version, "0.188.0");
+    assert_eq!(hir.contract.version, "0.194.0");
     for surface in [
         "public-helper-and-host-argument-binding-stages",
         "immutable-original-source-signature-alignments",
@@ -94,7 +553,7 @@ fn public_argument_stages_record_frozen_compatibility_without_promoting_extracti
     for source in [
         path,
         "crates/leselang-hir/tests/argument_binding.rs",
-        "crates/leselang-hir/src/argument_binding_contract_tests.rs",
+        "crates/leselang-hir-core/src/argument_binding_contract_tests.rs",
     ] {
         assert!(
             hir.evidence
@@ -142,7 +601,7 @@ fn checked_declaration_receipts_record_compiler_boundary_without_promoting_extra
         .iter()
         .find(|c| c.id == "leselang/language-hir/typed-effects")
         .unwrap();
-    assert_eq!(hir.contract.version, "0.188.0");
+    assert_eq!(hir.contract.version, "0.194.0");
     for surface in [
         "identity-bound-declaration-source-receipts",
         "checked-native-order-helper-and-program-assembly",
@@ -196,7 +655,7 @@ fn hir_profile_boundary_records_foreign_impl_and_frozen_policy_without_claiming_
         .iter()
         .find(|c| c.id == "leselang/language-hir/typed-effects")
         .unwrap();
-    assert_eq!(hir.contract.version, "0.188.0");
+    assert_eq!(hir.contract.version, "0.194.0");
     assert!(
         hir.contract
             .surfaces
@@ -206,9 +665,9 @@ fn hir_profile_boundary_records_foreign_impl_and_frozen_policy_without_claiming_
     let path = "docs/fixtures/leselang_hir_profile_boundary_macos_arm64_20261026.json";
     for source in [
         path,
-        "crates/leselang-hir/src/computation_profile.rs",
+        "crates/leselang-hir-core/src/computation_profile.rs",
         "crates/leselang-hir/tests/computation_profile.rs",
-        "crates/leselang-hir/src/computation_profile_contract_tests.rs",
+        "crates/leserpent-hir/src/computation_profile_contract_tests.rs",
     ] {
         assert!(
             hir.evidence
@@ -4378,13 +4837,13 @@ fn native_computed_fields_record_vertical_proofs_without_completing_extraction()
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     let proof_path = "docs/fixtures/leselang_native_computed_projection_macos_arm64_20261023.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
         for path in [
-            "crates/leselang-hir/src/catalog_source.rs",
+            "crates/leselang-hir-core/src/catalog_source.rs",
             "crates/leselang-hir/tests/catalog_source.rs",
             "crates/leselang-vm/tests/native_host_pipeline.rs",
             proof_path,
@@ -8313,7 +8772,7 @@ fn leselang_computation_evidence_does_not_claim_durable_dataflow_completion() {
         "crates/leselang-vm/tests/text_operations.rs",
         "crates/leselang-hir/tests/string_lists.rs",
         "crates/leselang-vm/tests/string_lists.rs",
-        "crates/leselang-hir/src/function_flow.rs",
+        "crates/leserpent-hir/src/function_flow.rs",
         "crates/leselang-hir/tests/effectful_functions.rs",
         "crates/leselang-vm/tests/effectful_functions.rs",
         "crates/leselang-hir/tests/prepared_groups.rs",
@@ -8391,7 +8850,7 @@ fn selected_helper_instances_are_tracked_as_shared_partial_compiler_capabilities
             );
         }
         for path in [
-            "crates/leselang-hir/src/helper_instance.rs",
+            "crates/leselang-hir-core/src/helper_instance.rs",
             "crates/leselang-hir/tests/helper_instance.rs",
         ] {
             assert!(
@@ -8444,7 +8903,7 @@ fn bounded_helper_return_joins_are_tracked_without_claiming_complete_extraction(
             );
         }
         for path in [
-            "crates/leselang-hir/src/helper_join.rs",
+            "crates/leselang-hir-core/src/helper_join.rs",
             "crates/leselang-hir/tests/helper_join.rs",
         ] {
             assert!(
@@ -8496,7 +8955,7 @@ fn staged_helper_completion_tracks_actual_product_delegation_without_full_extrac
             );
         }
         for path in [
-            "crates/leselang-hir/src/helper_instance_finish.rs",
+            "crates/leselang-hir-core/src/helper_instance_finish.rs",
             "crates/leselang-hir/tests/helper_instance_finish.rs",
         ] {
             assert!(
@@ -8546,7 +9005,7 @@ fn shared_helper_body_source_preparation_is_tracked_without_claiming_generic_rec
             );
         }
         for path in [
-            "crates/leselang-hir/src/helper_body_source.rs",
+            "crates/leselang-hir-core/src/helper_body_source.rs",
             "crates/leselang-hir/tests/helper_body_source.rs",
         ] {
             assert!(
@@ -8596,7 +9055,7 @@ fn shared_owned_helper_registry_is_tracked_without_claiming_external_storage_rol
             );
         }
         for path in [
-            "crates/leselang-hir/src/helper_registry.rs",
+            "crates/leselang-hir-core/src/helper_registry.rs",
             "crates/leselang-hir/tests/helper_registry.rs",
         ] {
             assert!(
@@ -8653,7 +9112,7 @@ fn shared_program_assembly_tracks_complete_handoff_without_native_output_or_vm_c
             );
         }
         for path in [
-            "crates/leselang-hir/src/program_source.rs",
+            "crates/leselang-hir-core/src/program_source.rs",
             "crates/leselang-hir/tests/program_source.rs",
         ] {
             assert!(
@@ -8709,80 +9168,80 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         evidence.kind == EvidenceKind::Test && evidence.state == EvidenceState::Planned
     }));
     for path in [
-        "crates/leselang-hir/src/scalar_source.rs",
+        "crates/leselang-hir-core/src/scalar_source.rs",
         "crates/leselang-hir/tests/scalar_source.rs",
         "crates/leselang-hir/tests/scalar_control_source.rs",
         "crates/leselang-hir/tests/scalar_binding_source.rs",
         "crates/leselang-hir/tests/scalar_loop_source.rs",
-        "crates/leselang-hir/src/scalar_source/fold.rs",
+        "crates/leselang-hir-core/src/scalar_source/fold.rs",
         "crates/leselang-hir/tests/scalar_fold_source.rs",
-        "crates/leselang-hir/src/projection_source.rs",
+        "crates/leselang-hir-core/src/projection_source.rs",
         "crates/leselang-hir/tests/projection_source.rs",
-        "crates/leselang-hir/src/helper_hygiene.rs",
+        "crates/leselang-hir-core/src/helper_hygiene.rs",
         "crates/leselang-hir/tests/helper_hygiene.rs",
-        "crates/leselang-hir/src/helper_source.rs",
+        "crates/leselang-hir-core/src/helper_source.rs",
         "crates/leselang-hir/tests/helper_source.rs",
-        "crates/leselang-hir/src/helper_dependencies.rs",
+        "crates/leselang-hir-core/src/helper_dependencies.rs",
         "crates/leselang-hir/tests/helper_dependencies.rs",
-        "crates/leselang-hir/src/helper_bindings.rs",
+        "crates/leselang-hir-core/src/helper_bindings.rs",
         "crates/leselang-hir/tests/helper_bindings.rs",
-        "crates/leselang-hir/src/helper_templates.rs",
+        "crates/leselang-hir-core/src/helper_templates.rs",
         "crates/leselang-hir/tests/helper_templates.rs",
-        "crates/leselang-hir/src/helper_declarations.rs",
+        "crates/leselang-hir-core/src/helper_declarations.rs",
         "crates/leselang-hir/tests/helper_declarations.rs",
-        "crates/leselang-hir/src/helper_expansion.rs",
+        "crates/leselang-hir-core/src/helper_expansion.rs",
         "crates/leselang-hir/tests/helper_expansion.rs",
-        "crates/leselang-hir/src/source_cost.rs",
+        "crates/leselang-hir-core/src/source_cost.rs",
         "crates/leselang-hir/tests/source_cost.rs",
-        "crates/leselang-hir/src/helper_returns.rs",
+        "crates/leselang-hir-core/src/helper_returns.rs",
         "crates/leselang-hir/tests/helper_returns.rs",
-        "crates/leselang-hir/src/helper_body.rs",
+        "crates/leselang-hir-core/src/helper_body.rs",
         "crates/leselang-hir/tests/helper_body.rs",
-        "crates/leselang-hir/src/helper_body_source.rs",
+        "crates/leselang-hir-core/src/helper_body_source.rs",
         "crates/leselang-hir/tests/helper_body_source.rs",
-        "crates/leselang-hir/src/helper_registry.rs",
+        "crates/leselang-hir-core/src/helper_registry.rs",
         "crates/leselang-hir/tests/helper_registry.rs",
-        "crates/leselang-hir/src/program_source.rs",
+        "crates/leselang-hir-core/src/program_source.rs",
         "crates/leselang-hir/tests/program_source.rs",
-        "crates/leselang-hir/src/helper_instance.rs",
+        "crates/leselang-hir-core/src/helper_instance.rs",
         "crates/leselang-hir/tests/helper_instance.rs",
-        "crates/leselang-hir/src/helper_join.rs",
+        "crates/leselang-hir-core/src/helper_join.rs",
         "crates/leselang-hir/tests/helper_join.rs",
-        "crates/leselang-hir/src/helper_instance_finish.rs",
+        "crates/leselang-hir-core/src/helper_instance_finish.rs",
         "crates/leselang-hir/tests/helper_instance_finish.rs",
-        "crates/leselang-hir/src/group_exports.rs",
+        "crates/leselang-hir-core/src/group_exports.rs",
         "crates/leselang-hir/tests/group_exports.rs",
-        "crates/leselang-hir/src/binding_source.rs",
+        "crates/leselang-hir-core/src/binding_source.rs",
         "crates/leselang-hir/tests/binding_source.rs",
-        "crates/leselang-hir/src/choice_source.rs",
+        "crates/leselang-hir-core/src/choice_source.rs",
         "crates/leselang-hir/tests/choice_source.rs",
-        "crates/leselang-hir/src/group_source.rs",
+        "crates/leselang-hir-core/src/group_source.rs",
         "crates/leselang-hir/tests/group_source.rs",
-        "crates/leselang-hir/src/repeat_source.rs",
+        "crates/leselang-hir-core/src/repeat_source.rs",
         "crates/leselang-hir/tests/repeat_source.rs",
-        "crates/leselang-hir/src/sequence_source.rs",
+        "crates/leselang-hir-core/src/sequence_source.rs",
         "crates/leselang-hir/tests/sequence_source.rs",
-        "crates/leselang-hir/src/repeat_sequence_source.rs",
+        "crates/leselang-hir-core/src/repeat_sequence_source.rs",
         "crates/leselang-hir/tests/repeat_sequence_source.rs",
-        "crates/leselang-hir/src/sequence_evaluation.rs",
+        "crates/leselang-hir-core/src/sequence_evaluation.rs",
         "crates/leselang-hir/tests/sequence_evaluation.rs",
-        "crates/leselang-hir/src/effect_evaluation.rs",
-        "crates/leselang-hir/src/effect_reentry.rs",
-        "crates/leselang-hir/src/effect_session.rs",
+        "crates/leselang-hir-core/src/effect_evaluation.rs",
+        "crates/leselang-hir-core/src/effect_reentry.rs",
+        "crates/leselang-hir-core/src/effect_session.rs",
         "crates/leselang-hir/tests/effect_session.rs",
-        "crates/leselang-hir/src/control_source.rs",
+        "crates/leselang-hir-core/src/control_source.rs",
         "crates/leselang-hir/tests/control_source.rs",
-        "crates/leselang-hir/src/bound_projection_source.rs",
+        "crates/leselang-hir-core/src/bound_projection_source.rs",
         "crates/leselang-hir/tests/bound_projection_source.rs",
         "crates/leselang-hir/tests/member_source_reference.rs",
         "crates/leselang-hir/tests/bound_projection_session.rs",
         "crates/leselang-hir/tests/effect_evaluation.rs",
-        "crates/leselang-hir/src/source_call.rs",
+        "crates/leselang-hir-core/src/source_call.rs",
         "crates/leselang-hir/tests/source_call.rs",
         "crates/leselang-hir/tests/source_call_finish.rs",
-        "crates/leselang-hir/src/call_evaluation.rs",
+        "crates/leselang-hir-core/src/call_evaluation.rs",
         "crates/leselang-hir/tests/call_evaluation.rs",
-        "crates/leselang-hir/src/pure_evaluation.rs",
+        "crates/leselang-hir-core/src/pure_evaluation.rs",
         "crates/leselang-hir/tests/pure_evaluation.rs",
         "crates/leselang-runtime-core/src/lib.rs",
         "crates/leselang-runtime-core/src/fuel.rs",
@@ -8828,7 +9287,7 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         "crates/leselang-hir/src/lib.rs",
         "crates/leselang-runtime-core/src/signature.rs",
         "crates/leselang-runtime-core/tests/signature.rs",
-        "crates/leselang-hir/src/host_call.rs",
+        "crates/leserpent-hir/src/host_call.rs",
         "crates/leselang-hir/tests/named_signature.rs",
         "crates/leselang-vm/tests/named_signature.rs",
         "crates/leselang-runtime-core/src/scalar_contract.rs",
@@ -8840,23 +9299,23 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         "crates/leselang-vm/tests/argument_binding.rs",
         "crates/leselang-runtime-core/src/catalog.rs",
         "crates/leselang-runtime-core/tests/catalog.rs",
-        "crates/leselang-hir/src/ir.rs",
+        "crates/leselang-hir-core/src/ir.rs",
         "crates/leselang-hir/tests/generic_ir.rs",
         "crates/leselang-vm/tests/generic_ir.rs",
         "crates/leselang-runtime-core/src/argument_typing.rs",
         "crates/leselang-runtime-core/tests/argument_typing.rs",
         "crates/leselang-hir/tests/argument_typing.rs",
-        "crates/leselang-hir/src/pure_typing.rs",
-        "crates/leselang-hir/src/pure_reference.rs",
+        "crates/leselang-hir-core/src/pure_typing.rs",
+        "crates/leserpent-hir/src/pure_reference.rs",
         "crates/leselang-hir/tests/pure_typing.rs",
         "crates/leselang-hir/tests/pure_reference.rs",
-        "crates/leselang-hir/src/call_typing.rs",
+        "crates/leselang-hir-core/src/call_typing.rs",
         "crates/leselang-hir/tests/call_typing.rs",
         "crates/leselang-hir/tests/call_reference.rs",
-        "crates/leselang-hir/src/prepared_typing.rs",
+        "crates/leselang-hir-core/src/prepared_typing.rs",
         "crates/leselang-hir/tests/prepared_typing.rs",
         "crates/leselang-hir/tests/prepared_reference.rs",
-        "crates/leselang-hir/src/flow_typing.rs",
+        "crates/leselang-hir-core/src/flow_typing.rs",
         "crates/leselang-hir/tests/flow_typing.rs",
         "crates/leselang-hir/tests/flow_reference.rs",
         "crates/leselang-hir/tests/group_typing.rs",
@@ -18394,7 +18853,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leselang/language-hir/typed-effects")
         .expect("Leselang HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.188.0");
+    assert_eq!(hir.contract.version, "0.194.0");
     for surface in [
         "shared-scalar-choose-recover-and-list-source-construction",
         "cold-control-signatures-and-list-labels-before-source-extensions",
@@ -18734,65 +19193,65 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         == "crates/leselang-hir/tests/value_contract.rs"
         && entry.state == EvidenceState::Present));
     for path in [
-        "crates/leselang-hir/src/scalar_source.rs",
+        "crates/leselang-hir-core/src/scalar_source.rs",
         "crates/leselang-hir/tests/scalar_source.rs",
         "crates/leselang-hir/tests/scalar_control_source.rs",
         "crates/leselang-hir/tests/scalar_binding_source.rs",
         "crates/leselang-hir/tests/scalar_loop_source.rs",
-        "crates/leselang-hir/src/scalar_source/fold.rs",
+        "crates/leselang-hir-core/src/scalar_source/fold.rs",
         "crates/leselang-hir/tests/scalar_fold_source.rs",
-        "crates/leselang-hir/src/projection_source.rs",
+        "crates/leselang-hir-core/src/projection_source.rs",
         "crates/leselang-hir/tests/projection_source.rs",
-        "crates/leselang-hir/src/helper_hygiene.rs",
+        "crates/leselang-hir-core/src/helper_hygiene.rs",
         "crates/leselang-hir/tests/helper_hygiene.rs",
-        "crates/leselang-hir/src/helper_source.rs",
+        "crates/leselang-hir-core/src/helper_source.rs",
         "crates/leselang-hir/tests/helper_source.rs",
-        "crates/leselang-hir/src/helper_dependencies.rs",
+        "crates/leselang-hir-core/src/helper_dependencies.rs",
         "crates/leselang-hir/tests/helper_dependencies.rs",
-        "crates/leselang-hir/src/helper_bindings.rs",
+        "crates/leselang-hir-core/src/helper_bindings.rs",
         "crates/leselang-hir/tests/helper_bindings.rs",
-        "crates/leselang-hir/src/helper_templates.rs",
+        "crates/leselang-hir-core/src/helper_templates.rs",
         "crates/leselang-hir/tests/helper_templates.rs",
-        "crates/leselang-hir/src/helper_declarations.rs",
+        "crates/leselang-hir-core/src/helper_declarations.rs",
         "crates/leselang-hir/tests/helper_declarations.rs",
-        "crates/leselang-hir/src/helper_expansion.rs",
+        "crates/leselang-hir-core/src/helper_expansion.rs",
         "crates/leselang-hir/tests/helper_expansion.rs",
-        "crates/leselang-hir/src/source_cost.rs",
+        "crates/leselang-hir-core/src/source_cost.rs",
         "crates/leselang-hir/tests/source_cost.rs",
-        "crates/leselang-hir/src/helper_returns.rs",
+        "crates/leselang-hir-core/src/helper_returns.rs",
         "crates/leselang-hir/tests/helper_returns.rs",
-        "crates/leselang-hir/src/helper_body.rs",
+        "crates/leselang-hir-core/src/helper_body.rs",
         "crates/leselang-hir/tests/helper_body.rs",
-        "crates/leselang-hir/src/helper_body_source.rs",
+        "crates/leselang-hir-core/src/helper_body_source.rs",
         "crates/leselang-hir/tests/helper_body_source.rs",
-        "crates/leselang-hir/src/helper_registry.rs",
+        "crates/leselang-hir-core/src/helper_registry.rs",
         "crates/leselang-hir/tests/helper_registry.rs",
-        "crates/leselang-hir/src/program_source.rs",
+        "crates/leselang-hir-core/src/program_source.rs",
         "crates/leselang-hir/tests/program_source.rs",
-        "crates/leselang-hir/src/helper_instance.rs",
+        "crates/leselang-hir-core/src/helper_instance.rs",
         "crates/leselang-hir/tests/helper_instance.rs",
-        "crates/leselang-hir/src/helper_join.rs",
+        "crates/leselang-hir-core/src/helper_join.rs",
         "crates/leselang-hir/tests/helper_join.rs",
-        "crates/leselang-hir/src/helper_instance_finish.rs",
+        "crates/leselang-hir-core/src/helper_instance_finish.rs",
         "crates/leselang-hir/tests/helper_instance_finish.rs",
-        "crates/leselang-hir/src/group_exports.rs",
+        "crates/leselang-hir-core/src/group_exports.rs",
         "crates/leselang-hir/tests/group_exports.rs",
-        "crates/leselang-hir/src/binding_source.rs",
+        "crates/leselang-hir-core/src/binding_source.rs",
         "crates/leselang-hir/tests/binding_source.rs",
-        "crates/leselang-hir/src/choice_source.rs",
+        "crates/leselang-hir-core/src/choice_source.rs",
         "crates/leselang-hir/tests/choice_source.rs",
-        "crates/leselang-hir/src/group_source.rs",
+        "crates/leselang-hir-core/src/group_source.rs",
         "crates/leselang-hir/tests/group_source.rs",
-        "crates/leselang-hir/src/repeat_source.rs",
+        "crates/leselang-hir-core/src/repeat_source.rs",
         "crates/leselang-hir/tests/repeat_source.rs",
-        "crates/leselang-hir/src/sequence_source.rs",
+        "crates/leselang-hir-core/src/sequence_source.rs",
         "crates/leselang-hir/tests/sequence_source.rs",
-        "crates/leselang-hir/src/repeat_sequence_source.rs",
+        "crates/leselang-hir-core/src/repeat_sequence_source.rs",
         "crates/leselang-hir/tests/repeat_sequence_source.rs",
-        "crates/leselang-hir/src/sequence_evaluation.rs",
+        "crates/leselang-hir-core/src/sequence_evaluation.rs",
         "crates/leselang-hir/tests/sequence_evaluation.rs",
-        "crates/leselang-hir/src/effect_reentry.rs",
-        "crates/leselang-hir/src/effect_session.rs",
+        "crates/leselang-hir-core/src/effect_reentry.rs",
+        "crates/leselang-hir-core/src/effect_session.rs",
         "crates/leselang-hir/tests/effect_session.rs",
         "crates/leselang-runtime-core/src/scalar_ops.rs",
         "crates/leselang-hir/tests/operator_contract.rs",
@@ -18823,17 +19282,17 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "crates/leselang-runtime-core/src/argument_typing.rs",
         "crates/leselang-runtime-core/tests/argument_typing.rs",
         "crates/leselang-hir/tests/argument_typing.rs",
-        "crates/leselang-hir/src/pure_typing.rs",
-        "crates/leselang-hir/src/pure_reference.rs",
+        "crates/leselang-hir-core/src/pure_typing.rs",
+        "crates/leserpent-hir/src/pure_reference.rs",
         "crates/leselang-hir/tests/pure_typing.rs",
         "crates/leselang-hir/tests/pure_reference.rs",
-        "crates/leselang-hir/src/call_typing.rs",
+        "crates/leselang-hir-core/src/call_typing.rs",
         "crates/leselang-hir/tests/call_typing.rs",
         "crates/leselang-hir/tests/call_reference.rs",
-        "crates/leselang-hir/src/prepared_typing.rs",
+        "crates/leselang-hir-core/src/prepared_typing.rs",
         "crates/leselang-hir/tests/prepared_typing.rs",
         "crates/leselang-hir/tests/prepared_reference.rs",
-        "crates/leselang-hir/src/flow_typing.rs",
+        "crates/leselang-hir-core/src/flow_typing.rs",
         "crates/leselang-hir/tests/flow_typing.rs",
         "crates/leselang-hir/tests/flow_reference.rs",
         "crates/leselang-hir/tests/group_typing.rs",
@@ -20159,8 +20618,8 @@ fn native_call_completion_is_tracked_without_promoting_full_embedding_readiness(
             );
         }
         for path in [
-            "crates/leselang-hir/src/source_call.rs",
-            "crates/leselang-hir/src/pure_reference.rs",
+            "crates/leselang-hir-core/src/source_call.rs",
+            "crates/leserpent-hir/src/pure_reference.rs",
             "crates/leselang-hir/tests/source_call_finish.rs",
         ] {
             assert!(
@@ -20209,8 +20668,8 @@ fn reference_member_delegation_is_tracked_without_claiming_the_entire_compiler_f
             );
         }
         for path in [
-            "crates/leselang-hir/src/bound_projection_source.rs",
-            "crates/leselang-hir/src/computation.rs",
+            "crates/leselang-hir-core/src/bound_projection_source.rs",
+            "crates/leserpent-hir/src/computation.rs",
             "crates/leselang-hir/tests/member_source_reference.rs",
         ] {
             assert!(
@@ -20257,8 +20716,8 @@ fn staged_field_delegation_tracks_exact_native_policy_and_remaining_compiler_gat
             );
         }
         for path in [
-            "crates/leselang-hir/src/projection_source.rs",
-            "crates/leselang-hir/src/computation.rs",
+            "crates/leselang-hir-core/src/projection_source.rs",
+            "crates/leserpent-hir/src/computation.rs",
             "crates/leselang-hir/tests/field_source_reference.rs",
         ] {
             assert!(
@@ -20310,7 +20769,7 @@ fn native_host_source_tracks_owned_leaf_construction_without_claiming_opaque_flo
             );
         }
         for path in [
-            "crates/leselang-hir/src/host_source.rs",
+            "crates/leselang-hir-core/src/host_source.rs",
             "crates/leselang-hir/tests/host_source.rs",
             "crates/leselang-hir/tests/host_source_reference.rs",
         ] {
@@ -20363,7 +20822,7 @@ fn opaque_host_leaf_flow_typing_is_tracked_without_claiming_complete_native_grap
             );
         }
         for path in [
-            "crates/leselang-hir/src/flow_typing.rs",
+            "crates/leselang-hir-core/src/flow_typing.rs",
             "crates/leselang-hir/tests/host_flow_typing.rs",
             "crates/leselang-hir/tests/host_flow_reference.rs",
         ] {
@@ -20421,8 +20880,8 @@ fn flat_mixed_host_group_typing_is_tracked_without_claiming_nested_graph_or_exec
             );
         }
         for path in [
-            "crates/leselang-hir/src/flow_typing.rs",
-            "crates/leselang-hir/src/prepared_typing.rs",
+            "crates/leselang-hir-core/src/flow_typing.rs",
+            "crates/leselang-hir-core/src/prepared_typing.rs",
             "crates/leselang-hir/tests/host_group_typing.rs",
             "crates/leselang-hir/tests/host_group_reference.rs",
         ] {
@@ -20480,8 +20939,8 @@ fn flat_native_graph_observations_are_tracked_without_promoting_independent_vm_m
             );
         }
         for path in [
-            "crates/leselang-hir/src/pure_reference.rs",
-            "crates/leselang-hir/src/computation.rs",
+            "crates/leserpent-hir/src/pure_reference.rs",
+            "crates/leserpent-hir/src/computation.rs",
             "crates/leselang-hir/tests/native_group_flow.rs",
             "crates/leselang-hir/tests/native_group_flow_reference.rs",
         ] {
@@ -20537,7 +20996,7 @@ fn borrowed_native_graph_inspection_tracks_structure_without_certifying_types_or
             );
         }
         for path in [
-            "crates/leselang-hir/src/native_graph.rs",
+            "crates/leselang-hir-core/src/native_graph.rs",
             "crates/leselang-hir/tests/native_graph.rs",
             "crates/leselang-hir/tests/native_graph_reference.rs",
         ] {
@@ -20593,9 +21052,9 @@ fn closed_native_member_admission_tracks_actual_delegation_without_graph_or_vm_p
             );
         }
         for path in [
-            "crates/leselang-hir/src/native_group.rs",
+            "crates/leselang-hir-core/src/native_group.rs",
             "crates/leselang-hir/tests/native_group.rs",
-            "crates/leselang-hir/src/pure_reference.rs",
+            "crates/leserpent-hir/src/pure_reference.rs",
             "crates/leselang-hir/tests/native_group_flow.rs",
         ] {
             assert!(
@@ -20650,10 +21109,10 @@ fn fresh_native_export_assembly_tracks_product_and_gui_delegation_without_author
             );
         }
         for path in [
-            "crates/leselang-hir/src/native_group_exports.rs",
+            "crates/leselang-hir-core/src/native_group_exports.rs",
             "crates/leselang-hir/tests/native_group_exports.rs",
-            "crates/leselang-hir/src/pure_reference.rs",
-            "crates/leselang-hir/src/computation.rs",
+            "crates/leserpent-hir/src/pure_reference.rs",
+            "crates/leserpent-hir/src/computation.rs",
             "crates/leselang-hir/tests/native_group_flow.rs",
         ] {
             assert!(
@@ -20711,10 +21170,10 @@ fn fresh_closed_signature_comparison_tracks_actual_delegation_without_schema_or_
             );
         }
         for path in [
-            "crates/leselang-hir/src/native_group_signature.rs",
+            "crates/leselang-hir-core/src/native_group_signature.rs",
             "crates/leselang-hir/tests/native_group_signature.rs",
-            "crates/leselang-hir/src/group_exports.rs",
-            "crates/leselang-hir/src/pure_reference.rs",
+            "crates/leselang-hir-core/src/group_exports.rs",
+            "crates/leserpent-hir/src/pure_reference.rs",
             "crates/leselang-hir/tests/native_group_flow.rs",
         ] {
             assert!(
@@ -20771,9 +21230,9 @@ fn fresh_closed_member_lookup_tracks_actual_selection_without_schema_or_authorit
             );
         }
         for path in [
-            "crates/leselang-hir/src/native_group_lookup.rs",
+            "crates/leselang-hir-core/src/native_group_lookup.rs",
             "crates/leselang-hir/tests/native_group_lookup.rs",
-            "crates/leselang-hir/src/pure_reference.rs",
+            "crates/leserpent-hir/src/pure_reference.rs",
             "crates/leselang-hir/tests/native_group_flow.rs",
         ] {
             assert!(
@@ -20808,7 +21267,7 @@ fn fresh_closed_member_lookup_tracks_actual_selection_without_schema_or_authorit
         .iter()
         .find(|cell| cell.id == "leselang/language-hir/typed-effects")
         .unwrap();
-    assert_eq!(hir.contract.version, "0.188.0");
+    assert_eq!(hir.contract.version, "0.194.0");
     let embedding = catalog
         .cells
         .iter()
@@ -20844,10 +21303,10 @@ fn shared_language_group_shape_tracks_existing_walkers_without_new_admission_or_
             );
         }
         for path in [
-            "crates/leselang-hir/src/native_group.rs",
-            "crates/leselang-hir/src/group_exports.rs",
-            "crates/leselang-hir/src/flow_typing.rs",
-            "crates/leselang-hir/src/effect_evaluation.rs",
+            "crates/leselang-hir-core/src/native_group.rs",
+            "crates/leselang-hir-core/src/group_exports.rs",
+            "crates/leselang-hir-core/src/flow_typing.rs",
+            "crates/leselang-hir-core/src/effect_evaluation.rs",
             "crates/leselang-hir/tests/group_exports.rs",
             "crates/leselang-hir/tests/group_typing.rs",
             "crates/leselang-hir/tests/effect_evaluation.rs",
@@ -20874,7 +21333,7 @@ fn shared_language_group_shape_tracks_existing_walkers_without_new_admission_or_
         .iter()
         .find(|cell| cell.id == "leselang/language-hir/typed-effects")
         .unwrap();
-    assert_eq!(hir.contract.version, "0.188.0");
+    assert_eq!(hir.contract.version, "0.194.0");
     let embedding = catalog
         .cells
         .iter()
@@ -20890,7 +21349,7 @@ fn shared_language_group_shape_tracks_existing_walkers_without_new_admission_or_
 fn fixed_source_signatures_track_private_metadata_without_native_schema_or_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -20911,10 +21370,10 @@ fn fixed_source_signatures_track_private_metadata_without_native_schema_or_vm_pr
             );
         }
         for path in [
-            "crates/leselang-hir/src/source_call.rs",
-            "crates/leselang-hir/src/scalar_source.rs",
-            "crates/leselang-hir/src/choice_source.rs",
-            "crates/leselang-hir/src/projection_source.rs",
+            "crates/leselang-hir-core/src/source_call.rs",
+            "crates/leselang-hir-core/src/scalar_source.rs",
+            "crates/leselang-hir-core/src/choice_source.rs",
+            "crates/leselang-hir-core/src/projection_source.rs",
             "crates/leselang-hir/tests/scalar_source.rs",
             "crates/leselang-hir/tests/choice_source.rs",
             "crates/leselang-hir/tests/projection_source.rs",
@@ -20952,7 +21411,7 @@ fn exact_child_and_physical_cursors_track_scratch_reduction_without_native_admis
  {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -20973,8 +21432,8 @@ fn exact_child_and_physical_cursors_track_scratch_reduction_without_native_admis
             );
         }
         for path in [
-            "crates/leselang-hir/src/ir.rs",
-            "crates/leselang-hir/src/binding_source.rs",
+            "crates/leselang-hir-core/src/ir.rs",
+            "crates/leselang-hir-core/src/binding_source.rs",
             "crates/leselang-hir/tests/generic_ir.rs",
             "docs/leselang-embedding.md",
         ] {
@@ -21014,7 +21473,7 @@ fn exact_child_and_physical_cursors_track_scratch_reduction_without_native_admis
 fn cursor_purity_tracks_fresh_structural_inspection_without_native_admission_or_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21035,7 +21494,7 @@ fn cursor_purity_tracks_fresh_structural_inspection_without_native_admission_or_
             );
         }
         for path in [
-            "crates/leselang-hir/src/ir.rs",
+            "crates/leselang-hir-core/src/ir.rs",
             "crates/leselang-hir/tests/generic_ir.rs",
             "docs/leselang-embedding.md",
         ] {
@@ -21075,7 +21534,7 @@ fn catalog_compiler_vertical_tracks_closed_profile_without_promoting_full_native
  {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21096,7 +21555,7 @@ fn catalog_compiler_vertical_tracks_closed_profile_without_promoting_full_native
             );
         }
         for path in [
-            "crates/leselang-hir/src/catalog_source.rs",
+            "crates/leselang-hir-core/src/catalog_source.rs",
             "crates/leselang-hir/tests/catalog_source.rs",
             "crates/leselang-hir/tests/bound_projection_session.rs",
             "docs/leselang-embedding.md",
@@ -21136,7 +21595,7 @@ fn catalog_compiler_vertical_tracks_closed_profile_without_promoting_full_native
 fn catalog_helper_vertical_tracks_acyclic_profile_without_promoting_group_or_durable_maturity() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21157,7 +21616,7 @@ fn catalog_helper_vertical_tracks_acyclic_profile_without_promoting_group_or_dur
             );
         }
         for path in [
-            "crates/leselang-hir/src/catalog_program.rs",
+            "crates/leselang-hir-core/src/catalog_program.rs",
             "crates/leselang-hir/tests/catalog_source.rs",
             "crates/leselang-hir/tests/bound_projection_session.rs",
         ] {
@@ -21195,7 +21654,7 @@ fn catalog_helper_vertical_tracks_acyclic_profile_without_promoting_group_or_dur
 fn optional_hir_profile_tracks_native_dependency_and_compatibility_proofs_without_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21211,7 +21670,7 @@ fn optional_hir_profile_tracks_native_dependency_and_compatibility_proofs_withou
             assert!(cell.contract.surfaces.iter().any(|item| item == surface));
         }
         for path in [
-            "crates/leselang-hir/src/leserpent_profile.rs",
+            "crates/leserpent-hir/src/leserpent_profile.rs",
             "tests/leselang_native_profile_tdd.rs",
         ] {
             assert!(
@@ -21237,7 +21696,7 @@ fn optional_hir_profile_tracks_native_dependency_and_compatibility_proofs_withou
 fn complete_flat_group_source_entry_is_tracked_without_promoting_helpers_or_independent_vm() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -21255,7 +21714,7 @@ fn complete_flat_group_source_entry_is_tracked_without_promoting_helpers_or_inde
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/catalog_group_source.rs",
+            "crates/leselang-hir-core/src/catalog_group_source.rs",
             "crates/leselang-hir/tests/catalog_group_source.rs",
         ] {
             assert!(
@@ -21284,7 +21743,7 @@ fn complete_flat_group_source_entry_is_tracked_without_promoting_helpers_or_inde
 fn group_entry_program_tracks_closed_helper_composition_without_group_return_or_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -21301,8 +21760,8 @@ fn group_entry_program_tracks_closed_helper_composition_without_group_return_or_
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/catalog_program.rs",
-            "crates/leselang-hir/src/catalog_group_source.rs",
+            "crates/leselang-hir-core/src/catalog_program.rs",
+            "crates/leselang-hir-core/src/catalog_group_source.rs",
             "crates/leselang-hir/tests/catalog_group_source.rs",
             "crates/leselang-hir/tests/group_reply_reentry.rs",
         ] {
@@ -21339,7 +21798,7 @@ fn group_entry_program_tracks_closed_helper_composition_without_group_return_or_
 fn group_helper_program_tracks_opt_in_compilation_and_preserves_runtime_extraction_gaps() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -21357,9 +21816,9 @@ fn group_helper_program_tracks_opt_in_compilation_and_preserves_runtime_extracti
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/catalog_program.rs",
-            "crates/leselang-hir/src/catalog_source.rs",
-            "crates/leselang-hir/src/catalog_group_source.rs",
+            "crates/leselang-hir-core/src/catalog_program.rs",
+            "crates/leselang-hir-core/src/catalog_source.rs",
+            "crates/leselang-hir-core/src/catalog_group_source.rs",
             "crates/leselang-hir/tests/catalog_group_source.rs",
             "crates/leselang-hir/tests/group_reply_reentry.rs",
             "docs/leselang-embedding.md",
@@ -21399,7 +21858,7 @@ fn group_helper_program_tracks_opt_in_compilation_and_preserves_runtime_extracti
 fn bounded_native_return_frames_track_actual_composition_without_durable_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -21417,10 +21876,10 @@ fn bounded_native_return_frames_track_actual_composition_without_durable_vm_prom
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/effect_stack.rs",
+            "crates/leselang-hir-core/src/effect_stack.rs",
             "crates/leselang-hir/tests/effect_stack.rs",
-            "crates/leselang-hir/src/effect_evaluation.rs",
-            "crates/leselang-hir/src/effect_reentry.rs",
+            "crates/leselang-hir-core/src/effect_evaluation.rs",
+            "crates/leselang-hir-core/src/effect_reentry.rs",
             "crates/leselang-hir/tests/group_reply_reentry.rs",
             "docs/leselang-embedding.md",
         ] {
@@ -21460,7 +21919,7 @@ fn bounded_native_return_frames_track_actual_composition_without_durable_vm_prom
 fn complete_group_reply_reentry_is_tracked_without_independent_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21477,7 +21936,7 @@ fn complete_group_reply_reentry_is_tracked_without_independent_vm_promotion() {
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/group_reply.rs",
+            "crates/leselang-hir-core/src/group_reply.rs",
             "crates/leselang-hir/tests/group_reply.rs",
             "crates/leselang-hir/tests/group_reply_reentry.rs",
         ] {
@@ -21506,7 +21965,7 @@ fn complete_group_reply_reentry_is_tracked_without_independent_vm_promotion() {
 fn stacked_owned_sessions_are_tracked_without_promoting_durable_or_product_vm_authority() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -21524,8 +21983,8 @@ fn stacked_owned_sessions_are_tracked_without_promoting_durable_or_product_vm_au
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/effect_stack_session.rs",
-            "crates/leselang-hir/src/effect_session.rs",
+            "crates/leselang-hir-core/src/effect_stack_session.rs",
+            "crates/leselang-hir-core/src/effect_session.rs",
             "crates/leselang-hir/tests/effect_session.rs",
             "crates/leselang-hir/tests/group_reply_reentry.rs",
             "docs/leselang-embedding.md",
@@ -21582,7 +22041,7 @@ fn native_parallel_barrier_is_tracked_without_promoting_the_independent_vm() {
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/parallel_evaluation.rs",
+            "crates/leselang-hir-core/src/parallel_evaluation.rs",
             "crates/leselang-hir/tests/parallel_evaluation.rs",
         ] {
             assert!(
@@ -21613,7 +22072,7 @@ fn scoped_native_group_preparation_is_tracked_without_claiming_dispatch_or_indep
  {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -21631,7 +22090,7 @@ fn scoped_native_group_preparation_is_tracked_without_claiming_dispatch_or_indep
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/native_group_preparation.rs",
+            "crates/leselang-hir-core/src/native_group_preparation.rs",
             "crates/leselang-hir/tests/native_group_preparation.rs",
             "crates/leselang-hir/tests/catalog_group_source.rs",
             "docs/leselang-embedding.md",
@@ -21673,7 +22132,7 @@ fn scoped_native_group_preparation_is_tracked_without_claiming_dispatch_or_indep
 fn prepared_member_barriers_are_tracked_without_durable_or_automatic_dispatch_authority() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -21691,8 +22150,8 @@ fn prepared_member_barriers_are_tracked_without_durable_or_automatic_dispatch_au
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/prepared_parallel.rs",
-            "crates/leselang-hir/src/parallel_evaluation.rs",
+            "crates/leselang-hir-core/src/prepared_parallel.rs",
+            "crates/leselang-hir-core/src/parallel_evaluation.rs",
             "crates/leselang-hir/tests/prepared_parallel.rs",
             "crates/leselang-hir/tests/parallel_evaluation.rs",
             "crates/leselang-hir/tests/catalog_group_source.rs",
@@ -21734,7 +22193,7 @@ fn prepared_member_barriers_are_tracked_without_durable_or_automatic_dispatch_au
 fn atomic_call_ir_preparation_is_tracked_without_promoting_source_profile_or_embedding_maturity() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21752,7 +22211,7 @@ fn atomic_call_ir_preparation_is_tracked_without_promoting_source_profile_or_emb
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/prepared_call_evaluation.rs",
+            "crates/leselang-hir-core/src/prepared_call_evaluation.rs",
             "crates/leselang-hir/tests/prepared_call_evaluation.rs",
         ] {
             assert!(
@@ -21792,7 +22251,7 @@ fn atomic_call_ir_preparation_is_tracked_without_promoting_source_profile_or_emb
 fn prepared_sequence_publication_tracks_distinct_correlation_and_fresh_ready_member_policy() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -21810,9 +22269,9 @@ fn prepared_sequence_publication_tracks_distinct_correlation_and_fresh_ready_mem
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/prepared_sequence.rs",
+            "crates/leselang-hir-core/src/prepared_sequence.rs",
             "crates/leselang-hir/tests/prepared_sequence.rs",
-            "crates/leselang-hir/src/sequence_evaluation.rs",
+            "crates/leselang-hir-core/src/sequence_evaluation.rs",
             "crates/leselang-hir/tests/sequence_evaluation.rs",
             "crates/leselang-hir/tests/catalog_group_source.rs",
         ] {
@@ -21855,7 +22314,7 @@ fn prepared_sequence_publication_tracks_distinct_correlation_and_fresh_ready_mem
 fn prepared_source_members_are_tracked_without_promoting_embedding_or_legacy_profiles() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21873,9 +22332,9 @@ fn prepared_source_members_are_tracked_without_promoting_embedding_or_legacy_pro
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/catalog_atomic_source.rs",
-            "crates/leselang-hir/src/catalog_group_source.rs",
-            "crates/leselang-hir/src/prepared_typing.rs",
+            "crates/leselang-hir-core/src/catalog_atomic_source.rs",
+            "crates/leselang-hir-core/src/catalog_group_source.rs",
+            "crates/leselang-hir-core/src/prepared_typing.rs",
             "crates/leselang-hir/tests/catalog_group_source.rs",
         ] {
             assert!(
@@ -21914,7 +22373,7 @@ fn prepared_source_members_are_tracked_without_promoting_embedding_or_legacy_pro
 fn complete_atomic_group_preparation_tracks_cold_order_and_one_meter_without_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21932,7 +22391,7 @@ fn complete_atomic_group_preparation_tracks_cold_order_and_one_meter_without_vm_
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/prepared_call_evaluation.rs",
+            "crates/leselang-hir-core/src/prepared_call_evaluation.rs",
             "crates/leselang-hir/tests/prepared_call_evaluation.rs",
             "crates/leselang-hir/tests/catalog_group_source.rs",
         ] {
@@ -21973,7 +22432,7 @@ fn complete_atomic_group_preparation_tracks_cold_order_and_one_meter_without_vm_
 fn headless_gui_second_schema_tracks_complete_in_memory_proof_without_platform_or_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -22059,7 +22518,7 @@ fn native_vm_profile_tracks_product_free_entry_without_promoting_complete_extrac
 fn prepared_repeat_tracks_two_host_parity_without_promoting_full_extraction() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -22104,7 +22563,7 @@ fn prepared_repeat_tracks_two_host_parity_without_promoting_full_extraction() {
 fn composed_sequence_tracks_existing_runtime_parity_and_remaining_nested_parallel_gate() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -22117,8 +22576,8 @@ fn composed_sequence_tracks_existing_runtime_parity_and_remaining_nested_paralle
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/sequence_source.rs",
-            "crates/leselang-hir/src/repeat_sequence_source.rs",
+            "crates/leselang-hir-core/src/sequence_source.rs",
+            "crates/leselang-hir-core/src/repeat_sequence_source.rs",
             "crates/leselang-hir/tests/catalog_group_source.rs",
             "crates/leselang-hir/tests/prepared_gui_host.rs",
         ] {
@@ -22151,7 +22610,7 @@ fn composed_sequence_tracks_existing_runtime_parity_and_remaining_nested_paralle
 fn cold_sequential_export_preflight_tracks_early_refusal_without_extraction_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -22164,8 +22623,8 @@ fn cold_sequential_export_preflight_tracks_early_refusal_without_extraction_prom
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/catalog_atomic_source.rs",
-            "crates/leselang-hir/src/group_exports.rs",
+            "crates/leselang-hir-core/src/catalog_atomic_source.rs",
+            "crates/leselang-hir-core/src/group_exports.rs",
             "crates/leselang-hir/tests/catalog_group_source.rs",
         ] {
             assert!(
@@ -22198,7 +22657,7 @@ fn cold_sequential_export_preflight_tracks_early_refusal_without_extraction_prom
 fn local_session_entry_tracks_terminal_liveness_without_full_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -22211,7 +22670,7 @@ fn local_session_entry_tracks_terminal_liveness_without_full_vm_promotion() {
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/local_effect_session.rs",
+            "crates/leselang-hir-core/src/local_effect_session.rs",
             "crates/leselang-hir/tests/prepared_gui_host.rs",
             "crates/leselang-vm/tests/native_embedding.rs",
         ] {
@@ -22249,7 +22708,7 @@ fn local_session_entry_tracks_terminal_liveness_without_full_vm_promotion() {
 fn classified_host_outcomes_track_cleanup_fences_without_full_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -22265,8 +22724,8 @@ fn classified_host_outcomes_track_cleanup_fences_without_full_vm_promotion() {
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/effect_session.rs",
-            "crates/leselang-hir/src/local_effect_session.rs",
+            "crates/leselang-hir-core/src/effect_session.rs",
+            "crates/leselang-hir-core/src/local_effect_session.rs",
             "crates/leselang-hir/tests/prepared_gui_host.rs",
             "crates/leselang-vm/tests/native_embedding.rs",
         ] {
@@ -22303,7 +22762,7 @@ fn classified_host_outcomes_track_cleanup_fences_without_full_vm_promotion() {
 fn explicit_native_host_work_tracks_original_pending_state_without_extraction_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -22316,8 +22775,8 @@ fn explicit_native_host_work_tracks_original_pending_state_without_extraction_pr
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/effect_session.rs",
-            "crates/leselang-hir/src/local_effect_session.rs",
+            "crates/leselang-hir-core/src/effect_session.rs",
+            "crates/leselang-hir-core/src/local_effect_session.rs",
             "crates/leselang-hir/tests/prepared_gui_host.rs",
             "crates/leselang-vm/tests/native_embedding.rs",
         ] {
@@ -22349,7 +22808,7 @@ fn explicit_native_host_work_tracks_original_pending_state_without_extraction_pr
 fn scoped_reentry_tracks_retained_cleanup_and_recovery_parity_without_extraction_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -22362,9 +22821,9 @@ fn scoped_reentry_tracks_retained_cleanup_and_recovery_parity_without_extraction
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/local_scope.rs",
-            "crates/leselang-hir/src/effect_stack.rs",
-            "crates/leselang-hir/src/effect_reentry.rs",
+            "crates/leselang-hir-core/src/local_scope.rs",
+            "crates/leselang-hir-core/src/effect_stack.rs",
+            "crates/leselang-hir-core/src/effect_reentry.rs",
             "crates/leselang-hir/tests/effect_session.rs",
             "crates/leselang-vm/tests/native_embedding.rs",
         ] {
@@ -22396,7 +22855,7 @@ fn scoped_reentry_tracks_retained_cleanup_and_recovery_parity_without_extraction
 fn scoped_acceptance_tracks_core_cleanup_order_without_full_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -22420,7 +22879,7 @@ fn scoped_acceptance_tracks_core_cleanup_order_without_full_vm_promotion() {
         for path in [
             "crates/leselang-runtime-core/src/reply.rs",
             "crates/leselang-runtime-core/tests/reply.rs",
-            "crates/leselang-hir/src/local_effect_session.rs",
+            "crates/leselang-hir-core/src/local_effect_session.rs",
             "crates/leselang-vm/tests/native_embedding.rs",
             "crates/leselang-hir/tests/scoped_group_acceptance.rs",
         ] {
@@ -22459,7 +22918,7 @@ fn scoped_acceptance_tracks_core_cleanup_order_without_full_vm_promotion() {
 fn guarded_native_execution_tracks_real_gui_adoption_without_runtime_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -22505,7 +22964,7 @@ fn guarded_native_execution_tracks_real_gui_adoption_without_runtime_promotion()
 fn shared_gui_ir_isolation_tracks_native_proof_without_claiming_concurrent_product_gui() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -22544,7 +23003,7 @@ fn shared_gui_ir_isolation_tracks_native_proof_without_claiming_concurrent_produ
 fn prepared_host_expression_tracks_typed_prefix_and_scoped_gui_proof_without_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -22557,8 +23016,8 @@ fn prepared_host_expression_tracks_typed_prefix_and_scoped_gui_proof_without_pro
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/catalog_group_source.rs",
-            "crates/leselang-hir/src/catalog_atomic_source.rs",
+            "crates/leselang-hir-core/src/catalog_group_source.rs",
+            "crates/leselang-hir-core/src/catalog_atomic_source.rs",
             "crates/leselang-hir/tests/catalog_group_source.rs",
             "crates/leselang-hir/tests/prepared_gui_host.rs",
         ] {
@@ -23020,7 +23479,7 @@ fn shared_projection_access_status_tracks_real_native_delegation_without_extract
             assert!(cell.contract.surfaces.iter().any(|s| s == surface));
         }
         for path in [
-            "crates/leselang-hir/src/projection_access.rs",
+            "crates/leselang-hir-core/src/projection_access.rs",
             "crates/leselang-hir/tests/projection_access.rs",
             "crates/leserpent-vm/src/result_binding.rs",
             "crates/leselang-vm/tests/projection_scope.rs",
@@ -23078,9 +23537,9 @@ fn owned_prefix_cleanup_status_tracks_real_shared_control_without_extraction_pro
         for path in [
             "crates/leselang-runtime-core/src/owned_scope.rs",
             "crates/leselang-runtime-core/tests/owned_scope.rs",
-            "crates/leselang-hir/src/effect_reentry.rs",
-            "crates/leselang-hir/src/effect_stack.rs",
-            "crates/leselang-hir/src/effect_session.rs",
+            "crates/leselang-hir-core/src/effect_reentry.rs",
+            "crates/leselang-hir-core/src/effect_stack.rs",
+            "crates/leselang-hir-core/src/effect_session.rs",
             "crates/leselang-hir/tests/effect_session.rs",
         ] {
             assert!(
@@ -23233,7 +23692,7 @@ fn saved_return_stack_status_tracks_shared_execution_without_durable_backend_pro
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     let path = "docs/fixtures/leselang_native_saved_stack_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -23344,7 +23803,7 @@ fn saved_sequence_status_tracks_flat_frontiers_without_promoting_full_recovery()
     let proof_path =
         "docs/fixtures/leselang_native_saved_sequence_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -23549,7 +24008,7 @@ fn two_capture_status_tracks_bounded_graph_tables_without_full_extraction() {
     let path =
         "docs/fixtures/leselang_native_multi_capture_source_export_macos_arm64_20261015.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -23673,7 +24132,7 @@ fn pending_session_restore_status_tracks_shared_ownership_without_durable_vm_cla
     let path =
         "docs/fixtures/leselang_native_restored_session_source_export_macos_arm64_20261015.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -23776,7 +24235,7 @@ fn metered_owned_checkpoint_status_keeps_durable_settlement_explicitly_open() {
     let path =
         "docs/fixtures/leselang_native_owned_recovery_source_export_macos_arm64_20261015.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -23889,7 +24348,7 @@ fn bounded_repeat_capture_status_separates_operation_and_receipt_identity() {
     let path =
         "docs/fixtures/leselang_native_repeat_capture_source_export_macos_arm64_20261015.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -24011,7 +24470,7 @@ fn helper_origin_capture_status_keeps_bounded_program_proofs_below_full_extracti
     let path =
         "docs/fixtures/leselang_native_helper_capture_source_export_macos_arm64_20261015.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -24135,7 +24594,7 @@ fn source_compiled_capture_status_does_not_promote_whole_program_recovery() {
     let path =
         "docs/fixtures/leselang_native_compiled_capture_source_export_macos_arm64_20261015.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -24250,7 +24709,7 @@ fn captured_partial_parallel_status_records_barrier_proofs_without_durable_promo
     let path =
         "docs/fixtures/leselang_native_parallel_capture_source_export_macos_arm64_20261015.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -24360,7 +24819,7 @@ fn captured_inflight_status_keeps_sequential_composition_below_full_extraction()
     let path =
         "docs/fixtures/leselang_native_inflight_capture_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -24466,7 +24925,7 @@ fn byte_capture_status_tracks_composition_without_promoting_full_checkpoint_reco
     let path =
         "docs/fixtures/leselang_native_saved_capture_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -24481,8 +24940,8 @@ fn byte_capture_status_tracks_composition_without_promoting_full_checkpoint_reco
         for evidence in [
             path,
             "crates/leselang-hir/tests/saved_group.rs",
-            "crates/leselang-hir/src/effect_stack.rs",
-            "crates/leselang-hir/src/group_reply.rs",
+            "crates/leselang-hir-core/src/effect_stack.rs",
+            "crates/leselang-hir-core/src/group_reply.rs",
         ] {
             assert!(
                 cell.evidence
@@ -24577,7 +25036,7 @@ fn saved_assembled_group_status_preserves_budget_and_keeps_full_recovery_open() 
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     let path = "docs/fixtures/leselang_native_saved_group_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -24591,7 +25050,7 @@ fn saved_assembled_group_status_preserves_budget_and_keeps_full_recovery_open() 
         }
         for evidence in [
             path,
-            "crates/leselang-hir/src/group_reply.rs",
+            "crates/leselang-hir-core/src/group_reply.rs",
             "crates/leselang-hir/tests/saved_group.rs",
         ] {
             assert!(
@@ -24697,7 +25156,7 @@ fn saved_native_operands_track_portable_queue_progress_without_promoting_complet
         for evidence in [
             path,
             "crates/leselang-hir/tests/saved_call.rs",
-            "crates/leselang-hir/src/call_evaluation.rs",
+            "crates/leselang-hir-core/src/call_evaluation.rs",
         ] {
             assert!(
                 cell.evidence
@@ -24788,7 +25247,7 @@ fn saved_parallel_status_keeps_mixed_graph_and_crash_recovery_gates_open() {
     let proof_path =
         "docs/fixtures/leselang_native_saved_parallel_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.188.0"),
+        ("leselang/language-hir/typed-effects", "0.194.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -24801,7 +25260,7 @@ fn saved_parallel_status_keeps_mixed_graph_and_crash_recovery_gates_open() {
             assert!(cell.contract.surfaces.iter().any(|entry| entry == surface));
         }
         for path in [
-            "crates/leselang-hir/src/prepared_parallel.rs",
+            "crates/leselang-hir-core/src/prepared_parallel.rs",
             "crates/leselang-hir/tests/saved_parallel.rs",
             proof_path,
         ] {
@@ -24908,7 +25367,7 @@ fn saved_body_execution_status_tracks_actual_shared_walker_without_storage_autho
         assert!(cell.contract.surfaces.iter().any(|s| s == surface));
     }
     for path in [
-        "crates/leselang-hir/src/effect_reentry.rs",
+        "crates/leselang-hir-core/src/effect_reentry.rs",
         "crates/leselang-hir/tests/captured_reentry.rs",
         "crates/leselang-hir/tests/durable_control.rs",
         "crates/leserpent-vm/src/computation.rs",

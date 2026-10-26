@@ -10,8 +10,9 @@ default = ["sqlite-journal"]
 sqlite-journal = ["dep:rusqlite"]
 
 [dependencies]
+leselang-hir-core = { path = "../leselang-hir-core" }
 leselang-command = { path = "../leselang-command" }
-leselang-hir = { path = "../leselang-hir", default-features = false, features = ["leserpent-profile"] }
+leserpent-hir = { path = "../leserpent-hir" }
 leselang-host-contract = { path = "../leselang-host-contract" }
 leselang-runtime-core = { path = "../leselang-runtime-core" }
 leselang-syntax = { path = "../leselang-syntax" }

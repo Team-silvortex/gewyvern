@@ -8,9 +8,9 @@ use leselang_command::{
     MAX_MERGE_BRANCH_NAME_BYTES, MAX_MERGE_BRANCHES, MergePlan, MergePlanAdmissionError,
     MergePlanShapeError, ResultBinding,
 };
-use leselang_hir::computation::Computation;
-use leselang_hir::{Effect, HirBranch, Type};
 use leselang_runtime_core::{Fault, ScalarValue};
+use leserpent_hir::computation::Computation;
+use leserpent_hir::{Effect, HirBranch, Type};
 
 fn plan() -> MergePlan {
     MergePlan {
@@ -139,7 +139,7 @@ fn group_plan_size_limit_is_inclusive_and_structure_precedes_encoding() {
     );
     refused(&plan, "LSV3002");
     let binding = &mut plan.result_binding.as_mut().unwrap().binding;
-    for _ in 0..(leselang_hir::MAX_EFFECT_NESTING_DEPTH + 1) {
+    for _ in 0..(leserpent_hir::MAX_EFFECT_NESTING_DEPTH + 1) {
         binding.body = Computation::Bind {
             name: "nested".into(),
             value: Box::new(Computation::Literal {

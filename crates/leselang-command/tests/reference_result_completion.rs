@@ -6,9 +6,9 @@ use leselang_command::{
     ContinuationImage, DispatchLease, EffectOperation, EffectRequest, EffectResult,
     PresentationResult, ResultBinding, Step, Value,
 };
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::{CapabilitySet, Principal};
 use leselang_runtime_core::{Fault, ScalarValue};
+use leserpent_hir::{Effect, Type};
 use std::{cell::RefCell, rc::Rc};
 
 #[path = "support/group_start_fixture.rs"]
@@ -215,8 +215,8 @@ fn schema_routes_keep_raw_group_values_and_original_reply_image_and_lease_owners
 #[test]
 fn saved_fuel_and_scalar_host_and_bound_host_outcomes_match_the_shared_meter() {
     use leselang_command::{execution_outcome::ComputationOutcome, reference_computation};
-    use leselang_hir::host_call::HostOperation;
     use leselang_runtime_core::Fuel;
+    use leserpent_hir::host_call::HostOperation;
     for kind in 1..=5 {
         for fuel in (0..=12).chain([100]) {
             let request = request(SUCCESSOR_CONTINUATION_SCHEMA_VERSION, kind, fuel);

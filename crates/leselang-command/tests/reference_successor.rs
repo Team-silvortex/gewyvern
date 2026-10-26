@@ -5,9 +5,9 @@ use leselang_command::reference_successor::{self, ReferenceSuccessorHost, Reserv
 use leselang_command::{
     ContinuationImage, ContinuationToken, DispatchLease, EffectRequest, ResultBinding, Step, Value,
 };
-use leselang_hir::{Effect, Type, computation::Computation};
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_runtime_core::{Fault, ScalarValue};
+use leserpent_hir::{Effect, Type, computation::Computation};
 use std::{cell::RefCell, rc::Rc};
 
 #[path = "support/group_start_fixture.rs"]

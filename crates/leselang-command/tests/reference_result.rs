@@ -6,9 +6,9 @@ use leselang_command::reference_result::{
 use leselang_command::{
     EffectRequest, EffectResult, PresentationResult, Step, StructuredField, Value,
 };
-use leselang_hir::{Effect, Type, computation::Computation, host_call::HostOperation};
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_runtime_core::{Fault, Fuel, ScalarValue};
+use leserpent_hir::{Effect, Type, computation::Computation, host_call::HostOperation};
 
 #[path = "support/group_start_fixture.rs"]
 mod fixture;

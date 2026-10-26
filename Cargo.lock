@@ -1091,11 +1091,12 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 name = "leselang-command"
 version = "2.5.0"
 dependencies = [
- "leselang-hir",
+ "leselang-hir-core",
  "leselang-host-contract",
  "leselang-runtime-core",
  "leselang-syntax",
  "leserpent-domain",
+ "leserpent-hir",
  "serde",
  "serde_json",
 ]
@@ -1104,7 +1105,19 @@ dependencies = [
 name = "leselang-hir"
 version = "2.5.0"
 dependencies = [
+ "leselang-hir-core",
  "leselang-host-contract",
+ "leselang-runtime-core",
+ "leselang-syntax",
+ "leserpent-hir",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "leselang-hir-core"
+version = "2.5.0"
+dependencies = [
  "leselang-runtime-core",
  "leselang-syntax",
  "serde",
@@ -1125,12 +1138,12 @@ name = "leselang-observe"
 version = "2.5.0"
 dependencies = [
  "leselang-command",
- "leselang-hir",
  "leselang-host-contract",
  "leselang-runtime-core",
  "leselang-syntax",
  "leselang-ui",
  "leserpent-domain",
+ "leserpent-hir",
  "leserpent-vm",
  "serde",
  "serde_json",
@@ -1157,9 +1170,9 @@ name = "leselang-ui"
 version = "2.5.0"
 dependencies = [
  "leselang-command",
- "leselang-hir",
  "leselang-host-contract",
  "leserpent-domain",
+ "leserpent-hir",
  "serde",
  "serde_json",
 ]
@@ -1206,10 +1219,10 @@ name = "leserpent-cli"
 version = "2.5.0"
 dependencies = [
  "leselang-command",
- "leselang-hir",
  "leselang-syntax",
  "leserpent-adapters",
  "leserpent-domain",
+ "leserpent-hir",
  "leserpent-protocol",
  "leserpent-runtime",
  "leserpentd",
@@ -1244,6 +1257,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "leserpent-hir"
+version = "2.5.0"
+dependencies = [
+ "leselang-hir-core",
+ "leselang-host-contract",
+ "leselang-runtime-core",
+ "leselang-syntax",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "leserpent-protocol"
 version = "2.5.0"
 dependencies = [
@@ -1263,9 +1288,9 @@ name = "leserpent-runtime"
 version = "2.5.0"
 dependencies = [
  "leselang-command",
- "leselang-hir",
  "leselang-syntax",
  "leserpent-domain",
+ "leserpent-hir",
  "rusqlite",
  "serde",
  "serde_json",
@@ -1277,11 +1302,12 @@ name = "leserpent-vm"
 version = "2.5.0"
 dependencies = [
  "leselang-command",
- "leselang-hir",
+ "leselang-hir-core",
  "leselang-host-contract",
  "leselang-runtime-core",
  "leselang-syntax",
  "leserpent-domain",
+ "leserpent-hir",
  "rusqlite",
  "serde",
  "serde_json",
@@ -1292,12 +1318,12 @@ name = "leserpentd"
 version = "2.5.0"
 dependencies = [
  "leselang-command",
- "leselang-hir",
  "leselang-observe",
  "leselang-syntax",
  "leselang-ui",
  "leserpent-adapters",
  "leserpent-domain",
+ "leserpent-hir",
  "leserpent-protocol",
  "leserpent-runtime",
  "leserpent-vm",

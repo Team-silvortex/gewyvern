@@ -1,12 +1,12 @@
 //! Product capture validation, separate from execution and journal ownership.
 
-use leselang_hir::{
-    Effect, Type,
-    computation::{Computation, GroupLocalType},
-    projection_access::ProjectionAccessLimits,
-};
+use leselang_hir_core::projection_access::ProjectionAccessLimits;
 use leselang_runtime_core::{
     CaptureValidationLimits, GroupCaptureLimits, validate_captured_bindings,
+};
+use leserpent_hir::{
+    Effect, Type,
+    computation::{Computation, GroupLocalType},
 };
 
 use crate::{

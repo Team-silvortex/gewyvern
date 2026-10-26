@@ -29,7 +29,12 @@ fn tree(features: &[&str]) -> String {
 #[test]
 fn native_profile_has_only_language_workspace_dependencies_and_no_product_contract() {
     let dependency_tree = tree(&["--no-default-features"]);
-    for required in ["leselang-hir", "leselang-runtime-core", "leselang-syntax"] {
+    for required in [
+        "leselang-hir",
+        "leselang-hir-core",
+        "leselang-runtime-core",
+        "leselang-syntax",
+    ] {
         assert!(
             dependency_tree
                 .lines()
@@ -272,7 +277,7 @@ fn continuous_host_pipeline_is_exported_without_promoting_the_complete_vm_gate()
 #[test]
 fn computed_result_projection_reuses_shared_compilation_and_pure_budget_kernels() {
     let compiler =
-        fs::read_to_string(root().join("crates/leselang-hir/src/catalog_source.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/catalog_source.rs")).unwrap();
     for required in [
         "fn projection<",
         "lower_catalog_projection_source(",
@@ -288,7 +293,8 @@ fn computed_result_projection_reuses_shared_compilation_and_pure_budget_kernels(
         );
     }
     let projection =
-        fs::read_to_string(root().join("crates/leselang-hir/src/projection_source.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/projection_source.rs"))
+            .unwrap();
     assert!(projection.contains("preflight_with_budget(&value, 1, budget)"));
     assert_eq!(
         projection
@@ -349,7 +355,8 @@ fn saved_return_stack_consumer_reuses_native_reentry_without_promoting_durable_v
 #[test]
 fn restored_parallel_consumer_uses_the_existing_barrier_without_promoting_durable_graphs() {
     let source =
-        fs::read_to_string(root().join("crates/leselang-hir/src/prepared_parallel.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/prepared_parallel.rs"))
+            .unwrap();
     assert!(source.contains("pub fn restore<Error>"));
     assert!(source.contains("ParallelReplyCore::restore(branches, rows, admit, scope)"));
     let restore = source
@@ -406,7 +413,8 @@ fn restored_parallel_consumer_uses_the_existing_barrier_without_promoting_durabl
 #[test]
 fn saved_sequence_consumer_derives_frontiers_through_the_original_reply_core() {
     let source =
-        fs::read_to_string(root().join("crates/leselang-hir/src/prepared_sequence.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/prepared_sequence.rs"))
+            .unwrap();
     assert!(source.contains("SequenceReplyCore::restore(branches, rows, admit, scope)"));
     let restore = source
         .split("pub fn restore<Reply, Error>")
@@ -426,7 +434,8 @@ fn saved_sequence_consumer_derives_frontiers_through_the_original_reply_core() {
         assert!(!restore.contains(forbidden));
     }
     let core =
-        fs::read_to_string(root().join("crates/leselang-hir/src/sequence_evaluation.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/sequence_evaluation.rs"))
+            .unwrap();
     assert_eq!(core.matches("enum State<").count(), 1);
     assert!(
         core.contains(".take_while(|row| matches!(row.reply, SavedSequenceReply::Accepted(_)))")
@@ -525,7 +534,7 @@ fn saved_mixed_consumer_composes_existing_walkers_without_claiming_portable_reco
 #[test]
 fn saved_call_operands_restore_without_an_evaluator_or_native_inventory_dependency() {
     let source =
-        fs::read_to_string(root().join("crates/leselang-hir/src/call_evaluation.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/call_evaluation.rs")).unwrap();
     let restore = source
         .split("pub fn restore<Error>")
         .nth(1)
@@ -600,14 +609,17 @@ fn saved_call_operands_restore_without_an_evaluator_or_native_inventory_dependen
 fn reference_implementation_is_optional_without_changing_released_root_paths() {
     let manifest = fs::read_to_string(root().join("crates/leselang-hir/Cargo.toml")).unwrap();
     assert!(manifest.contains("default = [\"leserpent-profile\"]"));
-    assert!(manifest.contains("leserpent-profile = [\"dep:leselang-host-contract\"]"));
-    assert!(manifest.contains("path = \"../leselang-host-contract\", optional = true"));
-    let modules = fs::read_to_string(root().join("crates/leselang-hir/src/lib.rs")).unwrap();
     assert!(
-        modules.contains(
-            "#[cfg(feature = \"leserpent-profile\")]\ninclude!(\"leserpent_profile.rs\");"
+        manifest.contains(
+            "leserpent-profile = [\"dep:leserpent-hir\", \"dep:leselang-host-contract\"]"
         )
     );
+    assert!(manifest.contains("path = \"../leselang-host-contract\", optional = true"));
+    let modules = fs::read_to_string(root().join("crates/leselang-hir/src/lib.rs")).unwrap();
+    assert!(modules.contains("pub use leselang_hir_core::*;"));
+    assert!(modules.contains("#[cfg(feature = \"leserpent-profile\")]\npub use leserpent_hir::*;"));
+    let core_modules =
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     for module in [
         "catalog_program",
         "catalog_group_source",
@@ -624,10 +636,12 @@ fn reference_implementation_is_optional_without_changing_released_root_paths() {
         "ir",
         "projection_access",
     ] {
-        assert!(modules.contains(&format!("pub mod {module};")));
+        assert!(core_modules.contains(&format!("pub mod {module};")));
     }
-    let profile =
-        fs::read_to_string(root().join("crates/leselang-hir/src/leserpent_profile.rs")).unwrap();
+    let profile = fs::read_to_string(root().join("crates/leserpent-hir/src/profile_modules.rs"))
+        .unwrap()
+        + &fs::read_to_string(root().join("crates/leserpent-hir/src/leserpent_profile.rs"))
+            .unwrap();
     for released in [
         "pub mod computation;",
         "pub mod host_call;",
@@ -646,7 +660,8 @@ fn reference_implementation_is_optional_without_changing_released_root_paths() {
 
 #[test]
 fn assembled_group_restore_reuses_cold_checks_without_a_second_meter_or_execution_path() {
-    let source = fs::read_to_string(root().join("crates/leselang-hir/src/group_reply.rs")).unwrap();
+    let source =
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/group_reply.rs")).unwrap();
     assert_eq!(
         source
             .matches("check_group_reply(group, &accepted, limits)?")
@@ -922,7 +937,8 @@ fn multiple_source_captures_use_shared_snapshots_and_native_collectors() {
 #[test]
 fn pending_transfer_uses_original_owners_and_cannot_escape_local_scope() {
     let session =
-        fs::read_to_string(root().join("crates/leselang-hir/src/effect_stack_session.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/effect_stack_session.rs"))
+            .unwrap();
     for required in [
         "pub struct PendingStackedBinding",
         "pub fn try_into_pending_binding(",
@@ -932,11 +948,12 @@ fn pending_transfer_uses_original_owners_and_cannot_escape_local_scope() {
         assert!(session.contains(required), "missing {required}");
     }
     let core =
-        fs::read_to_string(root().join("crates/leselang-hir/src/effect_session.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/effect_session.rs")).unwrap();
     assert!(core.contains("State::AwaitingBinding(pending) => match pending.try_into_parts()"));
     assert!(core.contains("state => Err(Self { state, fuel })"));
     let local =
-        fs::read_to_string(root().join("crates/leselang-hir/src/local_effect_session.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/local_effect_session.rs"))
+            .unwrap();
     assert!(!local.contains("pub fn try_into_pending_binding"));
     assert!(local.contains("let pending = session.try_into_pending_binding();"));
     let tests =
@@ -974,7 +991,8 @@ fn pending_transfer_uses_original_owners_and_cannot_escape_local_scope() {
 #[test]
 fn final_request_transfer_reuses_final_state_without_dropping_binding_frames() {
     let source =
-        fs::read_to_string(root().join("crates/leselang-hir/src/effect_stack_session.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/effect_stack_session.rs"))
+            .unwrap();
     for required in [
         "pub struct PendingStackedFinal",
         "pub fn try_into_pending_final(",
@@ -986,7 +1004,7 @@ fn final_request_transfer_reuses_final_state_without_dropping_binding_frames() {
         assert!(source.contains(required), "missing {required}");
     }
     let shared =
-        fs::read_to_string(root().join("crates/leselang-hir/src/effect_session.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/effect_session.rs")).unwrap();
     let transfer = shared
         .split("pub(crate) fn try_into_pending_final(")
         .nth(1)
@@ -999,7 +1017,8 @@ fn final_request_transfer_reuses_final_state_without_dropping_binding_frames() {
     assert!(!transfer.contains("Fuel::new"));
     assert!(!transfer.contains(".clone()"));
     let local =
-        fs::read_to_string(root().join("crates/leselang-hir/src/local_effect_session.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/local_effect_session.rs"))
+            .unwrap();
     assert!(local.contains("StackedControlSession::restore_pending_final_with_scope("));
     assert!(!local.contains("pub fn try_into_pending_final"));
     assert!(local.contains("let pending = session.try_into_pending_final();"));
@@ -1029,7 +1048,8 @@ fn final_request_transfer_reuses_final_state_without_dropping_binding_frames() {
 #[test]
 fn pending_restore_uses_original_session_core_and_exports_ownership_regressions() {
     let session =
-        fs::read_to_string(root().join("crates/leselang-hir/src/effect_stack_session.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/effect_stack_session.rs"))
+            .unwrap();
     for required in [
         "pub fn restore_pending<Error>",
         "preflight_saved_return_frames(&frames, limits)",
@@ -1039,7 +1059,8 @@ fn pending_restore_uses_original_session_core_and_exports_ownership_regressions(
         assert!(session.contains(required), "missing {required}");
     }
     let local =
-        fs::read_to_string(root().join("crates/leselang-hir/src/local_effect_session.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/local_effect_session.rs"))
+            .unwrap();
     assert!(local.contains("StackedControlSession::restore_pending_with_scope("));
     let facade = fs::read_to_string(root().join("crates/leselang-vm/src/native.rs")).unwrap();
     assert!(facade.contains("StackedSessionRestoreError"));
@@ -1065,11 +1086,13 @@ fn pending_restore_uses_original_session_core_and_exports_ownership_regressions(
 #[test]
 fn parallel_transfer_reuses_original_collectors_and_removes_fixture_reply_copies() {
     let source =
-        fs::read_to_string(root().join("crates/leselang-hir/src/prepared_parallel.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/prepared_parallel.rs"))
+            .unwrap();
     assert!(source.contains("pub fn try_into_saved("));
     assert!(source.contains("self.core.try_into_saved().map_err(|core| Self { core })"));
     let core =
-        fs::read_to_string(root().join("crates/leselang-hir/src/parallel_evaluation.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/parallel_evaluation.rs"))
+            .unwrap();
     let transfer = core
         .split("pub(crate) fn try_into_saved(")
         .nth(1)
@@ -1133,11 +1156,13 @@ fn parallel_transfer_reuses_original_collectors_and_removes_fixture_reply_copies
 #[test]
 fn sequence_transfer_preserves_original_frontier_and_separate_prefix_ownership() {
     let source =
-        fs::read_to_string(root().join("crates/leselang-hir/src/prepared_sequence.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/prepared_sequence.rs"))
+            .unwrap();
     assert!(source.contains("pub fn try_into_saved<Reply>("));
     assert!(source.contains(".try_into_saved(self.prepared, accepted)"));
     let core =
-        fs::read_to_string(root().join("crates/leselang-hir/src/sequence_evaluation.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/sequence_evaluation.rs"))
+            .unwrap();
     let transfer = core
         .split("pub(crate) fn try_into_saved<Request, Reply>(")
         .nth(1)
@@ -1228,10 +1253,11 @@ fn scoped_collector_restore_reuses_original_cores_and_fences_retained_cleanup() 
         ),
     ] {
         let wrapper =
-            fs::read_to_string(root().join(format!("crates/leselang-hir/src/{prepared}.rs")))
+            fs::read_to_string(root().join(format!("crates/leselang-hir-core/src/{prepared}.rs")))
                 .unwrap();
         let source =
-            fs::read_to_string(root().join(format!("crates/leselang-hir/src/{core}.rs"))).unwrap();
+            fs::read_to_string(root().join(format!("crates/leselang-hir-core/src/{core}.rs")))
+                .unwrap();
         let proof =
             fs::read_to_string(root().join(format!("crates/leselang-hir/tests/{tests}.rs")))
                 .unwrap();
@@ -1288,7 +1314,8 @@ fn scoped_collector_restore_reuses_original_cores_and_fences_retained_cleanup() 
 #[test]
 fn final_shared_owner_restoration_delegates_without_inventing_frames_or_a_meter() {
     let session =
-        fs::read_to_string(root().join("crates/leselang-hir/src/effect_stack_session.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/effect_stack_session.rs"))
+            .unwrap();
     let entry = session
         .split("pub fn restore_pending_final_in_scope<")
         .nth(1)
@@ -1333,7 +1360,8 @@ fn shared_owner_restoration_lends_one_fence_without_another_lifecycle() {
     assert!(owner.contains("pub fn as_parts_mut(&mut self) -> (&LocalExecutionScope, &mut Value)"));
     assert!(owner.contains("(&self.scope, &mut self.value)"));
     let session =
-        fs::read_to_string(root().join("crates/leselang-hir/src/effect_stack_session.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/effect_stack_session.rs"))
+            .unwrap();
     let entry = session
         .split("pub fn restore_pending_in_scope<")
         .nth(1)
@@ -1468,7 +1496,7 @@ fn metered_owned_recovery_joins_existing_byte_codecs_collectors_and_session_core
         assert!(owned.contains(entry), "missing {entry}");
     }
     let core =
-        fs::read_to_string(root().join("crates/leselang-hir/src/effect_session.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/effect_session.rs")).unwrap();
     assert!(core.contains("self.with_metered_host_work(input, |input, _| work(input))"));
     assert_eq!(
         core.matches("let output = work(input, &mut self.fuel)")
@@ -1784,7 +1812,8 @@ fn dispatch_data_is_host_owned_and_reference_types_are_not_mirrored() {
 #[test]
 fn borrowed_vm_lifecycle_reuses_local_owner_fences_after_restore() {
     let session =
-        fs::read_to_string(root().join("crates/leselang-hir/src/effect_stack_session.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/effect_stack_session.rs"))
+            .unwrap();
     for required in [
         "pub fn cancel_in_scope(",
         "pub fn try_accept_in_scope<",
@@ -1796,7 +1825,8 @@ fn borrowed_vm_lifecycle_reuses_local_owner_fences_after_restore() {
         assert!(session.contains(required), "missing {required}");
     }
     let local =
-        fs::read_to_string(root().join("crates/leselang-hir/src/local_effect_session.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/local_effect_session.rs"))
+            .unwrap();
     for required in [
         "self.session.cancel_in_scope(&self.scope)",
         ".with_host_outcome_in_scope(input, work, &self.scope)",
@@ -1852,7 +1882,8 @@ fn borrowed_vm_lifecycle_reuses_local_owner_fences_after_restore() {
 #[test]
 fn borrowed_host_work_uses_the_same_core_meter_and_dual_owner_checkpoint_fixture() {
     let session =
-        fs::read_to_string(root().join("crates/leselang-hir/src/effect_stack_session.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/effect_stack_session.rs"))
+            .unwrap();
     for required in [
         "pub fn with_host_work_in_scope<",
         "pub fn with_host_outcome_in_scope<",
@@ -1863,7 +1894,8 @@ fn borrowed_host_work_uses_the_same_core_meter_and_dual_owner_checkpoint_fixture
         assert!(session.contains(required), "missing {required}");
     }
     let local =
-        fs::read_to_string(root().join("crates/leselang-hir/src/local_effect_session.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leselang-hir-core/src/local_effect_session.rs"))
+            .unwrap();
     for required in [
         ".with_host_work_in_scope(input, work, &self.scope)",
         ".with_host_outcome_in_scope(input, work, &self.scope)",
@@ -2029,7 +2061,7 @@ fn ci_and_docs_keep_native_verticals_separate_from_reference_compatibility() {
     ));
     assert!(workflow.contains("cargo test --workspace --all-features --locked"));
     assert!(workflow.contains(
-        "rustfmt +1.98.0 --edition 2024 --check crates/leselang-hir/src/leserpent_profile.rs"
+        "rustfmt +1.98.0 --edition 2024 --check crates/leserpent-hir/src/leserpent_profile.rs"
     ));
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     for boundary in [

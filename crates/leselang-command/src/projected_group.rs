@@ -1,7 +1,7 @@
 //! Ordered product group captures over the core's unchanged generic containers.
 
-use leselang_hir::{HirBranch, host_call::HostOperation};
 use leselang_runtime_core::{GroupCaptureLimits, validate_projected_group};
+use leserpent_hir::{HirBranch, host_call::HostOperation};
 
 use crate::{InvalidProjectedResult, ProjectedResult, StructuredField, Value};
 

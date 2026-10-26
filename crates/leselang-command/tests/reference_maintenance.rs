@@ -6,9 +6,9 @@ use leselang_command::reference_settlement::maintenance::{
     self, JournalCompaction, ReferenceExpirationHost, ReferenceRetentionHost,
 };
 use leselang_command::{ContinuationImage, ContinuationToken, RetentionPolicy, Step};
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::{CapabilitySet, Principal};
 use leselang_runtime_core::Fault;
+use leserpent_hir::{Effect, Type};
 
 fn token(s: &str) -> ContinuationToken {
     ContinuationToken::from_wire(s.into())

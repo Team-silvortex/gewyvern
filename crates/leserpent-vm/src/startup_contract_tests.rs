@@ -40,7 +40,7 @@ fn compare(actual: &Vm, expected: &Vm) {
 }
 fn start(vm: &mut Vm, expression: &str) -> Step {
     vm.start_timed(
-        &leselang_hir::lower(&leselang_syntax::parse(&format!(
+        &leserpent_hir::lower(&leselang_syntax::parse(&format!(
             "fn main() = {expression}"
         )))
         .unwrap(),

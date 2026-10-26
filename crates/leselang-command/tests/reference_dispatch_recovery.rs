@@ -5,9 +5,9 @@ use leselang_command::{
     ContinuationImage, ContinuationToken, EffectError, EffectErrorClass, EffectOperation,
     EffectRequest, PresentationEnvelope, PresentationOperation,
 };
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::{CapabilitySet, Principal};
 use leselang_runtime_core::{Fault, StoredDispatchMetadata};
+use leserpent_hir::{Effect, Type};
 
 fn request() -> EffectRequest {
     let continuation = ContinuationImage {

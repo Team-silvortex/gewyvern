@@ -1,0 +1,332 @@
+{
+  "schema_version": 1,
+  "kind": "leserpent-product-hir-ownership",
+  "validated_at": "2026-10-26",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.5.0",
+  "hir_contract": "0.194.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.173.0",
+  "verification_status": "passed",
+  "product_implementation_files_moved": 14,
+  "raw_source_identity_count": 14,
+  "source_movement": [
+    {
+      "from": "crates/leselang-hir/src/result_field.rs",
+      "to": "crates/leserpent-hir/src/result_field.rs",
+      "sha256": "154f3ec32c7e0d63fc5689240279168f697a71b6e03d77ff7249a1add978207e",
+      "original_sha256": "154f3ec32c7e0d63fc5689240279168f697a71b6e03d77ff7249a1add978207e",
+      "byte_identical": true
+    },
+    {
+      "from": "crates/leselang-hir/src/control_flow.rs",
+      "to": "crates/leserpent-hir/src/control_flow.rs",
+      "sha256": "a2bcea516a77b75961aa29f023302a2f4d244c6870c1a3406942777f494339a2",
+      "original_sha256": "a2bcea516a77b75961aa29f023302a2f4d244c6870c1a3406942777f494339a2",
+      "byte_identical": true
+    },
+    {
+      "from": "crates/leselang-hir/src/pure_reference.rs",
+      "to": "crates/leserpent-hir/src/pure_reference.rs",
+      "sha256": "cc65b8e45f99c4e0ed8098c7ff6daabd081a5ccf5350c69947afd3b3c1a0598e",
+      "original_sha256": "cc65b8e45f99c4e0ed8098c7ff6daabd081a5ccf5350c69947afd3b3c1a0598e",
+      "byte_identical": true
+    },
+    {
+      "from": "crates/leselang-hir/src/scalar_form_contract_tests.rs",
+      "to": "crates/leserpent-hir/src/scalar_form_contract_tests.rs",
+      "sha256": "c286f8b31633491e7286e36a507821420a53c96da40e5258adc9c0142908d452",
+      "original_sha256": "c286f8b31633491e7286e36a507821420a53c96da40e5258adc9c0142908d452",
+      "byte_identical": true
+    },
+    {
+      "from": "crates/leselang-hir/src/computation_profile_contract_tests.rs",
+      "to": "crates/leserpent-hir/src/computation_profile_contract_tests.rs",
+      "sha256": "64508fec8259218835dd3f7ad4bdbb2f8c283379d094b07e7e1d2a94bfde87d7",
+      "original_sha256": "64508fec8259218835dd3f7ad4bdbb2f8c283379d094b07e7e1d2a94bfde87d7",
+      "byte_identical": true
+    },
+    {
+      "from": "crates/leselang-hir/src/function_flow.rs",
+      "to": "crates/leserpent-hir/src/function_flow.rs",
+      "sha256": "507614bd8fafdd9de34acfc456e2602c64c3448fcabced083c0ca688c400bf6a",
+      "original_sha256": "507614bd8fafdd9de34acfc456e2602c64c3448fcabced083c0ca688c400bf6a",
+      "byte_identical": true
+    },
+    {
+      "from": "crates/leselang-hir/src/fold_preparation_contract_tests.rs",
+      "to": "crates/leserpent-hir/src/fold_preparation_contract_tests.rs",
+      "sha256": "cf852064fc4df3bea42e554d9144530f81de629af67af06264f7cb5f9d3291d5",
+      "original_sha256": "cf852064fc4df3bea42e554d9144530f81de629af67af06264f7cb5f9d3291d5",
+      "byte_identical": true
+    },
+    {
+      "from": "crates/leselang-hir/src/profile_modules.rs",
+      "to": "crates/leserpent-hir/src/profile_modules.rs",
+      "sha256": "4d99e2b83206eeed00af4d5f4467757aab9d06c87051230c41db98b047dc94aa",
+      "original_sha256": "4d99e2b83206eeed00af4d5f4467757aab9d06c87051230c41db98b047dc94aa",
+      "byte_identical": true
+    },
+    {
+      "from": "crates/leselang-hir/src/functions.rs",
+      "to": "crates/leserpent-hir/src/functions.rs",
+      "sha256": "3da53b1b9ef363fec4e8933095d0943ca6053bf91f4f04e68e00747146ca04c0",
+      "original_sha256": "3da53b1b9ef363fec4e8933095d0943ca6053bf91f4f04e68e00747146ca04c0",
+      "byte_identical": true
+    },
+    {
+      "from": "crates/leselang-hir/src/loop_preparation_contract_tests.rs",
+      "to": "crates/leserpent-hir/src/loop_preparation_contract_tests.rs",
+      "sha256": "6873edc8696275b459919d42da679218d8a9bab9e255af1c5be24d5a3e9e88cf",
+      "original_sha256": "6873edc8696275b459919d42da679218d8a9bab9e255af1c5be24d5a3e9e88cf",
+      "byte_identical": true
+    },
+    {
+      "from": "crates/leselang-hir/src/leserpent_profile.rs",
+      "to": "crates/leserpent-hir/src/leserpent_profile.rs",
+      "sha256": "6303021b8f0b2b07b364a8849b987f59eb4178d4f12a158bf22b1f2180d47715",
+      "original_sha256": "6303021b8f0b2b07b364a8849b987f59eb4178d4f12a158bf22b1f2180d47715",
+      "byte_identical": true
+    },
+    {
+      "from": "crates/leselang-hir/src/computed_group.rs",
+      "to": "crates/leserpent-hir/src/computed_group.rs",
+      "sha256": "122314ca018447a1e8de4e651adeaefb9ba21dd0cb17bbcc7199f7479764a828",
+      "original_sha256": "122314ca018447a1e8de4e651adeaefb9ba21dd0cb17bbcc7199f7479764a828",
+      "byte_identical": true
+    },
+    {
+      "from": "crates/leselang-hir/src/computation.rs",
+      "to": "crates/leserpent-hir/src/computation.rs",
+      "sha256": "f9f512b9eecb31ae1e7fd19c180b8175ea81a0fcd697229dc12bab8160af66ff",
+      "original_sha256": "f9f512b9eecb31ae1e7fd19c180b8175ea81a0fcd697229dc12bab8160af66ff",
+      "byte_identical": true
+    },
+    {
+      "from": "crates/leselang-hir/src/host_call.rs",
+      "to": "crates/leserpent-hir/src/host_call.rs",
+      "sha256": "e651b12bff737cf9a8feee99a2b720f9a818d8a72f035c652c916ff7453b7d3a",
+      "original_sha256": "e651b12bff737cf9a8feee99a2b720f9a818d8a72f035c652c916ff7453b7d3a",
+      "byte_identical": true
+    }
+  ],
+  "native_hir_owner_complete": true,
+  "product_hir_owner_complete": true,
+  "physical_production_hir_relocation_complete": true,
+  "isolated_consumer_uses_actual_product_crate": true,
+  "public_test_api_added": false,
+  "compatibility_identity_tests": 4,
+  "migration_oracle_tests": 121,
+  "isolated_consumer_tests": 4,
+  "production_suite_tests": 3477,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "dependency_direction": "leselang-hir -> leselang-hir-core; optional leselang-hir -> leserpent-hir -> leselang-hir-core. Product never depends on facade.",
+  "isolated_features": {
+    "leselang-hir": [],
+    "leselang-hir-core": [],
+    "leserpent-hir": []
+  },
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "crate_count": 5,
+    "file_count": 306,
+    "bytes": 7097642,
+    "manifest_sha256": "8bc56541de4d1493a262830eaf2163e37e0f0f3af91b1754338580f2f29bc369",
+    "consumer_test_byte_identity": true,
+    "all_copied_sources_byte_identical": true,
+    "verification_target_removed": true,
+    "tests_passed": 2747,
+    "complete_vm": false,
+    "full_extraction_gate": false
+  },
+  "remaining_boundaries": [
+    "Adopt direct product-owner imports downstream where appropriate without breaking released facade APIs.",
+    "Complete independent declared-language and host-neutral durable recovery acceptance.",
+    "Validate final repository extraction and distribution with external host consumers."
+  ],
+  "verification_scope": "Local macOS arm64 full core/product HIR/facade/command/native-and-product VM suite, exact-source five-crate native export and isolated consumer verification, compatibility identity and private migration oracles, real isolated product consumer, downstream daemon/CLI/UI/observe all-feature check, native/product/root strict lint and formatting. Not remote CI, Linux, live GUI or complete VM/repository acceptance. Final architecture/status/native/VM/open-source/GUI/reliability gates and status CLI validation also passed. Test counts from overlapping commands are not unique totals.",
+  "source_hashes": {
+    "Cargo.toml": "28d1e700b3f34a0b26fa29c77841128c59dcbad04fb56b036716c63e16d0aa73",
+    "Cargo.lock": "a3136bb72d0fba8757c6b47f5b0e548671de17938d1ed809f6b1aa210e8d6d68",
+    ".github/workflows/ci.yml": "3d783eaced2ec1b1ad1e2f99fea25a5b4382d8e35f19f4aeecd06442f13790e1",
+    "crates/leselang-hir-core/Cargo.toml": "df92cc238a638db7b38d4d89fb299c75b330f6270d806a06cadd887ea71b610d",
+    "crates/leselang-hir-core/src/lib.rs": "13b6daee3f3d94f7b3f9c0ef0e65f1b8b3ad04c095ccfa058981a293393c6a28",
+    "crates/leselang-hir/Cargo.toml": "a28775321c07ba3a1033e7610db370bd7f3763f225ff08e92a4d842da46d75c0",
+    "crates/leselang-hir/src/lib.rs": "74c2f9588bf09b1081e63ac3043a204c94cc873e91fd3104fb6150e6263376ed",
+    "crates/leselang-hir/tests/product_identity.rs": "4ad836df232739377ab11434832d263e514d0735b53529ce82f7c6ed442171d7",
+    "crates/leselang-hir/tests/migration_oracles.rs": "c565815a60d4aa25cec0877b434db0d759172eb3169ebe405d91fb1905f21f13",
+    "crates/leselang-hir/tests/support/migration_computation.rs": "aa64a98ab98b7398d2cae0ffd038605816bc0a724a53cae47640ff4a46dabef1",
+    "crates/gewyvern-dev/src/leselang.rs": "d7c32cd012339f3b69ca876a870c75efa8d63a8853514426815b3d3fdb022b52",
+    "project/product/open-source-core.json": "67807e7b1aa908bde3372f872294abe8d8225e8e9b25636e842ed933845a728a",
+    "project/status/catalog.json": "7df7658269ea049296f8312ccd348b23efb5e503afeb98d3c148a8db3a0435b7",
+    "tests/language_independence_tdd.rs": "29d8408b4190b61e49c9c578d15ca903e31bb0c63b9df8917a7797474515f380",
+    "tests/project_status_tdd.rs": "2071ea1516157c39386ed946e4b50c3cc1514e6f001300bccc78c8940af763de",
+    "tests/leselang_native_profile_tdd.rs": "bdad492dfb988fe67844ec40124a18f54a223ba305cba10c283f515df62d5fd7",
+    "tests/leselang_vm_profile_tdd.rs": "8dd47770f434027184cdb72aadbf56ca50c0e89dc6744a1c120b2f6b0f295fa0",
+    "tests/open_source_core_policy_tdd.rs": "8d67438680602a1ae4b1d8db53b53d003e84993627d001ef6b4cd4e057471726",
+    "tests/reliability_gate_tdd.rs": "c501528bae83a6a22cfb6363f4de3580e0654335e7ede9aab655d7df126368c1",
+    "docs/leselang-language.md": "f1a5e7ddf717543710b635dfcfbfd4ee6f80ab640f9b678836be142bcf3ba267",
+    "docs/leselang-embedding.md": "137fa74be57d298671a25b9c56b217cda45b9154747c13089c184d627913a5bd",
+    "docs/monorepo-stack.md": "0a9bb45c14a33b48f30a5f4dc59ca06624ef15248b91b34c8d286fab3a0f64f5",
+    "crates/leserpent-hir/Cargo.toml": "3c39e944b61c041cdee55f8e2b2aae9365635a0ac5ed40a2191e2a5ed6a7101f",
+    "crates/leserpent-hir/src/result_field.rs": "154f3ec32c7e0d63fc5689240279168f697a71b6e03d77ff7249a1add978207e",
+    "crates/leserpent-hir/src/control_flow.rs": "a2bcea516a77b75961aa29f023302a2f4d244c6870c1a3406942777f494339a2",
+    "crates/leserpent-hir/src/pure_reference.rs": "cc65b8e45f99c4e0ed8098c7ff6daabd081a5ccf5350c69947afd3b3c1a0598e",
+    "crates/leserpent-hir/src/scalar_form_contract_tests.rs": "c286f8b31633491e7286e36a507821420a53c96da40e5258adc9c0142908d452",
+    "crates/leserpent-hir/src/computation_profile_contract_tests.rs": "64508fec8259218835dd3f7ad4bdbb2f8c283379d094b07e7e1d2a94bfde87d7",
+    "crates/leserpent-hir/src/lib.rs": "1fa144d0771fded0cf7cb4a54c6f6cda5323c59c349dbc21f56d818d78031d46",
+    "crates/leserpent-hir/src/function_flow.rs": "507614bd8fafdd9de34acfc456e2602c64c3448fcabced083c0ca688c400bf6a",
+    "crates/leserpent-hir/src/fold_preparation_contract_tests.rs": "cf852064fc4df3bea42e554d9144530f81de629af67af06264f7cb5f9d3291d5",
+    "crates/leserpent-hir/src/profile_modules.rs": "4d99e2b83206eeed00af4d5f4467757aab9d06c87051230c41db98b047dc94aa",
+    "crates/leserpent-hir/src/functions.rs": "3da53b1b9ef363fec4e8933095d0943ca6053bf91f4f04e68e00747146ca04c0",
+    "crates/leserpent-hir/src/loop_preparation_contract_tests.rs": "6873edc8696275b459919d42da679218d8a9bab9e255af1c5be24d5a3e9e88cf",
+    "crates/leserpent-hir/src/leserpent_profile.rs": "6303021b8f0b2b07b364a8849b987f59eb4178d4f12a158bf22b1f2180d47715",
+    "crates/leserpent-hir/src/computed_group.rs": "122314ca018447a1e8de4e651adeaefb9ba21dd0cb17bbcc7199f7479764a828",
+    "crates/leserpent-hir/src/computation.rs": "f9f512b9eecb31ae1e7fd19c180b8175ea81a0fcd697229dc12bab8160af66ff",
+    "crates/leserpent-hir/src/host_call.rs": "e651b12bff737cf9a8feee99a2b720f9a818d8a72f035c652c916ff7453b7d3a",
+    "tests/fixtures/leselang-product-hir-boundary/Cargo.toml": "b7095250828a605a3145f2c76ce0d58aa6cf5693d249a748b76823a2dce9055a",
+    "tests/fixtures/leselang-product-hir-boundary/Cargo.lock": "2b8d9c99ac1be55f5cc6809ab71d652778f58e6c89ff5c7fb78ef2d192f6a580",
+    "tests/fixtures/leselang-product-hir-boundary/README.md": "00a3a28d85b3d5c0cb849a8dbf986a0d7d8401483bb49ff171956626f93803a7",
+    "tests/fixtures/leselang-product-hir-boundary/src/lib.rs": "fa676a939f7cedbee33f06fb43f7e57c37666d8f31deb083603a97dd278d4f8d",
+    "tests/fixtures/leselang-product-hir-boundary/tests/product.rs": "832f8cc57b897c99081785bc8ea1491d77e630b44ab955a897944e3840817597"
+  },
+  "logs": [
+    {
+      "path": "/private/tmp/leserpent-hir-check-20261026.log",
+      "sha256": "44adc9f52e7a81c873e28b94c3ae8988bb541da3a5defe4a47bee6a915aed4e2",
+      "exit_code": 0,
+      "tests_passed": 0
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-isolated-tests-20261026.log",
+      "sha256": "aa98864fe9267ec0185d2550b9e3284262ad20a64af28fb002bff18601774fbf",
+      "exit_code": 0,
+      "tests_passed": 4
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-identity-oracles-20261026.log",
+      "sha256": "03a404c500f0ca4863c9e0c2e2300c6f3a563dff4980cb152198950c5709f055",
+      "exit_code": 0,
+      "tests_passed": 125
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-export-plan-final-20261026.log",
+      "sha256": "1a4052b5357bebcce8bbccc32c0e415e1ff68cff46e98c7a15be3e1a3bcf767c",
+      "exit_code": 0,
+      "tests_passed": 26
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-suite-20261026.log",
+      "sha256": "d986f4bb1aac559c5ba146d67b954854460f8565d53692d165887b9b4ae3fe2b",
+      "exit_code": 0,
+      "tests_passed": 3477
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-consumers-20261026.log",
+      "sha256": "e7e3987d66ded20bc1d2940513755a2efb3afa3d816eb9fa8e0e9f196fa21478",
+      "exit_code": 0,
+      "tests_passed": 0
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-export-20261026.log",
+      "sha256": "d38c6d86244bd07334f3f435bac623bb91cf2aa19791239155782d33f0d08824",
+      "exit_code": 0,
+      "tests_passed": 2747
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-clippy-20261026.log",
+      "sha256": "f05736bfe0090c0ea99f13f790b38343bfbe04afbffb06e37d755db73897e2cd",
+      "exit_code": 0,
+      "tests_passed": 0
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-isolated-clippy-20261026.log",
+      "sha256": "4cadec32ce8ad939d820f3adacbf46e2406bcaa617ca3d3409987070cf5192e7",
+      "exit_code": 0,
+      "tests_passed": 0
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-native-clippy-20261026.log",
+      "sha256": "d9680a59d67000b574f2d471b07d56344e57fb45ce85dfc2e4d30de833aad379",
+      "exit_code": 0,
+      "tests_passed": 0
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-root-clippy-20261026.log",
+      "sha256": "a446901eb4eee7c910bef38d5fb94990922c5409392470307e85880bb57ee78e",
+      "exit_code": 0,
+      "tests_passed": 0
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-fmt-20261026.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "tests_passed": 0
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-isolated-fmt-20261026.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "tests_passed": 0
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-included-fmt-20261026.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "tests_passed": 0
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-diff-check-20261026.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "tests_passed": 0
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-final-gates-rerun-20261026.log",
+      "sha256": "42d4855478aa7d1fd2d0f106b0c14d114bd1abc092751439b090edcdee131347",
+      "exit_code": 0,
+      "tests_passed": 580
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-root-final-clippy-20261026.log",
+      "sha256": "b91311b8cdb30e142c79a723cf4ad784ecf53fc3731573130399169db57cb189",
+      "exit_code": 0,
+      "tests_passed": 0
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-final-fmt-20261026.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "tests_passed": 0
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-final-diff-check-20261026.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "tests_passed": 0
+    },
+    {
+      "path": "/private/tmp/leserpent-hir-status-20261026.log",
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "exit_code": 0,
+      "tests_passed": 0
+    }
+  ],
+  "root_gate_tests": 580,
+  "initial_gate_attempt": {
+    "path": "/private/tmp/leserpent-hir-final-gates-20261026.log",
+    "sha256": "e0628d56d3a3814d5649cd8a062cd68ea1f7f69c6f4a6e4f115707b2dffcfab0",
+    "exit_code": 101,
+    "reason": "A new source-ownership assertion incorrectly treated empty directories left by moved files as implementation. It now recursively checks actual files; the complete root gate suite was rerun successfully."
+  },
+  "isolated_metadata": {
+    "path": "/private/tmp/leserpent-hir-isolated-metadata-20261026.json",
+    "sha256": "b7efde6d2fd3463e07221457dc0889a8109b6dc673f685fb79de186d4f19a298"
+  }
+}

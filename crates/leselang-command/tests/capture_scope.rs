@@ -11,24 +11,24 @@ use leselang_command::{
     ResultExecutionHost, ResultExecutionLimits, ResultView, ResultViewError, StructuredField,
     Value, resume_preflighted_result_binding_in_scope, snapshot_preflighted_result_scope,
 };
-use leselang_hir::{
-    Effect, HirBranch, Type,
+use leselang_hir_core::{
     call_evaluation::CallEvaluationError,
-    computation::Computation,
     effect_evaluation::{
         EffectEvaluationEnvironment, EffectEvaluationFault, EffectEvaluationLimits,
         EffectEvaluationOutcome, evaluate_effects_in_scope,
     },
-    host_call::HostOperation,
     pure_evaluation::{
         PureEvaluationEnvironment, PureEvaluationFailure, PureEvaluationFault,
         PureEvaluationLimits, PureValue,
     },
-    result_field::ResultField,
 };
 use leselang_runtime_core::{
     CalculationFailure, CaptureScopeError, CaptureSnapshotError, CaptureSnapshotLimits, Fuel,
     GroupCaptureLimits, ScalarBinding, ScalarValue, ScopeFrame,
+};
+use leserpent_hir::{
+    Effect, HirBranch, Type, computation::Computation, host_call::HostOperation,
+    result_field::ResultField,
 };
 
 const LIMITS: EffectEvaluationLimits = EffectEvaluationLimits {
@@ -210,7 +210,7 @@ fn computed_group(mode: &str) -> Computation {
     let source = format!(
         "fn main() = bind(prefix: \"p-\", body: {mode}(a: ui.focus(node_id: concat(left: prefix, right: \"a\")), b: ui.focus(node_id: concat(left: prefix, right: \"b\"))))"
     );
-    let program = leselang_hir::lower(&leselang_syntax::parse(&source)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(&source)).unwrap();
     let Effect::Compute { expression } = program.function.effect else {
         panic!()
     };
@@ -724,8 +724,9 @@ fn reentry_borrows_original_projections_and_preserves_parent_scope_and_wire() {
             &host,
         )
         .unwrap();
-        let leselang_hir::effect_reentry::ResumableEffectOutcome::Value(PureValue::Scalar(output)) =
-            outcome
+        let leselang_hir_core::effect_reentry::ResumableEffectOutcome::Value(PureValue::Scalar(
+            output,
+        )) = outcome
         else {
             panic!()
         };
@@ -792,7 +793,7 @@ fn reentry_refusals_keep_row_order_native_payloads_and_duplicate_cleanup() {
         let native = match fault {
             EffectEvaluationFault::Native(error)
             | EffectEvaluationFault::Pure(
-                leselang_hir::pure_evaluation::PureEvaluationFault::Native(error),
+                leselang_hir_core::pure_evaluation::PureEvaluationFault::Native(error),
             ) => error,
             _ => panic!(),
         };

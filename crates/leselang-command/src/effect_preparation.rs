@@ -2,19 +2,21 @@
 
 use std::{borrow::Cow, fmt};
 
-use leselang_hir::{
-    Effect, HirBranch, Type,
+use leselang_hir_core::{
     call_evaluation::{CallEvaluationError, CallEvaluationLimits},
-    computation::{Computation, GroupKind},
     effect_evaluation::{
         EffectEvaluationEnvironment, EffectEvaluationFailure, EffectEvaluationLimits,
         EffectEvaluationOutcome, evaluate_effects_in_scope,
     },
-    host_call::HostOperation,
     pure_evaluation::PureValue,
-    result_field::ResultField,
 };
 use leselang_runtime_core::{Fuel, ScopeFrame};
+use leserpent_hir::{
+    Effect, HirBranch, Type,
+    computation::{Computation, GroupKind},
+    host_call::HostOperation,
+    result_field::ResultField,
+};
 
 /// Preparation failures retain typed calculation/native provenance for the host.
 /// No native payload is formatted, cloned, serialized or made recoverable here.

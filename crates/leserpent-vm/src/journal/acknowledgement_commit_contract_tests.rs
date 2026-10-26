@@ -247,7 +247,7 @@ fn corrupt_memory_group(source: &str) -> (EphemeralJournal, DispatchLease) {
     let mut vm = crate::Vm::new(500);
     assert!(matches!(
         vm.start(
-            &leselang_hir::lower(&leselang_syntax::parse(source)).unwrap(),
+            &leserpent_hir::lower(&leselang_syntax::parse(source)).unwrap(),
             crate::Principal::new("operator").unwrap(),
             crate::CapabilitySet::new(["ui.presentation"]),
             None
@@ -311,7 +311,7 @@ fn public_memory_acknowledgement_replays_winner_despite_low_level_proposal_seman
     for wrong in [false, true] {
         let mut vm = crate::Vm::new(500);
         vm.start(
-            &leselang_hir::lower(&leselang_syntax::parse(
+            &leserpent_hir::lower(&leselang_syntax::parse(
                 r#"fn main() = ui.focus(node_id: "a")"#,
             ))
             .unwrap(),

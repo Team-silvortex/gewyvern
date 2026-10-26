@@ -8,9 +8,9 @@ use leselang_command::reference_merge_output::{assemble_merge, terminal_merge};
 use leselang_command::reference_recovery::MAX_JOURNAL_ENTRY_BYTES;
 use leselang_command::reference_request::DEFAULT_MAX_OUTPUT_ITEMS;
 use leselang_command::*;
-use leselang_hir::computation::{Computation, ScalarValue};
-use leselang_hir::{Effect, HirBranch, Type};
 use leselang_runtime_core::Fault;
+use leserpent_hir::computation::{Computation, ScalarValue};
+use leserpent_hir::{Effect, HirBranch, Type};
 
 fn plan(order: ExecutionOrder) -> MergePlan {
     MergePlan {

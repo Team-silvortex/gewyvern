@@ -52,7 +52,7 @@ fn value_traversal_matches_frozen_counts_fault_precedence_and_unchanged_bytes() 
         leaf(false),
         Value::Structured { fields: vec![] },
         Value::Scalar {
-            value: ScalarValue::StringList(leselang_hir::computation::StringListValue(vec![])),
+            value: ScalarValue::StringList(leserpent_hir::computation::StringListValue(vec![])),
         },
         Value::RuntimeList {
             revision: Revision(1),
@@ -113,7 +113,7 @@ fn value_traversal_matches_frozen_counts_fault_precedence_and_unchanged_bytes() 
             field(
                 "d",
                 Value::Scalar {
-                    value: ScalarValue::StringList(leselang_hir::computation::StringListValue(
+                    value: ScalarValue::StringList(leserpent_hir::computation::StringListValue(
                         vec!["a".into(), "b".into()],
                     )),
                 },

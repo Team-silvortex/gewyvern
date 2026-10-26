@@ -24,13 +24,18 @@ runtimes, threads, widget object models, and hand-written framework shortcuts
 stay outside the language contract.
 
 Part of the repository boundary is already executable. The
-`leselang-syntax`, `leselang-host-contract`, and `leselang-hir` dependency
-closures contain no Leserpent or Gewyvern product crate. The host contract owns
+`leselang-syntax`, `leselang-host-contract`, `leselang-hir-core`, and native-only
+`leselang-hir` dependency closures contain no Leserpent or Gewyvern product crate.
+The default HIR facade deliberately includes the `leserpent-hir` product adapter.
+The host contract owns
 only stable identities, principals, revisions, capabilities, filters, and
 bounded effect inputs. `leselang-command` is deliberately a Leserpent adapter;
 the current VM, UI, and observe crates still consume product command/result
-types and remain the next extraction seam. HIR still enumerates concrete
-runtime/UI effects, and the host contract still includes runtime filters and
+types and remain extraction work. The host-neutral HIR implementation now lives
+in `leselang-hir-core`; the concrete runtime/UI profile lives in `leserpent-hir`
+and depends only on the core, never on the facade. `leselang-hir` re-exports both
+owners' exact types, with the product dependency gated by `leserpent-profile`.
+The host contract still includes runtime filters and
 deployment validation. Zero product dependencies do not yet mean host-neutral
 semantics or a fully independent VM. CI checks the frontend dependency closure;
 the embedding architecture defines the larger extraction gate.

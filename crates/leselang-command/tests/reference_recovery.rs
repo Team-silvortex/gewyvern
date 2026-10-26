@@ -3,9 +3,9 @@ use leselang_command::reference_recovery::{
     inspect_effect_record,
 };
 use leselang_command::{ContinuationImage, ContinuationToken, MergeWait, Step, Value};
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::Revision;
 use leselang_runtime_core::{Fault, RecoveryPayload, RecoveryRecord};
+use leserpent_hir::{Effect, Type};
 
 fn image() -> ContinuationImage {
     ContinuationImage {

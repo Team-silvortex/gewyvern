@@ -74,8 +74,8 @@ fn context() -> GroupStartContext {
         fuel_remaining: 100,
     }
 }
-fn branches() -> [leselang_hir::HirBranch; 2] {
-    ["a", "b"].map(|name| leselang_hir::HirBranch {
+fn branches() -> [leserpent_hir::HirBranch; 2] {
+    ["a", "b"].map(|name| leserpent_hir::HirBranch {
         name: name.into(),
         effect: Effect::UiFocus {
             node_id: name.into(),

@@ -18,9 +18,9 @@ use serde::{Deserialize, Serialize};
 pub enum ComputationOutcome<'a> {
     Scalar(leselang_runtime_core::ScalarValue),
     Result,
-    Host(std::borrow::Cow<'a, leselang_hir::Effect>),
+    Host(std::borrow::Cow<'a, leserpent_hir::Effect>),
     BoundHost {
-        effect: std::borrow::Cow<'a, leselang_hir::Effect>,
+        effect: std::borrow::Cow<'a, leserpent_hir::Effect>,
         binding: Box<crate::ResultBinding>,
     },
 }

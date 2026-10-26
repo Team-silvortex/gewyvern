@@ -2,7 +2,7 @@ use super::*;
 use crate::group_binding::{ReferenceGroupResultBinding, invalid};
 use crate::result_binding::{ReferenceProjectedGroup, ReferenceResultBinding};
 use crate::{GroupResultBinding, ResultBinding, ScalarValue, Value, Vm};
-use leselang_hir::{Effect, Type, host_call::HostOperation};
+use leserpent_hir::{Effect, Type, host_call::HostOperation};
 
 type Snapshot = (ContinuationToken, MergePlan, Vec<(String, EffectRequest)>);
 
@@ -204,7 +204,7 @@ fn reply(request: &EffectRequest) -> crate::EffectResult {
 }
 
 fn snapshots(parallel: bool, kind: usize) -> Vec<Snapshot> {
-    let program = leselang_hir::lower(&leselang_syntax::parse(&source(parallel, kind))).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(&source(parallel, kind))).unwrap();
     let mut vm = Vm::new(1000);
     let mut step = vm.start(
         &program,
@@ -247,7 +247,7 @@ fn empty_binding() -> Box<ResultBinding> {
         locals: vec![],
         results: vec![],
         groups: vec![],
-        body: leselang_hir::computation::Computation::Literal {
+        body: leserpent_hir::computation::Computation::Literal {
             value: ScalarValue::None,
         },
     })
@@ -327,7 +327,7 @@ fn mutate(snapshot: &mut Snapshot, index: usize, defect: usize) {
                             HostOperation::UiAssertVisible
                     }
                     34 => {
-                        binding.body = leselang_hir::computation::Computation::Local {
+                        binding.body = leserpent_hir::computation::Computation::Local {
                             name: "missing".into(),
                         }
                     }
@@ -500,11 +500,11 @@ fn frozen_validate_requests(
 }
 
 fn frozen_capture_accepts_type_at(
-    expression: &leselang_hir::computation::Computation,
+    expression: &leserpent_hir::computation::Computation,
     position: usize,
     ty: Type,
 ) -> bool {
-    use leselang_hir::computation::Computation;
+    use leserpent_hir::computation::Computation;
     match expression {
         Computation::Bind { value, body, .. } if value.is_pure() => {
             frozen_capture_accepts_type_at(body, position, ty)

@@ -3,14 +3,14 @@ use crate::{
     Fault, ProjectedBinding, ProjectedGroup, ProjectedGroupBinding, ProjectedResult, ResultBinding,
     ScalarBinding, StructuredField, Value,
 };
-use leselang_hir::computation::{
+use leselang_runtime_core::Fuel;
+use leserpent_hir::computation::{
     BinaryOperator, Computation, ComputedArgument, ComputedBranch, GroupKind, ScalarValue,
     UnaryOperator,
 };
-use leselang_hir::host_call::HostOperation;
-use leselang_hir::result_field::ResultField;
-use leselang_hir::{Effect, HirBranch, Type};
-use leselang_runtime_core::Fuel;
+use leserpent_hir::host_call::HostOperation;
+use leserpent_hir::result_field::ResultField;
+use leserpent_hir::{Effect, HirBranch, Type};
 use serde_json::json;
 
 #[path = "computation_contract_tests/frozen.rs"]

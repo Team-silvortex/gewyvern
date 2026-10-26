@@ -10,9 +10,9 @@ use leselang_command::{
     ContinuationImage, ContinuationToken, EffectRequest, ExecutionOrder, MergePlan, ResultBinding,
     Step,
 };
-use leselang_hir::{Effect, HirBranch, Type};
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_runtime_core::Fault;
+use leserpent_hir::{Effect, HirBranch, Type};
 
 #[path = "support/group_start_fixture.rs"]
 mod fixture;

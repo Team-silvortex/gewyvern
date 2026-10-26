@@ -2,9 +2,9 @@
 
 use std::fmt;
 
-use leselang_hir::{CAPABILITY_UI_PRESENTATION, Effect};
 use leselang_host_contract::{CapabilitySet, CommandOrigin, Confirmation, Principal, Revision};
 use leserpent_domain::{CommandId, DOMAIN_SCHEMA_VERSION, IdempotencyKey};
+use leserpent_hir::{CAPABILITY_UI_PRESENTATION, Effect};
 
 use crate::{
     EffectOperation, LoweringContext, LoweringError, PlannedOperation, PresentationEnvelope,

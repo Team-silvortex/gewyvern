@@ -192,7 +192,7 @@ fn memory_cancellation_matches_frozen_policy_for_all_operations_and_existing_sta
 fn corrupt_group(source: &str) -> (EphemeralJournal, ContinuationImage) {
     let mut vm = crate::Vm::new(500);
     let started = vm.start(
-        &leselang_hir::lower(&leselang_syntax::parse(source)).unwrap(),
+        &leserpent_hir::lower(&leselang_syntax::parse(source)).unwrap(),
         crate::Principal::new("operator").unwrap(),
         crate::CapabilitySet::new(["ui.presentation"]),
         None,

@@ -1,6 +1,6 @@
 //! Correspondence of an admitted product group plan and its saved request rows.
 
-use leselang_hir::{Type, computation::Computation, host_call::HostOperation};
+use leserpent_hir::{Type, computation::Computation, host_call::HostOperation};
 
 use crate::{
     EffectRequestView, GroupResultBinding, MergePlan, ProjectedGroupExt, ResultBindingLimits,

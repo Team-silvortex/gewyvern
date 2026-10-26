@@ -1,7 +1,7 @@
 //! Ordered product-frame validation without VM identity or recovery ownership.
 
-use leselang_hir::{Effect, Type, host_call::HostOperation};
 use leselang_runtime_core::{ContinuationFrame, ResourceBudgetError, ResourceBudgetLimits};
+use leserpent_hir::{Effect, Type, host_call::HostOperation};
 
 use crate::{
     ResultBinding, ResultBindingLimits,

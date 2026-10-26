@@ -113,6 +113,8 @@ fn every_current_primary_capability_is_mit_open_source_and_free() {
         "silvortex-identity",
         "leselang-command",
         "leselang-hir",
+        "leselang-hir-core",
+        "leserpent-hir",
         "leselang-host-contract",
         "leselang-observe",
         "leselang-runtime-core",

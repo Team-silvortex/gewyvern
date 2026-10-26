@@ -1,9 +1,9 @@
 //! Released product result captures; no execution or journal authority.
 
-use leselang_hir::computation::ScalarValue;
-use leselang_hir::host_call::HostOperation;
-use leselang_hir::result_field::ResultField;
 use leselang_runtime_core::{ScalarProjectionField, validate_scalar_projection};
+use leserpent_hir::computation::ScalarValue;
+use leserpent_hir::host_call::HostOperation;
+use leserpent_hir::result_field::ResultField;
 use serde::{Deserialize, Serialize};
 
 use crate::Value;
@@ -130,7 +130,7 @@ impl ProjectedResult {
                     && stored
                         .value
                         .text()
-                        .is_some_and(|text| !leselang_hir::validate_ui_expected_text(text)))
+                        .is_some_and(|text| !leserpent_hir::validate_ui_expected_text(text)))
         }) {
             return Err(InvalidProjectedResult);
         }
@@ -188,13 +188,13 @@ fn valid_kind_token(operation: HostOperation, value: &ScalarValue) -> bool {
     };
     match operation {
         HostOperation::UiAssertNodeKind | HostOperation::UiWaitNodeKind => {
-            leselang_hir::UiSemanticNodeKind::from_token(token).is_some()
+            leserpent_hir::UiSemanticNodeKind::from_token(token).is_some()
         }
         HostOperation::UiAssertActionKind | HostOperation::UiWaitActionKind => {
-            leselang_hir::UiSemanticActionKind::from_token(token).is_some()
+            leserpent_hir::UiSemanticActionKind::from_token(token).is_some()
         }
         HostOperation::UiAssertFormFieldInputKind | HostOperation::UiWaitFormFieldInputKind => {
-            leselang_hir::UiFormInputKind::from_token(token).is_some()
+            leserpent_hir::UiFormInputKind::from_token(token).is_some()
         }
         _ => false,
     }

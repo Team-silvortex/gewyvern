@@ -2,9 +2,9 @@ use leselang_command::reference_reply::CompletionLease;
 use leselang_command::reference_request_build::{ReservedEffectInput, build_effect_request};
 use leselang_command::reference_settlement::{self, ReferenceSettlementHost};
 use leselang_command::{ContinuationImage, DispatchLease, EffectRequest, Step, Value};
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::{CapabilitySet, Principal};
 use leselang_runtime_core::Fault;
+use leserpent_hir::{Effect, Type};
 
 fn request(sequence: u64) -> EffectRequest {
     build_effect_request(ReservedEffectInput {

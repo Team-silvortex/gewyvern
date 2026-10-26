@@ -1,6 +1,6 @@
 use super::*;
 use crate::ScalarValue;
-use leselang_hir::computation::Computation;
+use leserpent_hir::computation::Computation;
 
 fn fixture(parallel: bool, kind: usize) -> GroupResultBinding {
     let (mut group, _) = super::successor_contract_tests::fixture(parallel, kind.clamp(1, 4));

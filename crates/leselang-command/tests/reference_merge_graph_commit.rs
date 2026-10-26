@@ -2,9 +2,9 @@ use leselang_command::reference_merge_graph_commit::*;
 use leselang_command::reference_request_build::{ReservedEffectInput, build_effect_request};
 use leselang_command::retention_policy::MAX_JOURNAL_RECORDS;
 use leselang_command::{ContinuationToken, EffectRequest, MergePlan, SchedulerLimits};
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::{CapabilitySet, Principal};
 use leselang_runtime_core::Fault;
+use leserpent_hir::{Effect, Type};
 use std::{cell::RefCell, rc::Rc};
 
 fn request(sequence: u64) -> EffectRequest {

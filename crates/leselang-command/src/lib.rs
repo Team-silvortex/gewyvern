@@ -174,7 +174,6 @@ pub use successor_correspondence::{
 pub use terminal_outcome::{BranchCompletion, BranchOutcome, Cancellation, CancellationReason};
 pub use value::{StructuredField, Value};
 
-use leselang_hir::Effect;
 use leselang_host_contract::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
     CAPABILITY_RUNTIME_REFRESH, CapabilitySet, CommandOrigin, Confirmation, Principal, Revision,
@@ -185,6 +184,7 @@ use leserpent_domain::{
     Command, CommandEnvelope, CommandId, DOMAIN_SCHEMA_VERSION, IdempotencyKey,
     MAX_RUNTIME_LOG_QUERY_ENTRIES, Query, QueryEnvelope,
 };
+use leserpent_hir::Effect;
 
 pub const MAX_COMMAND_PLAN_BYTES: usize = 64 * 1024;
 
@@ -695,9 +695,9 @@ fn validate_plan(plan: &CommandPlan) -> Result<(), PlanCodecError> {
 
 #[cfg(test)]
 mod tests {
-    use leselang_hir::lower;
     use leselang_syntax::parse;
     use leserpent_domain::{RuntimeId, RuntimeListFilter};
+    use leserpent_hir::lower;
 
     use super::*;
 

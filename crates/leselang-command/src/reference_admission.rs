@@ -1,9 +1,9 @@
 //! Reference root admission policy over the original host-neutral lifecycle.
 
 use crate::Step;
-use leselang_hir::HirProgram;
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_runtime_core::{Admission, AdmissionAdapter, AdmissionAttempt, Fault};
+use leserpent_hir::HirProgram;
 use serde::Serialize;
 
 pub use leselang_runtime_core::{
@@ -73,7 +73,7 @@ struct AdmissionRoot {
 /// ```compile_fail
 /// #![deny(unused_must_use)]
 /// use leselang_command::reference_admission::{AdmissionPolicy, RootAdmission};
-/// use leselang_hir::lower;
+/// use leserpent_hir::lower;
 /// use leselang_host_contract::{CapabilitySet, Principal};
 /// use leselang_syntax::parse;
 /// RootAdmission::new(lower(&parse("fn main() = true")).unwrap(),

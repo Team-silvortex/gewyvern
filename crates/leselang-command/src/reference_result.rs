@@ -116,7 +116,8 @@ pub fn step_from_effect_result(
         Err(error) => return Step::Fault(error),
     };
     let mut fuel = Fuel::new(image.fuel_remaining);
-    let Some(operation) = leselang_hir::host_call::HostOperation::for_effect(&image.pending_effect)
+    let Some(operation) =
+        leserpent_hir::host_call::HostOperation::for_effect(&image.pending_effect)
     else {
         return Step::Fault(continuation_admission_fault(
             ContinuationAdmissionError::Binding,

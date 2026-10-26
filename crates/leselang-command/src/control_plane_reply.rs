@@ -1,7 +1,7 @@
 //! Borrowed correspondence for released Leserpent control-plane replies.
 
-use leselang_hir::Effect;
 use leserpent_domain::{CommandStatus, QueryResult};
+use leserpent_hir::Effect;
 
 use crate::{EffectOperation, EffectResult};
 

@@ -1,19 +1,18 @@
 //! Product capture materialization and re-entry over the shared scope kernels.
 
-use leselang_hir::{
-    Effect, Type,
-    computation::Computation,
+use leselang_hir_core::{
     effect_evaluation::{EffectEvaluationEnvironment, EffectEvaluationLimits},
     effect_reentry::{
         CapturedEffectControlResult, CapturedEffectHooks, resume_captured_effects_in_scope,
     },
-    host_call::HostOperation,
     pure_evaluation::PureValue,
-    result_field::ResultField,
 };
 use leselang_runtime_core::{
     CaptureSnapshotError, CaptureSnapshotHooks, CaptureSnapshotLimits, CapturedValue, Fuel,
     GroupCaptureLimits, ScalarValue, ScopeFrame, snapshot_captured_scope_state,
+};
+use leserpent_hir::{
+    Effect, Type, computation::Computation, host_call::HostOperation, result_field::ResultField,
 };
 
 use crate::{ProjectedGroup, ProjectedResult, ResultBinding, ResultView, ResultViewError};

@@ -9,14 +9,12 @@ use leselang_command::{
     ProjectedGroup, ProjectedGroupBinding, ProjectedResult, ResultBinding, ResultBindingLimits,
     Value, continuation_schema::ContinuationSchemaError, validate_continuation_frame,
 };
-use leselang_hir::{
-    Effect, Type, computation::Computation, host_call::HostOperation,
-    projection_access::ProjectionAccessLimits,
-};
+use leselang_hir_core::projection_access::ProjectionAccessLimits;
 use leselang_runtime_core::{
     CaptureValidationLimits, ContinuationFrame, GroupCaptureLimits, ResourceBudgetError,
     ResourceBudgetLimits, ScalarValue,
 };
+use leserpent_hir::{Effect, Type, computation::Computation, host_call::HostOperation};
 
 fn limits() -> ContinuationAdmissionLimits {
     ContinuationAdmissionLimits {

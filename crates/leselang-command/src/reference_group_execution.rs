@@ -1,7 +1,7 @@
 //! Product group re-entry coordination over the original evaluator and proofs.
 
-use leselang_hir::{Effect, HirBranch, host_call::HostOperation};
 use leselang_runtime_core::{Fault, Fuel, ScalarValue};
+use leserpent_hir::{Effect, HirBranch, host_call::HostOperation};
 
 use crate::execution_outcome::ComputationOutcome as Outcome;
 use crate::reference_group_binding::validate_saved_capture;

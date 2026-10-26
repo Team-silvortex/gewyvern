@@ -189,7 +189,7 @@ fn plan_decoding_preserves_frozen_bytes_errors_and_admission_order() {
             "fn main() = runtime.history(runtime_id: \"runtime-a\")",
             "fn main() = runtime.logs(runtime_id: \"runtime-a\")",
         ] {
-            let program = leselang_hir::lower(&leselang_syntax::parse(source)).unwrap();
+            let program = leserpent_hir::lower(&leselang_syntax::parse(source)).unwrap();
             let plan = lower_effect(&program.function.effect, &context).unwrap();
             for defect in 0..12 {
                 let mut value = serde_json::to_value(&plan).unwrap();

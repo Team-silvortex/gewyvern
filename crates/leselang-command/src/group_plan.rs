@@ -1,7 +1,7 @@
 //! Product group-plan correspondence, independent of VM state and durable storage.
 
 use crate::{ExecutionOrder, GroupResultBinding, MergePlan};
-use leselang_hir::{Effect, HirBranch, host_call::HostOperation};
+use leserpent_hir::{Effect, HirBranch, host_call::HostOperation};
 use std::fmt;
 
 /// Explicit caller ceilings; none of these values grant or replenish runtime resources.

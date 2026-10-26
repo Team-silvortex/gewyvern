@@ -9,7 +9,7 @@ fn marker() -> Step {
 
 fn start_source(vm: &mut Vm, source: &str, timed: bool) -> Vec<EffectRequest> {
     let program =
-        leselang_hir::lower(&leselang_syntax::parse(&format!("fn main() = {source}"))).unwrap();
+        leserpent_hir::lower(&leselang_syntax::parse(&format!("fn main() = {source}"))).unwrap();
     let principal = Principal::new("operator").unwrap();
     let capabilities = CapabilitySet::new([CAPABILITY_UI_PRESENTATION]);
     let step = if timed {

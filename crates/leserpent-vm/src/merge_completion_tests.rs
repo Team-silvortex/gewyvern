@@ -23,7 +23,7 @@ fn plans() -> Vec<MergePlan> {
         ) {
             let members = branches
                 .iter()
-                .map(|name: &String| leselang_hir::HirBranch {
+                .map(|name: &String| leserpent_hir::HirBranch {
                     name: name.clone(),
                     result_type: Type::UiFocus,
                     effect: Effect::UiFocus {
@@ -42,7 +42,7 @@ fn plans() -> Vec<MergePlan> {
                     locals: vec![],
                     results: vec![],
                     groups: vec![],
-                    body: leselang_hir::computation::Computation::Literal {
+                    body: leserpent_hir::computation::Computation::Literal {
                         value: ScalarValue::None,
                     },
                 }),

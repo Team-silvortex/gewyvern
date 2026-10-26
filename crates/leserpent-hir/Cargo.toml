@@ -1,0 +1,16 @@
+[package]
+name = "leserpent-hir"
+version.workspace = true
+edition.workspace = true
+description = "Leserpent product profile and lowering over the native Leselang HIR"
+license.workspace = true
+
+[dependencies]
+leselang-hir-core = { path = "../leselang-hir-core" }
+leselang-host-contract = { path = "../leselang-host-contract" }
+leselang-runtime-core = { path = "../leselang-runtime-core" }
+leselang-syntax = { path = "../leselang-syntax" }
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

@@ -211,7 +211,7 @@ fn branch_sets() -> Vec<Vec<String>> {
 fn group(parallel: bool) -> GroupResultBinding {
     let branches = ["a", "b"]
         .into_iter()
-        .map(|name| leselang_hir::HirBranch {
+        .map(|name| leserpent_hir::HirBranch {
             name: name.into(),
             result_type: Type::UiFocus,
             effect: Effect::UiFocus {
@@ -230,7 +230,7 @@ fn group(parallel: bool) -> GroupResultBinding {
             locals: vec![],
             results: vec![],
             groups: vec![],
-            body: leselang_hir::computation::Computation::Literal {
+            body: leserpent_hir::computation::Computation::Literal {
                 value: ScalarValue::None,
             },
         }),
@@ -351,7 +351,7 @@ fn static_merge_admission_neither_reserves_ids_nor_restores_or_finishes_live_gro
         Ok(())
     );
     let mut malformed = binding.binding.clone();
-    malformed.name = "x".repeat(leselang_hir::MAX_BRANCH_NAME_BYTES + 1);
+    malformed.name = "x".repeat(leserpent_hir::MAX_BRANCH_NAME_BYTES + 1);
     let begin = |vm: &mut Vm, saved| {
         vm.start_group(
             branches,

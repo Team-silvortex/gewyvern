@@ -3,10 +3,10 @@ use leselang_command::reference_computation::{
     evaluate, resume, resume_group_outcome, resume_outcome,
 };
 use leselang_command::{ProjectedBinding, ProjectedResult, ResultBinding, StructuredField, Value};
-use leselang_hir::computation::Computation;
-use leselang_hir::host_call::HostOperation;
-use leselang_hir::{Effect, HirBranch, Type};
 use leselang_runtime_core::{Fuel, ScalarBinding, ScalarValue};
+use leserpent_hir::computation::Computation;
+use leserpent_hir::host_call::HostOperation;
+use leserpent_hir::{Effect, HirBranch, Type};
 
 #[test]
 fn facade_borrows_original_effect_and_materializes_capture_without_a_vm_or_new_meter() {

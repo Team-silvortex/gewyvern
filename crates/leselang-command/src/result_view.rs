@@ -1,7 +1,7 @@
 //! Borrowed product reply views, separate from execution and capture admission.
 
-use leselang_hir::{HirBranch, host_call::HostOperation, result_field::ResultField};
 use leselang_runtime_core::{GroupCaptureLimits, ScalarValue};
+use leserpent_hir::{HirBranch, host_call::HostOperation, result_field::ResultField};
 
 use crate::{InvalidProjectedResult, ProjectedGroup, ProjectedGroupExt, ProjectedResult, Value};
 

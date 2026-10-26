@@ -1,7 +1,7 @@
 use super::*;
 
-use leselang_hir::{computation::ScalarType, lower};
 use leselang_syntax::parse;
+use leserpent_hir::{computation::ScalarType, lower};
 
 // Frozen reference signatures, independent of the live host catalog.
 macro_rules! continuation_signatures {

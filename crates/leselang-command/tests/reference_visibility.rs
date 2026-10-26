@@ -7,9 +7,9 @@ use leselang_command::reference_settlement::visibility::{
     ReferenceGroupVisibilityHost,
 };
 use leselang_command::{ContinuationToken, EffectRequest, Step};
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::{CapabilitySet, Principal};
 use leselang_runtime_core::Fault;
+use leserpent_hir::{Effect, Type};
 
 fn token(n: u64) -> ContinuationToken {
     ContinuationToken::from_wire(format!("continuation-{n}"))

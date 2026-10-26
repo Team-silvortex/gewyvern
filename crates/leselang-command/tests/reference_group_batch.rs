@@ -13,8 +13,8 @@ use leselang_command::{
     ContinuationToken, ExecutionOrder, GroupResultBinding, MAX_CONTINUATION_BYTES, MergePlan,
     ResultBinding,
 };
-use leselang_hir::{Effect, HirBranch, Type, computation::Computation};
 use leselang_runtime_core::{Fault, ScalarValue};
+use leserpent_hir::{Effect, HirBranch, Type, computation::Computation};
 
 fn fault(code: &str, message: &str) -> Fault {
     Fault {

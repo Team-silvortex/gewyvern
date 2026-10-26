@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use leselang_hir::Type;
+use leserpent_hir::Type;
 
 use crate::{
     GroupPlanLimits, GroupResultBinding, MergePlan, ResultBindingLimits, validate_result_binding,

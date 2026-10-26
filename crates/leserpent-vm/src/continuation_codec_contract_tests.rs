@@ -152,7 +152,7 @@ fn every_released_schema_keeps_frozen_static_admission_without_group_authority()
 
 #[test]
 fn bounded_codec_keeps_raw_decode_limits_and_recursive_preflight_before_encoding() {
-    use leselang_hir::computation::Computation;
+    use leserpent_hir::computation::Computation;
     let base = continuation_contract_tests::requests()
         .remove(9)
         .continuation;

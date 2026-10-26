@@ -3,12 +3,12 @@
 //! These are product protocol payloads, not execution authority. Hosts must still
 //! validate grants, revisions, pending operations and reply provenance before use.
 
-use leselang_hir::{
+use leselang_host_contract::{CapabilitySet, Principal};
+use leserpent_domain::{CommandEnvelope, CommandId, CommandResult, QueryEnvelope, QueryResult};
+use leserpent_hir::{
     UiFocusNavigationDirection, UiFormInputKind, UiFormRequirementState, UiSelectionState,
     UiSemanticActionKind, UiSemanticNodeKind,
 };
-use leselang_host_contract::{CapabilitySet, Principal};
-use leserpent_domain::{CommandEnvelope, CommandId, CommandResult, QueryEnvelope, QueryResult};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

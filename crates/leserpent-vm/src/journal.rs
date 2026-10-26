@@ -2352,7 +2352,7 @@ mod scheduling_tests {
             } else {
                 crate::Vm::new(100)
             };
-            let program = leselang_hir::lower(&leselang_syntax::parse(
+            let program = leserpent_hir::lower(&leselang_syntax::parse(
                 r#"fn main() = bind(result: ui.focus(node_id: "node"), body: true)"#,
             ))
             .unwrap();
@@ -2520,7 +2520,7 @@ mod scheduling_tests {
     }
 
     fn simple_batch() -> crate::StructuredEffectBatch {
-        let program = leselang_hir::lower(&leselang_syntax::parse(
+        let program = leserpent_hir::lower(&leselang_syntax::parse(
             r#"fn main() = all(left: ui.focus(node_id: "a"), right: ui.focus(node_id: "b"))"#,
         ))
         .unwrap();
@@ -2539,7 +2539,7 @@ mod scheduling_tests {
 
     fn pending_sequence_fixture(root: &TempRoot) -> (SqliteJournal, crate::StructuredEffectBatch) {
         let path = root.0.join("sequence.sqlite3");
-        let program = leselang_hir::lower(&leselang_syntax::parse(
+        let program = leserpent_hir::lower(&leselang_syntax::parse(
             r#"fn main() = seq(first: ui.focus(node_id: "first"),
                 second: ui.focus(node_id: "second"), third: ui.focus(node_id: "third"))"#,
         ))
@@ -2896,7 +2896,7 @@ mod scheduling_tests {
 
         let root = TempRoot::new();
         let path = root.0.join("chain.sqlite3");
-        let program = leselang_hir::lower(&leselang_syntax::parse(
+        let program = leserpent_hir::lower(&leselang_syntax::parse(
             r#"fn main() = bind(first: ui.focus(node_id: "a"), body:
                 bind(second: ui.focus(node_id: field(value: first, name: "node_id")), body:
                     ui.focus(node_id: field(value: second, name: "node_id"))))"#,
@@ -3257,7 +3257,7 @@ mod scheduling_tests {
     }
 
     fn recovery_fixture(root: &TempRoot) -> (SqliteJournal, EffectRequest, EffectRequest, Step) {
-        let program = leselang_hir::lower(&leselang_syntax::parse(
+        let program = leserpent_hir::lower(&leselang_syntax::parse(
             r#"fn main() = ui.focus(node_id: "original")"#,
         ))
         .unwrap();

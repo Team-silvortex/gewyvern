@@ -5,12 +5,12 @@ use leselang_command::reference_checkpoint::{
 use leselang_command::reference_recovery::RecoveredEffectRecord;
 use leselang_command::retention_policy::MAX_JOURNAL_RECORDS;
 use leselang_command::{ContinuationImage, ContinuationToken, Step, Value};
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::Revision;
 use leselang_runtime_core::{
     CheckpointCommitError, CheckpointError, CheckpointFinalizer, CheckpointRecovery, Fault,
     RecoveryPayload, RecoveryRecord,
 };
+use leserpent_hir::{Effect, Type};
 use std::{cell::RefCell, collections::VecDeque, rc::Rc};
 
 fn fault(code: &str, message: impl Into<String>) -> Fault {

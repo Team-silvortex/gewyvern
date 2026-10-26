@@ -1,8 +1,8 @@
 //! Product group-start assembly and publication over native admission/commit hooks.
 
-use leselang_hir::{Effect, HirBranch};
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_runtime_core::{Fault, Fuel};
+use leserpent_hir::{Effect, HirBranch};
 
 use crate::continuation_schema::{
     GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION, GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION,

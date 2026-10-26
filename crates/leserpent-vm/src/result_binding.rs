@@ -1,7 +1,7 @@
-#[cfg(any(test, feature = "sqlite-journal"))]
-use leselang_hir::{Effect, Type};
 #[cfg(test)]
 use leselang_runtime_core::GroupCaptureLimits;
+#[cfg(any(test, feature = "sqlite-journal"))]
+use leserpent_hir::{Effect, Type};
 
 use crate::Fault;
 
@@ -80,10 +80,10 @@ impl ReferenceResultBinding for ResultBinding {
 mod tests {
     use super::*;
     use crate::Value;
-    use leselang_hir::computation::{Computation, ScalarValue};
-    use leselang_hir::host_call::HostOperation;
-    use leselang_hir::result_field::ResultField;
-    use leselang_hir::{UiFormInputKind, UiSelectionState};
+    use leserpent_hir::computation::{Computation, ScalarValue};
+    use leserpent_hir::host_call::HostOperation;
+    use leserpent_hir::result_field::ResultField;
+    use leserpent_hir::{UiFormInputKind, UiSelectionState};
     use serde_json::json;
 
     #[test]
@@ -126,7 +126,7 @@ mod tests {
                 Computation::Local {
                     name: "scalar".into(),
                 },
-                Type::Scalar(leselang_hir::computation::ScalarType::Integer),
+                Type::Scalar(leserpent_hir::computation::ScalarType::Integer),
             ),
             (
                 Computation::Field {
@@ -135,7 +135,7 @@ mod tests {
                     }),
                     field: ResultField::NodeId,
                 },
-                Type::Scalar(leselang_hir::computation::ScalarType::String),
+                Type::Scalar(leserpent_hir::computation::ScalarType::String),
             ),
             (
                 Computation::Field {
@@ -144,7 +144,7 @@ mod tests {
                     }),
                     field: ResultField::NodeId,
                 },
-                Type::Scalar(leselang_hir::computation::ScalarType::String),
+                Type::Scalar(leserpent_hir::computation::ScalarType::String),
             ),
             (
                 Computation::Field {
@@ -155,7 +155,7 @@ mod tests {
                     }),
                     field: ResultField::NodeId,
                 },
-                Type::Scalar(leselang_hir::computation::ScalarType::String),
+                Type::Scalar(leserpent_hir::computation::ScalarType::String),
             ),
         ] {
             binding.body = body;
@@ -207,14 +207,16 @@ mod tests {
         };
         assert_eq!(
             binding.validate(&pending),
-            Ok(Type::Scalar(leselang_hir::computation::ScalarType::Integer))
+            Ok(Type::Scalar(
+                leserpent_hir::computation::ScalarType::Integer
+            ))
         );
         binding.locals.push(binding.locals[0].clone());
         assert_eq!(binding.validate(&pending), Err(invalid()));
     }
 
     fn capture_group(
-        branches: &[leselang_hir::HirBranch],
+        branches: &[leserpent_hir::HirBranch],
         value: &Value,
     ) -> Result<ProjectedGroup, Fault> {
         ProjectedGroup::capture(
@@ -234,7 +236,7 @@ mod tests {
 
     fn match_group(
         group: &ProjectedGroup,
-        branches: &[leselang_hir::HirBranch],
+        branches: &[leserpent_hir::HirBranch],
         value: &Value,
     ) -> Result<bool, Fault> {
         let Value::Structured { fields } = value else {
@@ -250,9 +252,9 @@ mod tests {
             .map_err(projection_fault)
     }
 
-    fn group_input(count: usize) -> (Vec<leselang_hir::HirBranch>, Value) {
+    fn group_input(count: usize) -> (Vec<leserpent_hir::HirBranch>, Value) {
         let branches = (0..count)
-            .map(|index| leselang_hir::HirBranch {
+            .map(|index| leserpent_hir::HirBranch {
                 name: format!("member_{index}"),
                 effect: Effect::UiFocus {
                     node_id: format!("node-{index}"),
@@ -548,7 +550,7 @@ mod tests {
                     }
                     5 if version == 5 => {
                         changed.fields.last_mut().unwrap().value = ScalarValue::OptionalString(
-                            leselang_hir::computation::OptionalStringValue(Some(
+                            leserpent_hir::computation::OptionalStringValue(Some(
                                 "bad\0text".into(),
                             )),
                         )

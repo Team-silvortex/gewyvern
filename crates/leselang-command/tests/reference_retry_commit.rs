@@ -3,9 +3,9 @@ use leselang_command::reference_retry_commit::*;
 use leselang_command::{
     DispatchLease, EffectError, EffectErrorClass, RetryDisposition, RetrySchedule, Step, Value,
 };
-use leselang_hir::{Effect, Type};
 use leselang_host_contract::{CapabilitySet, Principal};
 use leselang_runtime_core::{DispatchLeaseObservation, Fault};
+use leserpent_hir::{Effect, Type};
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,

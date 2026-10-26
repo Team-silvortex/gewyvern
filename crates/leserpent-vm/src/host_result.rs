@@ -8,8 +8,8 @@ pub(super) use leselang_command::reference_result::validate_bound_value;
 mod tests {
     use super::*;
     use crate::{Step, Vm};
-    use leselang_hir::{Type, computation::ScalarValue};
     use leselang_host_contract::{CapabilitySet, Principal};
+    use leserpent_hir::{Type, computation::ScalarValue};
 
     fn legacy_bound_value(image: &ContinuationImage, reply: &Value) -> Result<(), Fault> {
         if crate::group_binding::value_type(reply) != image.result_type {
@@ -122,7 +122,7 @@ mod tests {
     }
 
     fn image() -> ContinuationImage {
-        let program = leselang_hir::lower(&leselang_syntax::parse(
+        let program = leserpent_hir::lower(&leselang_syntax::parse(
             r#"fn main() = bind(r: ui.focus(node_id: "a"), body: field(value: r, name: "node_id"))"#,
         )).unwrap();
         let Step::Effect(request) = Vm::new(1000).start(

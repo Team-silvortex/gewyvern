@@ -294,7 +294,7 @@ fn corrupt_memory_group(source: &str) -> (EphemeralJournal, DispatchLease) {
     let mut vm = crate::Vm::new(500);
     assert!(matches!(
         vm.start(
-            &leselang_hir::lower(&leselang_syntax::parse(source)).unwrap(),
+            &leserpent_hir::lower(&leselang_syntax::parse(source)).unwrap(),
             crate::Principal::new("operator").unwrap(),
             crate::CapabilitySet::new(["ui.presentation"]),
             None

@@ -2,8 +2,8 @@
 
 use std::fmt;
 
-use leselang_hir::Type;
 use leselang_runtime_core::HostResultDomain;
+use leserpent_hir::Type;
 
 use crate::{Value, ValueBoundsError, ValueValidationLimits, validate_value_items};
 

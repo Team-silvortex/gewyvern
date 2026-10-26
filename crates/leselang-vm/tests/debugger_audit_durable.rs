@@ -1,3 +1,6 @@
+// Exercise the released HIR path with the same product-owned audit oracle.
+extern crate leselang_hir as leserpent_hir;
+
 use leselang_vm::{CancellationReason, RetentionPolicy, Step, Vm};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
