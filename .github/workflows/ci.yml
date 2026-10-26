@@ -45,6 +45,24 @@ jobs:
       - name: Lint native-only HIR and its tests
         run: cargo +1.98.0 clippy -p leselang-hir --locked --no-default-features --all-targets -- -D warnings
 
+      - name: Verify foreign host computation policy and frozen product compatibility
+        run: |
+          cargo +1.98.0 test -p leselang-hir --locked --no-default-features --test computation_profile
+          cargo +1.98.0 test -p leselang-hir --locked --lib computation::profile_contract_tests
+
+      - name: Verify checked declaration source receipts without the product profile
+        run: cargo +1.98.0 test -p leselang-hir --locked --no-default-features --test declaration_source
+
+      - name: Verify public argument binding and frozen lowering compatibility
+        run: |
+          cargo +1.98.0 test -p leselang-hir --locked --no-default-features --test argument_binding
+          cargo +1.98.0 test -p leselang-hir --locked --no-default-features --lib argument_binding_contract_tests
+
+      - name: Verify public native source plans and frozen preparation order
+        run: |
+          cargo +1.98.0 test -p leselang-hir --locked --no-default-features --test source_preparation
+          cargo +1.98.0 test -p leselang-hir --locked --no-default-features --lib source_preparation_contract_tests
+
       - name: Verify native source and separate consumer outside the monorepo
         run: >-
           cargo +1.98.0 run --locked -p gewyvern-dev --
@@ -57,73 +75,79 @@ jobs:
         run: cargo +1.98.0 test -p leselang-command --locked --lib --test reference_computation
 
       - name: Test product request construction and live dispatch authority
-        run: cargo +1.98.0 test -p leselang-command -p leselang-vm --locked request_construction --no-fail-fast
+        run: cargo +1.98.0 test -p leselang-command -p leselang-vm -p leserpent-vm --locked request_construction --no-fail-fast
 
       - name: Test group-start assembly without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_group_start
 
       - name: Test group-start parity and transactional restart boundaries
-        run: cargo +1.98.0 test -p leselang-vm --locked --lib group_start
+        run: cargo +1.98.0 test -p leserpent-vm --locked --lib group_start
 
       - name: Test root-start coordination without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_start
 
       - name: Test root-start parity and atomic admission boundaries
-        run: cargo +1.98.0 test -p leselang-vm --locked --lib start_contract_tests::root_start
+        run: cargo +1.98.0 test -p leserpent-vm --locked --lib start_contract_tests::root_start
 
       - name: Test continuation import policy without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_restore
 
       - name: Test import parity and durable rollback boundaries
         run: |
-          cargo +1.98.0 test -p leselang-vm --locked --lib restore_contract_tests::
+          cargo +1.98.0 test -p leserpent-vm --locked --lib restore_contract_tests::
 
       - name: Test reference VM with the SQLite backend disabled
         run: cargo +1.98.0 test -p leselang-vm --locked --no-default-features --features leserpent-profile
+
+      - name: Test product-owned evaluator without SQLite
+        run: cargo +1.98.0 test -p leserpent-vm --locked --no-default-features
+
+      - name: Lint product-owned evaluator without SQLite
+        run: cargo +1.98.0 clippy -p leserpent-vm --locked --no-default-features --all-targets -- -D warnings
 
       - name: Test reply entry policy without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_reply
 
       - name: Test reply parity and durable completion boundaries
-        run: cargo +1.98.0 test -p leselang-vm --locked --lib reply_contract_tests::reply_entries
+        run: cargo +1.98.0 test -p leserpent-vm --locked --lib reply_contract_tests::reply_entries
 
       - name: Test result completion policy without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_result_completion
 
       - name: Test result completion parity and native settlement boundaries
-        run: cargo +1.98.0 test -p leselang-vm --locked --lib completion_contract_tests::result_completion
+        run: cargo +1.98.0 test -p leserpent-vm --locked --lib completion_contract_tests::result_completion
 
       - name: Test successor assembly without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_successor
 
       - name: Test successor assembly parity and native transaction boundaries
-        run: cargo +1.98.0 test -p leselang-vm --locked --lib assembly_contract_tests::successor_assembly
+        run: cargo +1.98.0 test -p leserpent-vm --locked --lib assembly_contract_tests::successor_assembly
 
       - name: Test cancellation entry policy without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_cancellation
 
       - name: Test cancellation parity and native audit boundaries
-        run: cargo +1.98.0 test -p leselang-vm --locked --lib cancellation_contract_tests::cancellation_entries
+        run: cargo +1.98.0 test -p leserpent-vm --locked --lib cancellation_contract_tests::cancellation_entries
 
       - name: Test retry entry policy without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_retry
 
       - name: Test retry parity and native lease transaction boundaries
-        run: cargo +1.98.0 test -p leselang-vm --locked --lib retry_contract_tests::retry_entry
+        run: cargo +1.98.0 test -p leserpent-vm --locked --lib retry_contract_tests::retry_entry
 
       - name: Test claim entry policy without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_claim
 
       - name: Test claim parity and native cache publication boundaries
-        run: cargo +1.98.0 test -p leselang-vm --locked --lib claim_contract_tests::claim_entries
+        run: cargo +1.98.0 test -p leserpent-vm --locked --lib claim_contract_tests::claim_entries
 
       - name: Test result conversion without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_result
 
       - name: Test frozen result conversion and native settlement parity
         run: |
-          cargo +1.98.0 test -p leselang-vm --locked --lib result_conversion_contract_tests::conversion_matches
-          cargo +1.98.0 test -p leselang-vm --locked --lib completion_contract_tests::result_completion
+          cargo +1.98.0 test -p leserpent-vm --locked --lib result_conversion_contract_tests::conversion_matches
+          cargo +1.98.0 test -p leserpent-vm --locked --lib completion_contract_tests::result_completion
 
       - name: Test settlement routing without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_settlement
@@ -135,92 +159,92 @@ jobs:
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_visibility
 
       - name: Test frozen group visibility and cache reconciliation parity
-        run: cargo +1.98.0 test -p leselang-vm --locked --lib visibility_contract_tests
+        run: cargo +1.98.0 test -p leserpent-vm --locked --lib visibility_contract_tests
 
       - name: Test retention and expiry coordination without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_maintenance
 
       - name: Test frozen retention and expiry cache publication parity
-        run: cargo +1.98.0 test -p leselang-vm --locked --lib maintenance_contract_tests
+        run: cargo +1.98.0 test -p leserpent-vm --locked --lib maintenance_contract_tests
 
       - name: Test sequence selection without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_allocation
 
       - name: Test frozen sequence selection and shared journal reservations
-        run: cargo +1.98.0 test -p leselang-vm --locked --lib allocation_contract_tests
+        run: cargo +1.98.0 test -p leserpent-vm --locked --lib allocation_contract_tests
 
       - name: Test startup coordination without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_startup
 
       - name: Test frozen startup and native recovery lifecycle parity
-        run: cargo +1.98.0 test -p leselang-vm --locked --lib startup_contract_tests
+        run: cargo +1.98.0 test -p leserpent-vm --locked --lib startup_contract_tests
 
       - name: Test root publication without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_publication
 
       - name: Test native publication failures and shared-owner admission races
-        run: cargo +1.98.0 test -p leselang-vm --locked --lib publication_contract_tests
+        run: cargo +1.98.0 test -p leserpent-vm --locked --lib publication_contract_tests
 
       - name: Test import publication and committed lease adoption across restart
-        run: cargo +1.98.0 test -p leselang-vm --locked --lib adoption_contract_tests
+        run: cargo +1.98.0 test -p leserpent-vm --locked --lib adoption_contract_tests
 
       - name: Test adapter-owned root admission lifecycle
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_admission
 
       - name: Test root admission compatibility and native storage boundaries
         run: |
-          cargo +1.98.0 test -p leselang-vm --locked --lib admission_contract_tests
+          cargo +1.98.0 test -p leserpent-vm --locked --lib admission_contract_tests
           cargo +1.98.0 test -p leselang-vm --locked --test admission
 
       - name: Test reference journal schema ownership and legacy migration parity
         run: |
           cargo +1.98.0 test -p leselang-command --locked --test reference_journal_schema
-          cargo +1.98.0 test -p leselang-vm --locked --lib schema_contract_tests
-          cargo +1.98.0 test -p leselang-vm --locked --lib journal_v
+          cargo +1.98.0 test -p leserpent-vm --locked --lib schema_contract_tests
+          cargo +1.98.0 test -p leserpent-vm --locked --lib journal_v
 
       - name: Test audit recovery policy and atomic checkpoint publication
         run: |
           cargo +1.98.0 test -p leselang-command --locked --test reference_audit_recovery
-          cargo +1.98.0 test -p leselang-vm --locked --lib audit_recovery_contract_tests
+          cargo +1.98.0 test -p leserpent-vm --locked --lib audit_recovery_contract_tests
           cargo +1.98.0 test -p leselang-vm --locked --test debugger_audit_durable --test debugger_audit_memory
 
       - name: Test audited cancellation policy and native commit parity
         run: |
           cargo +1.98.0 test -p leselang-command --locked --test reference_audit_commit
-          cargo +1.98.0 test -p leselang-vm --locked --lib audit_commit_contract_tests
+          cargo +1.98.0 test -p leserpent-vm --locked --lib audit_commit_contract_tests
 
       - name: Test audit record projections and native lookup diagnostics
         run: |
           cargo +1.98.0 test -p leselang-command --locked --test reference_audit_read
-          cargo +1.98.0 test -p leselang-vm --locked --lib audit_read_contract_tests
+          cargo +1.98.0 test -p leserpent-vm --locked --lib audit_read_contract_tests
 
       - name: Test ordinary cancellation policy and native commit parity
         run: |
           cargo +1.98.0 test -p leselang-command --locked --test reference_cancellation_commit
-          cargo +1.98.0 test -p leselang-vm --locked --lib cancellation_commit_contract_tests
+          cargo +1.98.0 test -p leserpent-vm --locked --lib cancellation_commit_contract_tests
 
       - name: Test retry journal policy and native commit parity
         run: |
           cargo +1.98.0 test -p leselang-command --locked --test reference_retry_commit
-          cargo +1.98.0 test -p leselang-vm --locked --lib retry_commit_contract_tests
+          cargo +1.98.0 test -p leserpent-vm --locked --lib retry_commit_contract_tests
 
       - name: Test dispatch acknowledgement policy and native commit parity
         run: |
           cargo +1.98.0 test -p leselang-command --locked --test reference_acknowledgement_commit
-          cargo +1.98.0 test -p leselang-vm --locked --lib acknowledgement_commit_contract_tests
+          cargo +1.98.0 test -p leserpent-vm --locked --lib acknowledgement_commit_contract_tests
 
       - name: Test ordinary completion policy and native commit parity
         run: |
           cargo +1.98.0 test -p leselang-command --locked --test reference_completion_commit
-          cargo +1.98.0 test -p leselang-vm --locked --lib completion_commit_contract_tests
+          cargo +1.98.0 test -p leserpent-vm --locked --lib completion_commit_contract_tests
 
       - name: Test native settlement peer-winner publication
-        run: cargo +1.98.0 test -p leselang-vm --locked --lib settlement_contract_tests::settlement_sqlite
+        run: cargo +1.98.0 test -p leserpent-vm --locked --lib settlement_contract_tests::settlement_sqlite
 
       - name: Test deadline expiration batches and native commit parity
         run: |
           cargo +1.98.0 test -p leselang-command --locked --test reference_expiration_commit
-          cargo +1.98.0 test -p leselang-vm --locked --lib expiration_commit_contract_tests
+          cargo +1.98.0 test -p leserpent-vm --locked --lib expiration_commit_contract_tests
 
       - name: Test read-only projections without the VM or SQLite
         run: cargo +1.98.0 test -p leselang-observe --locked --no-default-features
@@ -228,32 +252,47 @@ jobs:
       - name: Test pending registration policy and native commit parity
         run: |
           cargo +1.98.0 test -p leselang-command --locked --test reference_pending_commit
-          cargo +1.98.0 test -p leselang-vm --locked --lib pending_commit_contract_tests
+          cargo +1.98.0 test -p leserpent-vm --locked --lib pending_commit_contract_tests
 
       - name: Test merge graph registration policy and native transaction parity
         run: |
           cargo +1.98.0 test -p leselang-command --locked --test reference_merge_graph_commit
-          cargo +1.98.0 test -p leselang-vm --locked --lib merge_graph_commit_contract_tests
+          cargo +1.98.0 test -p leserpent-vm --locked --lib merge_graph_commit_contract_tests
 
       - name: Test dispatch selection policy and native lease commit parity
         run: |
           cargo +1.98.0 test -p leselang-command --locked --test reference_claim_commit
-          cargo +1.98.0 test -p leselang-vm --locked --lib claim_commit_contract_tests
+          cargo +1.98.0 test -p leserpent-vm --locked --lib claim_commit_contract_tests
 
       - name: Test group finalization policy inside native settlement transactions
         run: |
           cargo +1.98.0 test -p leselang-command --locked --test reference_group_finalization
-          cargo +1.98.0 test -p leselang-vm --locked --lib group_finalization_contract_tests
+          cargo +1.98.0 test -p leserpent-vm --locked --lib group_finalization_contract_tests
 
       - name: Test group successor registration policy and native rollback parity
         run: |
           cargo +1.98.0 test -p leselang-command --locked --test reference_group_successor_commit
-          cargo +1.98.0 test -p leselang-vm --locked --lib successor_commit_contract_tests
+          cargo +1.98.0 test -p leserpent-vm --locked --lib successor_commit_contract_tests
 
       - name: Test group progress projection and native snapshot parity
         run: |
           cargo +1.98.0 test -p leselang-command --locked --test reference_group_progress
-          cargo +1.98.0 test -p leselang-vm --locked --lib group_progress_contract_tests
+          cargo +1.98.0 test -p leserpent-vm --locked --lib group_progress_contract_tests
+
+      - name: Test sequence gate policy and native journal parity
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_sequence_gate
+          cargo +1.98.0 test -p leserpent-vm --locked --lib sequence_gate_contract_tests
+
+      - name: Test retention batch policy and native transaction parity
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_compaction_commit
+          cargo +1.98.0 test -p leserpent-vm --locked --lib compaction_commit_contract_tests
+
+      - name: Test selected-record cleanup policy and borrowed transaction parity
+        run: |
+          cargo +1.98.0 test -p leselang-command --locked --test reference_compaction_records
+          cargo +1.98.0 test -p leserpent-vm --locked --lib compaction_records_contract_tests
 
       - name: Lint read-only projections and their consumers
         run: cargo +1.98.0 clippy -p leselang-observe --locked --no-default-features --all-targets -- -D warnings
@@ -297,7 +336,7 @@ jobs:
         run: |
           cargo fmt --all -- --check
           rustfmt +1.98.0 --edition 2024 --check crates/leselang-hir/src/leserpent_profile.rs
-          rustfmt +1.98.0 --edition 2024 --check crates/leselang-vm/src/leserpent_profile.rs
+          rustfmt +1.98.0 --edition 2024 --check crates/leserpent-vm/src/leserpent_profile.rs
 
       - name: Run Clippy
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings

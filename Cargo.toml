@@ -22,6 +22,7 @@ members = [
     "crates/leserpent-frontend-package",
     "crates/leserpent-protocol",
     "crates/leserpent-runtime",
+    "crates/leserpent-vm",
     "crates/leserpentd",
     "crates/silvortex-bounded-io",
     "crates/silvortex-identity",

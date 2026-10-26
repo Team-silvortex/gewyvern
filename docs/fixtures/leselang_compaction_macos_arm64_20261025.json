@@ -1,0 +1,190 @@
+{
+  "kind": "leselang-reference-retention-batch-compaction-parity",
+  "validated_on": "2026-10-25",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.5.0",
+  "pre_extraction_revision": "63df912e",
+  "pre_extraction_worktree_included_sequence_gate_slice": true,
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.172.0",
+  "direct_adapter_tests": 9,
+  "frozen_memory_cases": 240,
+  "frozen_sqlite_cases": 360,
+  "public_peer_reconciliation_restart_cases": 1,
+  "public_late_failure_rollback_cases": 1,
+  "memory_preflight_before_mutation": true,
+  "native_group_protection_and_accounting_retained": true,
+  "durable_single_transaction_rollback": true,
+  "no_removal_reconciles_stale_cache": true,
+  "commit_before_cache_publication": true,
+  "watermark_not_reused": true,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "Reference retention-batch selection, preflight and commit coordination. Native owners retain maps, bounded measurement, SQL, complete-group deletion checks, transaction lifetime and audit cascades.",
+  "limitations": [
+    "The frozen memory and durable batch bodies come from 63df912e and are unaffected by the preceding uncommitted sequence-gate slice. They do not call migrated compaction policy. Native storage, bounded measurement and complete-group deletion helpers remain shared.",
+    "The 240 memory cases cover twelve local/group/payload variants, five retention ceilings and four batch sizes. They compare exact reports/errors and all maps, preserve duplicate/local order behavior, and confirm no mutation on late measurement refusal.",
+    "The 360 SQLite cases cover four source forms, three lifecycle stages, ten storage/trigger variants and three policies. Corrupt fixture admission is disabled only during setup; these fixtures are not supported recovery checkpoints. Candidate row ordering and all production SQL predicates remain unchanged.",
+    "Nine direct adapter tests cover protection, numeric-age ordering, full preflight, saturating counts, no-removal reconciliation, native fault ownership, unwind/drop ordering, invalid counts/kinds/delete cardinality and empty candidate batches without retries.",
+    "A public two-worker case reconciles stale local completed entries after a peer removes a whole group, then reopens without redispatch or identity reuse. A second public case proves a late group-branch deletion failure rolls back earlier standalone deletion without cache eviction; removal of the injected failure permits retry and reopen.",
+    "Memory continues to order by continuation age and measure logical payloads; SQLite continues to order by native row age and count stored bytes. Their different accounting and reconciliation semantics are preserved, not unified or promoted as host-neutral recovery.",
+    "Native complete-group deletion validation, byte-accounting internals and cache publication ownership remain in place. This slice adds no format migration, admission bypass, compensating write, retry or independent transaction.",
+    "No new Linux, remote CI, live GUI, actual exported-source execution, complete independent durable recovery, power-loss, disk-full, multi-host race or performance evidence is claimed."
+  ],
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_compaction_commit.rs",
+      "sha256": "0034d4ac5bd98efa75847f434a44a8196e71040e48cd133a7f727ff1839219f8"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "7a551ffc05bd61276845b671b45b87bc17027288644524a32af63a16c9696ee6"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_settlement/maintenance.rs",
+      "sha256": "2f9ac25a92bfbdf1940a9f41052ee49f04c0042514e7b52ab2288802828f2f18"
+    },
+    {
+      "path": "crates/leselang-command/src/retention_policy.rs",
+      "sha256": "7b58ac84a851853e41f890112fbd7530e88a7885678f4a5b5313d14ad840075e"
+    },
+    {
+      "path": "crates/leselang-command/src/continuation_identity.rs",
+      "sha256": "5a530a239c3e7ab76abd6bfcfed66acaec4b459e15bf42cf0486d8494c7d6e6b"
+    },
+    {
+      "path": "crates/leselang-command/Cargo.toml",
+      "sha256": "51753fa79fce986890ef1948ad092f9875b370be116b228c49513375066e462f"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_compaction_commit.rs",
+      "sha256": "2d7d9c7c0a53607fd62df1d1e6ed2569dab0430c53c264607b3eea595c1ee719"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "d759543fbfbf632d8beb7d032266d61efabc34a0642cd7d66a3fa2ce856dacef"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/compaction_commit.rs",
+      "sha256": "70876f9f380078bca5a9b995182f3b63d685d24fc8b3278c0c4b28023e13ecce"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/compaction_commit_contract_tests.rs",
+      "sha256": "807f1ec5f7f1f6ce6d98e81e65bc548bdc8ba2b4ea4b5de9a354731cc90cb9ce"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/retention_tests.rs",
+      "sha256": "e999489879b9bdc1176787202f73bb60b2bee55f75ba3974ae9e6fc259f04500"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_recovery_contract_tests.rs",
+      "sha256": "cb528045c5a41e30aacdc54250381bb50f20d8fa1b45bf065808f20723954a6d"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "b5b38411bcf0e74bed163a8adf2b6d7e88280dd83677abca991f242d930ef5aa"
+    },
+    {
+      "path": "crates/leselang-vm/Cargo.toml",
+      "sha256": "2f1d51815d543a85d8b69662dbb4578170e8c6b0672f52402e4dec5c05260e21"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "ff0386bd92047ce91fe709ff1445c49d9347946b24213fe286e50a2bb8642444"
+    },
+    {
+      "path": "tests/leselang_native_profile_tdd.rs",
+      "sha256": "108f11dd700615a0d6505885f29724bed134f09e4855b73fb3ba3cda4e9429d0"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "0b9b6c1974e742f59248d5041cdaac46028b74b782ece0f489630b4cf0637204"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "25eab6f031222057ece8d2c1b2b6a9cbbd6c5987d74285b4c413072dbe0e2182"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "662aed453ce0c3c3e1e34a114d22dee404cffafe99b1438e60ebe339da27ce62"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "77b8de9cc205ba7a070e2912388a6988e06bde01ed0d7e9135e1e5ecd5e5b5c5"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "66c7d7e2a90517f8fd5c299a7e27949b2f842892eeb809adc2969a5a597f6a01"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/private/tmp/leselang-compaction-adapter-20261025.log",
+      "sha256": "be0cf051a3cfc6e91708ece7333a21c24ef8612ecc26c3a21a788f0a19087d4b"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-parity-20261025.log",
+      "sha256": "e0aa90be56c7dd0e4f3b6451d924197d1f5a1d0874761682fe27c97e421f7699"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-suite-20261025.log",
+      "sha256": "0f7f6408bdfcca2ab68e1e4dc307833ac23a0e4bcc8f5263373ec563699fdcad"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-memory-20261025.log",
+      "sha256": "4d00223d1f8ac31bdf1fad4962297cdc43e036002a5d5b25452d2938677b9b03"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-clippy-20261025.log",
+      "sha256": "83a680bbeea90f66e9553aff86e4f66c0a89a26a3a2c9bd889f17ba6f9b988d7"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-bridge-clippy-20261025.log",
+      "sha256": "7f2d4ebfba0206af193e00fe935c76fc0ef3d78d2e2b37dc2141eb8697254ea3"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-memory-clippy-20261025.log",
+      "sha256": "53abc2f6d1bf40f34e0b37ca2a1bed4c933f3d8072ec1741f7d677d9583f4f14"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-native-clippy-20261025.log",
+      "sha256": "6faf060d09625611c11b10ede4e883ff0d5120d2b96bcab5d209b58a7c55d418"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-source-plan-20261025.log",
+      "sha256": "c5983ba648bb490f4e7446d8815ac1f4eecec39b160fcff94900685ae9e42112"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-dependencies-20261025.log",
+      "sha256": "e90db153d6482ed2f2de9f8669d0de3a88de74679941851fca212b9ec44783d8"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-export-plan-20261025.log",
+      "sha256": "9474acf1a8517a0467005dab54988f5b62142ec3d63636dfa560ea3e44d3527b"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-architecture-status-20261025.log",
+      "sha256": "36edc6befa67c1dde7f43e21f2284b787ee53e78efd5d1488bc3d986ea66b62a"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-catalog-20261025.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "related_crate_tests_passed": 1552,
+  "memory_profile_unit_tests_passed": 154,
+  "source_planning_tests_passed": 23,
+  "source_export_dry_run_files": 280,
+  "source_export_dry_run_bytes": 6784528,
+  "adapter_has_no_vm_or_sqlite_normal_dependency": true,
+  "feature_specific_strict_lints_passed": true,
+  "strict_workspace_all_features_all_targets_clippy_passed": true,
+  "verification_status": "passed",
+  "architecture_documentation_status_tests_passed": 516,
+  "status_catalog_valid": true
+}

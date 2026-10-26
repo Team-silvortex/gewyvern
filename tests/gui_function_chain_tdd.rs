@@ -37,15 +37,15 @@ fn product_automation_evidence_tracks_adapter_routing_native_commit_and_publicat
             "host.publish_completed(image, authoritative)",
         ),
         (
-            "crates/leselang-vm/src/successor.rs",
+            "crates/leserpent-vm/src/successor.rs",
             "self.0.journal.record_completed(image, proposed)",
         ),
         (
-            "crates/leselang-vm/src/successor.rs",
+            "crates/leserpent-vm/src/successor.rs",
             "self.0.journal.acknowledge_dispatch(lease, now_ms, proposed)",
         ),
         (
-            "crates/leselang-vm/src/successor.rs",
+            "crates/leserpent-vm/src/successor.rs",
             "self.visible_step(&image.token, authoritative)",
         ),
     ] {

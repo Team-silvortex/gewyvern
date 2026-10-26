@@ -15,7 +15,7 @@ leselang-hir = { path = "../leselang-hir" }
 leselang-observe = { path = "../leselang-observe" }
 leselang-syntax = { path = "../leselang-syntax" }
 leselang-ui = { path = "../leselang-ui" }
-leselang-vm = { path = "../leselang-vm" }
+leserpent-vm = { path = "../leserpent-vm" }
 leserpent-adapters = { path = "../leserpent-adapters" }
 leserpent-domain = { path = "../leserpent-domain" }
 leserpent-protocol = { path = "../leserpent-protocol" }

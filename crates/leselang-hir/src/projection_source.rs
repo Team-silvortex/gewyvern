@@ -99,6 +99,66 @@ impl<Error> fmt::Debug for ProjectionSourceError<Error> {
 }
 impl<Error> std::error::Error for ProjectionSourceError<Error> {}
 
+/// Exact borrowed `value`/`name` operands, not a physical-source or type receipt.
+/// Private fields prevent operand replacement; no mutable view or wire decoder
+/// exists. Native lowering owns cold-source bounds, types and expansion work.
+///
+/// ```compile_fail
+/// use leselang_hir::projection_source::BoundFieldSource;
+/// let plan = BoundFieldSource(todo!());
+/// ```
+///
+/// ```compile_fail
+/// use leselang_hir::projection_source::BoundFieldSource;
+/// let plan: BoundFieldSource<'_> = serde_json::from_str("{}").unwrap();
+/// ```
+#[must_use = "lower the bound projection or deliberately discard its alignment"]
+pub struct BoundFieldSource<'source>(FieldSource<'source>);
+
+impl fmt::Debug for BoundFieldSource<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("BoundFieldSource")
+    }
+}
+
+/// Align exactly two named operands without traversing or copying source. The
+/// caller selects the field operation; this does not verify a callee or authorize
+/// any export. Literal-name decoding is deliberately deferred until after native
+/// child lowering to preserve native diagnostic priority. Prefer
+/// `lower_projection_source` for complete eager cold-source/metadata scanning.
+pub fn bind_field_source<Error>(
+    arguments: &[NamedArgument],
+    at: Span,
+) -> Result<BoundFieldSource<'_>, ProjectionSourceError<Error>> {
+    field_source(arguments, at).map(BoundFieldSource)
+}
+
+impl<'source> BoundFieldSource<'source> {
+    /// Consume the original alignment through the shared field pipeline. Output
+    /// root/child capacity is checked first, then the child is lowered once, its
+    /// literal field metadata decoded, its complete produced IR checked for
+    /// physical purity, and its exact native export queried once. Source limits
+    /// validate ceilings, not descendant source; the lowerer must check every
+    /// cold path, and decode must bound literal bytes before native work.
+    /// Errors/unwind drop owned parts without retry or native side-effect rollback.
+    /// No result observation or name decoding grants live execution authority.
+    pub fn lower<Field, Operation, HostEffect, IrResult, Input, Key, Error>(
+        self,
+        limits: SourceCallLimits,
+        lower: impl FnOnce(
+            &'source Expression,
+        ) -> NativeFieldInput<
+            Node<Field, Operation, HostEffect, IrResult>,
+            Input,
+            Error,
+        >,
+        decode: impl FnOnce(&'source str) -> Result<Key, Error>,
+        export: impl FnOnce(&Input, Key) -> NativeFieldExport<Field, Error>,
+    ) -> FieldSourceOutput<Node<Field, Operation, HostEffect, IrResult>, Error> {
+        self.0.lower_preflighted(limits, lower, decode, export)
+    }
+}
+
 pub(crate) struct FieldSource<'source> {
     pub value: &'source Expression,
     name: &'source Expression,

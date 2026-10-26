@@ -11,6 +11,151 @@ Product versions in the dated proofs and incremental sections below describe
 their original checkpoints, not the current package version. Release alignment
 does not relabel those records or promote extraction readiness.
 
+## Product Executor Ownership
+
+As of the 2.5.0 extraction work, `crates/leserpent-vm` owns the product
+evaluator, continuation admission, live dispatch authority, memory journal,
+SQLite recovery and transaction implementation. `leserpentd` and the optional
+`leselang-observe` mutation bridge depend on this product crate directly.
+
+`leselang-vm` keeps its native session facade and a feature-gated re-export of
+the exact product types for existing consumers. Its released-API integration
+tests remain there deliberately; product unit tests now run under
+`leserpent-vm`. Default features and serialized values are unchanged. Disabling
+defaults still excludes the product dependency; the isolated source export
+removes all product feature/dependency entries and excludes product sources.
+The optional legacy dependencies also support compatibility integration tests,
+not a second implementation. The HIR still has a separate optional product
+profile, so this is not a completed independent durable VM.
+
+The pre-2.6 priority is to close acceptance boundaries, not add syntax or move
+more isolated helpers indefinitely: finish the complete declared-language
+two-host execution matrix, decide and verify host-neutral durable checkpoint
+ownership, then validate the final repository/dependency split with external
+consumers. Source ownership alone does not promote `complete_vm` or
+`full_extraction_gate`. Historical evidence retains its original paths/hashes;
+the status catalog points to the new current owners.
+
+## HIR Policy Boundary
+
+HIR contract `0.185.0` removes the Rust inherent-implementation dependency
+between the generic `ir::Computation` and its Leserpent type alias. The optional
+product profile implements `computation_profile::ComputationProfile` for its
+local `Effect` type. The generic IR forwards the existing twelve method names
+to that explicitly selected policy, so old callers do not need extension-trait
+imports, wrapper trees or conversions. External crates can implement the same
+contract for their own local effect types, including borrowed move-only slots.
+
+Forwarding performs no traversal, scope copying, authority checks, caching,
+retry or unwind interception. Structure/type validation, cold-branch bounds,
+capability observations and fault precedence remain the profile's policy; none
+of these observations is a live execution grant. There is no blanket profile
+for arbitrary effect types. Private product lexical-scope validation remains a
+product helper, not a new public language type.
+
+The reference method-level oracle freezes the previous policy and routes its
+recursive calls through its own functions, sharing unchanged lowering, type and
+opaque-effect helpers. It checks 55 trees across 880 scope/group combinations and 165 private
+lexical views. A separate native integration target checks all twelve forwarders,
+borrow identity, native error/unwind propagation and current-policy re-observation.
+The source exporter runs that target again in its external consumer workspace.
+
+This removes one concrete cross-crate extraction blocker, not the whole HIR
+split. The declaration assembly boundary below replaces two private preflight
+entry points. Remaining scalar binding/loop/fold compiler contracts and an
+acyclic compatibility-facade dependency layout still need review before
+physically relocating the remaining HIR specialization.
+No syntax, serialized IR or journal schema changes, new interpreter, full
+language-coverage claim or independent durable-recovery claim are introduced.
+
+## Declaration Source Boundary
+
+HIR contract `0.186.0` adds `HelperDeclarations::entry_source` and `source_for`.
+They return an opaque `DeclarationBody` tied to the original immutable function,
+not its name or structural equality. No public constructor, mutation access or
+wire decoder can manufacture that receipt. It proves only the physical node and
+depth limits already checked during declaration admission, not semantic validity
+or execution authority. A tighter consumer policy triggers a fresh physical walk;
+unchanged or looser limits reuse the original check without rescanning.
+
+`lower_declared_helper_body` and `assemble_declared_program` use these receipts
+to preserve native diagnostic order across a public crate boundary. Native
+lowerers remain responsible for all cold names, text, arity, lexical and type
+checks. Header/counter checks, helper registry preparation, generated output
+validation, cost checks and final admission still run. The original strict
+`lower_helper_body` and `assemble_program` APIs retain their full eager scans.
+The product adapter now uses the public checked entries; the raw program
+assembler is module-private and the old helper bypass is removed.
+
+The separate native test target covers exact source identity, 225 physical-limit
+comparisons with fresh declaration admission, move-only borrowed native values,
+original counters and buffers, strict-vs-native diagnostic priority, complete
+program assembly, error cleanup and unwind. It is also exported unchanged to the
+independent consumer. Other private compiler entry points and physical HIR
+ownership remain open; this does not promote the independent VM/extraction gate.
+
+## Argument Binding Boundary
+
+HIR contract `0.187.0` separates named-argument binding from recursive operand
+lowering. `bind_helper_source_arguments` and `bind_source_arguments` return
+opaque alignments over the exact original argument/signature borrows. Consuming
+`lower` keeps declaration order, current scalar-domain checks, physical output
+budgets and original error indices. Optional omission creates no default value.
+`HelperTemplate::revalidate` checks the cached original body under current
+physical/lexical limits without copying native fields. The product adapter uses
+these public entries instead of three crate-private compiler dependencies.
+
+An alignment is **not** a physical-source receipt or an execution grant. Binding
+reads bounded top-level metadata only; its source-node/depth fields validate
+policy ceilings, not descendant source. Native lowerers must bound and check
+all cold source, lexical types and expansion work. Hosts needing eager complete
+source scans should use the unchanged `lower_helper_arguments` or
+`lower_source_call` APIs. Binding runs no domain callback; delayed lowering reads
+current native domain policy rather than caching it as authorization.
+
+The frozen pre-stage loops compare 1,344 helper and 2,688 host combinations,
+including error positions, optional arguments, budgets, callback failure/unwind
+and domain-query order. They share the original structure/type kernels, not a
+second compiler. Eight separate-crate tests cover original native ownership,
+strict ingress, current policy, once-only consumption and template revalidation;
+the source exporter copies these tests unchanged into its consumer workspace.
+No syntax, wire or journal schema changes are made. Remaining private compiler
+hooks, acyclic HIR package ownership and complete independent-language/durable
+acceptance are still separate extraction gates.
+
+## Native Source Boundary
+
+HIR contract `0.188.0` adds public `bind_host_source_root` and `bind_field_source`
+plans. Both retain original immutable source borrows, expose no mutable fields
+or wire decoder and are consumed by `lower`. The product compiler no longer
+imports the private field form, calls its internal lowering method, or calls
+the old private host-source lowering entry.
+
+The host plan checks policy ceilings, call-root shape and capacity for one
+generated Host node before callbacks. Its consuming method prepares and then
+admits the original native effect/result exactly once. The field plan checks
+the exact two named operands and delegates to the existing private language
+kernel: output capacity, child lowering, literal metadata decoding, generated
+IR purity and current native export lookup retain their original order. The
+private field kernel remains shared by other native compiler modules rather
+than being copied into another implementation.
+
+These plans are **not** physical-source receipts or authority grants. Native
+lowerers must bound/check all cold source, literal bytes, lexical types and
+opaque output growth; native admission/export hooks corroborate current policy.
+The unchanged strict `lower_host_source` and `lower_projection_source` entries
+still scan complete source before callbacks. No source counter, execution fuel,
+hidden copy, runtime reservation or rollback is introduced.
+
+Frozen pre-boundary pipelines compare 864 field and 144 host cases, including
+fault spans, callback order, malformed metadata, output limits, purity, refusal
+and unwind. Eight separate-crate tests cover original borrowed/native buffers,
+strict ingress, current policy and cleanup. Their unchanged consumer copy and
+the frozen native unit tests are included in verified source export. This is
+not a second compiler or a completed HIR relocation. Scalar binding, loop/fold
+adaptation, remaining private-core references, acyclic package ownership and
+complete independent-language/durable acceptance remain open.
+
 ## Identity
 
 Leselang is intended to become fully independent of Gewyvern and Leserpent,
@@ -11058,11 +11203,110 @@ in that test; production journal mode remains unchanged. Corrupt fixtures probe 
 precedence, not supported checkpoints. Native SQL, codecs and evaluators stay shared
 with the frozen implementation; migrated selection policy does not.
 
-Reference execution is `1.170.0`. Native embedding remains `0.172.0`/developing/draft,
+This slice advanced reference execution to `1.170.0`. Native embedding remains `0.172.0`/developing/draft,
 HIR stays `0.184.0`, and journal schema 10 and product/wire versions are unchanged.
 No new Linux, remote CI, live GUI, exported-source execution, power-loss or performance
 evidence is claimed. Full host-neutral durable recovery and repository extraction
 remain open; this slice does not advance their maturity.
+
+### Sequential Predecessor Gates
+
+`leselang-command::reference_sequence_gate` owns the reference journal's
+sequential readiness decision. Memory borrows native groups in their original
+order, ignores parallel/unrelated groups, and uses the first occurrence of the
+requested member. Every owning sequential group must remain open and all earlier
+members must have `Step::Done` terminals. Group and prefix scans short-circuit;
+acknowledgement alone, failure, cancellation or missing dispatches do not release
+the next member. This read adds no payload validation, copying or admission.
+
+SQLite retains its original EXISTS query in the native owner and interprets its
+single observation in the adapter. The query relies on previously admitted journal
+integrity and checks stored completion state rather than decoding terminal values.
+It does not acquire the memory path's closed-owner or Done-only checks. Direct
+completion still reads under its original immediate transaction; claim selection
+keeps the existing indexed SQL inside the atomic lease transaction. The shared
+`LSV2410` refusal remains unchanged. No commit, repair, retry or reservation is added.
+
+The [sequence gate proof](fixtures/leselang_sequence_gate_macos_arm64_20261025.json)
+covers 7 direct tests, 2,520 frozen memory combinations across all 14 order labels,
+432 SQLite comparisons, and 12 memory plus 12 durable public group shapes. The
+public paths reject early sequence completion, keep successors unclaimable while
+their predecessor is leased, and retain ordering after reopening the durable VM.
+A borrowed-transaction test observes an uncommitted predecessor update without
+publishing it; rollback restores the original refusal. Corrupt low-level fixtures
+check compatibility, not supported checkpoints or relaxed recovery admission.
+
+This slice advanced reference execution to `1.171.0`; product `2.5.0`, native embedding
+`0.172.0`/developing/draft, HIR `0.184.0` and journal schema 10 remain unchanged.
+These are local macOS tests, not new Linux, remote CI, GUI, exported-source execution,
+power-loss or performance evidence. Full host-neutral durable recovery and physical
+repository extraction remain open with unchanged maturity.
+
+### Retention Batch Coordination
+
+`leselang-command::reference_compaction_commit` owns the reference retention
+batch decision, not journal storage or recovery admission. Memory protects every
+group member, counts completed groups as one unit, stably sorts by the released
+continuation-age order, and measures the entire selected batch before any removal.
+Native borrowed views and bounded measurement retain original errors without
+materializing JSON. Group removal precedes dispatch removal and a single audit
+cascade; local duplicates and backend-specific accounting remain unchanged.
+
+SQLite still opens one native immediate transaction, eagerly selects candidates
+in its original row-age order, and keeps all SQL, complete-group validation and
+cascading deletes on that owner. The adapter checks count/range conversions and
+delete cardinality, reconciles stale local tokens even for a no-removal batch,
+and publishes the result only after commit. A no-removal close retains its original
+diagnostic separately from a mutating commit. No retries, compensating writes,
+watermark repair or payload admission are introduced.
+
+The [compaction proof](fixtures/leselang_compaction_macos_arm64_20261025.json)
+records direct adapter failure/unwind checks and frozen native comparisons,
+including malformed sizes, incomplete groups and late delete failures. A public
+two-worker case checks stale-cache reconciliation, reopen and non-reused IDs.
+Another public case deletes an earlier standalone unit before a later group-branch
+failure, then verifies database rollback and an unchanged local cache. Removing
+the injected failure allows the same batch to finish and survive reopen.
+Low-level corrupt fixtures test compatibility, not supported recovery checkpoints.
+At that checkpoint, complete-group deletion and byte-accounting internals remained native.
+
+This slice advanced reference execution to `1.172.0`; product `2.5.0`, native embedding
+`0.172.0`/developing/draft, HIR `0.184.0` and journal schema 10 remain unchanged.
+These local macOS checks are not new Linux, remote CI, live GUI, performance,
+power-loss or complete exported-source execution evidence. Full independent
+recovery and physical extraction remain open.
+
+### Selected Record Cleanup
+
+`leselang-command::reference_compaction_records` now owns the selected-record
+cleanup policy left below the retention batch: effect-byte range conversion,
+complete-group plan admission, branch completeness/state checks, saturating byte
+accounting, delete-cardinality checks and stale-local-token projection. Native
+owners still run the original SQL and retain storage errors, eager branch-row
+collection in position order, foreign-key cascades and the outer transaction.
+
+Group/header and all branch reads precede bounded plan decoding. Plan admission
+precedes completeness checks; completeness precedes byte conversions; all sizing
+precedes the first delete. Group deletion precedes branch deletion. No extra
+receipt decoding, token normalization, graph repair or recovery authority is added.
+Local reconciliation keeps input order and duplicates without inspecting payloads,
+even when the local list is empty. The adapter has no commit or rollback hook:
+late failure can leave a deletion prefix inside the caller's transaction, which
+must roll back before exposing any cache changes.
+
+The [record cleanup proof](fixtures/leselang_compaction_records_macos_arm64_20261026.json)
+contains 9 direct adapter tests, 192 frozen group-deletion comparisons, 288 effect
+size comparisons, 96 cache-reconciliation comparisons and one borrowed-transaction
+test. The earlier full-batch oracle now uses independently frozen lower helpers,
+so it no longer shares this migrated cleanup policy. Existing complete-batch and
+public cache/restart/late-failure tests exercise the delegated path end to end.
+Corrupt low-level fixtures test fault compatibility, not admitted checkpoints.
+
+Reference execution is `1.173.0`; product `2.5.0`, native embedding
+`0.172.0`/developing/draft, HIR `0.184.0` and journal schema 10 remain unchanged.
+These are local macOS checks, not new Linux, remote CI, live GUI, performance,
+power-loss or complete exported-source execution evidence. Independent recovery
+and physical repository extraction remain open.
 
 **The current 2.3.0-and-later phase closes acceptance gates; physical extraction is deferred.**
 It is not an automatic version-triggered move. No replacement extraction version

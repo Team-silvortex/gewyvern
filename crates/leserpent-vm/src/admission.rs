@@ -16,7 +16,7 @@ pub use leselang_runtime_core::{
 ///
 /// ```compile_fail
 /// #![deny(unused_must_use)]
-/// use leselang_vm::AdmissionPoll;
+/// use leserpent_vm::AdmissionPoll;
 /// fn poll_result() -> AdmissionPoll { AdmissionPoll::Finished }
 /// poll_result();
 /// ```
@@ -29,7 +29,7 @@ pub use leselang_command::reference_admission::AdmissionPoll;
 /// use leselang_hir::lower;
 /// use leselang_host_contract::{CapabilitySet, Principal};
 /// use leselang_syntax::parse;
-/// use leselang_vm::{AdmissionPolicy, RootAdmission};
+/// use leserpent_vm::{AdmissionPolicy, RootAdmission};
 /// let program = lower(&parse("fn main() = true")).unwrap();
 /// RootAdmission::new(
 ///     program, Principal::new("operator").unwrap(), CapabilitySet::default(),
@@ -54,7 +54,7 @@ impl RootAdmission {
     /// use leselang_hir::lower;
     /// use leselang_host_contract::{CapabilitySet, Principal, Revision};
     /// use leselang_syntax::parse;
-    /// use leselang_vm::{AdmissionPolicy, AdmissionPoll, RootAdmission, Step, Vm};
+    /// use leserpent_vm::{AdmissionPolicy, AdmissionPoll, RootAdmission, Step, Vm};
     ///
     /// let program = lower(&parse("fn main() = true")).unwrap();
     /// let mut admission = RootAdmission::new(

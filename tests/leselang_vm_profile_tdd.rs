@@ -1,6 +1,170 @@
 use std::{fs, path::Path, process::Command};
 
 #[test]
+fn product_executor_is_owned_outside_the_native_language_crate() {
+    let read = |p| fs::read_to_string(root().join(p)).unwrap();
+    fn source_files(dir: &Path, files: &mut Vec<std::path::PathBuf>) {
+        for entry in fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                source_files(&path, files);
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    let base = root().join("crates/leselang-vm/src");
+    let mut files = Vec::new();
+    source_files(&base, &mut files);
+    let mut modules = files
+        .iter()
+        .map(|p| p.strip_prefix(&base).unwrap())
+        .collect::<Vec<_>>();
+    modules.sort();
+    assert_eq!(modules, [Path::new("lib.rs"), Path::new("native.rs")]);
+    let product = read("crates/leserpent-vm/Cargo.toml");
+    assert!(!product.contains("../leselang-vm"));
+    assert!(product.contains("sqlite-journal = [\"dep:rusqlite\"]"));
+    assert!(read("crates/leserpent-vm/src/lib.rs").starts_with("#![forbid(unsafe_code)]"));
+    for consumer in [
+        "crates/leserpentd/Cargo.toml",
+        "crates/leselang-observe/Cargo.toml",
+    ] {
+        let manifest = read(consumer);
+        assert!(manifest.contains("path = \"../leserpent-vm\""));
+        assert!(!manifest.contains("path = \"../leselang-vm\""));
+    }
+    let ci = read(".github/workflows/ci.yml");
+    assert!(!ci.contains("-p leselang-vm --locked --lib"));
+    assert!(ci.contains("test -p leserpent-vm --locked --no-default-features"));
+    assert!(ci.contains(
+        "clippy -p leserpent-vm --locked --no-default-features --all-targets -- -D warnings"
+    ));
+    let docs = read("docs/leselang-embedding.md");
+    assert!(docs.contains("## Product Executor Ownership"));
+    assert!(docs.contains("not a completed independent durable VM"));
+}
+
+#[test]
+fn sequence_gate_policy_retains_lazy_memory_reads_and_native_atomic_selection() {
+    let read = |p| fs::read_to_string(root().join(p)).unwrap();
+    let ordered = |s: &str, parts: &[&str]| {
+        let mut n = 0;
+        for p in parts {
+            n += s[n..].find(p).expect(p) + p.len();
+        }
+    };
+    let adapter = read("crates/leselang-command/src/reference_sequence_gate.rs");
+    for forbidden in [
+        "rusqlite",
+        "leselang_vm",
+        "std::fs",
+        "catch_unwind",
+        ".clone()",
+        ".collect",
+        "Vec<",
+        "fn commit(",
+        "validate_terminal_step",
+        "decode_",
+    ] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    ordered(
+        adapter.split("pub fn ready_memory").nth(1).unwrap(),
+        &[
+            "host.groups().all",
+            "!group.order.is_sequential()",
+            ".position(",
+            "!group.terminal",
+            "group.branches[..position]",
+            "host.terminal(token)",
+            "Some(Step::Done(_))",
+        ],
+    );
+    let durable = adapter.split("pub fn ensure_durable").nth(1).unwrap();
+    assert_eq!(
+        durable
+            .matches("host.has_unfinished_predecessor(token)?")
+            .count(),
+        1
+    );
+    ordered(
+        durable,
+        &[
+            "host.has_unfinished_predecessor(token)?",
+            "return Err(predecessor_pending())",
+            "Ok(())",
+        ],
+    );
+    assert_eq!(
+        adapter
+            .matches("sequential predecessor has not completed")
+            .count(),
+        1
+    );
+    let completion = read("crates/leselang-command/src/reference_completion_commit.rs");
+    assert!(completion.contains("crate::reference_sequence_gate::predecessor_pending()"));
+    let native = read("crates/leserpent-vm/src/journal/sequence_gate.rs");
+    ordered(
+        &native,
+        &[
+            "self.merge_groups.values().map",
+            "g.plan.order",
+            "&g.branch_tokens",
+            "g.terminal_step.is_some()",
+        ],
+    );
+    for required in [
+        "pub &'a Connection",
+        "SELECT EXISTS",
+        "prior.position < own.position",
+        "g.execution_order = 'sequential' AND e.state != 'completed'",
+        "failed to check sequential predecessor",
+    ] {
+        assert!(native.contains(required), "{required}");
+    }
+    for forbidden in [
+        ".commit(",
+        ".rollback(",
+        "transaction(",
+        "UPDATE ",
+        "INSERT ",
+        "DELETE ",
+    ] {
+        assert!(!native.contains(forbidden), "{forbidden}");
+    }
+    let journal = read("crates/leserpent-vm/src/journal.rs");
+    for required in [
+        "reference_sequence_gate::ready_memory(self, token)",
+        "reference_sequence_gate::ensure_durable(",
+        "SqliteSequenceJournal(connection)",
+        "INDEXED BY vm_dispatch_attempt_order_idx",
+        "ORDER BY d.attempt ASC, length(d.token) ASC, d.token ASC",
+    ] {
+        assert!(journal.contains(required), "{required}");
+    }
+    let claim = read("crates/leserpent-vm/src/journal/claim_commit.rs");
+    assert!(claim.contains("query_row(CLAIM_DISPATCH_SQL"));
+    let owner = read("crates/leserpent-vm/src/journal/completion_commit.rs");
+    assert!(owner.contains("ensure_sequence_ready(&self.0, token)"));
+    let tests = read("crates/leserpent-vm/src/journal/sequence_gate_contract_tests.rs");
+    let frozen = tests
+        .split("// Frozen before extraction at 63df912e")
+        .nth(1)
+        .unwrap();
+    assert!(!frozen.contains("reference_sequence_gate::"));
+    for n in [2520, 432, 12] {
+        assert!(tests.contains(&format!("assert_eq!(cases, {n})")));
+    }
+    assert!(
+        tests.contains("sequence_observation_borrows_outer_transaction_without_commit_or_repair")
+    );
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_sequence_gate"));
+    assert!(ci.contains("--lib sequence_gate_contract_tests"));
+}
+
+#[test]
 fn group_progress_policy_keeps_native_snapshot_and_original_lazy_read_order() {
     let read = |p| fs::read_to_string(root().join(p)).unwrap();
     let ordered = |s: &str, parts: &[&str]| {
@@ -62,7 +226,7 @@ fn group_progress_policy_keeps_native_snapshot_and_original_lazy_read_order() {
             "host.branch_tokens(",
         ],
     );
-    let native = read("crates/leselang-vm/src/journal/group_progress.rs");
+    let native = read("crates/leserpent-vm/src/journal/group_progress.rs");
     assert!(native.contains("&'a rusqlite::Transaction<'connection>"));
     for fragment in [
         "SUM(CASE WHEN e.state = 'completed'",
@@ -76,7 +240,7 @@ fn group_progress_policy_keeps_native_snapshot_and_original_lazy_read_order() {
     for forbidden in [".commit(", ".rollback(", "UPDATE ", "INSERT ", "DELETE "] {
         assert!(!native.contains(forbidden), "{forbidden}");
     }
-    let journal = read("crates/leselang-vm/src/journal.rs");
+    let journal = read("crates/leserpent-vm/src/journal.rs");
     assert!(journal.contains("reference_group_progress::read_memory(self, branch_token)"));
     ordered(
         journal.split("impl SqliteJournal").nth(1).unwrap(),
@@ -88,7 +252,7 @@ fn group_progress_policy_keeps_native_snapshot_and_original_lazy_read_order() {
             "SqliteGroupProgress(&transaction)",
         ],
     );
-    let tests = read("crates/leselang-vm/src/journal/group_progress_contract_tests.rs");
+    let tests = read("crates/leserpent-vm/src/journal/group_progress_contract_tests.rs");
     let frozen = tests
         .split("// Frozen pre-extraction bodies")
         .nth(1)
@@ -190,7 +354,7 @@ fn group_successor_registration_policy_retains_native_authority_and_outer_commit
             "host.link_branch(",
         ],
     );
-    let native = read("crates/leselang-vm/src/journal/group_successor_commit.rs");
+    let native = read("crates/leserpent-vm/src/journal/group_successor_commit.rs");
     for required in [
         "&'a rusqlite::Transaction<'connection>",
         "group_binding::prepare_admission",
@@ -210,10 +374,10 @@ fn group_successor_registration_policy_retains_native_authority_and_outer_commit
     for forbidden in [".commit(", "transaction_with_behavior", ".rollback("] {
         assert!(!native.contains(forbidden));
     }
-    let entry = read("crates/leselang-vm/src/journal/group_binding.rs");
+    let entry = read("crates/leserpent-vm/src/journal/group_binding.rs");
     assert!(entry.contains("reference_group_successor_commit::admit_memory"));
     assert!(entry.contains("reference_group_successor_commit::admit_durable"));
-    let frozen = read("crates/leselang-vm/src/journal/group_successor_commit_contract_tests.rs");
+    let frozen = read("crates/leserpent-vm/src/journal/group_successor_commit_contract_tests.rs");
     assert!(!frozen.contains("reference_group_successor_commit::"));
     assert!(frozen.contains("fn frozen_admit_ephemeral("));
     assert!(frozen.contains("fn frozen_admit_successor("));
@@ -309,7 +473,7 @@ fn group_finalization_policy_keeps_native_evaluation_and_one_outer_transaction()
             "merge group completion lost its pending state",
         ],
     );
-    let native = read("crates/leselang-vm/src/journal/group_finalization.rs");
+    let native = read("crates/leserpent-vm/src/journal/group_finalization.rs");
     for required in [
         "&'a rusqlite::Transaction<'connection>",
         "group_binding::admit_ephemeral",
@@ -328,10 +492,10 @@ fn group_finalization_policy_keeps_native_evaluation_and_one_outer_transaction()
     for forbidden in [".commit(", "transaction_with_behavior", ".rollback("] {
         assert!(!native.contains(forbidden));
     }
-    let journal = read("crates/leselang-vm/src/journal.rs");
+    let journal = read("crates/leserpent-vm/src/journal.rs");
     assert!(journal.contains("reference_group_finalization::finalize_memory(self, branch_token)"));
     assert!(journal.contains("reference_group_finalization::finalize_durable("));
-    let frozen = read("crates/leselang-vm/src/journal/group_finalization_contract_tests.rs");
+    let frozen = read("crates/leserpent-vm/src/journal/group_finalization_contract_tests.rs");
     assert_eq!(frozen.matches("fn frozen_finalize_merge_group(").count(), 2);
     assert!(!frozen.contains("reference_group_finalization::"));
     for count in [2240, 128, 12, 8] {
@@ -411,7 +575,7 @@ fn dispatch_claim_policy_preserves_native_atomicity_cold_capacity_path_and_lazy_
             "DispatchClaim::Leased",
         ],
     );
-    let journal = read("crates/leselang-vm/src/journal.rs");
+    let journal = read("crates/leserpent-vm/src/journal.rs");
     let public = journal
         .split("pub fn claim_dispatch(")
         .nth(1)
@@ -444,7 +608,7 @@ fn dispatch_claim_policy_preserves_native_atomicity_cold_capacity_path_and_lazy_
         ],
     );
     assert!(!sqlite.contains("decode_bounded"));
-    let native = read("crates/leselang-vm/src/journal/claim_commit.rs");
+    let native = read("crates/leserpent-vm/src/journal/claim_commit.rs");
     for required in [
         "self.dispatches",
         "self.sequence_ready(token)",
@@ -477,7 +641,7 @@ fn dispatch_claim_policy_preserves_native_atomicity_cold_capacity_path_and_lazy_
     );
     assert!(journal.contains("ORDER BY d.attempt ASC, length(d.token) ASC, d.token ASC"));
     assert!(journal.contains("INDEXED BY vm_dispatch_attempt_order_idx"));
-    let frozen = read("crates/leselang-vm/src/journal/claim_commit_contract_tests.rs");
+    let frozen = read("crates/leserpent-vm/src/journal/claim_commit_contract_tests.rs");
     assert!(!frozen.contains("reference_claim_commit::"));
     assert_eq!(frozen.matches("fn frozen_claim_dispatch(").count(), 2);
     for n in [1400, 4, 108, 6] {
@@ -554,7 +718,7 @@ fn merge_graph_registration_keeps_native_admission_and_distinct_backend_ordering
         ],
     );
     assert!(adapter.contains("fn commit(self) -> Result<(), Fault>"));
-    let journal = read("crates/leselang-vm/src/journal.rs");
+    let journal = read("crates/leserpent-vm/src/journal.rs");
     let public = journal
         .split("pub fn record_merge_graph_with_limits")
         .nth(1)
@@ -593,7 +757,7 @@ fn merge_graph_registration_keeps_native_admission_and_distinct_backend_ordering
         ],
     );
     assert!(!sqlite.contains("group_conflict"));
-    let owner = read("crates/leselang-vm/src/journal/merge_graph_commit.rs");
+    let owner = read("crates/leserpent-vm/src/journal/merge_graph_commit.rs");
     for required in [
         "rusqlite::Transaction<'a>",
         "journal_record_count(&self.0)",
@@ -624,7 +788,7 @@ fn merge_graph_registration_keeps_native_admission_and_distinct_backend_ordering
             "INSERT INTO vm_merge_branches",
         ],
     );
-    let frozen = read("crates/leselang-vm/src/journal/merge_graph_commit_contract_tests.rs");
+    let frozen = read("crates/leserpent-vm/src/journal/merge_graph_commit_contract_tests.rs");
     assert!(!frozen.contains("reference_merge_graph_commit::"));
     assert_eq!(frozen.matches("fn frozen_record_merge_graph(").count(), 2);
     for n in [1680, 5, 192, 6, 12] {
@@ -712,7 +876,7 @@ fn pending_registration_policy_keeps_native_admission_watermark_and_replay_bound
             "host.commit(PendingCommit::New)",
         ],
     );
-    let journal = read("crates/leselang-vm/src/journal.rs");
+    let journal = read("crates/leserpent-vm/src/journal.rs");
     assert!(journal.contains("reference_pending_commit::register_memory(self, request, limits)"));
     assert!(!journal.contains("fn ensure_dispatch_matches("));
     let native = journal
@@ -741,7 +905,7 @@ fn pending_registration_policy_keeps_native_admission_watermark_and_replay_bound
         ],
     );
     assert!(!native.contains("existing.state"));
-    let owner = read("crates/leselang-vm/src/journal/pending_commit.rs");
+    let owner = read("crates/leserpent-vm/src/journal/pending_commit.rs");
     for required in [
         "self.dispatches.get(token)",
         "request: request.clone()",
@@ -764,7 +928,7 @@ fn pending_registration_policy_keeps_native_admission_watermark_and_replay_bound
         assert!(owner.contains(required), "{required}");
     }
     assert!(!owner.contains("durable_request"));
-    let cases = read("crates/leselang-vm/src/journal/pending_commit_contract_tests.rs");
+    let cases = read("crates/leserpent-vm/src/journal/pending_commit_contract_tests.rs");
     assert!(!cases.contains("reference_pending_commit::"));
     assert_eq!(cases.matches("fn frozen_record_pending(").count(), 2);
     assert!(cases.contains("fn frozen_ensure_dispatch_matches("));
@@ -850,7 +1014,7 @@ fn expiration_batches_keep_borrowed_memory_order_and_native_snapshot_transaction
         ],
     );
     assert_eq!(durable.matches("host.due_records()").count(), 1);
-    let journal = read("crates/leselang-vm/src/journal.rs");
+    let journal = read("crates/leserpent-vm/src/journal.rs");
     assert!(journal.contains("reference_expiration_commit::expire_memory(self, now_ms)"));
     let native = journal
         .split("impl SqliteJournal {")
@@ -873,7 +1037,7 @@ fn expiration_batches_keep_borrowed_memory_order_and_native_snapshot_transaction
         ],
     );
     assert!(!native.contains("SELECT"));
-    let owner = read("crates/leselang-vm/src/journal/expiration_commit.rs");
+    let owner = read("crates/leserpent-vm/src/journal/expiration_commit.rs");
     for required in [
         "self.dispatches",
         ".values_mut()",
@@ -896,7 +1060,7 @@ fn expiration_batches_keep_borrowed_memory_order_and_native_snapshot_transaction
     ] {
         assert!(owner.contains(required), "{required}");
     }
-    let cases = read("crates/leselang-vm/src/journal/expiration_commit_contract_tests.rs");
+    let cases = read("crates/leserpent-vm/src/journal/expiration_commit_contract_tests.rs");
     assert!(!cases.contains("reference_expiration_commit::"));
     assert_eq!(cases.matches("fn frozen_expire_due(").count(), 2);
     for count in [700, 2, 140, 10] {
@@ -981,7 +1145,7 @@ fn ordinary_completion_policy_preserves_backend_precedence_and_native_transactio
         ],
     );
     assert!(!durable.contains("decode_journal_value(&dispatch.request"));
-    let journal = read("crates/leselang-vm/src/journal.rs");
+    let journal = read("crates/leserpent-vm/src/journal.rs");
     assert!(journal.contains("reference_completion_commit::complete_memory(self, image, step)"));
     let native = journal
         .split("impl SqliteJournal {")
@@ -1006,7 +1170,7 @@ fn ordinary_completion_policy_preserves_backend_precedence_and_native_transactio
         ],
     );
     assert!(!native.contains("existing.state"));
-    let owner = read("crates/leselang-vm/src/journal/completion_commit.rs");
+    let owner = read("crates/leserpent-vm/src/journal/completion_commit.rs");
     for required in [
         "rusqlite::Transaction<'a>",
         "load_record(&self.0, token)",
@@ -1025,7 +1189,7 @@ fn ordinary_completion_policy_preserves_backend_precedence_and_native_transactio
         assert!(owner.contains(required), "{required}");
     }
     assert!(!owner.contains("complete_terminal_record"));
-    let cases = read("crates/leselang-vm/src/journal/completion_commit_contract_tests.rs");
+    let cases = read("crates/leserpent-vm/src/journal/completion_commit_contract_tests.rs");
     assert!(!cases.contains("reference_completion_commit::"));
     assert_eq!(cases.matches("fn frozen_record_completed(").count(), 2);
     for count in [700, 4, 2, 150, 10] {
@@ -1104,7 +1268,7 @@ fn acknowledgement_policy_keeps_native_admission_and_distinct_memory_replay_sema
             "host.commit(AcknowledgementCommit::Acknowledgement)?",
         ],
     );
-    let journal = read("crates/leselang-vm/src/journal.rs");
+    let journal = read("crates/leserpent-vm/src/journal.rs");
     assert!(journal.contains("reference_acknowledgement_commit::acknowledge_memory("));
     let native = journal
         .split("impl SqliteJournal {")
@@ -1131,7 +1295,7 @@ fn acknowledgement_policy_keeps_native_admission_and_distinct_memory_replay_sema
         ],
     );
     assert!(!native.contains("existing.state"));
-    let owner = read("crates/leselang-vm/src/journal/acknowledgement_commit.rs");
+    let owner = read("crates/leserpent-vm/src/journal/acknowledgement_commit.rs");
     for required in [
         "request: &dispatch.request",
         "rusqlite::Transaction<'a>",
@@ -1151,7 +1315,7 @@ fn acknowledgement_policy_keeps_native_admission_and_distinct_memory_replay_sema
     }
     assert!(!owner.contains("complete_terminal_record"));
     assert!(!owner.contains("dispatch.request =="));
-    let cases = read("crates/leselang-vm/src/journal/acknowledgement_commit_contract_tests.rs");
+    let cases = read("crates/leserpent-vm/src/journal/acknowledgement_commit_contract_tests.rs");
     assert!(!cases.contains("reference_acknowledgement_commit::"));
     assert_eq!(cases.matches("fn frozen_acknowledge_dispatch(").count(), 2);
     for count in [1400, 2, 180, 10] {
@@ -1242,7 +1406,7 @@ fn retry_journal_policy_keeps_native_storage_and_distinct_lease_replay_order() {
             "host.commit(RetryCommit::Retry)?",
         ],
     );
-    let journal = read("crates/leselang-vm/src/journal.rs");
+    let journal = read("crates/leserpent-vm/src/journal.rs");
     assert!(
         journal.contains("reference_retry_commit::report_memory(self, lease, now_ms, disposition)")
     );
@@ -1268,7 +1432,7 @@ fn retry_journal_policy_keeps_native_storage_and_distinct_lease_replay_order() {
     );
     assert!(!native.contains("existing.state"));
     assert!(journal.contains("reference_recovery::StoredDispatch as DispatchRecord"));
-    let owner = read("crates/leselang-vm/src/journal/retry_commit.rs");
+    let owner = read("crates/leserpent-vm/src/journal/retry_commit.rs");
     for required in [
         "rusqlite::Transaction<'a>",
         "load_record(&self.0, token)",
@@ -1286,7 +1450,7 @@ fn retry_journal_policy_keeps_native_storage_and_distinct_lease_replay_order() {
     ] {
         assert!(owner.contains(required), "{required}");
     }
-    let cases = read("crates/leselang-vm/src/journal/retry_commit_contract_tests.rs");
+    let cases = read("crates/leserpent-vm/src/journal/retry_commit_contract_tests.rs");
     assert!(!cases.contains("reference_retry_commit::"));
     assert_eq!(cases.matches("fn frozen_report_error(").count(), 2);
     for count in [1540, 2, 170, 10] {
@@ -1356,7 +1520,7 @@ fn ordinary_cancellation_policy_preserves_native_ownership_and_distinct_replay_v
             "host.commit(CancellationCommit::Cancellation)?",
         ],
     );
-    let journal = read("crates/leselang-vm/src/journal.rs");
+    let journal = read("crates/leserpent-vm/src/journal.rs");
     assert!(journal.contains("reference_cancellation_commit::cancel_memory(self, image, step)"));
     let native = journal
         .split("impl SqliteJournal {")
@@ -1381,7 +1545,7 @@ fn ordinary_cancellation_policy_preserves_native_ownership_and_distinct_replay_v
         ],
     );
     assert!(!native.contains("existing.state"));
-    let owner = read("crates/leselang-vm/src/journal/cancellation_commit.rs");
+    let owner = read("crates/leserpent-vm/src/journal/cancellation_commit.rs");
     for required in [
         "rusqlite::Transaction<'a>",
         "load_record(&self.0, token)",
@@ -1403,7 +1567,7 @@ fn ordinary_cancellation_policy_preserves_native_ownership_and_distinct_replay_v
         read("crates/leselang-command/src/reference_audit_commit.rs")
             .contains("pub use crate::reference_recovery::StoredEffect;")
     );
-    let cases = read("crates/leselang-vm/src/journal/cancellation_commit_contract_tests.rs");
+    let cases = read("crates/leserpent-vm/src/journal/cancellation_commit_contract_tests.rs");
     assert!(!cases.contains("reference_cancellation_commit::"));
     assert_eq!(cases.matches("fn frozen_cancel(").count(), 2);
     for count in [980, 2, 216, 9] {
@@ -1458,7 +1622,7 @@ fn audit_read_projection_is_adapter_owned_without_native_query_or_error_ownershi
     ] {
         offset += replay[offset..].find(ordered).unwrap() + ordered.len();
     }
-    let journal = read("crates/leselang-vm/src/journal.rs");
+    let journal = read("crates/leserpent-vm/src/journal.rs");
     let record = journal
         .split("impl SqliteJournal {")
         .nth(1)
@@ -1494,7 +1658,7 @@ fn audit_read_projection_is_adapter_owned_without_native_query_or_error_ownershi
     }
     assert!(!replay.contains("CommandId::new"));
     assert!(!record.contains("CommandId::new"));
-    let owner = read("crates/leselang-vm/src/journal/audit_read.rs");
+    let owner = read("crates/leserpent-vm/src/journal/audit_read.rs");
     assert_eq!(owner.matches("self.0.get(column)").count(), 2);
     assert!(owner.contains("type Error = rusqlite::Error"));
     assert!(owner.contains("rusqlite::Error::InvalidQuery"));
@@ -1507,7 +1671,7 @@ fn audit_read_projection_is_adapter_owned_without_native_query_or_error_ownershi
         read("crates/leselang-command/src/reference_audit_commit.rs")
             .contains("pub use crate::reference_audit_read::StoredAudit;")
     );
-    let cases = read("crates/leselang-vm/src/journal/audit_read_contract_tests.rs");
+    let cases = read("crates/leserpent-vm/src/journal/audit_read_contract_tests.rs");
     let frozen = cases.split("// Frozen released projection").nth(1).unwrap();
     assert!(!frozen.contains("reference_audit_read"));
     assert!(!frozen.contains("audit_read::"));
@@ -1555,7 +1719,7 @@ fn audit_commit_policy_moves_but_native_transaction_and_memory_mutation_ownershi
     ] {
         offset += adapter[offset..].find(ordered).unwrap() + ordered.len();
     }
-    let journal = read("crates/leselang-vm/src/journal.rs");
+    let journal = read("crates/leserpent-vm/src/journal.rs");
     assert!(
         journal.contains("reference_audit_commit::cancel_memory(self, image, step, audit, now_ms)")
     );
@@ -1581,7 +1745,7 @@ fn audit_commit_policy_moves_but_native_transaction_and_memory_mutation_ownershi
         offset += durable[offset..].find(ordered).unwrap() + ordered.len();
     }
     assert!(!durable.contains("audit_matches_record"));
-    let owner = read("crates/leselang-vm/src/journal/audit_commit.rs");
+    let owner = read("crates/leserpent-vm/src/journal/audit_commit.rs");
     for required in [
         "rusqlite::Transaction<'a>",
         "load_debugger_audit(&self.0, audit)",
@@ -1595,7 +1759,7 @@ fn audit_commit_policy_moves_but_native_transaction_and_memory_mutation_ownershi
         assert!(owner.contains(required), "{required}");
     }
     assert!(!owner.contains("audit_matches_record"));
-    let cases = read("crates/leselang-vm/src/journal/audit_commit_contract_tests.rs");
+    let cases = read("crates/leserpent-vm/src/journal/audit_commit_contract_tests.rs");
     assert!(!cases.contains("reference_audit_commit::"));
     for count in [1260, 625, 25] {
         assert!(cases.contains(&format!("assert_eq!(cases, {count})")));
@@ -1642,7 +1806,7 @@ fn audit_recovery_policy_is_adapter_owned_while_native_reads_stay_in_the_checkpo
         adapter.find("source.audit_count()?").unwrap()
             < adapter.find("source.inspect_records()?").unwrap()
     );
-    let journal = read("crates/leselang-vm/src/journal.rs");
+    let journal = read("crates/leserpent-vm/src/journal.rs");
     let owner = journal
         .split("fn validate_debugger_audit_records(")
         .nth(1)
@@ -1672,7 +1836,7 @@ fn audit_recovery_policy_is_adapter_owned_while_native_reads_stay_in_the_checkpo
         assert!(!owner.contains(forbidden), "{forbidden}");
     }
     assert!(journal.contains("validate_debugger_audit_records(self.connection()?)"));
-    let cases = read("crates/leselang-vm/src/journal/audit_recovery_contract_tests.rs");
+    let cases = read("crates/leserpent-vm/src/journal/audit_recovery_contract_tests.rs");
     let frozen = cases.split("fn frozen_validate_audits(").nth(1).unwrap();
     assert!(!frozen.contains("reference_audit_recovery"));
     assert!(frozen.contains("crate::validate_debugger_audit(&context)"));
@@ -1715,7 +1879,7 @@ fn reference_journal_schema_moves_without_native_file_or_transaction_ownership()
     ] {
         assert!(!adapter.contains(absent), "{absent}");
     }
-    let journal = read("crates/leselang-vm/src/journal.rs");
+    let journal = read("crates/leserpent-vm/src/journal.rs");
     let open = journal
         .split("impl SqliteJournal {")
         .nth(1)
@@ -1754,7 +1918,7 @@ fn reference_journal_schema_moves_without_native_file_or_transaction_ownership()
             "pub use leselang_command::reference_journal_schema::JOURNAL_SCHEMA_VERSION;"
         )
     );
-    let cases = read("crates/leselang-vm/src/journal/schema_contract_tests.rs");
+    let cases = read("crates/leserpent-vm/src/journal/schema_contract_tests.rs");
     let frozen = cases.split("fn frozen_schema(").nth(1).unwrap();
     assert!(!frozen.contains("reference_journal_schema"));
     assert!(frozen.contains("const JOURNAL_SCHEMA_VERSION: u32 = 10"));
@@ -1799,7 +1963,7 @@ fn root_admission_lifecycle_is_adapter_owned_with_a_compatible_private_vm_port()
     ] {
         assert!(!adapter.contains(absent), "{absent}");
     }
-    let facade = fs::read_to_string(root().join("crates/leselang-vm/src/admission.rs")).unwrap();
+    let facade = fs::read_to_string(root().join("crates/leserpent-vm/src/admission.rs")).unwrap();
     for required in [
         "pub use leselang_command::reference_admission::AdmissionPoll;",
         "inner: ReferenceRootAdmission",
@@ -1822,7 +1986,7 @@ fn root_admission_lifecycle_is_adapter_owned_with_a_compatible_private_vm_port()
         assert!(!facade.contains(absent), "{absent}");
     }
     let parity =
-        fs::read_to_string(root().join("crates/leselang-vm/src/admission_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/admission_contract_tests.rs"))
             .unwrap();
     let frozen = parity.split("mod frozen {").nth(1).unwrap();
     assert!(!frozen.contains("reference_admission"));
@@ -1862,7 +2026,7 @@ fn root_publication_is_product_policy_over_private_native_commit_and_cache_hooks
     ] {
         assert!(!adapter.contains(forbidden), "{forbidden}");
     }
-    let vm = read("crates/leselang-vm/src/leserpent_profile.rs");
+    let vm = read("crates/leserpent-vm/src/leserpent_profile.rs");
     let owner = vm
         .split_once("impl leselang_command::reference_publication::ReferenceRootPublicationHost")
         .unwrap()
@@ -1878,7 +2042,7 @@ fn root_publication_is_product_policy_over_private_native_commit_and_cache_hooks
     for forbidden in ["Step::", "for branch", "if order", "Err(", "unwrap", "LSV"] {
         assert!(!owner.contains(forbidden), "{forbidden}");
     }
-    let tests = read("crates/leselang-vm/src/publication_contract_tests.rs");
+    let tests = read("crates/leserpent-vm/src/publication_contract_tests.rs");
     for count in [64, 13] {
         assert!(tests.contains(&format!("assert_eq!(cases, {count})")));
     }
@@ -1897,7 +2061,7 @@ fn root_publication_is_product_policy_over_private_native_commit_and_cache_hooks
 #[test]
 fn startup_policy_keeps_validation_before_native_open_and_recovery_before_publication() {
     let read = |path| fs::read_to_string(root().join(path)).unwrap();
-    let vm = read("crates/leselang-vm/src/leserpent_profile.rs");
+    let vm = read("crates/leserpent-vm/src/leserpent_profile.rs");
     let adapter = read("crates/leselang-command/src/reference_startup.rs");
     let constructors = vm
         .split_once("    pub fn new(fuel_limit")
@@ -1960,7 +2124,7 @@ fn startup_policy_keeps_validation_before_native_open_and_recovery_before_public
     ] {
         assert!(!adapter.contains(forbidden), "{forbidden}");
     }
-    let journal = read("crates/leselang-vm/src/journal.rs");
+    let journal = read("crates/leserpent-vm/src/journal.rs");
     let open = journal
         .split_once("pub fn open(path: &Path)")
         .unwrap()
@@ -1975,7 +2139,7 @@ fn startup_policy_keeps_validation_before_native_open_and_recovery_before_public
         open.find("journal.load()?").unwrap()
             < open.find("Ok((Self::Sqlite(journal), snapshot))").unwrap()
     );
-    let frozen = read("crates/leselang-vm/src/startup_contract_tests.rs");
+    let frozen = read("crates/leserpent-vm/src/startup_contract_tests.rs");
     let frozen = frozen
         .split_once("// Frozen pre-extraction constructors")
         .unwrap()
@@ -1990,7 +2154,7 @@ fn startup_policy_keeps_validation_before_native_open_and_recovery_before_public
 #[test]
 fn sequence_selection_keeps_native_reservation_before_watermark_and_local_occupancy() {
     let read = |path| fs::read_to_string(root().join(path)).unwrap();
-    let vm = read("crates/leselang-vm/src/leserpent_profile.rs");
+    let vm = read("crates/leserpent-vm/src/leserpent_profile.rs");
     let adapter = read("crates/leselang-command/src/reference_allocation.rs");
     let bridge = vm
         .split_once("    fn allocate_sequence(&mut self)")
@@ -2076,7 +2240,7 @@ fn sequence_selection_keeps_native_reservation_before_watermark_and_local_occupa
         assert!(!adapter.contains(forbidden));
     }
     assert!(adapter.contains("ReferenceAllocationHost + ?Sized"));
-    let frozen = read("crates/leselang-vm/src/allocation_contract_tests.rs");
+    let frozen = read("crates/leserpent-vm/src/allocation_contract_tests.rs");
     let frozen = frozen
         .split_once("// Frozen pre-extraction selection")
         .unwrap()
@@ -2092,7 +2256,7 @@ fn sequence_selection_keeps_native_reservation_before_watermark_and_local_occupa
 #[test]
 fn maintenance_policy_preserves_admission_sort_commit_and_native_cache_mutations() {
     let read = |path| fs::read_to_string(root().join(path)).unwrap();
-    let vm = read("crates/leselang-vm/src/leserpent_profile.rs");
+    let vm = read("crates/leserpent-vm/src/leserpent_profile.rs");
     let adapter = read("crates/leselang-command/src/reference_settlement/maintenance.rs");
     for (from, to, delegation) in [
         (
@@ -2193,12 +2357,12 @@ fn maintenance_policy_preserves_admission_sort_commit_and_native_cache_mutations
                 + stage.len();
         }
     }
-    let journal = read("crates/leselang-vm/src/journal.rs");
+    let journal = read("crates/leserpent-vm/src/journal.rs");
     assert!(journal.contains(
         "pub(crate) use leselang_command::reference_settlement::maintenance::JournalCompaction"
     ));
     assert!(!journal.contains("struct JournalCompaction"));
-    let frozen = read("crates/leselang-vm/src/maintenance_contract_tests.rs");
+    let frozen = read("crates/leserpent-vm/src/maintenance_contract_tests.rs");
     let frozen = frozen
         .split_once("// Frozen pre-extraction coordination")
         .unwrap()
@@ -2217,10 +2381,10 @@ fn maintenance_policy_preserves_admission_sort_commit_and_native_cache_mutations
 fn group_visibility_and_completion_cache_policy_keep_native_storage_and_borrowing() {
     let root = root();
     let read = |path| std::fs::read_to_string(root.join(path)).unwrap();
-    let vm = read("crates/leselang-vm/src/leserpent_profile.rs");
+    let vm = read("crates/leserpent-vm/src/leserpent_profile.rs");
     let adapter = read("crates/leselang-command/src/reference_settlement/visibility.rs");
-    let journal = read("crates/leselang-vm/src/journal.rs");
-    let frozen = read("crates/leselang-vm/src/visibility_contract_tests.rs");
+    let journal = read("crates/leserpent-vm/src/journal.rs");
+    let frozen = read("crates/leserpent-vm/src/visibility_contract_tests.rs");
     let wrappers = vm
         .split_once("    fn reconcile_completed(")
         .unwrap()
@@ -2455,16 +2619,17 @@ fn cancellation_and_retry_settlement_keep_distinct_returns_and_native_publicatio
         assert!(adapter.contains(name));
     }
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     assert_interruption_settlement_boundary(&vm);
-    let successor = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let successor =
+        fs::read_to_string(root().join("crates/leserpent-vm/src/successor.rs")).unwrap();
     assert!(successor.contains("pub(super) fn publish_completed("));
     assert_settlement_commit_before_publication(&successor);
     let cancellation =
-        fs::read_to_string(root().join("crates/leselang-vm/src/cancellation_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/cancellation_contract_tests.rs"))
             .unwrap();
     let retry =
-        fs::read_to_string(root().join("crates/leselang-vm/src/retry_contract_tests.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/retry_contract_tests.rs")).unwrap();
     assert!(!cancellation.contains("vm.finish_cancellation("));
     assert!(
         cancellation.contains(
@@ -2591,19 +2756,19 @@ fn product_settlement_routes_preserve_native_commit_before_publication_and_peer_
     }
     assert!(adapter.contains("ReferenceSettlementHost + ?Sized"));
     assert!(adapter.contains("Backend-specific replay semantics are not normalized here"));
-    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let vm = fs::read_to_string(root().join("crates/leserpent-vm/src/successor.rs")).unwrap();
     assert_settlement_commit_before_publication(&vm);
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/settlement_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/settlement_contract_tests.rs"))
             .unwrap();
     assert!(!frozen.contains("reference_settlement"));
     assert!(!frozen.contains("vm.publish_completed("));
     assert!(frozen.contains("assert_eq!(comparisons, 4)"));
     let completion =
-        fs::read_to_string(root().join("crates/leselang-vm/src/completion_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/completion_contract_tests.rs"))
             .unwrap();
     let assembly = fs::read_to_string(
-        root().join("crates/leselang-vm/src/successor_assembly_contract_tests.rs"),
+        root().join("crates/leserpent-vm/src/successor_assembly_contract_tests.rs"),
     )
     .unwrap();
     for source in [&completion, &assembly] {
@@ -2659,7 +2824,7 @@ fn result_conversion_and_bound_observation_are_product_owned_without_settlement_
         assert!(adapter.contains(required), "{required}");
     }
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let bridge = vm
         .split_once("fn step_from_effect_result(")
         .unwrap()
@@ -2683,7 +2848,7 @@ fn result_conversion_and_bound_observation_are_product_owned_without_settlement_
         assert!(!bridge.contains(absent));
     }
     let oracle = fs::read_to_string(
-        root().join("crates/leselang-vm/src/result_conversion_contract_tests.rs"),
+        root().join("crates/leserpent-vm/src/result_conversion_contract_tests.rs"),
     )
     .unwrap();
     assert!(oracle.contains("assert_eq!(comparisons, 6720)"));
@@ -2695,7 +2860,7 @@ fn result_conversion_and_bound_observation_are_product_owned_without_settlement_
             .contains("reference_result")
     );
     let completion =
-        fs::read_to_string(root().join("crates/leselang-vm/src/completion_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/completion_contract_tests.rs"))
             .unwrap();
     assert!(completion.contains("use crate::result_conversion_contract_tests::frozen::{"));
     for count in [5600, 64] {
@@ -2743,7 +2908,7 @@ fn claim_entries_preserve_native_issuance_and_post_commit_cache_adoption() {
     }
     assert!(adapter.contains("Err(lease_capacity_fault(pressure))"));
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let bridges = vm
         .split_once("pub fn claim_effect(")
         .unwrap()
@@ -2798,7 +2963,7 @@ fn claim_entries_preserve_native_issuance_and_post_commit_cache_adoption() {
         assert!(owner.contains(hook), "{hook}");
     }
     let oracle =
-        fs::read_to_string(root().join("crates/leselang-vm/src/claim_contract_tests.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/claim_contract_tests.rs")).unwrap();
     assert!(
         !oracle
             .split_once("// Frozen complete claim entries")
@@ -2835,7 +3000,7 @@ fn retry_entry_preserves_replay_order_and_native_settlement_authority() {
     assert!(adapter.contains("lease: &DispatchLease"));
     assert!(adapter.contains("disposition: &RetryDisposition"));
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let bridge = vm
         .split_once("pub fn report_effect_error(")
         .unwrap()
@@ -2873,7 +3038,7 @@ fn retry_entry_preserves_replay_order_and_native_settlement_authority() {
     }
     assert!(vm.contains("leselang_command::reference_retry::effect_retry_fault(error)"));
     let oracle =
-        fs::read_to_string(root().join("crates/leselang-vm/src/retry_contract_tests.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/retry_contract_tests.rs")).unwrap();
     assert!(
         !oracle
             .split_once("// Frozen complete retry entry")
@@ -2960,7 +3125,7 @@ fn cancellation_entries_preserve_distinct_replay_and_native_commit_boundaries() 
     assert!(!ordinary.contains(".clone()"));
     assert_eq!(audited.matches(".clone()").count(), 1);
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let bridges = vm
         .split_once("pub fn cancel_effect(")
         .unwrap()
@@ -3001,7 +3166,7 @@ fn cancellation_entries_preserve_distinct_replay_and_native_commit_boundaries() 
     }
     assert_interruption_settlement_boundary(&vm);
     let oracle =
-        fs::read_to_string(root().join("crates/leselang-vm/src/cancellation_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/cancellation_contract_tests.rs"))
             .unwrap();
     assert!(
         !oracle
@@ -3081,7 +3246,7 @@ fn product_result_completion_keeps_native_authority_and_saved_fuel_boundaries() 
             .unwrap_or_else(|| panic!("missing/out-of-order {stage}"))
             + stage.len();
     }
-    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let vm = fs::read_to_string(root().join("crates/leserpent-vm/src/successor.rs")).unwrap();
     let bridge = vm
         .split_once("pub(super) fn complete_result(")
         .unwrap()
@@ -3113,7 +3278,7 @@ fn product_result_completion_keeps_native_authority_and_saved_fuel_boundaries() 
     assert_settlement_commit_before_publication(&vm);
     assert!(!vm.contains("fn materialize("));
     let oracle =
-        fs::read_to_string(root().join("crates/leselang-vm/src/completion_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/completion_contract_tests.rs"))
             .unwrap();
     let frozen = oracle.split_once("// Frozen result coordinator").unwrap().1;
     assert!(!frozen.contains("reference_result_completion"));
@@ -3170,7 +3335,7 @@ fn successor_assembly_is_product_owned_but_native_reservation_and_commit_stay_au
             + stage.len();
     }
     assert_eq!(flow.matches("host.record_result(").count(), 3);
-    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let vm = fs::read_to_string(root().join("crates/leserpent-vm/src/successor.rs")).unwrap();
     let owner = vm
         .split_once("struct ReferenceSuccessorOwner")
         .unwrap()
@@ -3209,7 +3374,7 @@ fn successor_assembly_is_product_owned_but_native_reservation_and_commit_stay_au
     }
     assert_settlement_commit_before_publication(&vm);
     let oracle = fs::read_to_string(
-        root().join("crates/leselang-vm/src/successor_assembly_contract_tests.rs"),
+        root().join("crates/leserpent-vm/src/successor_assembly_contract_tests.rs"),
     )
     .unwrap();
     assert!(
@@ -3282,7 +3447,7 @@ fn product_reply_entries_preserve_distinct_replay_order_and_native_settlement() 
     .map(|s| ack.find(s).unwrap());
     assert!(positions.windows(2).all(|p| p[0] < p[1]));
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     for (from, to) in [
         ("pub fn resume(", "pub fn claim_effect("),
         ("pub fn acknowledge_effect(", "pub fn report_effect_error("),
@@ -3316,13 +3481,14 @@ fn product_reply_entries_preserve_distinct_replay_order_and_native_settlement() 
     ] {
         assert!(owner.contains(hook));
     }
-    let successor = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let successor =
+        fs::read_to_string(root().join("crates/leserpent-vm/src/successor.rs")).unwrap();
     assert!(
         successor.contains("pub(super) use leselang_command::reference_reply::CompletionLease;")
     );
     assert_settlement_commit_before_publication(&successor);
     let oracle =
-        fs::read_to_string(root().join("crates/leselang-vm/src/reply_contract_tests.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/reply_contract_tests.rs")).unwrap();
     assert!(
         !oracle
             .split_once("fn frozen_resume(")
@@ -3373,7 +3539,7 @@ fn product_restore_keeps_preflight_duplicates_and_native_commit_before_publicati
     assert!(ordered.windows(2).all(|w| w[0] < w[1]));
     assert!(adapter.contains("ReferenceRestoreHost + ?Sized"));
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let bridge = vm
         .split_once("pub fn restore(")
         .unwrap()
@@ -3426,7 +3592,7 @@ fn product_restore_keeps_preflight_duplicates_and_native_commit_before_publicati
     assert!(existing.contains("(self.commit)(image, request)"));
     assert!(!existing.contains("next_sequence"));
     let oracle =
-        fs::read_to_string(root().join("crates/leselang-vm/src/restore_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/restore_contract_tests.rs"))
             .unwrap();
     assert!(
         !oracle
@@ -3477,7 +3643,7 @@ fn product_root_start_keeps_preflight_order_and_original_native_publication_hook
     assert!(adapter.contains("ReferenceStartHost: ReferenceGroupStartHost"));
     assert!(adapter.contains("ReferenceStartHost + ?Sized"));
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let bridge = vm
         .split_once("fn start_inner(")
         .unwrap()
@@ -3536,7 +3702,7 @@ fn product_root_start_keeps_preflight_order_and_original_native_publication_hook
     );
     assert!(timed.find("self.expire_due(").unwrap() < timed.find("self.start_inner(").unwrap());
     let oracle =
-        fs::read_to_string(root().join("crates/leselang-vm/src/start_contract_tests.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/start_contract_tests.rs")).unwrap();
     let frozen = oracle.split_once("fn frozen_start_inner(").unwrap().1;
     assert!(!frozen.contains("reference_start"));
     assert!(frozen.contains("authorize(program, &capabilities)"));
@@ -3581,7 +3747,7 @@ fn product_group_start_retains_native_reservations_and_commit_before_publication
     assert!(adapter.contains("body_fuel.charge(branches.len() as u64)"));
     assert!(adapter.contains("ReferenceGroupStartHost + ?Sized"));
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let start = vm
         .split_once("fn start_group(")
         .unwrap()
@@ -3641,7 +3807,7 @@ fn product_group_start_retains_native_reservations_and_commit_before_publication
         .unwrap();
     assert!(commit < pending && pending < visible);
     let oracle =
-        fs::read_to_string(root().join("crates/leselang-vm/src/group_start_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/group_start_contract_tests.rs"))
             .unwrap();
     let frozen = oracle.split_once("fn frozen_start_group(").unwrap().1;
     assert!(!frozen.contains("reference_group_start"));
@@ -3655,7 +3821,7 @@ fn product_group_start_retains_native_reservations_and_commit_before_publication
 
 #[test]
 fn complete_product_computation_policy_is_adapter_owned_over_the_original_evaluator() {
-    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/computation.rs")).unwrap();
+    let vm = fs::read_to_string(root().join("crates/leserpent-vm/src/computation.rs")).unwrap();
     let bridge = vm.split_once("#[cfg(test)]").unwrap().0;
     assert!(bridge.contains("pub(super) use leselang_command::reference_computation::{"));
     for entry in ["resume_group", "resume_outcome", "resume_group_outcome"] {
@@ -3701,14 +3867,14 @@ fn complete_product_computation_policy_is_adapter_owned_over_the_original_evalua
         assert!(!production.contains(forbidden), "{forbidden}");
     }
     let oracle = fs::read_to_string(
-        root().join("crates/leselang-vm/src/computation_contract_tests/frozen.rs"),
+        root().join("crates/leserpent-vm/src/computation_contract_tests/frozen.rs"),
     )
     .unwrap();
     assert!(!oracle.contains("reference_computation"));
     assert!(oracle.contains("evaluate_effects_in_scope("));
     assert!(oracle.contains("impl leselang_command::ResultCaptureHost for ReferenceCaptureHost"));
     let matrix =
-        fs::read_to_string(root().join("crates/leselang-vm/src/computation_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/computation_contract_tests.rs"))
             .unwrap();
     assert!(matrix.contains("assert_eq!(comparisons, 11640)"));
     assert!(matrix.contains("assert_eq!(comparisons, 2600)"));
@@ -3724,7 +3890,8 @@ fn complete_product_computation_policy_is_adapter_owned_over_the_original_evalua
 
 #[test]
 fn group_reentry_coordination_uses_original_execution_and_authority_hooks() {
-    let group = fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+    let group =
+        fs::read_to_string(root().join("crates/leserpent-vm/src/group_binding.rs")).unwrap();
     let bridge = group.split_once("struct GroupExecutionHost;").unwrap().1;
     for entry in ["prepare_initial", "advance_capture", "finish"] {
         assert!(group.contains(&format!("reference_group_execution::{entry}(")));
@@ -3751,7 +3918,7 @@ fn group_reentry_coordination_uses_original_execution_and_authority_hooks() {
         )
     );
     let computation =
-        fs::read_to_string(root().join("crates/leselang-vm/src/computation.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/computation.rs")).unwrap();
     assert!(computation.contains(
         "pub(super) use leselang_command::execution_outcome::ComputationOutcome as Outcome;"
     ));
@@ -3818,9 +3985,10 @@ fn group_reentry_coordination_uses_original_execution_and_authority_hooks() {
     ] {
         assert!(!adapter.contains(forbidden), "{forbidden}");
     }
-    let native =
-        fs::read_to_string(root().join("crates/leselang-vm/src/group_execution_contract_tests.rs"))
-            .unwrap();
+    let native = fs::read_to_string(
+        root().join("crates/leserpent-vm/src/group_execution_contract_tests.rs"),
+    )
+    .unwrap();
     assert!(native.contains("assert_eq!(comparisons, 1944)"));
     assert!(native.contains("assert_eq!(comparisons, 2916)"));
     let frozen = native.split_once("impl FrozenGroup<'_>").unwrap().1;
@@ -3848,7 +4016,8 @@ fn group_reentry_coordination_uses_original_execution_and_authority_hooks() {
 
 #[test]
 fn group_successor_assembly_is_adapter_owned_with_original_builder_and_live_gates() {
-    let group = fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+    let group =
+        fs::read_to_string(root().join("crates/leserpent-vm/src/group_binding.rs")).unwrap();
     let build = group
         .split_once("impl ReferenceGroupResultBinding for GroupResultBinding")
         .unwrap()
@@ -3919,9 +4088,10 @@ fn group_successor_assembly_is_adapter_owned_with_original_builder_and_live_gate
     ] {
         assert!(!adapter.contains(forbidden), "{forbidden}");
     }
-    let native =
-        fs::read_to_string(root().join("crates/leselang-vm/src/group_successor_contract_tests.rs"))
-            .unwrap();
+    let native = fs::read_to_string(
+        root().join("crates/leserpent-vm/src/group_successor_contract_tests.rs"),
+    )
+    .unwrap();
     assert!(native.contains("assert_eq!(comparisons, 8960)"));
     assert!(native.contains("assert_eq!(successes, 560)"));
     let frozen = native
@@ -3954,7 +4124,7 @@ fn group_successor_assembly_is_adapter_owned_with_original_builder_and_live_gate
 
 #[test]
 fn checkpoint_product_coordination_uses_one_native_transaction_owner() {
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_checkpoint.rs"))
             .unwrap();
@@ -4041,7 +4211,7 @@ fn checkpoint_product_coordination_uses_one_native_transaction_owner() {
 
 #[test]
 fn effect_record_policy_is_adapter_owned_without_checkpoint_publication_authority() {
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_recovery.rs"))
             .unwrap();
@@ -4123,7 +4293,7 @@ fn effect_record_policy_is_adapter_owned_without_checkpoint_publication_authorit
         integration.contains("inspected_record_is_not_authority_to_replace_a_live_continuation")
     );
     let sql = fs::read_to_string(
-        root().join("crates/leselang-vm/src/journal/record_recovery_contract_tests.rs"),
+        root().join("crates/leserpent-vm/src/journal/record_recovery_contract_tests.rs"),
     )
     .unwrap();
     assert!(sql.contains("assert_eq!(cases, 64)"));
@@ -4142,7 +4312,7 @@ fn effect_record_policy_is_adapter_owned_without_checkpoint_publication_authorit
 
 #[test]
 fn static_dispatch_policy_is_adapter_owned_while_observations_and_commit_stay_local() {
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_dispatch.rs"))
             .unwrap();
@@ -4163,7 +4333,7 @@ fn static_dispatch_policy_is_adapter_owned_while_observations_and_commit_stay_lo
         assert!(adapter.contains(&format!("pub fn {name}(")), "{name}");
     }
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     assert!(vm.contains("pub use leselang_command::reference_dispatch::{"));
     for constant in [
         "DEFAULT_DISPATCH_LEASE_MS",
@@ -4259,7 +4429,7 @@ fn static_dispatch_policy_is_adapter_owned_while_observations_and_commit_stay_lo
 
 #[test]
 fn journal_completion_policy_is_adapter_owned_without_durable_authority() {
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_completion.rs"))
             .unwrap();
@@ -4296,7 +4466,7 @@ fn journal_completion_policy_is_adapter_owned_without_durable_authority() {
         assert!(adapter.contains(required), "{required}");
     }
     let oracle = fs::read_to_string(
-        root().join("crates/leselang-vm/src/journal/reference_completion_contract_tests.rs"),
+        root().join("crates/leserpent-vm/src/journal/reference_completion_contract_tests.rs"),
     )
     .unwrap();
     assert!(oracle.contains("assert_eq!(cases.len(), 379)"));
@@ -4324,7 +4494,7 @@ fn journal_completion_policy_is_adapter_owned_without_durable_authority() {
 #[test]
 fn reference_merge_policy_is_adapter_owned_without_group_execution_authority() {
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     for removed in [
         "fn validate_merge_plan(",
         "fn merge_plan_admission_limits(",
@@ -4356,7 +4526,8 @@ fn reference_merge_policy_is_adapter_owned_without_group_execution_authority() {
     ] {
         assert!(adapter.contains(required), "{required}");
     }
-    let group = fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+    let group =
+        fs::read_to_string(root().join("crates/leserpent-vm/src/group_binding.rs")).unwrap();
     for retained in [
         "crate::computation::resume_group_outcome(",
         "fn build_successor(",
@@ -4366,7 +4537,7 @@ fn reference_merge_policy_is_adapter_owned_without_group_execution_authority() {
         assert!(group.contains(retained), "{retained}");
     }
     let proof =
-        fs::read_to_string(root().join("crates/leselang-vm/src/merge_plan_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/merge_plan_contract_tests.rs"))
             .unwrap();
     assert!(proof.contains(
         "static_merge_admission_neither_reserves_ids_nor_restores_or_finishes_live_groups"
@@ -4396,7 +4567,7 @@ fn reference_merge_policy_is_adapter_owned_without_group_execution_authority() {
 #[test]
 fn reference_value_policy_is_adapter_owned_without_execution_or_journal_authority() {
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     for removed in [
         "pub const MAX_STRUCTURED_VALUE_DEPTH:",
         "fn validate_value(",
@@ -4430,7 +4601,7 @@ fn reference_value_policy_is_adapter_owned_without_execution_or_journal_authorit
     ] {
         assert!(adapter.contains(required), "{required}");
     }
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     assert!(journal.contains("use leselang_command::reference_completion::{"));
     let completion =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_completion.rs"))
@@ -4452,7 +4623,7 @@ fn reference_value_policy_is_adapter_owned_without_execution_or_journal_authorit
 #[test]
 fn continuation_codec_is_adapter_owned_while_restore_and_consumers_keep_execution_boundaries() {
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let codec =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_continuation.rs"))
             .unwrap();
@@ -4541,24 +4712,24 @@ fn continuation_codec_is_adapter_owned_while_restore_and_consumers_keep_executio
     }
     let observe =
         fs::read_to_string(root().join("crates/leselang-observe/src/vm_bridge.rs")).unwrap();
-    assert!(observe.contains("use leselang_vm::Vm;"));
-    assert!(!observe.contains("leselang_vm::{"));
+    assert!(observe.contains("use leserpent_vm::Vm;"));
+    assert!(!observe.contains("leserpent_vm::{"));
     let daemon = fs::read_to_string(root().join("crates/leserpentd/src/debugger.rs")).unwrap();
-    assert!(daemon.contains("use leselang_vm::{DEFAULT_FUEL, Vm};"));
+    assert!(daemon.contains("use leserpent_vm::{DEFAULT_FUEL, Vm};"));
     assert!(daemon.contains("use leselang_command::{"));
     for path in ["debugger.rs", "remote.rs", "wire.rs"] {
         let source = fs::read_to_string(root().join("crates/leserpentd/src").join(path)).unwrap();
         for removed in [
-            "leselang_vm::Value",
-            "leselang_vm::ScalarValue",
-            "leselang_vm::PresentationOperation",
-            "leselang_vm::MAX_MERGE_BRANCHES",
+            "leserpent_vm::Value",
+            "leserpent_vm::ScalarValue",
+            "leserpent_vm::PresentationOperation",
+            "leserpent_vm::MAX_MERGE_BRANCHES",
         ] {
             assert!(!source.contains(removed), "{path}: {removed}");
         }
     }
     let frozen = fs::read_to_string(
-        root().join("crates/leselang-vm/src/continuation_codec_contract_tests.rs"),
+        root().join("crates/leserpent-vm/src/continuation_codec_contract_tests.rs"),
     )
     .unwrap();
     let oracle = frozen.split_once("fn compare(").unwrap().0;
@@ -4612,9 +4783,10 @@ fn observation_projection_features_really_remove_vm_and_storage_dependencies() {
         );
         let tree = String::from_utf8(output.stdout).unwrap();
         assert_eq!(
-            tree.lines().any(|line| line.starts_with("leselang-vm v")),
+            tree.lines().any(|line| line.starts_with("leserpent-vm v")),
             vm
         );
+        assert!(!tree.lines().any(|line| line.starts_with("leselang-vm v")));
         assert_eq!(
             tree.lines().any(|line| line.starts_with("rusqlite v")),
             sqlite
@@ -4642,6 +4814,7 @@ fn read_only_observation_and_optional_mutation_keep_the_original_authority_bound
         .split_once("#[cfg(all(test, feature = \"vm-bridge\"))]")
         .unwrap();
     assert!(!production.contains("leselang_vm"));
+    assert!(!production.contains("leserpent_vm"));
     assert!(production.contains("use leselang_runtime_core::Fault"));
     assert!(
         production.contains("use leselang_command::reference_request::validate_effect_request")
@@ -4703,9 +4876,9 @@ fn execution_observation_types_move_without_terminal_or_dispatch_ownership() {
         fs::read_to_string(root().join("crates/leselang-command/src/execution_outcome.rs"))
             .unwrap();
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let scheduler =
-        fs::read_to_string(root().join("crates/leselang-vm/src/scheduling.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/scheduling.rs")).unwrap();
     for declaration in [
         "pub enum Step",
         "pub enum RetryDisposition",
@@ -4742,7 +4915,7 @@ fn execution_observation_types_move_without_terminal_or_dispatch_ownership() {
             "pub use leselang_command::{DispatchClaim, SchedulerLimits, SchedulerPressure}"
         )
     );
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     assert!(journal.contains("use leselang_command::reference_completion::{"));
     let completion =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_completion.rs"))
@@ -4758,7 +4931,7 @@ fn execution_observation_types_move_without_terminal_or_dispatch_ownership() {
     assert!(dispatch.contains("validate_dispatch_lease("));
     assert!(journal.contains("adapter_step_decode_does_not_replace_original_terminal_admission"));
     let frozen = fs::read_to_string(
-        root().join("crates/leselang-vm/src/execution_outcome_contract_tests.rs"),
+        root().join("crates/leserpent-vm/src/execution_outcome_contract_tests.rs"),
     )
     .unwrap();
     assert!(frozen.contains("46_224"));
@@ -4782,7 +4955,7 @@ fn execution_observation_types_move_without_terminal_or_dispatch_ownership() {
 #[test]
 fn concrete_product_request_and_static_policy_move_without_execution_authority() {
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
             .unwrap();
@@ -4840,7 +5013,7 @@ fn concrete_product_request_and_static_policy_move_without_execution_authority()
             .unwrap();
     assert!(continuation.contains("canonical_source(&image.pending_effect)"));
     let codec =
-        fs::read_to_string(root().join("crates/leselang-vm/src/request_codec_tests.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/request_codec_tests.rs")).unwrap();
     assert!(codec.contains("operation_request_tests::frozen_validate_effect_request(&request)"));
     let consumer =
         fs::read_to_string(root().join("crates/leselang-vm/tests/ephemeral_profile.rs")).unwrap();
@@ -4857,7 +5030,7 @@ fn concrete_product_request_and_static_policy_move_without_execution_authority()
 #[test]
 fn product_identity_and_terminal_data_move_without_runtime_or_storage_authority() {
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     assert!(vm.contains("pub use leselang_command::ContinuationToken"));
     assert!(vm.contains("pub use leselang_command::{BranchCompletion, BranchOutcome, Cancellation, CancellationReason}"));
     assert!(vm.contains("pub(crate) use leselang_command::continuation_identity::"));
@@ -4906,7 +5079,7 @@ fn product_identity_and_terminal_data_move_without_runtime_or_storage_authority(
     assert!(terminal.contains("pub enum BranchOutcome"));
     assert!(terminal.contains("pub enum CancellationReason"));
     assert!(!terminal.contains("deny_unknown_fields"));
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let graph_registration = fs::read_to_string(
         root().join("crates/leselang-command/src/reference_merge_graph_commit.rs"),
     )
@@ -4920,7 +5093,7 @@ fn product_identity_and_terminal_data_move_without_runtime_or_storage_authority(
     assert!(batch.contains("canonical_continuation_sequence(token)"));
     assert!(journal.contains("fn advance_sequence_watermark("));
     let frozen = fs::read_to_string(
-        root().join("crates/leselang-vm/src/identity_outcome_contract_tests.rs"),
+        root().join("crates/leserpent-vm/src/identity_outcome_contract_tests.rs"),
     )
     .unwrap();
     let frozen = frozen.split_once("mod frozen {").unwrap().1;
@@ -4989,7 +5162,7 @@ fn bounded_input_decoding_is_shared_but_does_not_replace_product_admission() {
     assert!(
         plan.find("plan.schema_version !=").unwrap() < plan.find("validate_plan(&plan)?").unwrap()
     );
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     assert!(journal.contains("decode_journal_value as decode_bounded"));
     let recovery =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_recovery.rs"))
@@ -5007,7 +5180,7 @@ fn bounded_input_decoding_is_shared_but_does_not_replace_product_admission() {
         assert!(decode.contains(code));
     }
     let tests =
-        fs::read_to_string(root().join("crates/leselang-vm/src/journal/bounded_decode_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/journal/bounded_decode_tests.rs"))
             .unwrap();
     let frozen = tests
         .split_once("fn frozen_decode<")
@@ -5025,7 +5198,7 @@ fn bounded_input_decoding_is_shared_but_does_not_replace_product_admission() {
 
 #[test]
 fn product_scheduler_policy_moves_without_owning_leases_or_journal_admission() {
-    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/scheduling.rs")).unwrap();
+    let vm = fs::read_to_string(root().join("crates/leserpent-vm/src/scheduling.rs")).unwrap();
     assert!(
         vm.contains(
             "pub use leselang_command::{DispatchClaim, SchedulerLimits, SchedulerPressure}"
@@ -5072,11 +5245,11 @@ fn product_scheduler_policy_moves_without_owning_leases_or_journal_admission() {
         assert!(!adapter.contains(absent), "{absent}");
     }
     assert!(adapter.contains("use crate::retention_policy::MAX_JOURNAL_RECORDS"));
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     assert!(journal.contains("pub use leselang_command::retention_policy::MAX_JOURNAL_RECORDS"));
     assert!(journal.contains("limits.check_admission("));
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/scheduling_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/scheduling_contract_tests.rs"))
             .unwrap();
     let frozen = frozen.split_once("mod frozen {").unwrap().1;
     assert!(!frozen.contains("leselang_command"));
@@ -5089,9 +5262,199 @@ fn product_scheduler_policy_moves_without_owning_leases_or_journal_admission() {
 }
 
 #[test]
+fn selected_record_cleanup_retains_raw_sql_and_borrowed_transaction_boundaries() {
+    let read = |p: &str| fs::read_to_string(root().join(p)).unwrap();
+    let adapter = read("crates/leselang-command/src/reference_compaction_records.rs");
+    for absent in [
+        "rusqlite",
+        "leselang_vm",
+        "SELECT ",
+        "DELETE ",
+        "std::fs",
+        "catch_unwind",
+        "fn commit",
+        "fn rollback",
+        "validate_terminal_step",
+        "valid_continuation_token",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    let deletion = adapter
+        .split_once("pub fn delete_completed_group")
+        .unwrap()
+        .1;
+    let mut end = 0;
+    for call in [
+        "host.group(token)?",
+        "host.branches(token)?",
+        "decode_journal_value(&group.plan, MAX_CONTINUATION_BYTES)?",
+        "validate_merge_plan(&plan)?",
+        "branches.len() != plan.branches.len()",
+        "usize::try_from(group.bytes)",
+        "usize::try_from(branch.bytes)",
+        "host.delete_group(token)?",
+        "host.delete_branch(&branch.token)?",
+        "Ok(reclaimed)",
+    ] {
+        end += deletion[end..]
+            .find(call)
+            .unwrap_or_else(|| panic!("missing {call}"))
+            + call.len();
+    }
+    let native = read("crates/leserpent-vm/src/journal/compaction_records.rs");
+    for required in [
+        "&'a Connection",
+        "&'a rusqlite::Transaction<'connection>",
+        "ORDER BY b.position ASC",
+        ".collect::<Result<Vec<_>, _>>()",
+        ".collect::<Result<BTreeSet<_>, _>>()",
+        "failed to read merge group deletion",
+        "failed to size completed journal record",
+        "failed to read completed journal reconciliation",
+        "state = 'completed'",
+    ] {
+        assert!(native.contains(required), "{required}");
+    }
+    for absent in [
+        ".commit()",
+        ".rollback()",
+        "transaction_with_behavior",
+        "decode_bounded",
+        "validate_merge_plan",
+    ] {
+        assert!(!native.contains(absent), "{absent}");
+    }
+    let journal = read("crates/leserpent-vm/src/journal.rs");
+    for call in [
+        "reference_compaction_records::completed_effect_bytes(",
+        "reference_compaction_records::delete_completed_group(",
+        "reference_compaction_records::stale_local_completed(",
+    ] {
+        assert!(journal.contains(call));
+    }
+    let frozen = read("crates/leserpent-vm/src/journal/compaction_records_contract_tests.rs");
+    let body = frozen.split_once("// Frozen at 63df912e").unwrap().1;
+    assert!(!body.contains("reference_compaction_records"));
+    for call in [
+        "decode_bounded(&plan_bytes, MAX_CONTINUATION_BYTES)?",
+        "validate_merge_plan(&plan)?",
+        "SELECT length(plan) + length(terminal_step)",
+        "usize::try_from(group_bytes)",
+    ] {
+        assert!(body.contains(call));
+    }
+    for count in [
+        "assert_eq!(cases, 192)",
+        "assert_eq!(bytes_cases, 288)",
+        "assert_eq!(cache_cases, 96)",
+    ] {
+        assert!(frozen.contains(count));
+    }
+    let batch = read("crates/leserpent-vm/src/journal/compaction_commit_contract_tests.rs");
+    for name in [
+        "frozen_completed_effect_logical_bytes",
+        "frozen_delete_completed_merge_group",
+        "frozen_stale_local_completed",
+    ] {
+        assert!(batch.contains(&format!("compaction_records_contract_tests::{name}")));
+    }
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_compaction_records"));
+    assert!(ci.contains("--lib compaction_records_contract_tests"));
+}
+
+#[test]
+fn compaction_policy_keeps_native_transactions_and_post_commit_cache_publication() {
+    let read = |p: &str| fs::read_to_string(root().join(p)).unwrap();
+    let adapter = read("crates/leselang-command/src/reference_compaction_commit.rs");
+    for absent in [
+        "rusqlite",
+        "leselang_vm",
+        "SELECT ",
+        "DELETE ",
+        "std::fs",
+        "catch_unwind",
+        "recover_checkpoint",
+        "next_sequence",
+    ] {
+        assert!(!adapter.contains(absent), "{absent}");
+    }
+    let durable = adapter.split_once("pub fn compact_durable").unwrap().1;
+    let mut end = 0;
+    for call in [
+        "host.completed_count()?",
+        "policy.removal_count(completed_count)",
+        "host.candidates(limit)?",
+        "host.effect_bytes(&token)?",
+        "host.delete_effect(&token)?",
+        "host.delete_group(&token)?",
+        "host.stale_local(local_completed)?",
+        "host.commit(false)?",
+        "Ok(JournalCompaction",
+    ] {
+        end += durable[end..]
+            .find(call)
+            .unwrap_or_else(|| panic!("missing {call}"))
+            + call.len();
+    }
+    assert_eq!(durable.matches("host.candidates(").count(), 1);
+    let native = read("crates/leserpent-vm/src/journal/compaction_commit.rs");
+    for required in [
+        "rusqlite::Transaction<'a>",
+        "ORDER BY age ASC, kind ASC, token ASC",
+        "LIMIT ?1",
+        "rows.collect::<Result<Vec<_>, _>>()",
+        "delete_completed_merge_group(&self.0, token)",
+        "stale_local_completed(&self.0, local)",
+        "failed to close journal compaction",
+        "failed to commit journal compaction",
+    ] {
+        assert!(native.contains(required), "{required}");
+    }
+    assert!(!native.contains("transaction_with_behavior"));
+    let journal = read("crates/leserpent-vm/src/journal.rs");
+    let durable_entry = journal
+        .split_once("impl SqliteJournal {")
+        .unwrap()
+        .1
+        .split_once("fn compact_completed(")
+        .unwrap()
+        .1
+        .split_once("\n}\n")
+        .unwrap()
+        .0;
+    assert_eq!(
+        durable_entry
+            .matches("transaction_with_behavior(TransactionBehavior::Immediate)")
+            .count(),
+        1
+    );
+    assert!(durable_entry.contains("compaction_commit::SqliteCompactionTransaction(transaction)"));
+    assert!(!durable_entry.contains(".commit()"));
+    let maintenance = read("crates/leselang-command/src/reference_settlement/maintenance.rs");
+    assert!(
+        maintenance
+            .find("host.compact_completed(&local_completed, policy)?")
+            .unwrap()
+            < maintenance.find("host.remove_completed(token)").unwrap()
+    );
+    let tests = read("crates/leserpent-vm/src/journal/compaction_commit_contract_tests.rs");
+    let frozen = tests.split_once("// Frozen at 63df912e").unwrap().1;
+    assert!(!frozen.contains("reference_compaction_commit"));
+    assert!(frozen.contains("measure_json_capped("));
+    assert!(frozen.contains("SELECT kind, token FROM"));
+    for count in ["assert_eq!(cases, 240)", "assert_eq!(cases, 360)"] {
+        assert!(tests.contains(count));
+    }
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--test reference_compaction_commit"));
+    assert!(ci.contains("--lib compaction_commit_contract_tests"));
+}
+
+#[test]
 fn product_retention_policy_is_shared_and_memory_compaction_preflights_before_mutation() {
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     assert!(vm.contains("pub use leselang_command::{CompactionReport, RetentionPolicy}"));
     assert!(!vm.contains("pub struct RetentionPolicy"));
     assert!(!vm.contains("pub struct CompactionReport"));
@@ -5100,23 +5463,22 @@ fn product_retention_policy_is_shared_and_memory_compaction_preflights_before_mu
     )
     .unwrap();
     assert!(maintenance.contains("validate_retention_policy(policy, MAX_JOURNAL_RECORDS)"));
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
+    let compact = fs::read_to_string(
+        root().join("crates/leselang-command/src/reference_compaction_commit.rs"),
+    )
+    .unwrap();
     assert_eq!(
-        journal
+        compact
             .matches("policy.removal_count(completed_count)")
             .count(),
         2
     );
-    let compact = journal
-        .split_once("impl EphemeralJournal {")
-        .unwrap()
-        .1
-        .split_once("    fn compact_completed(")
-        .unwrap()
-        .1
-        .split_once("\n}\n")
-        .unwrap()
-        .0;
+    assert!(
+        journal
+            .contains("reference_compaction_commit::compact_memory(self, local_completed, policy)")
+    );
+    assert!(journal.contains("reference_compaction_commit::compact_durable("));
     let preflight = compact
         .split_once("for unit in units.iter().take(remove_count)")
         .unwrap()
@@ -5124,11 +5486,15 @@ fn product_retention_policy_is_shared_and_memory_compaction_preflights_before_mu
         .split_once("for unit in units.into_iter().take(remove_count)")
         .unwrap()
         .0;
-    assert_eq!(preflight.matches("measure_json_capped(").count(), 5);
+    assert_eq!(preflight.matches("host.measure(").count(), 5);
     for absent in [".remove(", ".retain(", ".get_mut(", "encode_json_capped("] {
         assert!(!preflight.contains(absent), "{absent}");
     }
-    assert!(compact.contains("self.debugger_audits"));
+    let owner =
+        fs::read_to_string(root().join("crates/leserpent-vm/src/journal/compaction_commit.rs"))
+            .unwrap();
+    assert!(owner.contains("self.debugger_audits"));
+    assert!(owner.contains("measure_json_capped(value, limit, label)"));
     let policy =
         fs::read_to_string(root().join("crates/leselang-command/src/retention_policy.rs")).unwrap();
     for absent in [
@@ -5141,7 +5507,7 @@ fn product_retention_policy_is_shared_and_memory_compaction_preflights_before_mu
         assert!(!policy.contains(absent), "{absent}");
     }
     let tests =
-        fs::read_to_string(root().join("crates/leselang-vm/src/journal/retention_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/journal/retention_tests.rs"))
             .unwrap();
     let frozen = tests.split_once("fn frozen_compact(").unwrap().1;
     assert!(!frozen.contains("measure_json_capped("));
@@ -5154,7 +5520,7 @@ fn product_retention_policy_is_shared_and_memory_compaction_preflights_before_mu
 #[test]
 fn product_bounded_json_is_shared_without_moving_admission_or_journal_ownership() {
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     for absent in [
         "struct CappedWriter",
         "struct CappedCounter",
@@ -5225,7 +5591,7 @@ fn product_bounded_json_is_shared_without_moving_admission_or_journal_ownership(
 #[test]
 fn product_merge_completion_moves_ordering_without_moving_vm_finalization() {
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let merge = vm
         .split_once("fn merge_declared_inner(")
         .unwrap()
@@ -5288,7 +5654,7 @@ fn product_merge_completion_moves_ordering_without_moving_vm_finalization() {
         assert!(!adapter.contains(absent), "{absent}");
     }
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/merge_completion_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/merge_completion_tests.rs"))
             .unwrap();
     assert!(frozen.contains("9_720"));
     let frozen = frozen.split_once("fn frozen_merge(").unwrap().1;
@@ -5301,7 +5667,7 @@ fn product_merge_completion_moves_ordering_without_moving_vm_finalization() {
 #[test]
 fn product_retry_policy_is_adapter_owned_but_replay_and_journal_fencing_keep_native_owners() {
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     for removed in [
         "pub struct RetryPolicy",
         "pub enum EffectErrorClass",
@@ -5353,7 +5719,7 @@ fn product_retry_policy_is_adapter_owned_but_replay_and_journal_fencing_keep_nat
     );
     assert!(integration.contains("terminal_replay_precedes_late_invalid_error_and_policy"));
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/retry_policy_adapter_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/retry_policy_adapter_tests.rs"))
             .unwrap();
     assert!(frozen.contains("60_480"));
     assert!(
@@ -5370,8 +5736,8 @@ fn product_retry_policy_is_adapter_owned_but_replay_and_journal_fencing_keep_nat
 #[test]
 fn product_debugger_audit_metadata_is_adapter_owned_without_moving_commit_authority() {
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/debugger_audit.rs")).unwrap();
     let observe =
@@ -5442,7 +5808,7 @@ fn product_debugger_audit_metadata_is_adapter_owned_without_moving_commit_author
             .unwrap();
     assert!(recovery.contains("validate_debugger_audit(&context)"));
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/debugger_audit_adapter_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/debugger_audit_adapter_tests.rs"))
             .unwrap();
     let frozen = frozen.split_once("mod frozen {").unwrap().1;
     assert!(!frozen.contains("leselang_command"));
@@ -5454,7 +5820,7 @@ fn product_debugger_audit_metadata_is_adapter_owned_without_moving_commit_author
 #[test]
 fn product_request_codec_is_adapter_owned_and_vm_admission_stays_mandatory() {
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let request =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
             .unwrap();
@@ -5508,7 +5874,7 @@ fn product_request_codec_is_adapter_owned_and_vm_admission_stays_mandatory() {
     assert!(source.contains("leselang_command::decode_effect_request(deserializer)?"));
     assert!(source.contains("validate_effect_request("));
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/request_codec_tests.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/request_codec_tests.rs")).unwrap();
     assert!(frozen.contains("EffectRequestWire::deserialize(deserializer)?"));
     assert!(!frozen.contains("decode_effect_request("));
     assert!(frozen.contains("74 * 18"));
@@ -5564,7 +5930,7 @@ fn assert_complete_checkpoint_finalization_order() {
 #[test]
 fn complete_checkpoint_finalization_is_shared_without_importing_product_audit_policy() {
     assert_complete_checkpoint_finalization_order();
-    let code = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let code = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     assert!(code.contains("recover_checkpoint(SqliteRecoveryFinalizer"));
     let adapter = code
         .split_once("impl leselang_runtime_core::CheckpointFinalizer for SqliteRecoveryFinalizer")
@@ -5593,7 +5959,7 @@ fn complete_checkpoint_finalization_is_shared_without_importing_product_audit_po
             .unwrap();
     assert!(audit.contains("validate_debugger_audit(&context)"));
     let frozen = fs::read_to_string(
-        root().join("crates/leselang-vm/src/journal/finalization_contract_tests.rs"),
+        root().join("crates/leserpent-vm/src/journal/finalization_contract_tests.rs"),
     )
     .unwrap();
     assert!(!frozen.contains("finish_recovery("));
@@ -5668,7 +6034,7 @@ fn complete_dispatch_recovery_is_shared_before_checkpoint_commit() {
     ] {
         assert!(!core.contains(absent), "{absent}");
     }
-    let code = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let code = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let pass = code
         .split_once("fn validate_dispatch_records(")
         .unwrap()
@@ -5706,7 +6072,7 @@ fn complete_dispatch_recovery_is_shared_before_checkpoint_commit() {
     }
     assert!(!pass.contains("if attempt < 0"));
     let frozen = fs::read_to_string(
-        root().join("crates/leselang-vm/src/journal/dispatch_recovery_contract_tests.rs"),
+        root().join("crates/leserpent-vm/src/journal/dispatch_recovery_contract_tests.rs"),
     )
     .unwrap();
     assert!(!frozen.contains("inspect_dispatch_recovery("));
@@ -5748,7 +6114,7 @@ fn product_dispatch_recovery_keeps_sql_reads_and_authority_outside_the_adapter()
     ] {
         assert!(!adapter.contains(absent), "{absent}");
     }
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let storage = journal
         .split_once("impl ReferenceDispatchSource for SqliteRecoveryDispatch")
         .unwrap()
@@ -5846,7 +6212,7 @@ fn assert_complete_record_recovery_order() {
 #[test]
 fn complete_effect_record_recovery_is_shared_before_opaque_checkpoint_staging() {
     assert_complete_record_recovery_order();
-    let code = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let code = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     assert!(code.contains("impl ReferenceRecordSource for SqliteRecoveryRecord"));
     let compact = code.split_whitespace().collect::<String>();
     assert!(compact.contains("inspect_effect_record(&mutSqliteRecoveryRecord"));
@@ -5856,7 +6222,7 @@ fn complete_effect_record_recovery_is_shared_before_opaque_checkpoint_staging() 
     assert!(adapter.contains("RecordRecoveryHost for RecordPolicy<"));
     assert!(adapter.contains("inspect_record_recovery(&mut RecordPolicy"));
     let frozen = fs::read_to_string(
-        root().join("crates/leselang-vm/src/journal/record_recovery_contract_tests.rs"),
+        root().join("crates/leserpent-vm/src/journal/record_recovery_contract_tests.rs"),
     )
     .unwrap();
     assert!(!frozen.contains("inspect_record_recovery("));
@@ -5943,7 +6309,7 @@ fn assert_complete_group_batch_order() {
 #[test]
 fn complete_stored_group_batch_uses_shared_global_reservations_before_checkpoint_commit() {
     assert_complete_group_batch_order();
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     for required in [
         "inspect_group_batch(groups, &mut RecoveredGroupsHost(connection))",
         "impl ReferenceGroupBatchProofs<Vec<u8>> for RecoveredGroupsHost",
@@ -5985,7 +6351,7 @@ fn complete_stored_group_batch_uses_shared_global_reservations_before_checkpoint
     assert!(!journal.contains("fn merge_reserved_sequence("));
     assert!(!journal.contains("fn execution_order_label("));
     let frozen = fs::read_to_string(
-        root().join("crates/leselang-vm/src/journal/group_recovery_contract_tests.rs"),
+        root().join("crates/leserpent-vm/src/journal/group_recovery_contract_tests.rs"),
     )
     .unwrap();
     assert!(frozen.contains("assert_eq!(comparisons, 364)"));
@@ -6051,7 +6417,7 @@ fn complete_successor_admission_shares_order_without_native_storage_or_error_pay
             "successor admission grew {absent}"
         );
     }
-    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let vm = fs::read_to_string(root().join("crates/leserpent-vm/src/successor.rs")).unwrap();
     for required in [
         "leselang_command::validate_successor_pair(",
         "validate_bound_value(parent.continuation, value)",
@@ -6061,7 +6427,7 @@ fn complete_successor_admission_shares_order_without_native_storage_or_error_pay
         assert!(vm.contains(required), "{required}");
     }
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/successor_pair_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/successor_pair_contract_tests.rs"))
             .unwrap();
     assert!(frozen.contains("frozen_validate_effect_request(parent)?"));
     assert!(frozen.contains("frozen_validate_effect_request(next)?"));
@@ -6119,7 +6485,7 @@ fn complete_request_admission_is_one_shared_ordered_gate_without_native_authorit
         assert!(!adapter.contains(absent), "request admission grew {absent}");
     }
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     assert!(vm.contains("pub use leselang_command::reference_request::{"));
     let request =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
@@ -6146,7 +6512,7 @@ fn complete_request_admission_is_one_shared_ordered_gate_without_native_authorit
     assert!(!admission.contains("validate_image("));
     assert!(!admission.contains("validate_preflighted_effect_request("));
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/operation_request_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/operation_request_tests.rs"))
             .unwrap();
     assert!(frozen.contains(
         "crate::continuation_schema_tests::frozen_validate_image(&request.continuation)?"
@@ -6196,7 +6562,7 @@ fn successor_pair_correspondence_is_shared_after_native_request_and_value_admiss
     ] {
         assert!(!adapter.contains(absent), "{absent}");
     }
-    let source = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let source = fs::read_to_string(root().join("crates/leserpent-vm/src/successor.rs")).unwrap();
     let pair = source
         .split_once("pub(super) fn validate_pair(")
         .unwrap()
@@ -6218,7 +6584,7 @@ fn successor_pair_correspondence_is_shared_after_native_request_and_value_admiss
     assert!(pair.contains("SuccessorCorrespondenceError::InvalidBinding"));
     assert!(pair.contains("crate::result_binding::invalid()"));
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/successor_pair_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/successor_pair_contract_tests.rs"))
             .unwrap();
     assert!(frozen.contains("assert_eq!(pairs.len(), 9)"));
     assert!(frozen.contains("assert_eq!(comparisons, 576)"));
@@ -6260,7 +6626,7 @@ fn group_requests_share_borrowed_correspondence_without_replacing_recovery_admis
     ] {
         assert!(!adapter.contains(forbidden), "{forbidden}");
     }
-    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+    let vm = fs::read_to_string(root().join("crates/leserpent-vm/src/group_binding.rs")).unwrap();
     let admission = vm
         .split_once("impl ReferenceGroupResultBinding")
         .unwrap()
@@ -6282,7 +6648,7 @@ fn group_requests_share_borrowed_correspondence_without_replacing_recovery_admis
     assert!(!admission.contains("let mut previous_fuel"));
     assert!(!vm.contains("fn capture_accepts_type_at("));
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/group_request_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/group_request_contract_tests.rs"))
             .unwrap();
     assert!(frozen.contains("assert_eq!(comparisons, 2880)"));
     assert!(frozen.contains("assert_eq!(snapshots_count, 40)"));
@@ -6320,7 +6686,7 @@ fn request_frame_correspondence_is_shared_without_weakening_checked_deserializat
         assert!(!adapter.contains(absent));
     }
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let request =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
             .unwrap();
@@ -6354,7 +6720,7 @@ fn request_frame_correspondence_is_shared_without_weakening_checked_deserializat
         assert!(!admission.contains(absent));
     }
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/operation_request_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/operation_request_tests.rs"))
             .unwrap();
     assert!(!frozen.contains("validate_preflighted_effect_request"));
     assert!(frozen.contains(
@@ -6798,7 +7164,8 @@ fn product_capture_replay_policy_is_adapter_owned_without_moving_authority_or_fa
             "capture adapter acquired {absent}"
         );
     }
-    let successor = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let successor =
+        fs::read_to_string(root().join("crates/leserpent-vm/src/successor.rs")).unwrap();
     let successor = successor
         .split_once("#[cfg(test)]\nmod extension_tests {")
         .unwrap()
@@ -6813,7 +7180,8 @@ fn product_capture_replay_policy_is_adapter_owned_without_moving_authority_or_fa
     assert!(correspondence.contains("validate_result_binding_extension("));
     assert!(successor.contains("crate::result_binding::invalid()"));
     assert!(successor.contains("code: \"LSV1407\""));
-    let group = fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+    let group =
+        fs::read_to_string(root().join("crates/leserpent-vm/src/group_binding.rs")).unwrap();
     let group = group.split_once("#[cfg(all(test").unwrap().0;
     assert!(!group.contains("validate_capture_correspondence("));
     assert!(group.contains("leselang_command::reference_group_binding::validate_saved_capture("));
@@ -6890,7 +7258,7 @@ fn complete_product_binding_validation_is_adapter_owned_with_explicit_vm_limits(
         );
     }
     let reference =
-        fs::read_to_string(root().join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/result_binding.rs")).unwrap();
     let production = reference.split_once("#[cfg(test)]\nmod tests {").unwrap().0;
     for required in [
         "pub use leselang_command::{",
@@ -6964,7 +7332,7 @@ fn group_plan_correspondence_is_adapter_owned_between_structure_and_deep_vm_gate
         assert!(!adapter.contains(forbidden), "{forbidden}");
     }
     let reference =
-        fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/group_binding.rs")).unwrap();
     let implementation = reference
         .split_once("impl ReferenceGroupResultBinding for GroupResultBinding {")
         .unwrap()
@@ -7008,7 +7376,7 @@ fn group_plan_correspondence_is_adapter_owned_between_structure_and_deep_vm_gate
         implementation.contains("self.plan_successor_name_at(position, crate::MAX_MERGE_BRANCHES)")
     );
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/group_plan_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/group_plan_contract_tests.rs"))
             .unwrap();
     assert!(frozen.contains("assert_eq!(comparisons, 3360)"));
     assert!(!frozen.contains("validate_preflighted_plan"));
@@ -7131,7 +7499,7 @@ fn structured_plan_protocol_and_shape_admission_are_adapter_owned_with_deep_vm_g
     assert!(!shape.contains("MAX_MERGE_BRANCHES"));
     assert!(!shape.contains("MAX_MERGE_BRANCH_NAME_BYTES"));
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     for absent in [
         "pub struct MergePlan",
         "pub enum ExecutionOrder",
@@ -7170,7 +7538,7 @@ fn structured_plan_protocol_and_shape_admission_are_adapter_owned_with_deep_vm_g
         vm.contains("leselang_command::valid_merge_branch_name(name, MAX_MERGE_BRANCH_NAME_BYTES)")
     );
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/merge_plan_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/merge_plan_contract_tests.rs"))
             .unwrap();
     assert!(frozen.contains("struct FrozenMergePlan"));
     assert!(frozen.contains("enum FrozenExecutionOrder"));
@@ -7210,7 +7578,7 @@ fn group_continuation_data_and_successor_versions_are_product_owned_not_vm_owned
         assert!(!adapter.contains(absent), "{absent}");
     }
     let reference =
-        fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/group_binding.rs")).unwrap();
     assert!(reference.contains("pub use leselang_command::GroupResultBinding;"));
     assert!(reference.contains("pub(super) trait ReferenceGroupResultBinding"));
     assert!(reference.contains("impl ReferenceGroupResultBinding for GroupResultBinding"));
@@ -7236,7 +7604,8 @@ fn group_continuation_data_and_successor_versions_are_product_owned_not_vm_owned
     ] {
         assert!(!production.contains(absent), "VM duplicated {absent}");
     }
-    let successor = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let successor =
+        fs::read_to_string(root().join("crates/leserpent-vm/src/successor.rs")).unwrap();
     let pair = successor
         .split_once("pub(super) fn validate_pair(")
         .unwrap()
@@ -7265,7 +7634,7 @@ fn group_continuation_data_and_successor_versions_are_product_owned_not_vm_owned
     }
     assert!(!pair.contains("match first.schema_version"));
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/group_protocol_tests.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/group_protocol_tests.rs")).unwrap();
     assert!(frozen.contains("struct FrozenGroupResultBinding"));
     assert!(frozen.contains("assert_eq!(comparisons, 288)"));
     assert!(!frozen.contains("leselang_command"));
@@ -7297,7 +7666,7 @@ fn continuation_schema_policy_is_adapter_owned_after_structure_preflight() {
         assert!(!adapter.contains(absent), "{absent}");
     }
     let reference =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     assert!(reference.contains("pub use leselang_command::continuation_schema::{"));
     assert!(!reference.contains("pub const CONTINUATION_SCHEMA_VERSION"));
     let request =
@@ -7377,7 +7746,7 @@ fn continuation_schema_policy_is_adapter_owned_after_structure_preflight() {
     .map(|stage| restore.find(stage).unwrap());
     assert!(stages.windows(2).all(|pair| pair[0] < pair[1]));
     let proofs =
-        fs::read_to_string(root().join("crates/leselang-vm/src/continuation_schema_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/continuation_schema_tests.rs"))
             .unwrap();
     assert!(
         proofs.contains("continuation_schema_preserves_frozen_selection_and_frame_refusal_order")
@@ -7444,7 +7813,7 @@ fn product_capture_access_policy_is_adapter_owned_without_bypassing_vm_admission
         );
     }
     let reference =
-        fs::read_to_string(root().join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/result_binding.rs")).unwrap();
     let production = reference.split_once("#[cfg(test)]\nmod tests {").unwrap().0;
     let binding =
         fs::read_to_string(root().join("crates/leselang-command/src/result_binding.rs")).unwrap();
@@ -7534,7 +7903,7 @@ fn product_group_capture_contract_is_adapter_owned_with_explicit_vm_policy() {
         assert!(!adapter.contains(absent), "adapter acquired {absent}");
     }
     let reference =
-        fs::read_to_string(root().join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/result_binding.rs")).unwrap();
     let production = reference.split_once("#[cfg(test)]\nmod tests {").unwrap().0;
     assert!(production.contains(
         "#[cfg(test)]\npub(super) use leselang_command::ProjectedGroupExt as ReferenceProjectedGroup;"
@@ -7586,7 +7955,7 @@ fn product_scalar_projection_is_adapter_owned_without_moving_execution_policy() 
         assert!(!adapter.contains(absent), "adapter acquired {absent}");
     }
     let binding =
-        fs::read_to_string(root().join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/result_binding.rs")).unwrap();
     assert!(!binding.contains("pub(super) fn project("));
     let view =
         fs::read_to_string(root().join("crates/leselang-command/src/result_view.rs")).unwrap();
@@ -7661,7 +8030,7 @@ fn product_capture_frames_and_validation_live_in_adapter_with_exact_reference_re
         );
     }
     let reference =
-        fs::read_to_string(root().join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/result_binding.rs")).unwrap();
     assert!(reference.contains("pub use leselang_command::{"));
     let production = reference.split_once("#[cfg(test)]\nmod tests {").unwrap().0;
     for absent in [
@@ -7736,7 +8105,7 @@ fn continuation_type_validation_reuses_host_signatures_without_owning_product_ma
     .map(|stage| validation.find(stage).unwrap());
     assert!(stages.windows(2).all(|pair| pair[0] < pair[1]));
     let proofs =
-        fs::read_to_string(root().join("crates/leselang-vm/src/continuation_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/continuation_contract_tests.rs"))
             .unwrap();
     for proof in [
         "continuation_signatures_keep_all_seventy_wire_and_restore_round_trips",
@@ -7786,7 +8155,7 @@ fn control_plane_reply_identity_rules_are_adapter_owned_but_context_fences_stay_
         );
     }
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let projection = vm
         .split_once("fn atomic_step_from_effect_result(")
         .unwrap()
@@ -7833,7 +8202,7 @@ fn control_plane_reply_identity_rules_are_adapter_owned_but_context_fences_stay_
     );
     assert!(projection.contains("MAX_RUNTIME_LOG_QUERY_ENTRIES"));
     let proofs =
-        fs::read_to_string(root().join("crates/leselang-vm/src/control_plane_reply_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/control_plane_reply_tests.rs"))
             .unwrap();
     for proof in [
         "control_plane_replies_freeze_cross_category_type_and_legacy_image_only_matrix",
@@ -7895,7 +8264,7 @@ fn presentation_reply_correspondence_is_borrowed_and_adapter_owned() {
     let done = projection.find("return Ok(value)").unwrap();
     assert!(correspondence < conversion && conversion < type_gate && type_gate < done);
     let cases =
-        fs::read_to_string(root().join("crates/leselang-vm/src/presentation_request_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/presentation_request_tests.rs"))
             .unwrap();
     assert!(
         cases.contains(
@@ -7912,7 +8281,7 @@ fn released_product_values_and_exhaustive_reply_projection_are_adapter_owned() {
         fs::read_to_string(root().join("crates/leselang-command/src/presentation_value.rs"))
             .unwrap();
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     for declaration in ["pub enum Value", "pub struct StructuredField"] {
         assert!(adapter.contains(declaration));
         assert!(!vm.contains(declaration));
@@ -7936,7 +8305,8 @@ fn released_product_values_and_exhaustive_reply_projection_are_adapter_owned() {
             );
         }
     }
-    let group = fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+    let group =
+        fs::read_to_string(root().join("crates/leserpent-vm/src/group_binding.rs")).unwrap();
     assert!(
         group.contains(
             "#[cfg(test)]\npub(super) fn value_type(value: &Value) -> Type {\n    value.result_type()\n}"
@@ -7976,7 +8346,7 @@ fn control_plane_value_conversion_follows_vm_gates_without_owning_execution_poli
         );
     }
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let projection = vm
         .split_once("fn atomic_step_from_effect_result(")
         .unwrap()
@@ -8005,7 +8375,7 @@ fn control_plane_value_conversion_follows_vm_gates_without_owning_execution_poli
             < projection.find("into_control_plane_value(").unwrap()
     );
     let proof =
-        fs::read_to_string(root().join("crates/leselang-vm/src/control_plane_reply_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/control_plane_reply_tests.rs"))
             .unwrap();
     assert!(
         proof.contains(
@@ -8053,7 +8423,7 @@ fn complete_effect_value_conversion_is_adapter_owned_with_explicit_original_cont
         );
     }
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let boundary = vm
         .split_once("fn atomic_step_from_effect_result(")
         .unwrap()
@@ -8106,7 +8476,7 @@ fn complete_effect_value_conversion_is_adapter_owned_with_explicit_original_cont
         assert!(proof.contains(required));
     }
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/control_plane_reply_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/control_plane_reply_tests.rs"))
             .unwrap();
     assert!(frozen.contains("fn legacy_atomic_step_from_effect_result("));
     assert!(
@@ -8145,7 +8515,7 @@ fn control_plane_request_correspondence_is_adapter_owned_but_identity_generation
         );
     }
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let request =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
             .unwrap();
@@ -8212,7 +8582,7 @@ fn control_plane_request_correspondence_is_adapter_owned_but_identity_generation
         assert!(!admission.contains(absent));
     }
     let proof =
-        fs::read_to_string(root().join("crates/leselang-vm/src/control_plane_request_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/control_plane_request_tests.rs"))
             .unwrap();
     for name in [
         "control_plane_admission_keeps_image_identity_authority_payload_and_budget_order",
@@ -8241,7 +8611,7 @@ fn composed_operation_request_policy_is_vm_free_without_bypassing_reference_admi
         assert!(!manifest.contains(absent));
     }
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     assert!(!vm.contains("fn validate_effect_identity("));
     let request =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
@@ -8268,7 +8638,7 @@ fn composed_operation_request_policy_is_vm_free_without_bypassing_reference_admi
         assert!(tests.contains(test));
     }
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/operation_request_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/operation_request_tests.rs"))
             .unwrap();
     assert!(frozen.contains("fn frozen_validate_effect_request("));
     assert!(
@@ -8299,7 +8669,7 @@ fn presentation_request_payload_checks_are_adapter_owned_without_reordering_vm_a
         );
     }
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let request =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_request.rs"))
             .unwrap();
@@ -8373,7 +8743,7 @@ fn presentation_request_payload_checks_are_adapter_owned_without_reordering_vm_a
         assert!(!policy.contains(absent));
     }
     let cases =
-        fs::read_to_string(root().join("crates/leselang-vm/src/presentation_request_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/presentation_request_tests.rs"))
             .unwrap();
     for proof in [
         "presentation_admission_keeps_image_identity_authority_payload_and_budget_order",
@@ -8482,7 +8852,7 @@ fn product_value_bounds_are_adapter_owned_but_execution_gates_stay_in_vm() {
     let bytes = bound.find(".validate_encoded_value(reply)").unwrap();
     assert!(leaf < budget && budget < bytes);
     let cases =
-        fs::read_to_string(root().join("crates/leselang-vm/src/presentation_request_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/presentation_request_tests.rs"))
             .unwrap();
     for proof in [
         "product_leaf_validation_keeps_counts_and_saved_value_compatibility",
@@ -8491,7 +8861,7 @@ fn product_value_bounds_are_adapter_owned_but_execution_gates_stay_in_vm() {
         assert!(cases.contains(proof));
     }
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/value_validation_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/value_validation_tests.rs"))
             .unwrap();
     assert!(
         frozen
@@ -8549,7 +8919,7 @@ fn received_result_domain_is_adapter_owned_with_explicit_native_policy_and_pendi
             "result-domain adapter acquired {absent}"
         );
     }
-    let vm = fs::read_to_string(root().join("crates/leselang-vm/src/host_result.rs")).unwrap();
+    let vm = fs::read_to_string(root().join("crates/leserpent-vm/src/host_result.rs")).unwrap();
     let production =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_result.rs")).unwrap();
     assert!(vm.contains("use leselang_command::reference_result::validate_bound_value"));
@@ -8613,7 +8983,7 @@ fn presentation_payload_mapping_and_request_construction_keep_original_gate_orde
         );
     }
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let build = vm
         .split_once("fn build_effect_request(")
         .unwrap()
@@ -8655,7 +9025,7 @@ fn presentation_payload_mapping_and_request_construction_keep_original_gate_orde
     let control = lowering.find("let plan = lower_effect(").unwrap();
     assert!(gui < identity && identity < control);
     let cases =
-        fs::read_to_string(root().join("crates/leselang-vm/src/presentation_request_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/presentation_request_tests.rs"))
             .unwrap();
     assert!(
         cases.contains("presentation_request_mapping_keeps_frozen_bytes_and_single_budget_debit")
@@ -8684,7 +9054,7 @@ fn composed_operation_lowering_does_not_own_request_budget_or_live_reservations(
         assert!(!policy.contains(absent));
     }
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let build = vm
         .split_once("fn build_effect_request(")
         .unwrap()
@@ -8727,7 +9097,7 @@ fn composed_operation_lowering_does_not_own_request_budget_or_live_reservations(
         assert!(tests.contains(name));
     }
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/operation_request_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/operation_request_tests.rs"))
             .unwrap();
     assert!(frozen.contains("fn frozen_build_effect_request("));
     assert!(
@@ -8758,13 +9128,13 @@ fn request_construction_is_static_policy_not_live_journal_authority() {
     assert_eq!(adapter.matches("pending_effect: effect.clone()").count(), 1);
     assert!(!adapter.contains("image.clone()"));
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     assert!(vm.contains("reference_allocation::allocate_sequence("));
     assert!(vm.contains("self.0.journal.allocate_sequence(local_next)"));
     assert!(vm.contains(".record_pending(image, request, self.scheduler_limits)"));
     assert!(vm.contains(".claim_dispatch(now_ms, lease_ms, self.0.scheduler_limits)"));
     let oracle =
-        fs::read_to_string(root().join("crates/leselang-vm/src/operation_request_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/operation_request_tests.rs"))
             .unwrap();
     let frozen = oracle
         .split_once("fn frozen_build_effect_request(")
@@ -8819,7 +9189,7 @@ fn product_wire_consumers_do_not_import_the_language_vm_or_its_journal_backend()
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/host_protocol.rs")).unwrap();
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     for declaration in [
         "enum EffectOperation",
         "enum EffectResult",
@@ -8843,7 +9213,7 @@ fn product_wire_consumers_do_not_import_the_language_vm_or_its_journal_backend()
 
 #[test]
 fn shared_watermark_planning_keeps_native_validation_reads_and_commit_before_publish() {
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let advance = journal
         .split("fn advance_sequence_watermark(")
         .nth(1)
@@ -8888,7 +9258,7 @@ fn shared_watermark_planning_keeps_native_validation_reads_and_commit_before_pub
     assert!(numeric < allocation.find("UPDATE vm_metadata").unwrap());
     assert!(allocation.find(".commit()").unwrap() < allocation.find("Ok(sequence)").unwrap());
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let restore =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_restore.rs"))
             .unwrap();
@@ -8950,7 +9320,7 @@ fn shared_watermark_planning_keeps_native_validation_reads_and_commit_before_pub
 
 #[test]
 fn continuation_context_kernel_preserves_native_phase_order_in_every_succession_path() {
-    let source = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let source = fs::read_to_string(root().join("crates/leserpent-vm/src/successor.rs")).unwrap();
     let helper = source
         .split("pub(super) fn same_inherited_context(")
         .nth(1)
@@ -9011,7 +9381,7 @@ fn continuation_context_kernel_preserves_native_phase_order_in_every_succession_
     );
     assert!(context < pair.find("canonical_sequence(&first.token)").unwrap());
     let groups =
-        fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/group_binding.rs")).unwrap();
     let admission = groups
         .split_once("impl ReferenceGroupResultBinding for GroupResultBinding {")
         .unwrap()
@@ -9078,7 +9448,7 @@ fn continuation_context_kernel_preserves_native_phase_order_in_every_succession_
 
 #[test]
 fn successor_capture_extension_shares_retention_without_authority_or_saved_body_execution() {
-    let source = fs::read_to_string(root().join("crates/leselang-vm/src/successor.rs")).unwrap();
+    let source = fs::read_to_string(root().join("crates/leserpent-vm/src/successor.rs")).unwrap();
     let pair = source
         .split("pub(super) fn validate_pair(")
         .nth(1)
@@ -9134,7 +9504,7 @@ fn successor_capture_extension_shares_retention_without_authority_or_saved_body_
     }
     assert!(!pair.contains("Fuel::new"));
     let journal =
-        fs::read_to_string(root().join("crates/leselang-vm/src/journal/successor.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/journal/successor.rs")).unwrap();
     assert!(journal.contains("validate_pair(parent, step, next)?"));
     assert!(journal.contains("validate_pair(parent, &result, &next)?"));
     assert!(fs::read_to_string(root().join("crates/leselang-vm/tests/dataflow.rs")).unwrap()
@@ -9165,7 +9535,7 @@ fn successor_capture_extension_shares_retention_without_authority_or_saved_body_
 fn live_and_recovered_capture_correspondence_delegates_traversal_without_projection_or_authority_policy()
  {
     let source =
-        fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/group_binding.rs")).unwrap();
     let bridge = source
         .split_once("impl ReferenceGroupResultBinding for GroupResultBinding {")
         .unwrap()
@@ -9262,7 +9632,7 @@ fn live_and_recovered_capture_correspondence_delegates_traversal_without_project
     let preflight = "validate_saved_capture(group, request, prefix, &operations)?";
     assert!(capture.find(preflight).unwrap() < capture.find("host.resume_capture(").unwrap());
     assert!(
-        fs::read_to_string(root().join("crates/leselang-vm/src/journal/group_binding.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/journal/group_binding.rs"))
             .unwrap()
             .contains("binding.validate_saved_capture(request, fields, operations)")
     );
@@ -9300,7 +9670,7 @@ fn live_and_recovered_capture_correspondence_delegates_traversal_without_project
 
 #[test]
 fn live_sequence_and_bound_recovery_share_stop_precedence_without_replay_or_settlement() {
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     assert!(journal.contains("use leselang_command::reference_completion::{"));
     let completion =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_completion.rs"))
@@ -9323,8 +9693,8 @@ fn live_sequence_and_bound_recovery_share_stop_precedence_without_replay_or_sett
     ] {
         assert!(sequence.contains(required), "sequence lost {required}");
     }
-    let bound =
-        fs::read_to_string(root().join("crates/leselang-vm/src/journal/group_binding.rs")).unwrap();
+    let bound = fs::read_to_string(root().join("crates/leserpent-vm/src/journal/group_binding.rs"))
+        .unwrap();
     let records =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_bound_records.rs"))
             .unwrap();
@@ -9397,7 +9767,7 @@ fn live_sequence_and_bound_recovery_share_stop_precedence_without_replay_or_sett
     let classifications =
         fs::read_to_string(root().join("crates/leselang-command/src/group_plan.rs")).unwrap();
     let vm_binding =
-        fs::read_to_string(root().join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/group_binding.rs")).unwrap();
     assert!(classifications.contains("pub fn has_successor(&self, plan: &MergePlan) -> bool"));
     assert!(!vm_binding.contains("fn has_successor("));
     for source in [sequence, recovery, &receipt] {
@@ -9436,7 +9806,7 @@ fn live_sequence_and_bound_recovery_share_stop_precedence_without_replay_or_sett
 
 #[test]
 fn pending_sequence_recovery_delegates_frontier_phases_without_dispatch_or_evaluation() {
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_group_recovery.rs"))
             .unwrap();
@@ -9542,7 +9912,7 @@ fn product_group_recovery_policy_preserves_explicit_host_proofs_and_has_no_stora
     ] {
         assert!(!adapter.contains(forbidden), "{forbidden}");
     }
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let proofs = journal
         .split_once("impl ReferenceGroupProofs for RecoveredGroupHost")
         .unwrap()
@@ -9614,7 +9984,7 @@ fn complete_stored_group_recovery_is_core_owned_without_native_storage_or_produc
     ] {
         assert!(!core.contains(forbidden), "{forbidden}");
     }
-    let reference = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let reference = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     assert!(reference.contains("impl ReferenceGroupProofs for RecoveredGroupHost"));
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_group_recovery.rs"))
@@ -9626,7 +9996,7 @@ fn complete_stored_group_recovery_is_core_owned_without_native_storage_or_produc
             .contains("#[cfg(all(test, feature = \"sqlite-journal\"))]\nfn recover_group_receipt(")
     );
     let frozen = fs::read_to_string(
-        root().join("crates/leselang-vm/src/journal/group_recovery_contract_tests.rs"),
+        root().join("crates/leserpent-vm/src/journal/group_recovery_contract_tests.rs"),
     )
     .unwrap();
     assert!(frozen.contains("assert_eq!(comparisons, 374)"));
@@ -9652,7 +10022,7 @@ fn complete_stored_group_recovery_is_core_owned_without_native_storage_or_produc
 fn native_chain_recovery_delegates_order_not_policy_or_execution() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let code =
-        fs::read_to_string(root.join("crates/leselang-vm/src/journal/successor.rs")).unwrap();
+        fs::read_to_string(root.join("crates/leserpent-vm/src/journal/successor.rs")).unwrap();
     let chain = code.split("pub(super) fn validate_chain(").nth(1).unwrap();
     for required in [
         "ORDER BY b.position",
@@ -9700,7 +10070,7 @@ fn native_chain_recovery_delegates_order_not_policy_or_execution() {
     ] {
         assert!(!core.contains(absent), "chain core grew policy: {absent}");
     }
-    let journal = fs::read_to_string(root.join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root.join("crates/leserpent-vm/src/journal.rs")).unwrap();
     assert!(journal.contains("successor_chain_inspection_preserves_frozen_sqlite_fault_order"));
     let exporter = fs::read_to_string(root.join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
     assert!(exporter.contains("consumer/tests/successor_chain.rs"));
@@ -9708,7 +10078,7 @@ fn native_chain_recovery_delegates_order_not_policy_or_execution() {
 
 #[test]
 fn sqlite_reservation_and_completion_fences_are_shared_without_repair_or_execution_authority() {
-    let code = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let code = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let graph = code
         .split("fn validate_merge_graph_records(")
         .nth(1)
@@ -9739,8 +10109,8 @@ fn sqlite_reservation_and_completion_fences_are_shared_without_repair_or_executi
     }
     assert_complete_group_batch_order();
     assert_complete_group_recovery_order();
-    let bound =
-        fs::read_to_string(root().join("crates/leselang-vm/src/journal/group_binding.rs")).unwrap();
+    let bound = fs::read_to_string(root().join("crates/leserpent-vm/src/journal/group_binding.rs"))
+        .unwrap();
     let reservations = fs::read_to_string(
         root().join("crates/leselang-command/src/reference_group_reservations.rs"),
     )
@@ -9819,7 +10189,7 @@ fn sqlite_reservation_and_completion_fences_are_shared_without_repair_or_executi
 
 #[test]
 fn native_unbound_receipt_correspondence_uses_original_data_merge_without_evaluation() {
-    let code = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let code = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_group_recovery.rs"))
             .unwrap();
@@ -9916,7 +10286,7 @@ fn native_unbound_receipt_correspondence_uses_original_data_merge_without_evalua
 
 #[test]
 fn actual_group_request_and_recovery_graphs_use_the_shared_bounded_identity_kernel() {
-    let code = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let code = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let input = code
         .split("fn validate_merge_graph_input(")
         .nth(1)
@@ -10039,7 +10409,7 @@ fn complete_merge_admission_is_shared_without_importing_reference_recovery_autho
     assert!(shared.contains("Host: MergeGraphAdmissionHost<Token> + ?Sized"));
     assert!(shared.contains("Token: PartialEq"));
     let frozen =
-        fs::read_to_string(root().join("crates/leselang-vm/src/group_request_contract_tests.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/src/group_request_contract_tests.rs"))
             .unwrap();
     assert!(frozen.contains("assert_eq!(comparisons, 2_880)"));
     assert!(frozen.contains("assert_eq!(comparisons, 14)"));
@@ -10134,7 +10504,7 @@ fn actual_atomic_and_group_saved_bodies_use_the_shared_hir_entry_without_body_re
 #[test]
 fn saved_frame_is_shared_data_while_reference_restore_and_authority_remain_native() {
     let code =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     assert!(code.contains("pub use leselang_runtime_core::ResourceBudget;"));
     assert!(code.contains("pub use leselang_command::{ContinuationImage, EffectRequest}"));
     let request =
@@ -10197,7 +10567,7 @@ fn saved_frame_is_shared_data_while_reference_restore_and_authority_remain_nativ
 
 #[test]
 fn actual_sqlite_recovery_uses_host_neutral_staging_without_moving_frame_or_authority_policy() {
-    let code = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let code = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let load = code
         .split("fn load(&mut self)")
         .nth(1)
@@ -10348,9 +10718,7 @@ fn native_vm_facade_dependency_closure_omits_all_product_storage_and_gui_contrac
     }
     let root_source = fs::read_to_string(root().join("crates/leselang-vm/src/lib.rs")).unwrap();
     assert!(
-        root_source.contains(
-            "#[cfg(feature = \"leserpent-profile\")]\ninclude!(\"leserpent_profile.rs\");"
-        )
+        root_source.contains("#[cfg(feature = \"leserpent-profile\")]\npub use leserpent_vm::*;")
     );
     let native = fs::read_to_string(root().join("crates/leselang-vm/src/native.rs")).unwrap();
     assert!(
@@ -10364,7 +10732,7 @@ fn native_vm_facade_dependency_closure_omits_all_product_storage_and_gui_contrac
     );
     assert!(workflow.contains("cargo +1.98.0 clippy -p leselang-vm --locked --no-default-features --all-targets -- -D warnings"));
     assert!(workflow.contains(
-        "rustfmt +1.98.0 --edition 2024 --check crates/leselang-vm/src/leserpent_profile.rs"
+        "rustfmt +1.98.0 --edition 2024 --check crates/leserpent-vm/src/leserpent_profile.rs"
     ));
 }
 
@@ -10380,10 +10748,10 @@ fn default_and_explicit_sqlite_features_keep_the_durable_backend_and_released_ap
     }
     let manifest = fs::read_to_string(root().join("crates/leselang-vm/Cargo.toml")).unwrap();
     assert!(manifest.contains("default = [\"sqlite-journal\"]"));
-    assert!(manifest.contains("sqlite-journal = [\"leserpent-profile\", \"dep:rusqlite\"]"));
+    assert!(manifest.contains("sqlite-journal = [\"leserpent-profile\", \"leserpent-vm/sqlite-journal\", \"dep:rusqlite\"]"));
     assert!(manifest.contains("rusqlite = { workspace = true, optional = true }"));
     let code =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     assert!(code.contains("Journal::ephemeral,"));
     for method in ["open_journal(", "open_journal_with_limits("] {
         assert!(code.contains(&format!(

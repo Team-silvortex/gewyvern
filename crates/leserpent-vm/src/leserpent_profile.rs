@@ -162,9 +162,11 @@ pub const DEFAULT_FUEL: u64 = 1_000;
 pub const DEFAULT_EFFECT_DEADLINE_MS: u64 = 30_000;
 pub use leselang_command::ContinuationToken;
 #[cfg(test)]
-pub(crate) use leselang_command::continuation_identity::MAX_EFFECT_SEQUENCE;
 pub(crate) use leselang_command::continuation_identity::{
-    canonical_continuation_sequence, continuation_age_order, valid_continuation_token,
+    MAX_EFFECT_SEQUENCE, continuation_age_order,
+};
+pub(crate) use leselang_command::continuation_identity::{
+    canonical_continuation_sequence, valid_continuation_token,
 };
 pub use leselang_command::reference_dispatch::{
     DEFAULT_DISPATCH_LEASE_MS, MAX_DISPATCH_ATTEMPTS, MAX_DISPATCH_LEASE_MS,
@@ -236,7 +238,7 @@ impl Vm {
         doc = r#"
 The durable API is absent when `sqlite-journal` is disabled:
 ```compile_fail
-use leselang_vm::Vm;
+use leserpent_vm::Vm;
 let _ = Vm::open_journal("must-not-fall-back.sqlite3", 100);
 ```
 "#

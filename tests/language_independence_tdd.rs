@@ -2,6 +2,241 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::process::Command;
 
 #[test]
+fn public_native_source_plans_keep_original_borrows_and_do_not_replace_strict_ingress() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let read = |p| std::fs::read_to_string(root.join(p)).unwrap();
+    let host = read("crates/leselang-hir/src/host_source.rs");
+    assert!(host.contains("pub struct BoundHostSource<'source>"));
+    assert!(host.contains("pub fn bind_host_source_root"));
+    assert!(!host.contains("lower_preflighted_host_source"));
+    let fields = host
+        .split_once("pub struct BoundHostSource")
+        .unwrap()
+        .1
+        .split_once("impl fmt")
+        .unwrap()
+        .0;
+    assert!(!fields.contains("pub expression:"));
+    assert!(!fields.contains("pub at:"));
+    let bind = host
+        .split_once("pub fn bind_host_source_root")
+        .unwrap()
+        .1
+        .split_once("impl<'source>")
+        .unwrap()
+        .0;
+    assert!(bind.contains(".visit(0, 0, 0)"));
+    assert!(!bind.contains("prepare(expression)"));
+    assert!(!bind.contains("preflight(expression"));
+    let field = read("crates/leselang-hir/src/projection_source.rs");
+    assert!(field.contains("pub struct BoundFieldSource<'source>(FieldSource<'source>)"));
+    assert!(field.contains("pub fn bind_field_source"));
+    assert!(field.contains("self.0.lower_preflighted(limits, lower, decode, export)"));
+    assert!(field.contains("preflight(expression, limits)"));
+    assert!(field.contains("preflight_names(expression)?"));
+    let adapter = read("crates/leselang-hir/src/computation.rs");
+    assert!(adapter.contains("crate::projection_source::bind_field_source("));
+    assert!(adapter.contains("crate::host_source::bind_host_source_root("));
+    assert!(!adapter.contains("crate::projection_source::field_source("));
+    assert!(!adapter.contains("lower_preflighted_host_source"));
+    let frozen = read("crates/leselang-hir/src/source_preparation_contract_tests.rs");
+    assert!(frozen.contains("assert_eq!(cases, 864)"));
+    assert!(frozen.contains("assert_eq!(cases, 144)"));
+    let oracle = frozen.split_once("type Data =").unwrap().0;
+    assert!(!oracle.contains("bind_field_source("));
+    assert!(!oracle.contains("bind_host_source_root("));
+    assert!(
+        read("crates/gewyvern-dev/src/leselang.rs")
+            .contains("\"consumer/tests/source_preparation.rs\"")
+    );
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--no-default-features --test source_preparation"));
+    assert!(ci.contains("--lib source_preparation_contract_tests"));
+}
+
+#[test]
+fn public_argument_stages_are_bounded_named_alignments_not_source_or_authority_receipts() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let read = |p| std::fs::read_to_string(root.join(p)).unwrap();
+    for (path, name, binder, old) in [
+        (
+            "crates/leselang-hir/src/helper_source.rs",
+            "BoundHelperSourceArguments",
+            "bind_helper_source_arguments",
+            "lower_preflighted_helper_arguments",
+        ),
+        (
+            "crates/leselang-hir/src/source_call.rs",
+            "BoundSourceArguments",
+            "bind_source_arguments",
+            "lower_preflighted_arguments",
+        ),
+    ] {
+        let source = read(path);
+        assert!(source.contains(&format!("pub struct {name}")));
+        assert!(source.contains(&format!("pub fn {binder}")));
+        assert!(!source.contains(old));
+        let state = source
+            .split_once(&format!("pub struct {name}"))
+            .unwrap()
+            .1
+            .split_once("impl")
+            .unwrap()
+            .0;
+        for field in ["arguments", "parameters", "schema", "bindings", "limits"] {
+            assert!(!state.contains(&format!("pub {field}:")));
+        }
+        let binding = source
+            .split_once(&format!("pub fn {binder}"))
+            .unwrap()
+            .1
+            .split_once("impl")
+            .unwrap()
+            .0;
+        assert!(!binding.contains("check_argument_type("));
+        assert!(!binding.contains("preflight_with_budget("));
+        assert!(!binding.contains("lower(argument)"));
+        assert!(source.contains("pub fn lower<"));
+    }
+    let helper = read("crates/leselang-hir/src/functions.rs");
+    let host = read("crates/leselang-hir/src/computation.rs");
+    assert!(helper.contains("cached.revalidate(template_limits())"));
+    assert!(!helper.contains("crate::helper_templates::preflight("));
+    assert!(helper.contains("bind_helper_source_arguments("));
+    assert!(host.contains("bind_source_arguments("));
+    assert!(!helper.contains("lower_preflighted_helper_arguments"));
+    assert!(!host.contains("lower_preflighted_arguments"));
+    let frozen = read("crates/leselang-hir/src/argument_binding_contract_tests.rs");
+    assert!(frozen.contains("assert_eq!(cases, 1344)"));
+    assert!(frozen.contains("assert_eq!(cases, 2688)"));
+    let oracle = frozen.split_once("type Data =").unwrap().0;
+    assert!(!oracle.contains("bind_helper_source_arguments("));
+    assert!(!oracle.contains("bind_source_arguments("));
+    assert!(
+        read("crates/gewyvern-dev/src/leselang.rs")
+            .contains("\"consumer/tests/argument_binding.rs\"")
+    );
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--no-default-features --test argument_binding"));
+    assert!(ci.contains("--lib argument_binding_contract_tests"));
+}
+
+#[test]
+fn declaration_receipts_replace_private_compiler_bypasses_without_unchecked_source_constructors() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let read = |p| std::fs::read_to_string(root.join(p)).unwrap();
+    let declarations = read("crates/leselang-hir/src/helper_declarations.rs");
+    for contract in [
+        "pub struct DeclarationBody<'source>",
+        "pub fn source_for(&self, function: &Function)",
+        "std::ptr::eq(*original, function)",
+        "max_nodes >= self.source_bounds.0 && max_depth >= self.source_bounds.1",
+        "budget.check_pending",
+    ] {
+        assert!(
+            declarations
+                .replace(['\n', ' '], "")
+                .contains(&contract.replace(' ', "")),
+            "{contract}"
+        );
+    }
+    let receipt = declarations
+        .split_once("pub struct DeclarationBody<'source>")
+        .unwrap()
+        .1
+        .split_once("impl fmt::Debug")
+        .unwrap()
+        .0;
+    assert!(!receipt.contains("pub function:"));
+    assert!(!receipt.contains("pub source_bounds:"));
+    let body = read("crates/leselang-hir/src/helper_body_source.rs");
+    assert!(!body.contains("lower_preflighted_helper_body"));
+    assert!(!body.contains("leserpent-profile"));
+    let declared = body
+        .split_once("pub fn lower_declared_helper_body<")
+        .unwrap()
+        .1;
+    assert!(declared.find("prepare_header(").unwrap() < declared.find(".check_bounds(").unwrap());
+    assert!(declared.find(".check_bounds(").unwrap() < declared.find("finish(").unwrap());
+    let program = read("crates/leselang-hir/src/program_source.rs");
+    assert!(!program.contains("pub(crate) fn assemble_preflighted_program"));
+    assert!(program.contains("fn assemble_preflighted_program<"));
+    let declared = program
+        .split_once("pub fn assemble_declared_program<")
+        .unwrap()
+        .1;
+    assert!(
+        declared.find(".check_bounds(").unwrap()
+            < declared.find("assemble_preflighted_program(").unwrap()
+    );
+    let product = read("crates/leselang-hir/src/functions.rs");
+    assert!(product.contains("accepted.source_for(function)"));
+    assert!(!product.contains("lower_preflighted_helper_body"));
+    assert!(!product.contains("assemble_preflighted_program"));
+    assert!(
+        read("crates/gewyvern-dev/src/leselang.rs")
+            .contains("\"consumer/tests/declaration_source.rs\"")
+    );
+    assert!(
+        read(".github/workflows/ci.yml")
+            .contains("--no-default-features --test declaration_source")
+    );
+}
+
+#[test]
+fn computation_policy_is_foreign_host_implementable_without_inherent_alias_methods() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let read = |p| std::fs::read_to_string(root.join(p)).unwrap();
+    let generic = read("crates/leselang-hir/src/computation_profile.rs");
+    assert!(generic.contains("pub trait ComputationProfile<Field, Operation, ResultType>"));
+    assert_eq!(generic.matches("pub fn ").count(), 12);
+    for forbidden in [
+        "leserpent",
+        "HostOperation",
+        "CanonicalSourceError",
+        "serde::",
+        ": Clone",
+        ".clone(",
+        ".collect(",
+        "Box::",
+        "Vec::",
+        "Mutex",
+        "catch_unwind(",
+        "children()",
+        "validate_shape(",
+    ] {
+        assert!(!generic.contains(forbidden), "{forbidden}");
+    }
+    let adapter = read("crates/leselang-hir/src/computation.rs");
+    assert!(!adapter.contains("impl Computation {"));
+    assert!(adapter.contains("ComputationProfile<ResultField, HostOperation, Type> for Effect"));
+    assert!(adapter.contains("pub(super) fn validate_in_type_scope("));
+    let frozen = read("crates/leselang-hir/src/computation_profile_contract_tests.rs");
+    let oracle = frozen.split("fn scalar()").next().unwrap();
+    for name in [
+        "is_atomic_tail",
+        "is_atomic_capture",
+        "is_result_chain",
+        "is_result_flow",
+        "atomic_flow_bound",
+        "validate_in_group_scope",
+    ] {
+        assert!(!oracle.contains(&format!(".{name}(")));
+        assert!(oracle.contains(&format!("fn frozen_{name}(")));
+    }
+    assert!(frozen.contains("assert_eq!(cases, 880)"));
+    assert!(frozen.contains("assert_eq!(cases, 165)"));
+    let native = read("crates/leselang-hir/tests/computation_profile.rs");
+    assert!(!native.contains("#![cfg(feature"));
+    assert!(!native.contains("leserpent"));
+    let export = read("crates/gewyvern-dev/src/leselang.rs");
+    assert!(export.contains("\"consumer/tests/computation_profile.rs\""));
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains("--no-default-features --test computation_profile"));
+    assert!(ci.contains("--lib computation::profile_contract_tests"));
+}
+
+#[test]
 fn owned_capture_data_lives_in_the_product_free_core_and_reference_types_are_exact_aliases() {
     assert_workspace_closure("leselang-runtime-core", &[]);
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -27,7 +262,7 @@ fn owned_capture_data_lives_in_the_product_free_core_and_reference_types_are_exa
         assert!(!shared.contains(absent));
     }
     let reference =
-        std::fs::read_to_string(root.join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+        std::fs::read_to_string(root.join("crates/leserpent-vm/src/result_binding.rs")).unwrap();
     assert!(reference.contains("pub use leselang_runtime_core::ScalarBinding;"));
     let binding =
         std::fs::read_to_string(root.join("crates/leselang-command/src/result_binding.rs"))
@@ -135,7 +370,7 @@ fn real_reference_capture_validation_uses_product_free_helpers_without_moving_au
         assert!(!shared.contains(absent));
     }
     let reference =
-        std::fs::read_to_string(root.join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+        std::fs::read_to_string(root.join("crates/leserpent-vm/src/result_binding.rs")).unwrap();
     for retained in [
         "leselang_command::validate_result_binding_structure(",
         "leselang_command::reference_request::result_binding_limits()",
@@ -246,7 +481,7 @@ fn reference_capture_scope_assembly_uses_shared_nested_entry_but_retains_native_
     assert!(code.find("let output =").unwrap() < code.find("drop(scope)").unwrap());
     assert!(code.find("drop(scope)").unwrap() < code.rfind("output\n}").unwrap());
     let reference =
-        std::fs::read_to_string(root.join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+        std::fs::read_to_string(root.join("crates/leserpent-vm/src/result_binding.rs")).unwrap();
     let adapter =
         std::fs::read_to_string(root.join("crates/leselang-command/src/projection_access.rs"))
             .unwrap();
@@ -357,7 +592,7 @@ fn restored_projection_access_walk_is_shared_bounded_and_uses_explicit_native_po
             < shared.find("walk(expression, scope, policy)").unwrap()
     );
     let reference =
-        std::fs::read_to_string(root.join("crates/leselang-vm/src/result_binding.rs")).unwrap();
+        std::fs::read_to_string(root.join("crates/leserpent-vm/src/result_binding.rs")).unwrap();
     let adapter =
         std::fs::read_to_string(root.join("crates/leselang-command/src/projection_access.rs"))
             .unwrap();
@@ -503,7 +738,7 @@ fn real_execution_reentry_uses_shared_original_state_without_a_second_meter_or_p
     assert!(!saved.contains("Fuel::new"));
     assert!(!saved.contains(".clone()"));
     let group =
-        std::fs::read_to_string(root.join("crates/leselang-vm/src/group_binding.rs")).unwrap();
+        std::fs::read_to_string(root.join("crates/leserpent-vm/src/group_binding.rs")).unwrap();
     assert!(
         group.contains("leselang_command::reference_merge::validate_group_binding(self, plan)")
     );
@@ -868,7 +1103,7 @@ fn shared_argument_typing_uses_native_domains_and_the_reference_ir_bridge() {
     assert!(checker.contains("pub fn check_argument_types("));
     let lower =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
-    assert!(lower.contains("lower_preflighted_arguments("));
+    assert!(lower.contains("bind_source_arguments("));
     assert!(lower.contains("Type::Scalar(ty) => Some(ty)"));
     let source =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/source_call.rs")).unwrap();
@@ -908,7 +1143,10 @@ fn native_source_call_bridge_uses_original_ast_catalog_and_shared_ir_without_pro
                 .unwrap()
     );
     assert!(
-        public.find(".bind_arguments(&names)").unwrap() < public.find("lower(argument)").unwrap()
+        public
+            .find(".bind_arguments(&names[..arguments.len()])")
+            .unwrap()
+            < public.find("lower(argument)").unwrap()
     );
     assert!(public.contains("preflight_with_budget(&value, 1, &mut budget)"));
     assert!(public.find(".check_pending(0, 1)").unwrap() < public.find("lower(argument)").unwrap());
@@ -1019,9 +1257,9 @@ fn pure_type_inference_uses_shared_ir_and_native_queries_not_reference_product_t
     assert!(!source.contains("pub enum Computation"));
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
-    let canonical_gate = reference.find("if roundtrip != *self").unwrap();
+    let canonical_gate = reference.find("if roundtrip != *expression").unwrap();
     let native_check = reference
-        .find("crate::pure_reference::infer(self, scope, groups)")
+        .find("crate::pure_reference::infer(expression, scope, groups)")
         .unwrap();
     assert!(canonical_gate < native_check);
     assert!(reference.contains("crate::pure_typing::valid_local_name(name)"));
@@ -1053,7 +1291,7 @@ fn atomic_call_inference_uses_native_catalogs_and_shared_types_not_product_comma
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
     assert!(
-        reference.find("if roundtrip != *self").unwrap()
+        reference.find("if roundtrip != *expression").unwrap()
             < reference.find("crate::pure_reference::infer_call").unwrap()
     );
 }
@@ -1083,12 +1321,12 @@ fn prepared_call_typing_keeps_one_ir_and_preflights_cold_schemas_before_type_met
     assert!(!source.contains("pub enum Computation"));
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
-    let canonical = reference.find("if roundtrip != *self").unwrap();
+    let canonical = reference.find("if roundtrip != *expression").unwrap();
     let prepared = reference
         .find("crate::pure_reference::infer_prepared")
         .unwrap();
     assert!(canonical < prepared);
-    assert!(reference.contains("crate::pure_reference::call_leaves_only(self)"));
+    assert!(reference.contains("crate::pure_reference::call_leaves_only(expression)"));
 }
 
 #[test]
@@ -1118,10 +1356,10 @@ fn call_result_dataflow_uses_explicit_native_mapping_after_all_cold_schemas() {
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
     assert!(
-        reference.find("if roundtrip != *self").unwrap()
+        reference.find("if roundtrip != *expression").unwrap()
             < reference.find("crate::pure_reference::infer_flow").unwrap()
     );
-    assert!(reference.contains("crate::pure_reference::call_flow_nodes_only(self)"));
+    assert!(reference.contains("crate::pure_reference::call_flow_nodes_only(expression)"));
     assert!(reference.contains("if !prepared_call"));
 }
 
@@ -1154,12 +1392,12 @@ fn group_dataflow_keeps_one_engine_and_checks_cold_rows_before_native_exports() 
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
     assert!(
-        reference.find("if roundtrip != *self").unwrap()
+        reference.find("if roundtrip != *expression").unwrap()
             < reference
                 .find("crate::pure_reference::infer_group_flow")
                 .unwrap()
     );
-    assert!(reference.contains("crate::pure_reference::group_flow_nodes_only(self)"));
+    assert!(reference.contains("crate::pure_reference::group_flow_nodes_only(expression)"));
 }
 
 #[test]
@@ -1203,7 +1441,7 @@ fn opaque_host_dataflow_uses_the_same_engine_with_explicit_cold_admission_and_bo
     let product =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
     assert!(
-        product.find("if roundtrip != *self").unwrap()
+        product.find("if roundtrip != *expression").unwrap()
             < product
                 .find("crate::pure_reference::infer_host_flow")
                 .unwrap()
@@ -1375,7 +1613,7 @@ fn mixed_host_groups_share_atomic_walk_typing_and_exact_native_declaration_admis
     let product =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
     assert!(
-        product.find("if roundtrip != *self").unwrap()
+        product.find("if roundtrip != *expression").unwrap()
             < product
                 .find("crate::pure_reference::infer_host_group_flow")
                 .unwrap()
@@ -1529,12 +1767,12 @@ fn actual_result_validation_is_product_free_and_shared_by_reference_raw_value_bi
     assert!(adapter.contains("HostResultDomain<Value> for ResultValueDomain"));
     assert!(adapter.contains("reply.result_type() == self.result_type"));
     let vm =
-        std::fs::read_to_string(root.join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        std::fs::read_to_string(root.join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     assert!(vm.contains("use host_result::validate_bound_value;"));
     assert!(vm.contains("leselang_command::reference_result::step_from_effect_result("));
     assert!(reference.contains("match accept_bound_value(image, &value)"));
     let bridge =
-        std::fs::read_to_string(root.join("crates/leselang-vm/src/host_result.rs")).unwrap();
+        std::fs::read_to_string(root.join("crates/leserpent-vm/src/host_result.rs")).unwrap();
     assert!(
         bridge.contains("pub(super) use leselang_command::reference_result::validate_bound_value;")
     );
@@ -3673,9 +3911,9 @@ fn shared_projection_source_keeps_native_export_queries_bounded_and_reference_co
         .split_once("fn lower_loop")
         .unwrap()
         .0;
-    assert!(lowerer.contains("crate::projection_source::field_source(arguments, span)"));
+    assert!(lowerer.contains("crate::projection_source::bind_field_source(arguments, span)"));
     assert!(lowerer.contains("lower_bound_projection_source("));
-    assert!(lowerer.contains(".lower_preflighted("));
+    assert!(lowerer.contains(".lower("));
     assert!(!lowerer.contains("Computation::Field {"));
     assert!(!lowerer.contains("Computation::Member {"));
     assert!(!reference.contains("fn named"));
@@ -3766,7 +4004,7 @@ fn reference_field_frontend_uses_shared_consuming_stages_without_changing_public
         .unwrap()
         .0;
     for boundary in [
-        ".lower_preflighted(",
+        ".lower(",
         "lower_expression_with_functions(child, scope, visited, depth + 1, functions)",
         "ResultField::parse(name)",
         "field.result_type(*input_type)",
@@ -3822,19 +4060,14 @@ fn native_host_source_owns_once_preparation_admission_and_construction_without_p
         .split_once("pub fn lower_host_source")
         .unwrap()
         .1
-        .split_once("pub(crate) fn lower_preflighted_host_source")
+        .split_once("pub fn bind_host_source_root")
         .unwrap()
         .0;
     assert!(
         public.find("preflight(expression, limits)").unwrap()
-            < public
-                .find("lower_preflighted_host_source(expression")
-                .unwrap()
+            < public.find("bind_host_source_root(expression").unwrap()
     );
-    let core = source
-        .split_once("pub(crate) fn lower_preflighted_host_source")
-        .unwrap()
-        .1;
+    let core = source.split_once("pub fn bind_host_source_root").unwrap().1;
     assert!(core.find(".visit(0, 0, 0)").unwrap() < core.find("prepare(expression)").unwrap());
     assert!(
         core.find("prepare(expression)").unwrap()
@@ -3872,7 +4105,7 @@ fn native_host_source_owns_once_preparation_admission_and_construction_without_p
         .unwrap()
         .0;
     let host = lowerer
-        .split_once("crate::host_source::lower_preflighted_host_source(")
+        .split_once("crate::host_source::bind_host_source_root(")
         .unwrap()
         .1;
     for boundary in [
@@ -3891,8 +4124,7 @@ fn native_host_source_owns_once_preparation_admission_and_construction_without_p
     }
     assert!(!lowerer.contains("Computation::Host {"));
     assert!(
-        lowerer.find(".finish_call(").unwrap()
-            < lowerer.find("lower_preflighted_host_source(").unwrap()
+        lowerer.find(".finish_call(").unwrap() < lowerer.find("bind_host_source_root(").unwrap()
     );
     assert!(reference.contains(
         "native_host_source_charges_one_original_root_and_never_visits_literal_metadata"
@@ -4069,7 +4301,7 @@ fn shared_owned_helper_hygiene_preserves_native_slots_and_reference_expansion_po
         );
     }
     assert!(
-        lowerer.find("lower_preflighted_helper_arguments(").unwrap()
+        lowerer.find("bind_helper_source_arguments(").unwrap()
             < lowerer.find("finish_helper_instance(").unwrap()
     );
     assert!(
@@ -4111,8 +4343,8 @@ fn shared_helper_signature_and_arguments_keep_source_borrows_native_slots_and_ex
         "preflight::<Error>(expression, limits.source)",
         "callee != signature.name",
         "!parameter.required || !valid_local_name(parameter.name)",
-        "bind_named_arguments(&names, parameters)",
-        "bound.iter().enumerate()",
+        "bind_named_arguments(&names[..arguments.len()], parameters)",
+        "bindings.into_iter().enumerate()",
         "let parameter = &parameters[parameter_index]",
         ".check_pending(0, arguments.len() - parameter_index)",
         "preflight_with_budget(&value, 0, &mut budget)",
@@ -4132,11 +4364,11 @@ fn shared_helper_signature_and_arguments_keep_source_borrows_native_slots_and_ex
     assert!(
         public.find("preflight::<Error>").unwrap()
             < public
-                .find("lower_preflighted_helper_arguments(arguments")
+                .find("bind_helper_source_arguments(arguments")
                 .unwrap()
     );
     let preparation = source
-        .split_once("pub(crate) fn lower_preflighted_helper_arguments")
+        .split_once("pub fn bind_helper_source_arguments")
         .unwrap()
         .1;
     assert!(
@@ -4178,14 +4410,14 @@ fn shared_helper_signature_and_arguments_keep_source_borrows_native_slots_and_ex
         parameter_adapter
             .contains("helper_parameters(function, limits.body.template.max_parameters)")
     );
-    assert!(reference.contains("crate::helper_body_source::lower_preflighted_helper_body("));
+    assert!(reference.contains("crate::helper_body_source::lower_declared_helper_body("));
     assert!(!reference.contains("fn parameter_types"));
     assert!(!parameter_adapter.contains("parameter.type_name.as_str()"));
     let lowerer = reference.split_once("pub(super) fn lower_call").unwrap().1;
-    assert!(lowerer.contains("crate::helper_source::lower_preflighted_helper_arguments("));
+    assert!(lowerer.contains("crate::helper_source::bind_helper_source_arguments("));
     assert!(!lowerer.contains("value.is_pure()"));
     assert!(
-        lowerer.find("lower_preflighted_helper_arguments(").unwrap()
+        lowerer.find("bind_helper_source_arguments(").unwrap()
             < lowerer.find("finish_helper_instance(").unwrap()
     );
     assert!(lowerer.contains("helper arguments must be pure scalars of the declared type"));
@@ -4304,13 +4536,13 @@ fn shared_helper_dependencies_keep_borrowed_bounded_lazy_planning_separate_from_
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/functions.rs")).unwrap();
     for boundary in [
-        "crate::program_source::assemble_preflighted_program(",
+        "crate::program_source::assemble_declared_program(",
         "max_helpers: MAX_FUNCTIONS - 1",
         "max_source_nodes: MAX_COMPUTATION_NODES",
         "max_source_depth: MAX_EFFECT_NESTING_DEPTH",
         "|function, functions|",
         "computation::is_builtin(name)",
-        "crate::helper_body_source::lower_preflighted_helper_body(",
+        "crate::helper_body_source::lower_declared_helper_body(",
         "main cannot have parameters",
         "crate::helper_instance_finish::finish_helper_instance(",
         "recursive helper functions are not supported",
@@ -4324,11 +4556,11 @@ fn shared_helper_dependencies_keep_borrowed_bounded_lazy_planning_separate_from_
     assert!(!reference.contains("BTreeSet"));
     assert!(!reference.contains("let mut dependencies = BTreeMap"));
     let lowerer = reference
-        .split_once("assemble_preflighted_program(")
+        .split_once("assemble_declared_program(")
         .unwrap()
         .1;
     assert!(
-        lowerer.find("lower_preflighted_helper_body(").unwrap()
+        lowerer.find("lower_declared_helper_body(").unwrap()
             < lowerer.find("lower_expression_with_functions(").unwrap()
     );
     let assembly =
@@ -4464,8 +4696,8 @@ fn shared_owned_helper_wrappers_keep_shifted_bounds_capture_fences_and_native_sl
     let lowerer = reference.split_once("pub(super) fn lower_call").unwrap().1;
     let wrap = lowerer.find("finish_helper_instance(").unwrap();
     for gate in [
-        "crate::helper_templates::preflight(",
-        "lower_preflighted_helper_arguments(",
+        "cached.revalidate(",
+        "bind_helper_source_arguments(",
         "let values = lowered",
     ] {
         assert!(lowerer.find(gate).unwrap() < wrap);
@@ -5004,7 +5236,7 @@ fn shared_helper_expansion_reservation_preserves_source_costs_without_execution_
     assert!(!lowerer.contains("*visited += template.nodes"));
     assert!(!lowerer.contains(".saturating_add(template.nodes)"));
     assert!(
-        lowerer.find("lower_preflighted_helper_arguments(").unwrap()
+        lowerer.find("bind_helper_source_arguments(").unwrap()
             < lowerer.find("finish_helper_instance(").unwrap()
     );
     let proof = std::fs::read_to_string(root.join("crates/leselang-hir/tests/helper_expansion.rs"))
@@ -5117,7 +5349,7 @@ fn shared_closed_group_exports_preflight_cold_routes_before_explicit_native_iden
         .split_once("fn group_signature(")
         .unwrap()
         .1
-        .split_once("impl Computation")
+        .split_once("impl crate::computation_profile::ComputationProfile")
         .unwrap()
         .0;
     assert!(
@@ -5347,15 +5579,15 @@ fn staged_helper_completion_is_shared_and_the_reference_keeps_one_recursive_coun
         );
     }
     assert!(
-        call.find("crate::helper_templates::preflight(").unwrap()
-            < call.find("lower_preflighted_helper_arguments(").unwrap()
+        call.find("cached.revalidate(").unwrap()
+            < call.find("bind_helper_source_arguments(").unwrap()
     );
     assert!(
-        call.find("lower_preflighted_helper_arguments(").unwrap()
+        call.find("bind_helper_source_arguments(").unwrap()
             < call.find("finish_helper_instance(").unwrap()
     );
     assert!(call.contains("visited,\n"));
-    assert!(call.contains("value.validate_in_type_scope(self.scope)"));
+    assert!(call.contains("computation::validate_in_type_scope(value, self.scope)"));
     let computation =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/computation.rs")).unwrap();
     assert!(computation.contains("fn validate_in_type_scope("));
@@ -5400,7 +5632,7 @@ fn shared_helper_body_source_owns_closed_signature_and_original_counter_before_a
         "pub struct HelperBodyObservation<Node, ResultType>",
         "pub enum HelperBodySourceError<Lowering, Validation, Cost>",
         "pub fn lower_helper_body<",
-        "pub(crate) fn lower_preflighted_helper_body<",
+        "pub fn lower_declared_helper_body<",
         "lower: impl FnOnce(",
         "&[HelperParameter<'source>]",
         "used_source_nodes: &mut usize",
@@ -5430,7 +5662,7 @@ fn shared_helper_body_source_owns_closed_signature_and_original_counter_before_a
         .split_once("pub fn lower_helper_body<")
         .unwrap()
         .1
-        .split_once("pub(crate) fn lower_preflighted_helper_body<")
+        .split_once("pub fn lower_declared_helper_body<")
         .unwrap()
         .0;
     assert!(
@@ -5485,14 +5717,14 @@ fn shared_helper_body_source_owns_closed_signature_and_original_counter_before_a
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/functions.rs")).unwrap();
     let body = reference
-        .split_once("assemble_preflighted_program(")
+        .split_once("assemble_declared_program(")
         .unwrap()
         .1
         .split_once("|main, functions|")
         .unwrap()
         .0;
     for boundary in [
-        "lower_preflighted_helper_body(",
+        "lower_declared_helper_body(",
         "|function, parameters, visited|",
         "LocalType::from(Type::Scalar(parameter.domain))",
         "&function.body",
@@ -5611,7 +5843,7 @@ fn shared_lowered_helper_body_admission_corroborates_cold_types_before_native_co
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/functions.rs")).unwrap();
     let gates = [
-        "crate::helper_body_source::lower_preflighted_helper_body(",
+        "crate::helper_body_source::lower_declared_helper_body(",
         "computation::lower_expression_with_functions(",
         "crate::helper_body_source::HelperBodyObservation",
         "let checked = body.validate_in_scope(",
@@ -5757,7 +5989,7 @@ fn shared_owned_helper_templates_preflight_once_factories_without_native_copy_or
     assert!(lowerer.contains("Ok(body.clone())"));
     assert!(lowerer.contains("Ok((body, *result_type))"));
     let materialize = lowerer.find("finish_helper_instance(").unwrap();
-    assert!(lowerer.find("lower_preflighted_helper_arguments(").unwrap() < materialize);
+    assert!(lowerer.find("bind_helper_source_arguments(").unwrap() < materialize);
     assert!(
         materialize
             < lowerer
@@ -5903,7 +6135,7 @@ fn shared_owned_helper_registry_keeps_lazy_preparation_and_complete_native_state
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/functions.rs")).unwrap();
     let assembly = reference
-        .split_once("crate::program_source::assemble_preflighted_program(")
+        .split_once("crate::program_source::assemble_declared_program(")
         .unwrap()
         .1
         .split_once("let (main, lowered, _functions)")
@@ -5911,7 +6143,7 @@ fn shared_owned_helper_registry_keeps_lazy_preparation_and_complete_native_state
         .0;
     for boundary in [
         "|function, functions|",
-        "crate::helper_body_source::lower_preflighted_helper_body(",
+        "crate::helper_body_source::lower_declared_helper_body(",
         "|function, parameters, visited|",
         "computation::lower_expression_with_functions(",
         "|function, admitted, functions|",
@@ -5926,7 +6158,7 @@ fn shared_owned_helper_registry_keeps_lazy_preparation_and_complete_native_state
         );
     }
     assert!(
-        reference.contains("let assembled = crate::program_source::assemble_preflighted_program(")
+        reference.contains("let assembled = crate::program_source::assemble_declared_program(")
     );
     assert!(
         reference.contains("computation::lower_computation_with_functions(&main.body, functions)")
@@ -5976,7 +6208,7 @@ fn shared_program_assembly_owns_complete_state_entry_and_mandatory_final_admissi
         "state: State",
         "pub fn into_parts(self) -> (&'source Function, Output, State)",
         "pub fn assemble_program<",
-        "pub(crate) fn assemble_preflighted_program<",
+        "pub fn assemble_declared_program<",
         "declarations: &HelperDeclarations<'source>",
         "lower_entry: impl FnOnce",
         "admit: impl FnOnce",
@@ -6000,7 +6232,7 @@ fn shared_program_assembly_owns_complete_state_entry_and_mandatory_final_admissi
         .split_once("pub fn assemble_program<")
         .unwrap()
         .1
-        .split_once("pub(crate) fn assemble_preflighted_program<")
+        .split_once("pub fn assemble_declared_program<")
         .unwrap()
         .0;
     assert!(
@@ -6011,7 +6243,7 @@ fn shared_program_assembly_owns_complete_state_entry_and_mandatory_final_admissi
             < public.find("assemble_preflighted_program(").unwrap()
     );
     let assembly = source
-        .split_once("pub(crate) fn assemble_preflighted_program<")
+        .split_once("pub fn assemble_declared_program<")
         .unwrap()
         .1;
     let gates = [
@@ -6057,7 +6289,7 @@ fn shared_program_assembly_owns_complete_state_entry_and_mandatory_final_admissi
     let reference =
         std::fs::read_to_string(root.join("crates/leselang-hir/src/functions.rs")).unwrap();
     let assembly = reference
-        .split_once("let assembled = crate::program_source::assemble_preflighted_program(")
+        .split_once("let assembled = crate::program_source::assemble_declared_program(")
         .unwrap()
         .1
         .split_once("let (main, lowered, _functions) = assembled.into_parts()")
@@ -6224,7 +6456,7 @@ fn shared_helper_declaration_admission_borrows_complete_forests_without_product_
         "computation::is_builtin(name)",
         "accepted.reserved_names().map(str::to_owned)",
         "let (main, lowered, _functions) = assembled.into_parts()",
-        "crate::program_source::assemble_preflighted_program(",
+        "crate::program_source::assemble_declared_program(",
         "parameter_diagnostics(error, span)",
     ] {
         assert!(
@@ -6236,7 +6468,7 @@ fn shared_helper_declaration_admission_borrows_complete_forests_without_product_
     assert!(!reference.contains("let mut pending = vec![(&function.body"));
     assert!(
         reference.find("accept_helper_declarations(").unwrap()
-            < reference.find("assemble_preflighted_program(").unwrap()
+            < reference.find("assemble_declared_program(").unwrap()
     );
     let proof =
         std::fs::read_to_string(root.join("crates/leselang-hir/tests/helper_declarations.rs"))

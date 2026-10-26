@@ -37,6 +37,7 @@ pub mod catalog_group_source;
 pub mod catalog_program;
 pub mod catalog_source;
 pub mod choice_source;
+pub mod computation_profile;
 pub mod control_source;
 pub mod effect_evaluation;
 pub mod effect_reentry;
@@ -92,3 +93,9 @@ pub mod source_cost;
 // Root inclusion avoids remapping the released reference API or private adapters.
 #[cfg(feature = "leserpent-profile")]
 include!("leserpent_profile.rs");
+
+#[cfg(test)]
+mod argument_binding_contract_tests;
+
+#[cfg(test)]
+mod source_preparation_contract_tests;

@@ -8,6 +8,7 @@ license.workspace = true
 [features]
 default = ["sqlite-journal"]
 leserpent-profile = [
+    "dep:leserpent-vm",
     "dep:leselang-command",
     "dep:leselang-host-contract",
     "dep:leserpent-domain",
@@ -15,9 +16,11 @@ leserpent-profile = [
     "dep:serde_json",
     "leselang-hir/leserpent-profile",
 ]
-sqlite-journal = ["leserpent-profile", "dep:rusqlite"]
+sqlite-journal = ["leserpent-profile", "leserpent-vm/sqlite-journal", "dep:rusqlite"]
 
 [dependencies]
+# Optional product dependencies also support the released-API integration suites.
+leserpent-vm = { path = "../leserpent-vm", optional = true, default-features = false }
 leselang-command = { path = "../leselang-command", optional = true }
 leselang-hir = { path = "../leselang-hir", default-features = false }
 leselang-host-contract = { path = "../leselang-host-contract", optional = true }

@@ -155,6 +155,16 @@ impl<Node, ResultType> HelperTemplate<Node, ResultType> {
 impl<Field, Operation, HostEffect, IrResult, ResultType>
     HelperTemplate<Node<Field, Operation, HostEffect, IrResult>, ResultType>
 {
+    /// Recheck the original cached body/signature under current physical and
+    /// lexical limits without copying or querying native payloads. No source
+    /// cost, type/domain validity or live authority certificate is implied.
+    pub fn revalidate(
+        &self,
+        limits: HelperTemplateLimits,
+    ) -> Result<HelperTemplateShape, HelperTemplateError<Infallible>> {
+        preflight(&self.parameters, &self.body, limits)
+    }
+
     /// Take ownership after complete physical and cold lexical preflight against
     /// the exact scalar parameter names. Inclusive safety ceilings are 16,384
     /// nodes, depth 64, 1,024 active bindings and eight parameters. Zero nodes denies

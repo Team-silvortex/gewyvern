@@ -211,32 +211,43 @@ pub fn lower_helper_arguments<
     if callee != signature.name {
         return Err(HelperSourceError::WrongCallee);
     }
-    lower_preflighted_helper_arguments(arguments, signature.parameters, limits, lower)
+    bind_helper_source_arguments(arguments, signature.parameters, limits)?.lower(lower)
 }
 
-// The reference adapter already bounds source and retains legacy error precedence.
-pub(crate) fn lower_preflighted_helper_arguments<
-    'source,
-    'signature,
-    Field,
-    Operation,
-    HostEffect,
-    IrResult,
-    Error,
->(
+/// A checked named-argument alignment, not a physical source or type receipt.
+/// Private fields retain the original source/signature and immutable output limits.
+/// Source descendants, literal bytes, lexical scope and expansion budgets are the
+/// lowerer's responsibility; use `lower_helper_arguments` for eager source scans.
+/// No host callback, domain query, IR allocation, fuel or authority is used here.
+///
+/// ```compile_fail
+/// use leselang_hir::helper_source::BoundHelperSourceArguments;
+/// let bound: BoundHelperSourceArguments<'_, '_> = serde_json::from_str("{}").unwrap();
+/// ```
+#[must_use = "lower the bound operands or deliberately discard the alignment"]
+pub struct BoundHelperSourceArguments<'source, 'signature> {
+    arguments: &'source [NamedArgument],
+    parameters: &'signature [HelperParameter<'signature>],
+    bindings: Vec<usize>,
+    limits: HelperSourceLimits,
+}
+impl fmt::Debug for BoundHelperSourceArguments<'_, '_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("BoundHelperSourceArguments")
+    }
+}
+
+/// Check safety ceilings, exact required scalar signature and every submitted
+/// key before producing an immutable alignment. Only top-level metadata is read:
+/// this does not preflight cold descendants or authorize a callee. A selected
+/// signature must come from the host's own lookup policy, not untrusted claims.
+/// The bounded temporary name array replaces the previous heap name buffer;
+/// the retained index vector cannot substitute any original AST or parameter.
+pub fn bind_helper_source_arguments<'source, 'signature, Error>(
     arguments: &'source [NamedArgument],
     parameters: &'signature [HelperParameter<'signature>],
     limits: HelperSourceLimits,
-    mut lower: impl FnMut(
-        &'source NamedArgument,
-    ) -> Result<
-        (
-            Node<Field, Operation, HostEffect, IrResult>,
-            Option<ScalarType>,
-        ),
-        Error,
-    >,
-) -> HelperSourceResult<'source, 'signature, Node<Field, Operation, HostEffect, IrResult>, Error> {
+) -> Result<BoundHelperSourceArguments<'source, 'signature>, HelperSourceError<Error>> {
     if !valid_limits(limits.source) || limits.max_parameters > MAX_FUNCTION_PARAMETERS {
         return Err(HelperSourceError::InvalidLimits);
     }
@@ -251,65 +262,101 @@ pub(crate) fn lower_preflighted_helper_arguments<
             return Err(HelperSourceError::InvalidParameter { index });
         }
     }
-    let names = arguments
-        .iter()
-        .map(|argument| argument.name.as_str())
-        .collect::<Vec<_>>();
-    let bound = bind_named_arguments(&names, parameters).map_err(HelperSourceError::Names)?;
-    let mut budget = StructureBudget::new(
-        limits.source.max_lowered_nodes,
-        limits.source.max_lowered_depth,
-    );
-    let mut output = Vec::with_capacity(arguments.len());
-    for (parameter_index, (_, argument_index)) in bound.iter().enumerate() {
-        // Required-only binding visits every parameter; reborrow the original
-        // signature rather than returning the short-lived alignment view's borrow.
-        let parameter = &parameters[parameter_index];
-        let argument = &arguments[argument_index];
-        budget
-            .check_pending(0, arguments.len() - parameter_index)
-            .map_err(|error| HelperSourceError::Output {
-                argument_index,
-                error: PureTypeError::Structure(error),
-            })?;
-        let (value, scalar_type) =
-            lower(argument).map_err(|error| HelperSourceError::Lowering {
-                argument_index,
-                error,
-            })?;
-        preflight_with_budget(&value, 0, &mut budget).map_err(|error| match error {
-            PureTypeError::Impure => HelperSourceError::Argument {
-                parameter_index,
-                argument_index,
-                error: ArgumentTypeError::Impure,
-            },
-            _ => HelperSourceError::Output {
-                argument_index,
-                error,
-            },
-        })?;
-        let facts = ScalarArgumentType {
-            scalar_type,
-            is_pure: true,
-            literal: match &value {
-                Node::Literal { value } => Some(value),
-                _ => None,
-            },
-        };
-        check_argument_type(&ScalarTypeSet::only(parameter.domain), facts).map_err(|error| {
-            HelperSourceError::Argument {
-                parameter_index,
-                argument_index,
-                error,
-            }
-        })?;
-        output.push(LoweredHelperArgument {
-            parameter,
-            argument,
-            parameter_index,
-            argument_index,
-            value,
-        });
+    let mut names = [""; MAX_FUNCTION_PARAMETERS];
+    for (name, argument) in names.iter_mut().zip(arguments) {
+        *name = argument.name.as_str();
     }
-    Ok(output)
+    let bound = bind_named_arguments(&names[..arguments.len()], parameters)
+        .map_err(HelperSourceError::Names)?;
+    let bindings = bound.iter().map(|(_, index)| index).collect();
+    Ok(BoundHelperSourceArguments {
+        arguments,
+        parameters,
+        bindings,
+        limits,
+    })
+}
+
+impl<'source, 'signature> BoundHelperSourceArguments<'source, 'signature> {
+    /// Consume the alignment once and lower in declaration order. Each original
+    /// operand is passed once; its produced IR is bounded and checked for purity
+    /// and scalar facts before proceeding. Native lowerers still own complete
+    /// cold source/type checks and accounting. Errors/unwind drop partial output
+    /// without retry, refund or rollback of native state. No Clone/Send bound or
+    /// source-wide preflight is introduced by this named-binding stage.
+    pub fn lower<Field, Operation, HostEffect, IrResult, Error>(
+        self,
+        mut lower: impl FnMut(
+            &'source NamedArgument,
+        ) -> Result<
+            (
+                Node<Field, Operation, HostEffect, IrResult>,
+                Option<ScalarType>,
+            ),
+            Error,
+        >,
+    ) -> HelperSourceResult<'source, 'signature, Node<Field, Operation, HostEffect, IrResult>, Error>
+    {
+        let Self {
+            arguments,
+            parameters,
+            bindings,
+            limits,
+        } = self;
+        let mut budget = StructureBudget::new(
+            limits.source.max_lowered_nodes,
+            limits.source.max_lowered_depth,
+        );
+        let mut output = Vec::with_capacity(arguments.len());
+        for (parameter_index, argument_index) in bindings.into_iter().enumerate() {
+            // Required-only binding keeps original declaration order and identity.
+            let parameter = &parameters[parameter_index];
+            let argument = &arguments[argument_index];
+            budget
+                .check_pending(0, arguments.len() - parameter_index)
+                .map_err(|error| HelperSourceError::Output {
+                    argument_index,
+                    error: PureTypeError::Structure(error),
+                })?;
+            let (value, scalar_type) =
+                lower(argument).map_err(|error| HelperSourceError::Lowering {
+                    argument_index,
+                    error,
+                })?;
+            preflight_with_budget(&value, 0, &mut budget).map_err(|error| match error {
+                PureTypeError::Impure => HelperSourceError::Argument {
+                    parameter_index,
+                    argument_index,
+                    error: ArgumentTypeError::Impure,
+                },
+                _ => HelperSourceError::Output {
+                    argument_index,
+                    error,
+                },
+            })?;
+            let facts = ScalarArgumentType {
+                scalar_type,
+                is_pure: true,
+                literal: match &value {
+                    Node::Literal { value } => Some(value),
+                    _ => None,
+                },
+            };
+            check_argument_type(&ScalarTypeSet::only(parameter.domain), facts).map_err(
+                |error| HelperSourceError::Argument {
+                    parameter_index,
+                    argument_index,
+                    error,
+                },
+            )?;
+            output.push(LoweredHelperArgument {
+                parameter,
+                argument,
+                parameter_index,
+                argument_index,
+                value,
+            });
+        }
+        Ok(output)
+    }
 }

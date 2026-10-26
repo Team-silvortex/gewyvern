@@ -1,6 +1,7 @@
 use super::*;
 use crate::host_call::{HostOperation, invalid_argument};
 use crate::result_field::ResultField;
+
 use leselang_runtime_core::{ArgumentTypeError, ScopeFrame, StructureBudget};
 use leselang_syntax::NamedArgument;
 
@@ -301,22 +302,25 @@ impl<'source>
     }
 }
 
-impl Computation {
+impl crate::computation_profile::ComputationProfile<ResultField, HostOperation, Type> for Effect {
+    type Error = CanonicalSourceError;
+    type GroupLocal = GroupLocalType;
+    type Capability = &'static str;
     /// Checks bounded structure only; lexical types and authority need full HIR validation.
-    pub fn validate_structure(&self) -> Result<(), CanonicalSourceError> {
-        validate_shape(self)
+    fn validate_structure(expression: &Computation) -> Result<(), CanonicalSourceError> {
+        validate_shape(expression)
     }
 
     /// Recognizes one atomic tail effect, with only pure preparation and selection.
     /// Callers must validate structure and lexical types before using this classification.
-    pub fn is_atomic_tail(&self) -> bool {
-        match self {
-            Self::Host { effect } => HostOperation::for_effect(effect).is_some(),
-            Self::Call { arguments, .. } => {
+    fn is_atomic_tail(expression: &Computation) -> bool {
+        match expression {
+            Computation::Host { effect } => HostOperation::for_effect(effect).is_some(),
+            Computation::Call { arguments, .. } => {
                 arguments.iter().all(|argument| argument.value.is_pure())
             }
-            Self::Bind { value, body, .. } => value.is_pure() && body.is_atomic_tail(),
-            Self::Choose {
+            Computation::Bind { value, body, .. } => value.is_pure() && body.is_atomic_tail(),
+            Computation::Choose {
                 when,
                 then,
                 otherwise,
@@ -327,20 +331,20 @@ impl Computation {
 
     /// One statically typed operation after pure preparation/selection, never a capture.
     /// Validate bounded structure and lexical types before relying on this signature.
-    pub fn prepared_atomic_operation(&self) -> Option<HostOperation> {
-        let mut pending = vec![(self, 0usize, true)];
+    fn prepared_atomic_operation(expression: &Computation) -> Option<HostOperation> {
+        let mut pending = vec![(expression, 0usize, true)];
         let mut budget = StructureBudget::new(MAX_COMPUTATION_NODES, MAX_EFFECT_NESTING_DEPTH);
         let mut signature = None;
         while let Some((value, depth, atomic)) = pending.pop() {
             let (extra_nodes, extra_depth) = match value {
-                Self::Literal { value } => source_shape_extra(value),
+                Computation::Literal { value } => source_shape_extra(value),
                 _ => (0, 0),
             };
             budget.visit(depth, extra_nodes, extra_depth).ok()?;
             if !atomic {
                 if matches!(
                     value,
-                    Self::Host { .. } | Self::Call { .. } | Self::Group { .. }
+                    Computation::Host { .. } | Computation::Call { .. } | Computation::Group { .. }
                 ) {
                     return None;
                 }
@@ -351,11 +355,11 @@ impl Computation {
                 continue;
             }
             let operation = match value {
-                Self::Host { effect } => {
+                Computation::Host { effect } => {
                     budget.visit(depth, 0, 1).ok()?;
                     HostOperation::for_effect(effect)?
                 }
-                Self::Call {
+                Computation::Call {
                     operation,
                     arguments,
                 } => {
@@ -365,13 +369,13 @@ impl Computation {
                     }
                     *operation
                 }
-                Self::Bind { value, body, .. } => {
+                Computation::Bind { value, body, .. } => {
                     budget.check_pending(pending.len(), 2).ok()?;
                     pending.push((value, depth + 1, false));
                     pending.push((body, depth + 1, true));
                     continue;
                 }
-                Self::Choose {
+                Computation::Choose {
                     when,
                     then,
                     otherwise,
@@ -393,13 +397,13 @@ impl Computation {
     }
 
     /// One captured atomic suspension followed by a pure body, with pure preparation/selection.
-    pub fn is_atomic_capture(&self) -> bool {
-        match self {
-            Self::Bind { value, body, .. } if value.is_pure() => body.is_atomic_capture(),
-            Self::Bind { value, body, .. } => {
+    fn is_atomic_capture(expression: &Computation) -> bool {
+        match expression {
+            Computation::Bind { value, body, .. } if value.is_pure() => body.is_atomic_capture(),
+            Computation::Bind { value, body, .. } => {
                 value.prepared_atomic_operation().is_some() && body.is_pure()
             }
-            Self::Choose {
+            Computation::Choose {
                 when,
                 then,
                 otherwise,
@@ -410,10 +414,10 @@ impl Computation {
 
     /// A bounded atomic chain, excluding effectful operands and dynamic groups.
     /// Every non-pure branch must reach an atomic suspension before returning.
-    pub fn is_result_chain(&self) -> bool {
-        match self {
-            Self::Host { .. } | Self::Call { .. } => self.is_atomic_tail(),
-            Self::Bind { value, body, .. } => {
+    fn is_result_chain(expression: &Computation) -> bool {
+        match expression {
+            Computation::Host { .. } | Computation::Call { .. } => expression.is_atomic_tail(),
+            Computation::Bind { value, body, .. } => {
                 if value.is_pure() {
                     body.is_result_chain()
                 } else {
@@ -421,7 +425,7 @@ impl Computation {
                         && (body.is_pure() || body.is_result_chain())
                 }
             }
-            Self::Choose {
+            Computation::Choose {
                 when,
                 then,
                 otherwise,
@@ -432,28 +436,32 @@ impl Computation {
 
     /// Maximum atomic suspensions on any path of a statically bounded result chain.
     /// Pure preparation does not consume a graph slot; cold branches still reserve slots.
-    pub fn atomic_chain_bound(&self) -> Option<usize> {
-        if !self.is_pure() && !self.is_result_chain() {
+    fn atomic_chain_bound(expression: &Computation) -> Option<usize> {
+        if !expression.is_pure() && !expression.is_result_chain() {
             return None;
         }
-        self.atomic_flow_bound()
+        expression.atomic_flow_bound()
     }
 
     /// Includes scalar early exits while reserving the longest possible cold path.
-    pub fn atomic_flow_bound(&self) -> Option<usize> {
-        if !self.is_result_flow() {
+    fn atomic_flow_bound(expression: &Computation) -> Option<usize> {
+        if !expression.is_result_flow() {
             return None;
         }
-        if self.is_pure() {
+        if expression.is_pure() {
             return Some(0);
         }
-        match self {
-            Self::Host { .. } | Self::Call { .. } if self.is_atomic_tail() => Some(1),
-            Self::Bind { value, body, .. } if value.is_pure() => body.atomic_flow_bound(),
-            Self::Bind { value, body, .. } if value.prepared_atomic_operation().is_some() => {
+        match expression {
+            Computation::Host { .. } | Computation::Call { .. } if expression.is_atomic_tail() => {
+                Some(1)
+            }
+            Computation::Bind { value, body, .. } if value.is_pure() => body.atomic_flow_bound(),
+            Computation::Bind { value, body, .. }
+                if value.prepared_atomic_operation().is_some() =>
+            {
                 body.atomic_flow_bound()?.checked_add(1)
             }
-            Self::Choose {
+            Computation::Choose {
                 when,
                 then,
                 otherwise,
@@ -466,17 +474,17 @@ impl Computation {
     }
 
     /// Allows pure exits between atomic suspensions; callers must require a scalar final type.
-    pub fn is_result_flow(&self) -> bool {
-        if self.is_pure() {
+    fn is_result_flow(expression: &Computation) -> bool {
+        if expression.is_pure() {
             return true;
         }
-        match self {
-            Self::Host { .. } | Self::Call { .. } => self.is_atomic_tail(),
-            Self::Bind { value, body, .. } => {
+        match expression {
+            Computation::Host { .. } | Computation::Call { .. } => expression.is_atomic_tail(),
+            Computation::Bind { value, body, .. } => {
                 (value.is_pure() || value.prepared_atomic_operation().is_some())
                     && body.is_result_flow()
             }
-            Self::Choose {
+            Computation::Choose {
                 when,
                 then,
                 otherwise,
@@ -486,15 +494,15 @@ impl Computation {
     }
 
     /// Whether any path returns before another effect, without evaluating its guards.
-    pub fn can_return_without_suspending(&self) -> bool {
-        if self.is_pure() {
+    fn can_return_without_suspending(expression: &Computation) -> bool {
+        if expression.is_pure() {
             return true;
         }
-        match self {
-            Self::Bind { value, body, .. } => {
+        match expression {
+            Computation::Bind { value, body, .. } => {
                 value.is_pure() && body.can_return_without_suspending()
             }
-            Self::Choose {
+            Computation::Choose {
                 when,
                 then,
                 otherwise,
@@ -508,51 +516,21 @@ impl Computation {
     }
 
     /// Revalidates a residual computation against a bounded, typed lexical environment.
-    pub fn validate_in_scope(
-        &self,
+    fn validate_in_scope(
+        expression: &Computation,
         scope: &[(String, Type)],
     ) -> Result<Type, CanonicalSourceError> {
-        self.validate_in_group_scope(scope, &[])
-    }
-
-    pub(super) fn validate_in_type_scope(
-        &self,
-        scope: &TypeScope<'_, '_>,
-    ) -> Result<Type, CanonicalSourceError> {
-        if scope.len() > crate::pure_typing::MAX_TYPE_INFERENCE_BINDINGS {
-            return Err(CanonicalSourceError::RoundTripMismatch);
-        }
-        let mut values = Vec::new();
-        let mut groups = Vec::new();
-        for (name, local) in scope.bindings() {
-            if let Some(members) = &local.members {
-                if members.is_empty() || members.len() > MAX_SEQUENCE_STEPS {
-                    return Err(CanonicalSourceError::RoundTripMismatch);
-                }
-                groups.push(GroupLocalType {
-                    name: (*name).to_owned(),
-                    members: members.clone(),
-                });
-            } else {
-                values.push(((*name).to_owned(), local.ty));
-            }
-        }
-        self.validate_scoped(
-            &values,
-            &groups,
-            crate::pure_typing::MAX_TYPE_INFERENCE_BINDINGS,
-            0,
-            MAX_SEQUENCE_STEPS,
-        )
+        expression.validate_in_group_scope(scope, &[])
     }
 
     /// Revalidates a residual body using closed, statically named group-member signatures.
-    pub fn validate_in_group_scope(
-        &self,
+    fn validate_in_group_scope(
+        expression: &Computation,
         scope: &[(String, Type)],
         groups: &[GroupLocalType],
     ) -> Result<Type, CanonicalSourceError> {
-        self.validate_scoped(
+        validate_scoped(
+            expression,
             scope,
             groups,
             MAX_EFFECT_NESTING_DEPTH,
@@ -561,139 +539,16 @@ impl Computation {
         )
     }
 
-    fn validate_scoped(
-        &self,
-        scope: &[(String, Type)],
-        groups: &[GroupLocalType],
-        max_bindings: usize,
-        root_depth: usize,
-        max_group_members: usize,
-    ) -> Result<Type, CanonicalSourceError> {
-        validate_shape(self)?;
-        let mut names = HashSet::new();
-        let scope_len = scope.len().saturating_add(groups.len());
-        if scope_len > max_bindings
-            || scope
-                .iter()
-                .any(|(name, _)| !valid_local(name) || !names.insert(name))
-            || groups.iter().any(|group| {
-                let mut members = HashSet::new();
-                !valid_local(&group.name)
-                    || !names.insert(&group.name)
-                    || group.members.is_empty()
-                    || group.members.len() > max_group_members
-                    || group.members.iter().any(|(name, _)| {
-                        name.is_empty()
-                            || name.len() > MAX_BRANCH_NAME_BYTES
-                            || !name.bytes().all(|byte| {
-                                byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-')
-                            })
-                            || !members.insert(name)
-                    })
-            })
-        {
-            return Err(CanonicalSourceError::RoundTripMismatch);
-        }
-        let source = format!("fn main() = {}", source(self));
-        let formatted = format_syntax(&parse(&source)).map_err(CanonicalSourceError::Syntax)?;
-        let tree = parse(&formatted);
-        let function = tree
-            .function
-            .ok_or(CanonicalSourceError::RoundTripMismatch)?;
-        let mut visited = scope_len;
-        let mut bindings = scope
-            .iter()
-            .map(|(name, ty)| (name.as_str(), LocalType::from(*ty)))
-            .chain(groups.iter().map(|group| {
-                (
-                    group.name.as_str(),
-                    LocalType {
-                        ty: Type::Structured,
-                        members: Some(group.members.clone()),
-                    },
-                )
-            }))
-            .collect();
-        let mut lexical = ScopeFrame::new(&mut bindings);
-        let (roundtrip, ty) =
-            lower_expression(&function.body, &mut lexical, &mut visited, root_depth)
-                .map_err(CanonicalSourceError::InvalidEffect)?;
-        if roundtrip != *self {
-            return Err(CanonicalSourceError::RoundTripMismatch);
-        }
-        if self.is_pure()
-            && crate::pure_reference::infer(self, scope, groups)
-                .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
-                != ty
-        {
-            return Err(CanonicalSourceError::RoundTripMismatch);
-        }
-        if let Self::Call {
-            operation,
-            arguments,
-        } = self
-            && crate::pure_reference::infer_call(*operation, arguments, scope, groups)
-                .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
-                != ty
-        {
-            return Err(CanonicalSourceError::RoundTripMismatch);
-        }
-        let prepared_call = !matches!(self, Self::Call { .. })
-            && self.prepared_atomic_operation().is_some()
-            && crate::pure_reference::call_leaves_only(self);
-        if prepared_call
-            && crate::pure_reference::infer_prepared(self, scope, groups)
-                .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
-                != ty
-        {
-            return Err(CanonicalSourceError::RoundTripMismatch);
-        }
-        if !prepared_call
-            && !matches!(self, Self::Call { .. })
-            && !self.is_pure()
-            && crate::pure_reference::call_flow_nodes_only(self)
-            && crate::pure_reference::infer_flow(self, scope, groups)
-                .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
-                != ty
-        {
-            return Err(CanonicalSourceError::RoundTripMismatch);
-        }
-        if crate::pure_reference::group_flow_nodes_only(self)
-            && crate::pure_reference::infer_group_flow(self, scope, groups)
-                .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
-                != ty
-        {
-            return Err(CanonicalSourceError::RoundTripMismatch);
-        }
-        if crate::pure_reference::host_flow_nodes_only(
-            self,
-            crate::pure_reference::supports_host_flow,
-        ) && crate::pure_reference::infer_host_flow(self, scope, groups)
-            .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
-            != ty
-        {
-            return Err(CanonicalSourceError::RoundTripMismatch);
-        }
-        if crate::pure_reference::host_group_flow_nodes_only(
-            self,
-            crate::pure_reference::supports_host_flow,
-        ) && crate::pure_reference::infer_host_group_flow(self, scope, groups)
-            .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
-            != ty
-        {
-            return Err(CanonicalSourceError::RoundTripMismatch);
-        }
-        Ok(ty)
-    }
-
     /// Includes cold branches. Validate bounded structure before inspecting authority.
-    pub fn required_capabilities(&self) -> BTreeSet<&'static str> {
+    fn required_capabilities(expression: &Computation) -> BTreeSet<&'static str> {
         let mut required = BTreeSet::new();
-        let mut pending = vec![self];
+        let mut pending = vec![expression];
         while let Some(expression) = pending.pop() {
             match expression {
-                Self::Host { effect } => required.extend(required_capabilities_for_effect(effect)),
-                Self::Call { operation, .. } => {
+                Computation::Host { effect } => {
+                    required.extend(required_capabilities_for_effect(effect))
+                }
+                Computation::Call { operation, .. } => {
                     required.insert(operation.required_capability());
                 }
                 _ => {}
@@ -702,6 +557,162 @@ impl Computation {
         }
         required
     }
+}
+
+pub(super) fn validate_in_type_scope(
+    expression: &Computation,
+    scope: &TypeScope<'_, '_>,
+) -> Result<Type, CanonicalSourceError> {
+    if scope.len() > crate::pure_typing::MAX_TYPE_INFERENCE_BINDINGS {
+        return Err(CanonicalSourceError::RoundTripMismatch);
+    }
+    let mut values = Vec::new();
+    let mut groups = Vec::new();
+    for (name, local) in scope.bindings() {
+        if let Some(members) = &local.members {
+            if members.is_empty() || members.len() > MAX_SEQUENCE_STEPS {
+                return Err(CanonicalSourceError::RoundTripMismatch);
+            }
+            groups.push(GroupLocalType {
+                name: (*name).to_owned(),
+                members: members.clone(),
+            });
+        } else {
+            values.push(((*name).to_owned(), local.ty));
+        }
+    }
+    validate_scoped(
+        expression,
+        &values,
+        &groups,
+        crate::pure_typing::MAX_TYPE_INFERENCE_BINDINGS,
+        0,
+        MAX_SEQUENCE_STEPS,
+    )
+}
+
+fn validate_scoped(
+    expression: &Computation,
+    scope: &[(String, Type)],
+    groups: &[GroupLocalType],
+    max_bindings: usize,
+    root_depth: usize,
+    max_group_members: usize,
+) -> Result<Type, CanonicalSourceError> {
+    validate_shape(expression)?;
+    let mut names = HashSet::new();
+    let scope_len = scope.len().saturating_add(groups.len());
+    if scope_len > max_bindings
+        || scope
+            .iter()
+            .any(|(name, _)| !valid_local(name) || !names.insert(name))
+        || groups.iter().any(|group| {
+            let mut members = HashSet::new();
+            !valid_local(&group.name)
+                || !names.insert(&group.name)
+                || group.members.is_empty()
+                || group.members.len() > max_group_members
+                || group.members.iter().any(|(name, _)| {
+                    name.is_empty()
+                        || name.len() > MAX_BRANCH_NAME_BYTES
+                        || !name
+                            .bytes()
+                            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+                        || !members.insert(name)
+                })
+        })
+    {
+        return Err(CanonicalSourceError::RoundTripMismatch);
+    }
+    let source = format!("fn main() = {}", source(expression));
+    let formatted = format_syntax(&parse(&source)).map_err(CanonicalSourceError::Syntax)?;
+    let tree = parse(&formatted);
+    let function = tree
+        .function
+        .ok_or(CanonicalSourceError::RoundTripMismatch)?;
+    let mut visited = scope_len;
+    let mut bindings = scope
+        .iter()
+        .map(|(name, ty)| (name.as_str(), LocalType::from(*ty)))
+        .chain(groups.iter().map(|group| {
+            (
+                group.name.as_str(),
+                LocalType {
+                    ty: Type::Structured,
+                    members: Some(group.members.clone()),
+                },
+            )
+        }))
+        .collect();
+    let mut lexical = ScopeFrame::new(&mut bindings);
+    let (roundtrip, ty) = lower_expression(&function.body, &mut lexical, &mut visited, root_depth)
+        .map_err(CanonicalSourceError::InvalidEffect)?;
+    if roundtrip != *expression {
+        return Err(CanonicalSourceError::RoundTripMismatch);
+    }
+    if expression.is_pure()
+        && crate::pure_reference::infer(expression, scope, groups)
+            .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
+            != ty
+    {
+        return Err(CanonicalSourceError::RoundTripMismatch);
+    }
+    if let Computation::Call {
+        operation,
+        arguments,
+    } = expression
+        && crate::pure_reference::infer_call(*operation, arguments, scope, groups)
+            .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
+            != ty
+    {
+        return Err(CanonicalSourceError::RoundTripMismatch);
+    }
+    let prepared_call = !matches!(expression, Computation::Call { .. })
+        && expression.prepared_atomic_operation().is_some()
+        && crate::pure_reference::call_leaves_only(expression);
+    if prepared_call
+        && crate::pure_reference::infer_prepared(expression, scope, groups)
+            .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
+            != ty
+    {
+        return Err(CanonicalSourceError::RoundTripMismatch);
+    }
+    if !prepared_call
+        && !matches!(expression, Computation::Call { .. })
+        && !expression.is_pure()
+        && crate::pure_reference::call_flow_nodes_only(expression)
+        && crate::pure_reference::infer_flow(expression, scope, groups)
+            .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
+            != ty
+    {
+        return Err(CanonicalSourceError::RoundTripMismatch);
+    }
+    if crate::pure_reference::group_flow_nodes_only(expression)
+        && crate::pure_reference::infer_group_flow(expression, scope, groups)
+            .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
+            != ty
+    {
+        return Err(CanonicalSourceError::RoundTripMismatch);
+    }
+    if crate::pure_reference::host_flow_nodes_only(
+        expression,
+        crate::pure_reference::supports_host_flow,
+    ) && crate::pure_reference::infer_host_flow(expression, scope, groups)
+        .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
+        != ty
+    {
+        return Err(CanonicalSourceError::RoundTripMismatch);
+    }
+    if crate::pure_reference::host_group_flow_nodes_only(
+        expression,
+        crate::pure_reference::supports_host_flow,
+    ) && crate::pure_reference::infer_host_group_flow(expression, scope, groups)
+        .map_err(|_| CanonicalSourceError::RoundTripMismatch)?
+        != ty
+    {
+        return Err(CanonicalSourceError::RoundTripMismatch);
+    }
+    Ok(ty)
 }
 
 fn has_computed_arguments(arguments: &[NamedArgument]) -> bool {
@@ -1159,10 +1170,10 @@ pub(super) fn lower_expression_with_functions<'a>(
         };
     }
     if callee == "field" {
-        let source = crate::projection_source::field_source(arguments, span)
+        let source = crate::projection_source::bind_field_source(arguments, span)
             .map_err(|error| projection_source_diagnostics(error, span))?;
         let (value, ty) = source
-            .lower_preflighted(
+            .lower(
                 crate::source_call::SourceCallLimits {
                     max_source_nodes: MAX_COMPUTATION_NODES,
                     max_source_depth: MAX_EFFECT_NESTING_DEPTH,
@@ -1233,9 +1244,9 @@ pub(super) fn lower_expression_with_functions<'a>(
     {
         use crate::source_call::{
             SourceCallError, SourceCallFinishError, SourceCallFinishLimits, SourceCallLimits,
-            lower_preflighted_arguments,
+            bind_source_arguments,
         };
-        let lowered = lower_preflighted_arguments(
+        let lowered = bind_source_arguments(
             arguments,
             operation.schema(),
             SourceCallLimits {
@@ -1245,7 +1256,9 @@ pub(super) fn lower_expression_with_functions<'a>(
                 max_lowered_depth: MAX_EFFECT_NESTING_DEPTH,
                 max_arguments: crate::source_call::MAX_SOURCE_CALL_ARGUMENTS,
             },
-            |argument| {
+        )
+        .and_then(|bound| {
+            bound.lower(|argument| {
                 let (value, ty) = lower_expression_with_functions(
                     &argument.value,
                     scope,
@@ -1260,8 +1273,8 @@ pub(super) fn lower_expression_with_functions<'a>(
                         _ => None,
                     },
                 ))
-            },
-        )
+            })
+        })
         .map_err(|error| match error {
             SourceCallError::Lowering { error, .. } => error,
             SourceCallError::ArgumentLimit => {
@@ -1338,7 +1351,7 @@ pub(super) fn lower_expression_with_functions<'a>(
                 ),
             });
     }
-    crate::host_source::lower_preflighted_host_source(
+    crate::host_source::bind_host_source_root(
         expression,
         crate::source_call::SourceCallLimits {
             max_source_nodes: MAX_COMPUTATION_NODES,
@@ -1347,32 +1360,36 @@ pub(super) fn lower_expression_with_functions<'a>(
             max_lowered_depth: MAX_EFFECT_NESTING_DEPTH,
             max_arguments: crate::source_call::MAX_SOURCE_CALL_ARGUMENTS,
         },
-        |source| {
-            let lowered = lower_effect(source)?;
-            Ok((lowered.effect, lowered.result_type))
-        },
-        |_, effect, result| {
-            if contains_computation(effect) {
-                return Err(invalid(
-                    "LSH1406",
-                    "computation must wrap a host group, not occur inside its branches",
-                    span,
-                ));
-            }
-            let operation = HostOperation::parse(callee);
-            if operation == HostOperation::for_effect(effect)
-                && operation.map(HostOperation::result_type) == Some(*result)
-            {
-                Ok(())
-            } else {
-                Err(invalid(
-                    "LSH1999",
-                    "invalid native host source observation",
-                    span,
-                ))
-            }
-        },
     )
+    .and_then(|bound| {
+        bound.lower(
+            |source| {
+                let lowered = lower_effect(source)?;
+                Ok((lowered.effect, lowered.result_type))
+            },
+            |_, effect, result| {
+                if contains_computation(effect) {
+                    return Err(invalid(
+                        "LSH1406",
+                        "computation must wrap a host group, not occur inside its branches",
+                        span,
+                    ));
+                }
+                let operation = HostOperation::parse(callee);
+                if operation == HostOperation::for_effect(effect)
+                    && operation.map(HostOperation::result_type) == Some(*result)
+                {
+                    Ok(())
+                } else {
+                    Err(invalid(
+                        "LSH1999",
+                        "invalid native host source observation",
+                        span,
+                    ))
+                }
+            },
+        )
+    })
     .map_err(|error| match error {
         crate::host_source::HostSourceError::Preparation { error, .. }
         | crate::host_source::HostSourceError::Admission { error, .. } => error,
@@ -1847,6 +1864,10 @@ pub(super) fn source(expression: &Computation) -> String {
         ),
     }
 }
+
+#[cfg(test)]
+#[path = "computation_profile_contract_tests.rs"]
+mod profile_contract_tests;
 
 #[cfg(test)]
 mod scope_tests {

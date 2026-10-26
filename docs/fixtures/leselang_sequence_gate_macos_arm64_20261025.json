@@ -1,0 +1,193 @@
+{
+  "kind": "leselang-reference-sequential-predecessor-gate-parity",
+  "validated_on": "2026-10-25",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.5.0",
+  "pre_extraction_revision": "63df912e",
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.171.0",
+  "direct_adapter_tests": 7,
+  "frozen_memory_cases": 2520,
+  "frozen_sqlite_cases": 432,
+  "memory_public_group_shapes": 12,
+  "durable_public_group_shapes": 12,
+  "borrowed_transaction_cases": 1,
+  "memory_lazy_prefix_and_done_policy_preserved": true,
+  "durable_state_observation_policy_preserved": true,
+  "native_indexed_claim_selection_unchanged": true,
+  "borrowed_outer_transaction_only": true,
+  "native_query_errors_move_unchanged": true,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "Sequential predecessor gating for the memory journal and explicit durable completion. Native owners retain storage observations, indexed claim selection, lease admission and the outer transaction.",
+  "limitations": [
+    "Frozen pre-extraction gate bodies come from 63df912e and do not call migrated gate policy. Native fixtures, storage and public dispatch/completion machinery remain shared.",
+    "The 2520 memory cases cover fourteen execution-order labels, two owner states, nine predecessor classes, five target positions and two acknowledgement states. This is a scalar gate matrix, not seventy operation implementations.",
+    "The 432 SQLite comparisons cover four sources, three lifecycle stages, twelve mutations and three target tokens. Corrupt fixtures exercise original fault precedence and are not admitted recovery checkpoints; production constraints are unchanged.",
+    "Twelve memory and twelve durable public group shapes cover sequential and parallel tail, capture, multi-capture and conditional paths. Durable paths reopen after the first acknowledgement and finish without redispatch.",
+    "Memory keeps closed-owner refusal and Step::Done-only predecessor classification with lazy prefix reads. SQLite keeps its original stored-state EXISTS observation, including different missing-row and closed-owner behavior. These differences are preserved, not promoted as host-neutral recovery semantics.",
+    "The borrowed-transaction test observes an uncommitted predecessor update through the original outer transaction without writing or committing, and rollback restores the original refusal.",
+    "Indexed claim SQL remains in the native atomic lease transaction. The adapter adds no candidate materialization, per-candidate SQL, retries, decoding, payload admission or independent commit.",
+    "No new Linux, remote CI, live GUI, actual exported-source execution, full host-neutral durable recovery, power-loss, disk-full, multi-host race or performance evidence is claimed."
+  ],
+  "related_crate_tests_passed": 1539,
+  "memory_profile_unit_tests_passed": 153,
+  "source_planning_tests_passed": 23,
+  "source_export_dry_run_files": 280,
+  "source_export_dry_run_bytes": 6784528,
+  "adapter_has_no_vm_or_sqlite_normal_dependency": true,
+  "feature_specific_strict_lints_passed": true,
+  "strict_workspace_all_features_all_targets_clippy_passed": true,
+  "verification_status": "passed",
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_sequence_gate.rs",
+      "sha256": "d28c0ef75ee872ce795a2b867c75869da6d9eaa7fb27a78247a9eb3a0f68bc86"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "ee5e02439add582501a188743c7176b6123caaf84e63a1e1ec0aa1241a99842d"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_completion_commit.rs",
+      "sha256": "4b4af79da8b7dcf03b5c283fb969859855578b6399c8bacb7159867aa14ed1eb"
+    },
+    {
+      "path": "crates/leselang-command/src/merge_plan.rs",
+      "sha256": "2e604475319faef2da96112eb221fc3fed02a21b34010ae3aabd3e6109bad890"
+    },
+    {
+      "path": "crates/leselang-command/Cargo.toml",
+      "sha256": "51753fa79fce986890ef1948ad092f9875b370be116b228c49513375066e462f"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_sequence_gate.rs",
+      "sha256": "54ee8763c634866471df14dd03374e15e519d8ded72150042374da6f8998f99f"
+    },
+    {
+      "path": "crates/leselang-command/tests/support/group_start_fixture.rs",
+      "sha256": "784a107454b0db3728a1329e25fa40dbdd9d0c7f0cc29fb9a49867036193d47c"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "1c192eebae6683b3e85b45dd99310a35cb71901eb706fb4eade2aabde7f63bf2"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/sequence_gate.rs",
+      "sha256": "7e44666fd8d49175db597fc7ee3f08160305b56476bf0775fae6cb64ac3ba3c5"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/sequence_gate_contract_tests.rs",
+      "sha256": "dd0d19e6d8dda32dba34644ae91dedf778ef19fbba1c8f3cdaabed0149e8b5a5"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/claim_commit.rs",
+      "sha256": "5fd55a894f23cd9cf220a449b5b6514d2a7c909341abcfa5f3417e9bcd5c68fc"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/completion_commit.rs",
+      "sha256": "9a702e65912fc1df0d6759158eeeccf6e76a19442f45c1166ddcc5e48c791c97"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_recovery_contract_tests.rs",
+      "sha256": "cb528045c5a41e30aacdc54250381bb50f20d8fa1b45bf065808f20723954a6d"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "a89a6b86b27ed40d065fd656eb0187bf8b3dbe3fa78f3149e72e8e584c8d4186"
+    },
+    {
+      "path": "crates/leselang-vm/Cargo.toml",
+      "sha256": "2f1d51815d543a85d8b69662dbb4578170e8c6b0672f52402e4dec5c05260e21"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "4efad97bec2d085c29ebb07c116560b6c04c569919aeb2aab84cf82d6cc4b507"
+    },
+    {
+      "path": "tests/leselang_native_profile_tdd.rs",
+      "sha256": "108f11dd700615a0d6505885f29724bed134f09e4855b73fb3ba3cda4e9429d0"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "00246039147f104d4c0d715a3d0ab7311b9a7fa02ab479de7a331825f35cc40e"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "f13c50bc56e37f3caabc83818a9efa347054c014381a58ba499c884e48877ec5"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "a878de89973d9e43714c1814d83263db4cbe6165d6e67fd0121e045ef0476a2b"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "77a8a4de06e8c79b7ed2c0120d2534188434eb23a2b9d9deda2faed1562326f0"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "2b3e527f03a7d49fb74ceed3b39452e92a4a7c32c8bb4a7989adba6d68ddcf3d"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/private/tmp/leselang-sequence-gate-adapter-20261025.log",
+      "sha256": "6997fe65dd14ff83f2e57e66646994f1d3f7c840e84977e77dd593369247fd0e"
+    },
+    {
+      "path": "/private/tmp/leselang-sequence-gate-parity-20261025.log",
+      "sha256": "73a11438b23fe7a0eb1ea39d9d6bd82cf3250f3b872b25c37233d1c4f6ed8687"
+    },
+    {
+      "path": "/private/tmp/leselang-sequence-gate-suite-20261025.log",
+      "sha256": "64a2895f2622cd34f05e3c3c05b8cfd90fdd8c9dbd4542961c98cfef1e3e9420"
+    },
+    {
+      "path": "/private/tmp/leselang-sequence-gate-memory-20261025.log",
+      "sha256": "d40a7a722eafc970bc8201331abc13e8de87d06d929bf593d8549b1102c3a81d"
+    },
+    {
+      "path": "/private/tmp/leselang-sequence-gate-clippy-20261025.log",
+      "sha256": "857a8171d1e5784a7c5959cbabec19cfb839d5c630c87b18722d056e644c6e5c"
+    },
+    {
+      "path": "/private/tmp/leselang-sequence-gate-bridge-clippy-20261025.log",
+      "sha256": "86ebeac6586d9199ea0554e26723ff072e5d49feb213f82d52080634c744d146"
+    },
+    {
+      "path": "/private/tmp/leselang-sequence-gate-memory-clippy-20261025.log",
+      "sha256": "f2186745cb695077981aed5ec25f353de89604c23aa8a0e44bf8485cf4eb4388"
+    },
+    {
+      "path": "/private/tmp/leselang-sequence-gate-native-clippy-20261025.log",
+      "sha256": "d4b8c969ba7862fe07b3d6b573660331a4b2c3364c96858076240275d77d0aa7"
+    },
+    {
+      "path": "/private/tmp/leselang-sequence-gate-source-plan-20261025.log",
+      "sha256": "b73867ec531584b0ac0485575b6c205d252ac89e03a9b8990b74507df44984c6"
+    },
+    {
+      "path": "/private/tmp/leselang-sequence-gate-dependencies-20261025.log",
+      "sha256": "e90db153d6482ed2f2de9f8669d0de3a88de74679941851fca212b9ec44783d8"
+    },
+    {
+      "path": "/private/tmp/leselang-sequence-gate-export-plan-20261025.log",
+      "sha256": "a4b44188b62e15d53c37a433de6b1f834009c34276952c5ab5af0ce317c1194a"
+    },
+    {
+      "path": "/private/tmp/leselang-sequence-gate-architecture-status-20261025.log",
+      "sha256": "a3d759c5d6a40bbaa0eb13404ae87393de6f6f5a389d879fa5ec8beda1842d23"
+    },
+    {
+      "path": "/private/tmp/leselang-sequence-gate-catalog-20261025.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "architecture_documentation_status_tests_passed": 514,
+  "status_catalog_valid": true
+}

@@ -1,4 +1,4 @@
-#[path = "../src/debugger_audit_contract_tests.rs"]
+#[path = "../../leserpent-vm/src/debugger_audit_contract_tests.rs"]
 mod contract;
 
 macro_rules! memory_case {

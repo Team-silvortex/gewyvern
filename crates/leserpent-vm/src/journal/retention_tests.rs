@@ -1,6 +1,6 @@
 use super::*;
 
-fn fixture() -> (EphemeralJournal, Vec<(ContinuationToken, Step)>) {
+pub(super) fn fixture() -> (EphemeralJournal, Vec<(ContinuationToken, Step)>) {
     let mut journal = EphemeralJournal::default();
     let mut local = Vec::new();
     let original = crate::continuation_contract_tests::requests().remove(0);
@@ -68,7 +68,7 @@ fn fixture() -> (EphemeralJournal, Vec<(ContinuationToken, Step)>) {
     (journal, local)
 }
 
-fn snapshot(journal: &EphemeralJournal) -> Vec<u8> {
+pub(super) fn snapshot(journal: &EphemeralJournal) -> Vec<u8> {
     let dispatches = journal
         .dispatches
         .iter()

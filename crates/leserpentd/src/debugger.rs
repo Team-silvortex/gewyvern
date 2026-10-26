@@ -15,7 +15,6 @@ use leselang_hir::{CAPABILITY_UI_PRESENTATION, lower, validate_ui_node_id};
 use leselang_observe::{execute_debugger_cancel, waiting_debugger_projection};
 use leselang_syntax::parse;
 use leselang_ui::{DebuggerFaultSummary, DebuggerProjection, DebuggerState, debugger_document};
-use leselang_vm::{DEFAULT_FUEL, Vm};
 use leserpent_domain::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
     CAPABILITY_RUNTIME_REFRESH, CapabilitySet, CommandEnvelope, CommandPlan, PlannedOperation,
@@ -27,6 +26,7 @@ use leserpent_protocol::{
     DebuggerSessionResponse, DebuggerSessionStartRequest, DebuggerSessionView,
     DebuggerSessionsRequest, DebuggerSessionsResponse,
 };
+use leserpent_vm::{DEFAULT_FUEL, Vm};
 use ring::digest::{SHA256, digest};
 
 const MAX_DEBUGGER_SESSIONS: usize = 32;

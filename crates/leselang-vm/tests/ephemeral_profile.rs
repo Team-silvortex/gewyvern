@@ -17,6 +17,37 @@ mod reference_dispatch_authority;
 mod reference_request_build_authority;
 
 #[test]
+fn released_facade_and_product_executor_share_types_and_in_flight_state() {
+    let mut product = leserpent_vm::Vm::new(100);
+    // These assignments must compile without conversion or a second executor.
+    let facade: &mut Vm = &mut product;
+    let Step::Effect(request) = start(facade, r#"fn main() = ui.focus(node_id: "shared")"#) else {
+        panic!("expected pending focus");
+    };
+    let request: leserpent_vm::EffectRequest = *request;
+    let bytes = encode_continuation(&request.continuation).unwrap();
+    assert_eq!(
+        bytes,
+        leserpent_vm::encode_continuation(&request.continuation).unwrap()
+    );
+    let image = leserpent_vm::decode_continuation(&bytes).unwrap();
+    let result = leserpent_vm::EffectResult::Presentation(PresentationResult::Focus {
+        node_id: "shared".into(),
+    });
+    let done: leserpent_vm::Step = product.resume_at(&image, 101, result.clone());
+    assert_eq!(
+        done,
+        Step::Done(Value::UiFocus {
+            node_id: "shared".into()
+        })
+    );
+    let mut facade: Vm = product;
+    assert_eq!(facade.resume_at(&image, 102, result), done);
+    assert_eq!(facade.pending_count(), 0);
+    assert_eq!(facade.completed_count(), 1);
+}
+
+#[test]
 fn memory_request_construction_cannot_reserve_or_dispatch_a_live_effect() {
     reference_request_build_authority::exercise(Vm::new(100), |vm| vm);
 }

@@ -1,8 +1,12 @@
+#[cfg(test)]
+use crate::continuation_age_order;
 use crate::group_binding::ReferenceGroupResultBinding;
 use crate::scheduling::ReferenceSchedulerLimits;
 #[cfg(test)]
 use crate::scheduling::ReferenceSchedulerPressure;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
+#[cfg(any(test, feature = "sqlite-journal"))]
+use std::collections::BTreeSet;
 #[cfg(feature = "sqlite-journal")]
 use std::{fs, path::Path, time::Duration};
 
@@ -70,7 +74,7 @@ use crate::{
     DebuggerAuditContext, DebuggerAuditRecord, DispatchClaim, DispatchLease, EffectError,
     EffectRequest, ExecutionOrder, Fault, MAX_CONTINUATION_BYTES, MAX_DISPATCH_ATTEMPTS, MergePlan,
     RetentionPolicy, RetryDisposition, SchedulerLimits, SchedulerPressure, Step,
-    continuation_age_order, encode_json_capped, measure_json_capped, valid_continuation_token,
+    encode_json_capped, measure_json_capped, valid_continuation_token,
     validate_continuation_encoding_size, validate_merge_plan, validate_value,
 };
 
@@ -94,6 +98,13 @@ mod cancellation_commit_contract_tests;
 mod claim_commit;
 #[cfg(test)]
 mod claim_commit_contract_tests;
+mod compaction_commit;
+#[cfg(test)]
+mod compaction_commit_contract_tests;
+#[cfg(feature = "sqlite-journal")]
+mod compaction_records;
+#[cfg(all(test, feature = "sqlite-journal"))]
+mod compaction_records_contract_tests;
 mod completion_commit;
 #[cfg(test)]
 mod completion_commit_contract_tests;
@@ -123,6 +134,9 @@ mod retry_commit;
 mod retry_commit_contract_tests;
 #[cfg(all(test, feature = "sqlite-journal"))]
 mod schema_contract_tests;
+mod sequence_gate;
+#[cfg(test)]
+mod sequence_gate_contract_tests;
 mod successor;
 
 pub use leselang_command::reference_checkpoint::MAX_JOURNAL_TOTAL_BYTES;
@@ -221,6 +235,7 @@ struct EphemeralDispatch {
     terminal_step: Option<Step>,
 }
 
+#[cfg(test)]
 enum EphemeralCompactionUnit {
     Effect(ContinuationToken),
     Merge {
@@ -229,6 +244,7 @@ enum EphemeralCompactionUnit {
     },
 }
 
+#[cfg(test)]
 impl EphemeralCompactionUnit {
     fn age_token(&self) -> &ContinuationToken {
         match self {
@@ -628,24 +644,7 @@ impl EphemeralJournal {
     }
 
     fn sequence_ready(&self, token: &ContinuationToken) -> bool {
-        self.merge_groups.values().all(|group| {
-            if !group.plan.order.is_sequential() {
-                return true;
-            }
-            let Some(position) = group
-                .branch_tokens
-                .iter()
-                .position(|branch| branch == token)
-            else {
-                return true;
-            };
-            group.terminal_step.is_none()
-                && group.branch_tokens[..position].iter().all(|token| {
-                    self.dispatches.get(token).is_some_and(|dispatch| {
-                        matches!(dispatch.terminal_step, Some(Step::Done(_)))
-                    })
-                })
-        })
+        leselang_command::reference_sequence_gate::ready_memory(self, token)
     }
 
     fn merge_progress(&self, branch_token: &ContinuationToken) -> MergeProgress {
@@ -657,99 +656,7 @@ impl EphemeralJournal {
         local_completed: &[(ContinuationToken, Step)],
         policy: &RetentionPolicy,
     ) -> Result<JournalCompaction, Fault> {
-        let protected = self
-            .merge_groups
-            .values()
-            .flat_map(|group| group.branch_tokens.iter())
-            .collect::<BTreeSet<_>>();
-        let mut units = local_completed
-            .iter()
-            .filter(|(token, _)| !protected.contains(token))
-            .map(|(token, _)| EphemeralCompactionUnit::Effect(token.clone()))
-            .collect::<Vec<_>>();
-        for (token, group) in &self.merge_groups {
-            if group.terminal_step.is_some() {
-                let age_token = group.branch_tokens.first().ok_or_else(|| {
-                    journal_fault("LSV4007", "completed merge group has no branches")
-                })?;
-                units.push(EphemeralCompactionUnit::Merge {
-                    group_token: token.clone(),
-                    age_token: age_token.clone(),
-                });
-            }
-        }
-        units.sort_by(|left, right| continuation_age_order(left.age_token(), right.age_token()));
-        let completed_count = units.len();
-        let remove_count = policy.removal_count(completed_count);
-        let mut reclaimed_logical_bytes = 0usize;
-        let mut removed_tokens = Vec::with_capacity(remove_count);
-        // Preflight every selected unit before mutating any map. Counting shares
-        // the wire encoder's bounds without materializing disposable JSON buffers.
-        for unit in units.iter().take(remove_count) {
-            let tokens = match unit {
-                EphemeralCompactionUnit::Effect(token) => std::slice::from_ref(token),
-                EphemeralCompactionUnit::Merge { group_token, .. } => {
-                    let group = self.merge_groups.get(group_token).ok_or_else(|| {
-                        journal_fault("LSV4033", "selected merge group disappeared")
-                    })?;
-                    let terminal_step = group.terminal_step.as_ref().ok_or_else(|| {
-                        journal_fault("LSV4007", "selected merge group is not completed")
-                    })?;
-                    reclaimed_logical_bytes = reclaimed_logical_bytes
-                        .saturating_add(measure_json_capped(
-                            &group.plan,
-                            MAX_CONTINUATION_BYTES,
-                            "merge plan",
-                        )?)
-                        .saturating_add(measure_json_capped(
-                            terminal_step,
-                            MAX_JOURNAL_ENTRY_BYTES,
-                            "merge result",
-                        )?);
-                    group.branch_tokens.as_slice()
-                }
-            };
-            for token in tokens {
-                if let Some((_, step)) = local_completed.iter().find(|(local, _)| local == token) {
-                    reclaimed_logical_bytes = reclaimed_logical_bytes.saturating_add(
-                        measure_json_capped(step, MAX_JOURNAL_ENTRY_BYTES, "completed step")?,
-                    );
-                }
-                if let Some(dispatch) = self.dispatches.get(token) {
-                    reclaimed_logical_bytes =
-                        reclaimed_logical_bytes.saturating_add(measure_json_capped(
-                            &dispatch.request,
-                            MAX_JOURNAL_ENTRY_BYTES,
-                            "effect request",
-                        )?);
-                    if let Some(error) = &dispatch.last_error {
-                        reclaimed_logical_bytes = reclaimed_logical_bytes.saturating_add(
-                            measure_json_capped(error, MAX_JOURNAL_ENTRY_BYTES, "effect error")?,
-                        );
-                    }
-                }
-                removed_tokens.push(token.clone());
-            }
-        }
-        for unit in units.into_iter().take(remove_count) {
-            if let EphemeralCompactionUnit::Merge { group_token, .. } = unit {
-                self.merge_groups.remove(&group_token);
-            }
-        }
-        for token in &removed_tokens {
-            self.dispatches.remove(token);
-        }
-        if !removed_tokens.is_empty() {
-            // Match SQLite's audit cascade once per batch, retaining live group members.
-            self.debugger_audits
-                .retain(|_, audit| self.dispatches.contains_key(&audit.token));
-        }
-        Ok(JournalCompaction {
-            removed_records: remove_count,
-            pruned_tokens: removed_tokens,
-            remaining_completed: completed_count.saturating_sub(remove_count),
-            reclaimed_logical_bytes,
-        })
+        leselang_command::reference_compaction_commit::compact_memory(self, local_completed, policy)
     }
 }
 
@@ -1246,132 +1153,11 @@ impl SqliteJournal {
             .map_err(|error| {
                 journal_error("LSV4030", "failed to lock journal compaction", error)
             })?;
-        let completed_count: i64 = transaction
-            .query_row(
-                "SELECT
-                   (SELECT COUNT(*) FROM vm_effects e
-                    WHERE e.state = 'completed'
-                      AND NOT EXISTS (
-                        SELECT 1 FROM vm_merge_branches b WHERE b.branch_token = e.token
-                      )) +
-                   (SELECT COUNT(*) FROM vm_merge_groups WHERE state = 'completed')",
-                [],
-                |row| row.get(0),
-            )
-            .map_err(|error| {
-                journal_error(
-                    "LSV4030",
-                    "failed to count completed journal records",
-                    error,
-                )
-            })?;
-        let completed_count = usize::try_from(completed_count)
-            .map_err(|_| journal_fault("LSV4007", "completed journal count is invalid"))?;
-        let remove_count = policy.removal_count(completed_count);
-        if remove_count == 0 {
-            let pruned_tokens = stale_local_completed(&transaction, local_completed)?;
-            transaction.commit().map_err(|error| {
-                journal_error("LSV4030", "failed to close journal compaction", error)
-            })?;
-            return Ok(JournalCompaction {
-                removed_records: 0,
-                pruned_tokens,
-                remaining_completed: completed_count,
-                reclaimed_logical_bytes: 0,
-            });
-        }
-
-        let limit = i64::try_from(remove_count)
-            .map_err(|_| journal_fault("LSV4030", "journal compaction batch is invalid"))?;
-        type RawCandidate = (i64, String);
-        let candidates = {
-            let mut statement = transaction
-                .prepare(
-                    "SELECT kind, token FROM (
-                       SELECT 0 AS kind, e.token AS token, e.rowid AS age
-                       FROM vm_effects e
-                       WHERE e.state = 'completed'
-                         AND NOT EXISTS (
-                           SELECT 1 FROM vm_merge_branches b WHERE b.branch_token = e.token
-                         )
-                       UNION ALL
-                       SELECT 1 AS kind, g.token AS token, MIN(e.rowid) AS age
-                       FROM vm_merge_groups g
-                       JOIN vm_merge_branches b ON b.group_token = g.token
-                       JOIN vm_effects e ON e.token = b.branch_token
-                       WHERE g.state = 'completed'
-                       GROUP BY g.token
-                     ) ORDER BY age ASC, kind ASC, token ASC
-                     LIMIT ?1",
-                )
-                .map_err(|error| {
-                    journal_error("LSV4030", "failed to prepare journal compaction", error)
-                })?;
-            let rows = statement
-                .query_map([limit], |row| Ok((row.get(0)?, row.get(1)?)))
-                .map_err(|error| {
-                    journal_error("LSV4030", "failed to scan journal compaction", error)
-                })?;
-            rows.collect::<Result<Vec<RawCandidate>, _>>()
-                .map_err(|error| {
-                    journal_error("LSV4030", "failed to read journal compaction", error)
-                })?
-        };
-
-        let mut removed_units = 0usize;
-        let mut reclaimed_logical_bytes = 0usize;
-        for (kind, token) in candidates {
-            match kind {
-                0 => {
-                    let logical_bytes = completed_effect_logical_bytes(&transaction, &token)?;
-                    let deleted = transaction
-                        .execute(
-                            "DELETE FROM vm_effects
-                             WHERE token = ?1 AND state = 'completed'
-                               AND NOT EXISTS (
-                                 SELECT 1 FROM vm_merge_branches
-                                 WHERE branch_token = vm_effects.token
-                               )",
-                            [&token],
-                        )
-                        .map_err(|error| {
-                            journal_error(
-                                "LSV4030",
-                                "failed to delete completed journal record",
-                                error,
-                            )
-                        })?;
-                    if deleted != 1 {
-                        return Err(journal_fault(
-                            "LSV4030",
-                            "completed journal record changed during compaction",
-                        ));
-                    }
-                    reclaimed_logical_bytes = reclaimed_logical_bytes.saturating_add(logical_bytes);
-                }
-                1 => {
-                    reclaimed_logical_bytes = reclaimed_logical_bytes
-                        .saturating_add(delete_completed_merge_group(&transaction, &token)?);
-                }
-                _ => {
-                    return Err(journal_fault(
-                        "LSV4007",
-                        "journal compaction candidate kind is invalid",
-                    ));
-                }
-            }
-            removed_units += 1;
-        }
-        let pruned_tokens = stale_local_completed(&transaction, local_completed)?;
-        transaction.commit().map_err(|error| {
-            journal_error("LSV4030", "failed to commit journal compaction", error)
-        })?;
-        Ok(JournalCompaction {
-            remaining_completed: completed_count.saturating_sub(removed_units),
-            removed_records: removed_units,
-            pruned_tokens,
-            reclaimed_logical_bytes,
-        })
+        leselang_command::reference_compaction_commit::compact_durable(
+            compaction_commit::SqliteCompactionTransaction(transaction),
+            local_completed,
+            policy,
+        )
     }
 }
 
@@ -1432,22 +1218,10 @@ impl ReferenceRecordSource for SqliteRecoveryRecord<'_, '_> {
 
 #[cfg(feature = "sqlite-journal")]
 fn completed_effect_logical_bytes(connection: &Connection, token: &str) -> Result<usize, Fault> {
-    let bytes: i64 = connection
-        .query_row(
-            "SELECT length(e.image) + length(e.terminal_step) +
-                    COALESCE(length(d.request), 0) +
-                    COALESCE(length(d.last_error), 0)
-             FROM vm_effects e
-             LEFT JOIN vm_dispatches d ON d.token = e.token
-             WHERE e.token = ?1 AND e.state = 'completed'",
-            [token],
-            |row| row.get(0),
-        )
-        .map_err(|error| {
-            journal_error("LSV4030", "failed to size completed journal record", error)
-        })?;
-    usize::try_from(bytes)
-        .map_err(|_| journal_fault("LSV4007", "journal compaction size is invalid"))
+    leselang_command::reference_compaction_records::completed_effect_bytes(
+        &mut compaction_records::SqliteCompactionRead(connection),
+        token,
+    )
 }
 
 #[cfg(feature = "sqlite-journal")]
@@ -1455,95 +1229,10 @@ fn delete_completed_merge_group(
     transaction: &rusqlite::Transaction<'_>,
     group_token: &str,
 ) -> Result<usize, Fault> {
-    let (group_bytes, plan_bytes): (i64, Vec<u8>) = transaction
-        .query_row(
-            "SELECT length(plan) + length(terminal_step), plan
-             FROM vm_merge_groups WHERE token = ?1 AND state = 'completed'",
-            [group_token],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .map_err(|error| journal_error("LSV4030", "failed to size completed merge group", error))?;
-    let branches = {
-        let mut statement = transaction
-            .prepare(
-                "SELECT e.token,
-                        length(e.image) + length(e.terminal_step) +
-                        COALESCE(length(d.request), 0) +
-                        COALESCE(length(d.last_error), 0),
-                        e.state
-                 FROM vm_merge_branches b
-                 JOIN vm_effects e ON e.token = b.branch_token
-                 LEFT JOIN vm_dispatches d ON d.token = e.token
-                 WHERE b.group_token = ?1
-                 ORDER BY b.position ASC",
-            )
-            .map_err(|error| {
-                journal_error("LSV4030", "failed to prepare merge group deletion", error)
-            })?;
-        statement
-            .query_map([group_token], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, i64>(1)?,
-                    row.get::<_, String>(2)?,
-                ))
-            })
-            .map_err(|error| {
-                journal_error("LSV4030", "failed to scan merge group deletion", error)
-            })?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| {
-                journal_error("LSV4030", "failed to read merge group deletion", error)
-            })?
-    };
-    let plan: MergePlan = decode_bounded(&plan_bytes, MAX_CONTINUATION_BYTES)?;
-    validate_merge_plan(&plan)?;
-    if branches.len() != plan.branches.len()
-        || branches.iter().any(|(_, _, state)| state != "completed")
-    {
-        return Err(journal_fault(
-            "LSV4030",
-            "completed merge group has an incomplete branch set",
-        ));
-    }
-
-    let mut reclaimed = usize::try_from(group_bytes)
-        .map_err(|_| journal_fault("LSV4007", "merge group size is invalid"))?;
-    for (_, bytes, _) in &branches {
-        reclaimed = reclaimed.saturating_add(
-            usize::try_from(*bytes)
-                .map_err(|_| journal_fault("LSV4007", "merge branch size is invalid"))?,
-        );
-    }
-    let deleted = transaction
-        .execute(
-            "DELETE FROM vm_merge_groups WHERE token = ?1 AND state = 'completed'",
-            [group_token],
-        )
-        .map_err(|error| {
-            journal_error("LSV4030", "failed to delete completed merge group", error)
-        })?;
-    if deleted != 1 {
-        return Err(journal_fault(
-            "LSV4030",
-            "completed merge group changed during compaction",
-        ));
-    }
-    for (token, _, _) in branches {
-        let deleted = transaction
-            .execute(
-                "DELETE FROM vm_effects WHERE token = ?1 AND state = 'completed'",
-                [&token],
-            )
-            .map_err(|error| journal_error("LSV4030", "failed to delete merge branch", error))?;
-        if deleted != 1 {
-            return Err(journal_fault(
-                "LSV4030",
-                "merge branch changed during compaction",
-            ));
-        }
-    }
-    Ok(reclaimed)
+    leselang_command::reference_compaction_records::delete_completed_group(
+        &mut compaction_records::SqliteGroupCompaction(transaction),
+        group_token,
+    )
 }
 
 #[cfg(feature = "sqlite-journal")]
@@ -1551,37 +1240,10 @@ fn stale_local_completed(
     connection: &Connection,
     local_completed: &[(ContinuationToken, Step)],
 ) -> Result<Vec<ContinuationToken>, Fault> {
-    let mut statement = connection
-        .prepare("SELECT token FROM vm_effects WHERE state = 'completed'")
-        .map_err(|error| {
-            journal_error(
-                "LSV4030",
-                "failed to prepare completed journal reconciliation",
-                error,
-            )
-        })?;
-    let persisted = statement
-        .query_map([], |row| row.get::<_, String>(0))
-        .map_err(|error| {
-            journal_error(
-                "LSV4030",
-                "failed to scan completed journal reconciliation",
-                error,
-            )
-        })?
-        .collect::<Result<BTreeSet<_>, _>>()
-        .map_err(|error| {
-            journal_error(
-                "LSV4030",
-                "failed to read completed journal reconciliation",
-                error,
-            )
-        })?;
-    Ok(local_completed
-        .iter()
-        .filter(|(token, _)| !persisted.contains(token.as_str()))
-        .map(|(token, _)| token.clone())
-        .collect())
+    leselang_command::reference_compaction_records::stale_local_completed(
+        &mut compaction_records::SqliteCompactionRead(connection),
+        local_completed,
+    )
 }
 
 #[cfg(feature = "sqlite-journal")]
@@ -1654,22 +1316,10 @@ fn finalize_merge_group(
 
 #[cfg(feature = "sqlite-journal")]
 fn ensure_sequence_ready(connection: &Connection, token: &str) -> Result<(), Fault> {
-    let blocked: bool = connection.query_row(
-        "SELECT EXISTS (
-           SELECT 1 FROM vm_merge_branches own
-           JOIN vm_merge_groups g ON g.token = own.group_token
-           JOIN vm_merge_branches prior ON prior.group_token = own.group_token AND prior.position < own.position
-           JOIN vm_effects e ON e.token = prior.branch_token
-           WHERE own.branch_token = ?1 AND g.execution_order = 'sequential' AND e.state != 'completed'
-         )", [token], |row| row.get(0)
-    ).map_err(|error| journal_error("LSV4033", "failed to check sequential predecessor", error))?;
-    if blocked {
-        return Err(journal_fault(
-            "LSV2410",
-            "sequential predecessor has not completed",
-        ));
-    }
-    Ok(())
+    leselang_command::reference_sequence_gate::ensure_durable(
+        &mut sequence_gate::SqliteSequenceJournal(connection),
+        token,
+    )
 }
 
 #[cfg(feature = "sqlite-journal")]

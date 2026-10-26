@@ -531,11 +531,11 @@ mod tests {
     };
     use leselang_hir::lower;
     use leselang_syntax::parse;
-    use leselang_vm::{EffectOperation, Step, Vm};
     use leserpent_domain::{
         CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_READ, CapabilitySet, CommandId,
         CommandOrigin, Confirmation, IdempotencyKey, Principal, Query, Revision,
     };
+    use leserpent_vm::{EffectOperation, Step, Vm};
 
     use super::*;
 

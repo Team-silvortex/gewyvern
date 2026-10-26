@@ -4,8 +4,8 @@ use leselang_command::{
     CommandPlan, ContinuationImage, DebuggerAuditContext, DebuggerCancelResult, encode_continuation,
 };
 use leselang_ui::{DebuggerProjection, DebuggerState};
-use leselang_vm::Vm;
 use leserpent_domain::PlannedOperation;
+use leserpent_vm::Vm;
 
 use crate::{
     DebuggerMutationResult, DebuggerMutationStatus, ObserveError, inspect_debugger_cancel_plan,

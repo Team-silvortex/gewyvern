@@ -2,11 +2,11 @@
 use leselang_hir::lower;
 use leselang_host_contract::{CapabilitySet, CommandOrigin, Principal, Revision};
 use leselang_syntax::parse;
-use leselang_vm::{
+use leserpent_domain::{CommandId, IdempotencyKey};
+use leserpent_vm::{
     DebuggerAuditContext, EffectRequest, EffectResult, PresentationResult, RetentionPolicy, Step,
     Vm,
 };
-use leserpent_domain::{CommandId, IdempotencyKey};
 
 fn start(vm: &mut Vm, source: &str) -> EffectRequest {
     let Step::Effect(request) = start_step(vm, source) else {

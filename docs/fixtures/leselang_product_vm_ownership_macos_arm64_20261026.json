@@ -1,0 +1,899 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-product-executor-ownership",
+  "validated_at": "2026-10-26",
+  "product_version": "2.5.0",
+  "verification_status": "passed",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "migration_baseline": "Pre-move working tree, including the uncommitted sequence/compaction extraction slices; not the HEAD-only tree.",
+  "moved_source_files": 99,
+  "byte_identical_files": 96,
+  "import_only_files": 3,
+  "legacy_api_is_exact_reexport": true,
+  "daemon_and_observation_use_product_owner": true,
+  "ci_unit_gates_follow_new_owner": true,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "file_count": 280,
+    "bytes": 6784530,
+    "manifest_sha256": "5c8e4269c18c899c89b7629427d163c837b5c9a2ed0acfdac848fa2ca8fc1101",
+    "verification_target_removed": true,
+    "complete_vm": false,
+    "full_extraction_gate": false
+  },
+  "verification_scope": "Local Rust product/compatibility suites, separately compiled memory and native profiles, strict Clippy, source-export workspace and external consumer tests/lints. Daemon debugger tests used permitted local sockets after the restricted run could not bind. No remote CI, live GUI, Linux host, external repository publication or performance claim.",
+  "migrations": [
+    {
+      "original_path": "crates/leselang-vm/src/admission.rs",
+      "path": "crates/leserpent-vm/src/admission.rs",
+      "before_sha256": "8ffa23ac495a91a9a8c4815cc192f9736a800dec557ea6f7399e5a0010284c20",
+      "sha256": "f528325e8944e7c5c09c380d8ee8704de151a07f666fddc4327d0bd40ee9f1c5",
+      "change": "crate-import-only"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/admission_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/admission_contract_tests.rs",
+      "before_sha256": "242b58e6d1ce5cf2dead3feadadfe409717dd3e430045f0b12dd20fe515291c7",
+      "sha256": "242b58e6d1ce5cf2dead3feadadfe409717dd3e430045f0b12dd20fe515291c7",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/adoption_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/adoption_contract_tests.rs",
+      "before_sha256": "ad83d9239236c94df80963f9faffb1ae417d4d319f1f5b322ee29330905395c0",
+      "sha256": "ad83d9239236c94df80963f9faffb1ae417d4d319f1f5b322ee29330905395c0",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/allocation_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/allocation_contract_tests.rs",
+      "before_sha256": "eadfa5822f5835727a5c07ce414757293986e003272858f38615726d595c2431",
+      "sha256": "eadfa5822f5835727a5c07ce414757293986e003272858f38615726d595c2431",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/bounded_decode_tests.rs",
+      "path": "crates/leserpent-vm/src/bounded_decode_tests.rs",
+      "before_sha256": "2e32dd6206078545b5f6fa2512b4566e3a17f7ba424a238d21b64318654cfb87",
+      "sha256": "2e32dd6206078545b5f6fa2512b4566e3a17f7ba424a238d21b64318654cfb87",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/bounded_json_tests.rs",
+      "path": "crates/leserpent-vm/src/bounded_json_tests.rs",
+      "before_sha256": "e211dff8c87fa5e33bf8f5bf038be5a53b9af9507bdb24046b6b14a065c4ee38",
+      "sha256": "e211dff8c87fa5e33bf8f5bf038be5a53b9af9507bdb24046b6b14a065c4ee38",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/cancellation_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/cancellation_contract_tests.rs",
+      "before_sha256": "1b2fe07f12cbf7ad6234815522eb9f0b25030fd82f9a7e5cf64b7f65dbcaf80e",
+      "sha256": "1b2fe07f12cbf7ad6234815522eb9f0b25030fd82f9a7e5cf64b7f65dbcaf80e",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/claim_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/claim_contract_tests.rs",
+      "before_sha256": "153bb7b4c3eb1fbb4b90f540bd95c7a83713530805d0cab79cbc75d3091cc82c",
+      "sha256": "153bb7b4c3eb1fbb4b90f540bd95c7a83713530805d0cab79cbc75d3091cc82c",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/completion_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/completion_contract_tests.rs",
+      "before_sha256": "d9d6f3da6bf67a9f6d7a00f8ef81c8678a11ab0ce22b016c3a59035eb509c60f",
+      "sha256": "d9d6f3da6bf67a9f6d7a00f8ef81c8678a11ab0ce22b016c3a59035eb509c60f",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/computation.rs",
+      "path": "crates/leserpent-vm/src/computation.rs",
+      "before_sha256": "f1eaf23b34e01ab4a65048c24e3f495feb60bd7aca3076605026ecb8a8c76f66",
+      "sha256": "f1eaf23b34e01ab4a65048c24e3f495feb60bd7aca3076605026ecb8a8c76f66",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/computation_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/computation_contract_tests.rs",
+      "before_sha256": "f39bf3bb4ce973bfa2798aaf08e338f9d81ce6c7a637c9c17dad4757af39b996",
+      "sha256": "f39bf3bb4ce973bfa2798aaf08e338f9d81ce6c7a637c9c17dad4757af39b996",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/computation_contract_tests/frozen.rs",
+      "path": "crates/leserpent-vm/src/computation_contract_tests/frozen.rs",
+      "before_sha256": "1736109a02b5fcb6ac419ae3f6eafd82d20d9cb3122a9fec36c060d8eb7bcba5",
+      "sha256": "1736109a02b5fcb6ac419ae3f6eafd82d20d9cb3122a9fec36c060d8eb7bcba5",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/continuation_codec_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/continuation_codec_contract_tests.rs",
+      "before_sha256": "18547f6ae49e37110a265f67cfe2a11020aec5feee22b95179d85884844b7bb3",
+      "sha256": "18547f6ae49e37110a265f67cfe2a11020aec5feee22b95179d85884844b7bb3",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/continuation_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/continuation_contract_tests.rs",
+      "before_sha256": "7e200a10449a9dc5de6c5abdda911e15459a140c9995d77fb646af8f7ce076f2",
+      "sha256": "7e200a10449a9dc5de6c5abdda911e15459a140c9995d77fb646af8f7ce076f2",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/continuation_schema_tests.rs",
+      "path": "crates/leserpent-vm/src/continuation_schema_tests.rs",
+      "before_sha256": "ae92de91b9d2ba7a2007da3674a9ae5fb3e6291ae89bc8ce81ea7abbc7c0b825",
+      "sha256": "ae92de91b9d2ba7a2007da3674a9ae5fb3e6291ae89bc8ce81ea7abbc7c0b825",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/control_plane_reply_tests.rs",
+      "path": "crates/leserpent-vm/src/control_plane_reply_tests.rs",
+      "before_sha256": "f2b9eca87e7a4a5fa6ceb3d770eed7285c6da5976af45b988af3d43ed794ad80",
+      "sha256": "f2b9eca87e7a4a5fa6ceb3d770eed7285c6da5976af45b988af3d43ed794ad80",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/control_plane_request_tests.rs",
+      "path": "crates/leserpent-vm/src/control_plane_request_tests.rs",
+      "before_sha256": "006be242c4ee983a8b03a6c76f8e4e72e0774b32ae316b510d3e40996d93d5b4",
+      "sha256": "006be242c4ee983a8b03a6c76f8e4e72e0774b32ae316b510d3e40996d93d5b4",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/debugger_audit_adapter_tests.rs",
+      "path": "crates/leserpent-vm/src/debugger_audit_adapter_tests.rs",
+      "before_sha256": "26a95922261f5884c1c6a23bbd429f3bf76f7c5dc432886c9936708a84c91b07",
+      "sha256": "26a95922261f5884c1c6a23bbd429f3bf76f7c5dc432886c9936708a84c91b07",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/debugger_audit_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/debugger_audit_contract_tests.rs",
+      "before_sha256": "fdbe930dc55b9f01ac2465af60306c04728a90d388e9d0d0ba9b0280c70b51a7",
+      "sha256": "694bdb03f196818843bbe3ccc84b555de39da406adc681360ec571d6c90d7f22",
+      "change": "crate-import-only"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/execution_outcome_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/execution_outcome_contract_tests.rs",
+      "before_sha256": "cab180c5c8f2c1814e7af75158fd1f4a00f5e7b25abe80357018f3de2d2cd4eb",
+      "sha256": "cab180c5c8f2c1814e7af75158fd1f4a00f5e7b25abe80357018f3de2d2cd4eb",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/group_binding.rs",
+      "path": "crates/leserpent-vm/src/group_binding.rs",
+      "before_sha256": "537fccd6c74cf22340338c41d22cacafd4c890fe340d10144dba240ba415885d",
+      "sha256": "537fccd6c74cf22340338c41d22cacafd4c890fe340d10144dba240ba415885d",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/group_execution_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/group_execution_contract_tests.rs",
+      "before_sha256": "9a413fdc82a91640f945e5766e23cb657730311a4d653ee7cd1a2dfe6ba8bf49",
+      "sha256": "9a413fdc82a91640f945e5766e23cb657730311a4d653ee7cd1a2dfe6ba8bf49",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/group_plan_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/group_plan_contract_tests.rs",
+      "before_sha256": "f3766547e60de2bf88ea42b01d837fafe848a50dfb99f2092e526c9ad79fccb1",
+      "sha256": "f3766547e60de2bf88ea42b01d837fafe848a50dfb99f2092e526c9ad79fccb1",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/group_protocol_tests.rs",
+      "path": "crates/leserpent-vm/src/group_protocol_tests.rs",
+      "before_sha256": "eca3eb254904f5b4dc751d29889d7eeb3a1849d9b859620e56f94f6292be7c3b",
+      "sha256": "eca3eb254904f5b4dc751d29889d7eeb3a1849d9b859620e56f94f6292be7c3b",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/group_request_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/group_request_contract_tests.rs",
+      "before_sha256": "2a5f93c6336636171df165ebf120aa62df9bb9d65f7ca566ad71e623e5a86f61",
+      "sha256": "2a5f93c6336636171df165ebf120aa62df9bb9d65f7ca566ad71e623e5a86f61",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/group_start_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/group_start_contract_tests.rs",
+      "before_sha256": "5953b044902fcf32f109b60185b2f6bda1bcf1ed5900da9a8d5d5baa55b68cd3",
+      "sha256": "5953b044902fcf32f109b60185b2f6bda1bcf1ed5900da9a8d5d5baa55b68cd3",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/group_successor_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/group_successor_contract_tests.rs",
+      "before_sha256": "4af975535b088209e34a1c94e24c6c304ba498d4c4deceeb80ebc78c0714780b",
+      "sha256": "4af975535b088209e34a1c94e24c6c304ba498d4c4deceeb80ebc78c0714780b",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/host_result.rs",
+      "path": "crates/leserpent-vm/src/host_result.rs",
+      "before_sha256": "eb7f506e324002f9283eb2d22396e64f7ada4c3d6ec0930ba926631c2aad6aa2",
+      "sha256": "eb7f506e324002f9283eb2d22396e64f7ada4c3d6ec0930ba926631c2aad6aa2",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/identity_outcome_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/identity_outcome_contract_tests.rs",
+      "before_sha256": "a31fee5beb2ab762c2bd1d05fe7af3e0359aa0c4b263c4942a5b7f9afa000de4",
+      "sha256": "a31fee5beb2ab762c2bd1d05fe7af3e0359aa0c4b263c4942a5b7f9afa000de4",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal.rs",
+      "path": "crates/leserpent-vm/src/journal.rs",
+      "before_sha256": "517249729dc7ee54a532de93eb90a759ad27387890333ab3720281c71cc181a8",
+      "sha256": "517249729dc7ee54a532de93eb90a759ad27387890333ab3720281c71cc181a8",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/acknowledgement_commit.rs",
+      "path": "crates/leserpent-vm/src/journal/acknowledgement_commit.rs",
+      "before_sha256": "a0da6e33094ceec9e7456b4403618e01b1dff7abfd88329020275bf60655e8f3",
+      "sha256": "a0da6e33094ceec9e7456b4403618e01b1dff7abfd88329020275bf60655e8f3",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/acknowledgement_commit_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/acknowledgement_commit_contract_tests.rs",
+      "before_sha256": "303f066c16b664cfc9e636e3f5b9f82695413419c2eb1e04e13e6e4c427666eb",
+      "sha256": "303f066c16b664cfc9e636e3f5b9f82695413419c2eb1e04e13e6e4c427666eb",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/audit_commit.rs",
+      "path": "crates/leserpent-vm/src/journal/audit_commit.rs",
+      "before_sha256": "823081e54daf141ee60e19a0faa4be86643f16272fa4b975885d4229c9188247",
+      "sha256": "823081e54daf141ee60e19a0faa4be86643f16272fa4b975885d4229c9188247",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/audit_commit_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/audit_commit_contract_tests.rs",
+      "before_sha256": "524f386d9ee3f93d99146d54a91076fe56e023f16a755ffcd36e151eda196d33",
+      "sha256": "524f386d9ee3f93d99146d54a91076fe56e023f16a755ffcd36e151eda196d33",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/audit_read.rs",
+      "path": "crates/leserpent-vm/src/journal/audit_read.rs",
+      "before_sha256": "90d2998f327a0b8e225e05ecf7410ef38400bf996f45752ece34dd44a3f52f47",
+      "sha256": "90d2998f327a0b8e225e05ecf7410ef38400bf996f45752ece34dd44a3f52f47",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/audit_read_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/audit_read_contract_tests.rs",
+      "before_sha256": "79afe2f4671a1a452698620eeb3ab0625da541f59e73400122b31d89d095a58d",
+      "sha256": "79afe2f4671a1a452698620eeb3ab0625da541f59e73400122b31d89d095a58d",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/audit_recovery_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/audit_recovery_contract_tests.rs",
+      "before_sha256": "b43ccef615f9f94b8e7715f1c82ddf986e55cd348c9f20bec690cdb2f98d34a2",
+      "sha256": "b43ccef615f9f94b8e7715f1c82ddf986e55cd348c9f20bec690cdb2f98d34a2",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/bound_record_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/bound_record_contract_tests.rs",
+      "before_sha256": "a3b2bd8c8c806dbd9526eb7941891e2f8de72c23f2aac10571bb061fc067e1a2",
+      "sha256": "a3b2bd8c8c806dbd9526eb7941891e2f8de72c23f2aac10571bb061fc067e1a2",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/bounded_decode_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/bounded_decode_tests.rs",
+      "before_sha256": "d9fb4eddbe8b40e14cd72f4edbbb74ac1635838189213f0c8b1bd9b516b58391",
+      "sha256": "d9fb4eddbe8b40e14cd72f4edbbb74ac1635838189213f0c8b1bd9b516b58391",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/cancellation_commit.rs",
+      "path": "crates/leserpent-vm/src/journal/cancellation_commit.rs",
+      "before_sha256": "4a64bef40fac2a813f014f6f3526b1b362a0f5e3e6af4a81cac4544c8cb85e84",
+      "sha256": "4a64bef40fac2a813f014f6f3526b1b362a0f5e3e6af4a81cac4544c8cb85e84",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/cancellation_commit_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/cancellation_commit_contract_tests.rs",
+      "before_sha256": "ec10d8c843ed2989d8a8e8e500b91e9dc300861d9788d39a91bcd15b573dc72f",
+      "sha256": "ec10d8c843ed2989d8a8e8e500b91e9dc300861d9788d39a91bcd15b573dc72f",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/claim_commit.rs",
+      "path": "crates/leserpent-vm/src/journal/claim_commit.rs",
+      "before_sha256": "5fd55a894f23cd9cf220a449b5b6514d2a7c909341abcfa5f3417e9bcd5c68fc",
+      "sha256": "5fd55a894f23cd9cf220a449b5b6514d2a7c909341abcfa5f3417e9bcd5c68fc",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/claim_commit_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/claim_commit_contract_tests.rs",
+      "before_sha256": "7fecf02387adc564958c27977e0bf9a75700042a549a728b4a3d928d4e0fb2a9",
+      "sha256": "7fecf02387adc564958c27977e0bf9a75700042a549a728b4a3d928d4e0fb2a9",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/compaction_commit.rs",
+      "path": "crates/leserpent-vm/src/journal/compaction_commit.rs",
+      "before_sha256": "70876f9f380078bca5a9b995182f3b63d685d24fc8b3278c0c4b28023e13ecce",
+      "sha256": "70876f9f380078bca5a9b995182f3b63d685d24fc8b3278c0c4b28023e13ecce",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/compaction_commit_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/compaction_commit_contract_tests.rs",
+      "before_sha256": "1f88310f368b813ea9672f14067283a48a370e294a47f5f47c758c85297718f1",
+      "sha256": "1f88310f368b813ea9672f14067283a48a370e294a47f5f47c758c85297718f1",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/compaction_records.rs",
+      "path": "crates/leserpent-vm/src/journal/compaction_records.rs",
+      "before_sha256": "72b2267c57fc85917537b1a21ed6a7e5014a56bd300c09924a5cae2c0fd9d7a5",
+      "sha256": "72b2267c57fc85917537b1a21ed6a7e5014a56bd300c09924a5cae2c0fd9d7a5",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/compaction_records_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/compaction_records_contract_tests.rs",
+      "before_sha256": "e9cb8f2303a19cc4286deca6e53c364c9abf7bd13da753b502a767bd25aa759b",
+      "sha256": "e9cb8f2303a19cc4286deca6e53c364c9abf7bd13da753b502a767bd25aa759b",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/completion_commit.rs",
+      "path": "crates/leserpent-vm/src/journal/completion_commit.rs",
+      "before_sha256": "9a702e65912fc1df0d6759158eeeccf6e76a19442f45c1166ddcc5e48c791c97",
+      "sha256": "9a702e65912fc1df0d6759158eeeccf6e76a19442f45c1166ddcc5e48c791c97",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/completion_commit_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/completion_commit_contract_tests.rs",
+      "before_sha256": "adff6fc473cde9d92521dbe46c7e33a4f93c14c159726465c51b3d2296b24c7e",
+      "sha256": "adff6fc473cde9d92521dbe46c7e33a4f93c14c159726465c51b3d2296b24c7e",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/dispatch_recovery_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/dispatch_recovery_contract_tests.rs",
+      "before_sha256": "75f0e9b3ff7d4ddf4e2a359d6c2d279d82fc95e5990a3d9e646f0eb39234b3b4",
+      "sha256": "75f0e9b3ff7d4ddf4e2a359d6c2d279d82fc95e5990a3d9e646f0eb39234b3b4",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/expiration_commit.rs",
+      "path": "crates/leserpent-vm/src/journal/expiration_commit.rs",
+      "before_sha256": "c54dedaced8815fa16aa21cf0edfef5dff1ea1998bccfa857e1624d1c83eaf39",
+      "sha256": "c54dedaced8815fa16aa21cf0edfef5dff1ea1998bccfa857e1624d1c83eaf39",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/expiration_commit_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/expiration_commit_contract_tests.rs",
+      "before_sha256": "675131f197c58c921a04ee780f6dfdf5c7919c3b920313e913871597c233c0c5",
+      "sha256": "675131f197c58c921a04ee780f6dfdf5c7919c3b920313e913871597c233c0c5",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/finalization_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/finalization_contract_tests.rs",
+      "before_sha256": "d0f1c02dfc5bf5ab27c42f7ae1738f86143c0794d4b82746f6958bbc31e60ad7",
+      "sha256": "d0f1c02dfc5bf5ab27c42f7ae1738f86143c0794d4b82746f6958bbc31e60ad7",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/group_binding.rs",
+      "path": "crates/leserpent-vm/src/journal/group_binding.rs",
+      "before_sha256": "3446466a8d69e7b02ba9bfdaa6b4562dae2004f133ae286591b13de0704885a5",
+      "sha256": "3446466a8d69e7b02ba9bfdaa6b4562dae2004f133ae286591b13de0704885a5",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/group_finalization.rs",
+      "path": "crates/leserpent-vm/src/journal/group_finalization.rs",
+      "before_sha256": "d95d35885a9ba697c7dcd7b247462868308686c0b622ca57ec9626c0bd1f99da",
+      "sha256": "d95d35885a9ba697c7dcd7b247462868308686c0b622ca57ec9626c0bd1f99da",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/group_finalization_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/group_finalization_contract_tests.rs",
+      "before_sha256": "c9032fab258811f502886bbc96acb913cb3c2ac4aefd471a551b1431b2ef78f4",
+      "sha256": "c9032fab258811f502886bbc96acb913cb3c2ac4aefd471a551b1431b2ef78f4",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/group_progress.rs",
+      "path": "crates/leserpent-vm/src/journal/group_progress.rs",
+      "before_sha256": "1a9b93a41e1b2ea0c6a09a6a25c3288fe129e7b9fa0c85aea5fae8ec78c1d648",
+      "sha256": "1a9b93a41e1b2ea0c6a09a6a25c3288fe129e7b9fa0c85aea5fae8ec78c1d648",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/group_progress_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/group_progress_contract_tests.rs",
+      "before_sha256": "429c1784715012e01ac7d525ba080b6e442d79556d09f8a060147d8a5e34d0ec",
+      "sha256": "429c1784715012e01ac7d525ba080b6e442d79556d09f8a060147d8a5e34d0ec",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/group_recovery_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/group_recovery_contract_tests.rs",
+      "before_sha256": "cb528045c5a41e30aacdc54250381bb50f20d8fa1b45bf065808f20723954a6d",
+      "sha256": "cb528045c5a41e30aacdc54250381bb50f20d8fa1b45bf065808f20723954a6d",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/group_successor_commit.rs",
+      "path": "crates/leserpent-vm/src/journal/group_successor_commit.rs",
+      "before_sha256": "bdf7ceae2c8814b58dc923f37c0ffee48223d9314d452d85da3f57b743ce94ab",
+      "sha256": "bdf7ceae2c8814b58dc923f37c0ffee48223d9314d452d85da3f57b743ce94ab",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/group_successor_commit_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/group_successor_commit_contract_tests.rs",
+      "before_sha256": "2eda3d5e09d271853e0bb020284598e8421a173e83987085a1ee166f14f72fdd",
+      "sha256": "2eda3d5e09d271853e0bb020284598e8421a173e83987085a1ee166f14f72fdd",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/merge_graph_commit.rs",
+      "path": "crates/leserpent-vm/src/journal/merge_graph_commit.rs",
+      "before_sha256": "8f886df5b2048ee6fbc54a7b802f6c9628413963957eb0496344cf2d82d34f0e",
+      "sha256": "8f886df5b2048ee6fbc54a7b802f6c9628413963957eb0496344cf2d82d34f0e",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/merge_graph_commit_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/merge_graph_commit_contract_tests.rs",
+      "before_sha256": "ae38e70ed0cf28bc3dbaaac8fc6343191162d150cadd1ff8eedbaf39824fdc5a",
+      "sha256": "ae38e70ed0cf28bc3dbaaac8fc6343191162d150cadd1ff8eedbaf39824fdc5a",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/pending_commit.rs",
+      "path": "crates/leserpent-vm/src/journal/pending_commit.rs",
+      "before_sha256": "bf0fc9614fd9227d83ddaa1702c6d25bdc6f810c270449a4122788a867be4259",
+      "sha256": "bf0fc9614fd9227d83ddaa1702c6d25bdc6f810c270449a4122788a867be4259",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/pending_commit_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/pending_commit_contract_tests.rs",
+      "before_sha256": "d06e6e9451317f31c7d22002b55d8c5622e46b4c88cafc90ba277aee12cd6f6c",
+      "sha256": "d06e6e9451317f31c7d22002b55d8c5622e46b4c88cafc90ba277aee12cd6f6c",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/record_recovery_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/record_recovery_contract_tests.rs",
+      "before_sha256": "5973d4752cb91f18ba125947cb73219988f4f2b48edb16558262c08ac4da49c1",
+      "sha256": "5973d4752cb91f18ba125947cb73219988f4f2b48edb16558262c08ac4da49c1",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/reference_completion_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/reference_completion_contract_tests.rs",
+      "before_sha256": "133b1f33c977fc1c2326b821ebc7a5e50f6759340d80e7aec2c9b33fedbcced2",
+      "sha256": "133b1f33c977fc1c2326b821ebc7a5e50f6759340d80e7aec2c9b33fedbcced2",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/retention_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/retention_tests.rs",
+      "before_sha256": "e999489879b9bdc1176787202f73bb60b2bee55f75ba3974ae9e6fc259f04500",
+      "sha256": "e999489879b9bdc1176787202f73bb60b2bee55f75ba3974ae9e6fc259f04500",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/retry_commit.rs",
+      "path": "crates/leserpent-vm/src/journal/retry_commit.rs",
+      "before_sha256": "1efd35f8d5008f314a7ebcf5764773402a4dc601ade8e10edd6dffc94f09b086",
+      "sha256": "1efd35f8d5008f314a7ebcf5764773402a4dc601ade8e10edd6dffc94f09b086",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/retry_commit_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/retry_commit_contract_tests.rs",
+      "before_sha256": "712a775964c77fb1e588db8b8b6ccaeede2da574fe600843c6a44c19b859db9f",
+      "sha256": "712a775964c77fb1e588db8b8b6ccaeede2da574fe600843c6a44c19b859db9f",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/schema_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/schema_contract_tests.rs",
+      "before_sha256": "daf6886f0395fb9ac205d063c2a6ff217a784aad80c7845bf73781e8b847af6f",
+      "sha256": "daf6886f0395fb9ac205d063c2a6ff217a784aad80c7845bf73781e8b847af6f",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/sequence_gate.rs",
+      "path": "crates/leserpent-vm/src/journal/sequence_gate.rs",
+      "before_sha256": "7e44666fd8d49175db597fc7ee3f08160305b56476bf0775fae6cb64ac3ba3c5",
+      "sha256": "7e44666fd8d49175db597fc7ee3f08160305b56476bf0775fae6cb64ac3ba3c5",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/sequence_gate_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/journal/sequence_gate_contract_tests.rs",
+      "before_sha256": "dd0d19e6d8dda32dba34644ae91dedf778ef19fbba1c8f3cdaabed0149e8b5a5",
+      "sha256": "dd0d19e6d8dda32dba34644ae91dedf778ef19fbba1c8f3cdaabed0149e8b5a5",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/journal/successor.rs",
+      "path": "crates/leserpent-vm/src/journal/successor.rs",
+      "before_sha256": "0835a2209a2c832cbe88a6bd2cee6597485a006285a3e9b3f6894fa41a7d727c",
+      "sha256": "0835a2209a2c832cbe88a6bd2cee6597485a006285a3e9b3f6894fa41a7d727c",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "path": "crates/leserpent-vm/src/leserpent_profile.rs",
+      "before_sha256": "b5b38411bcf0e74bed163a8adf2b6d7e88280dd83677abca991f242d930ef5aa",
+      "sha256": "502f69cadbe9b6a3a9c60cedd50e32bdcf862146bbb04d09ca88b1383e9ce44a",
+      "change": "crate-import-only"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/maintenance_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/maintenance_contract_tests.rs",
+      "before_sha256": "64aa78f618b224689df67d7a7e71eabac89ba21e1ea676e6e5e1af7148d4ff79",
+      "sha256": "64aa78f618b224689df67d7a7e71eabac89ba21e1ea676e6e5e1af7148d4ff79",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/merge_completion_tests.rs",
+      "path": "crates/leserpent-vm/src/merge_completion_tests.rs",
+      "before_sha256": "ae37a47dfec4ee049aae2558ffd56fc4498b4bd8e20af814ff92f2d37e3a04fe",
+      "sha256": "ae37a47dfec4ee049aae2558ffd56fc4498b4bd8e20af814ff92f2d37e3a04fe",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/merge_plan_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/merge_plan_contract_tests.rs",
+      "before_sha256": "f5b2b4b1313ff59f9ba52d98c16774ce280546c85c23d0196a93aab824e520fa",
+      "sha256": "f5b2b4b1313ff59f9ba52d98c16774ce280546c85c23d0196a93aab824e520fa",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/operation_request_tests.rs",
+      "path": "crates/leserpent-vm/src/operation_request_tests.rs",
+      "before_sha256": "bcd06ad852f0386c4c74d22feb64734a40d64715957e8060b4183403f714ed23",
+      "sha256": "bcd06ad852f0386c4c74d22feb64734a40d64715957e8060b4183403f714ed23",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/presentation_request_tests.rs",
+      "path": "crates/leserpent-vm/src/presentation_request_tests.rs",
+      "before_sha256": "47172cbc13d53b80cf76376a2844a6de66942c283f3ebdbe8f7359bec3585c86",
+      "sha256": "47172cbc13d53b80cf76376a2844a6de66942c283f3ebdbe8f7359bec3585c86",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/publication_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/publication_contract_tests.rs",
+      "before_sha256": "8447403063ff804b842ab05122f9db11ac19b9de03912d2e9a4dbc66fe308507",
+      "sha256": "8447403063ff804b842ab05122f9db11ac19b9de03912d2e9a4dbc66fe308507",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/reference_value_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/reference_value_contract_tests.rs",
+      "before_sha256": "e82b13da7574fe4b38648fecbe589ed8c93f711c0636472b0c4f86f682c47168",
+      "sha256": "e82b13da7574fe4b38648fecbe589ed8c93f711c0636472b0c4f86f682c47168",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/reply_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/reply_contract_tests.rs",
+      "before_sha256": "4d4f9eab78a4b4054970f3008ee7fca1661255c4c156451a5234a5d613bfe861",
+      "sha256": "4d4f9eab78a4b4054970f3008ee7fca1661255c4c156451a5234a5d613bfe861",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/request_codec_tests.rs",
+      "path": "crates/leserpent-vm/src/request_codec_tests.rs",
+      "before_sha256": "dbce6cccc409382335dfeb99bb25947d04b612a4bc490257bc47f9ad30d5062b",
+      "sha256": "dbce6cccc409382335dfeb99bb25947d04b612a4bc490257bc47f9ad30d5062b",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/restore_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/restore_contract_tests.rs",
+      "before_sha256": "4c54a859c8489d36bd2f1cf74fb1bc13f14528e289d234f95e780927a2a6a991",
+      "sha256": "4c54a859c8489d36bd2f1cf74fb1bc13f14528e289d234f95e780927a2a6a991",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/result_binding.rs",
+      "path": "crates/leserpent-vm/src/result_binding.rs",
+      "before_sha256": "3e417a996585c94e695bb083358307e8ad80f87614e6ee52c3dd021db3814a4f",
+      "sha256": "3e417a996585c94e695bb083358307e8ad80f87614e6ee52c3dd021db3814a4f",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/result_conversion_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/result_conversion_contract_tests.rs",
+      "before_sha256": "f6d71c8f66e738eba654451e0a58b091d50153f7b11fd3a784a0e3ab59c4f5d4",
+      "sha256": "f6d71c8f66e738eba654451e0a58b091d50153f7b11fd3a784a0e3ab59c4f5d4",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/retry_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/retry_contract_tests.rs",
+      "before_sha256": "75b66a785dfb90dccc7dd66133a1da1c6fbe4edf7f9c8b18acbb98ea45470265",
+      "sha256": "75b66a785dfb90dccc7dd66133a1da1c6fbe4edf7f9c8b18acbb98ea45470265",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/retry_policy_adapter_tests.rs",
+      "path": "crates/leserpent-vm/src/retry_policy_adapter_tests.rs",
+      "before_sha256": "99d258a4ec74434bb59720be0830086c42bfa0c7b72094386301a9882edaf6c9",
+      "sha256": "99d258a4ec74434bb59720be0830086c42bfa0c7b72094386301a9882edaf6c9",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/scheduling.rs",
+      "path": "crates/leserpent-vm/src/scheduling.rs",
+      "before_sha256": "8609b7c13acc05609a18bdc6361cb4e80fa38e77e9eccb3e7a86acb95474631e",
+      "sha256": "8609b7c13acc05609a18bdc6361cb4e80fa38e77e9eccb3e7a86acb95474631e",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/scheduling_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/scheduling_contract_tests.rs",
+      "before_sha256": "09656148f74e6d8ff472ad3fdf187b2d5e58f6d06a9bc8d0cd1f17bf12d896e1",
+      "sha256": "09656148f74e6d8ff472ad3fdf187b2d5e58f6d06a9bc8d0cd1f17bf12d896e1",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/settlement_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/settlement_contract_tests.rs",
+      "before_sha256": "4367dea9732f2032fe03da1c432d36779cd72661a0e963ced5f5874d41575114",
+      "sha256": "4367dea9732f2032fe03da1c432d36779cd72661a0e963ced5f5874d41575114",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/start_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/start_contract_tests.rs",
+      "before_sha256": "d11951a199869a3a2ca504fc4034985f4608b721f2467370e8c934c8b0dd8e0d",
+      "sha256": "d11951a199869a3a2ca504fc4034985f4608b721f2467370e8c934c8b0dd8e0d",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/startup_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/startup_contract_tests.rs",
+      "before_sha256": "d75140258ed372fa9f3aaa472831a9eb435c017e7c822c4234b8e2c3b252d63c",
+      "sha256": "d75140258ed372fa9f3aaa472831a9eb435c017e7c822c4234b8e2c3b252d63c",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/successor.rs",
+      "path": "crates/leserpent-vm/src/successor.rs",
+      "before_sha256": "995bc58a237d68d919ec254e40a925174a9c23e5f9ef9216d339487c8d91b79b",
+      "sha256": "995bc58a237d68d919ec254e40a925174a9c23e5f9ef9216d339487c8d91b79b",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/successor_assembly_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/successor_assembly_contract_tests.rs",
+      "before_sha256": "6533fac7f0846a336bd256659ccecf7333f1a11308480c701e1fdc171214774c",
+      "sha256": "6533fac7f0846a336bd256659ccecf7333f1a11308480c701e1fdc171214774c",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/successor_pair_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/successor_pair_contract_tests.rs",
+      "before_sha256": "9595b1a3104468034428e1bef4d2469881f0eedc467471e575ef8177a86eafdf",
+      "sha256": "9595b1a3104468034428e1bef4d2469881f0eedc467471e575ef8177a86eafdf",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/value_validation_tests.rs",
+      "path": "crates/leserpent-vm/src/value_validation_tests.rs",
+      "before_sha256": "d63e1c685bd12bbfd8088a16d218e283a80f00560ff624f923f95fc152bbafac",
+      "sha256": "d63e1c685bd12bbfd8088a16d218e283a80f00560ff624f923f95fc152bbafac",
+      "change": "byte-identical-move"
+    },
+    {
+      "original_path": "crates/leselang-vm/src/visibility_contract_tests.rs",
+      "path": "crates/leserpent-vm/src/visibility_contract_tests.rs",
+      "before_sha256": "7491e1e5ee0e8f77b696ff917d0e6edde9ee416b716ae3b7559c6806da9684ed",
+      "sha256": "7491e1e5ee0e8f77b696ff917d0e6edde9ee416b716ae3b7559c6806da9684ed",
+      "change": "byte-identical-move"
+    }
+  ],
+  "source_hashes": [
+    {
+      "path": "Cargo.toml",
+      "sha256": "27e9a6e7d5c839b6099dc37c9f1ef55bea0c0ec8bf54293738713035d7a84313"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "21fe76fab4786239aca297ef989a98eb6c4e8cad898f7a2a2046da415c241b1f"
+    },
+    {
+      "path": "crates/leserpent-vm/Cargo.toml",
+      "sha256": "1530e5a66dc4295f736c3c8f01cbc3d53b32f1f83a9db0310d6838d91478d9dd"
+    },
+    {
+      "path": "crates/leserpent-vm/src/lib.rs",
+      "sha256": "d7c6b00729733ae04d77f5f7d4c8757913216b4c98f948dc94969840373528a8"
+    },
+    {
+      "path": "crates/leselang-vm/Cargo.toml",
+      "sha256": "5fa998a2869285ed56be0baae6ef3c6768ebb63b754a1ed539b5c4ee24bb4043"
+    },
+    {
+      "path": "crates/leselang-vm/src/lib.rs",
+      "sha256": "6461e36606f74919f42daa7d1bbb743e964e1e9754ac9e6cd2e8b64c78e64d06"
+    },
+    {
+      "path": "crates/leselang-vm/src/native.rs",
+      "sha256": "d895cfcdff7fb4e23eafb1ea2a691138dfd9d489c39777384793cc21b83c8dfa"
+    },
+    {
+      "path": "crates/leselang-vm/tests/ephemeral_profile.rs",
+      "sha256": "5e3c4315000c6e2ad7cfd41900d7d98cb96db4075eaae62e8a9435b9dfaa29c7"
+    },
+    {
+      "path": "crates/leselang-vm/tests/recovery.rs",
+      "sha256": "4a42ac546ad8a5edd8ce29c2f566538ab065b958091e75ecc0b889be1283c38c"
+    },
+    {
+      "path": "crates/leselang-observe/Cargo.toml",
+      "sha256": "cd5a5ded88eae73fb0892d77ca9629d019de98ded99039e133e07d50e550a265"
+    },
+    {
+      "path": "crates/leselang-observe/src/vm_bridge.rs",
+      "sha256": "c10f79eedbe36f75bb4fc3707c838f2f45cf6b2948845b580aa364a688dd62f2"
+    },
+    {
+      "path": "crates/leserpentd/Cargo.toml",
+      "sha256": "659f74f3f5138fd49686559fd3afb4d19e6ace493efed3b9b3f1cfacfd9be660"
+    },
+    {
+      "path": "crates/leserpentd/src/debugger.rs",
+      "sha256": "187df0cb5c64710db1eaa847fd079df745a970278f2446c34a56b3c731a6a01e"
+    },
+    {
+      "path": "crates/gewyvern-dev/src/leselang.rs",
+      "sha256": "52bae7f4492e54e4c2fc68237cc89a72bdad282989f68cc0097659fa80e821d3"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "d33e6447e3c85ac45204b4098eb68157823a353c22bd7a4abeefda13fdc1ee15"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "a5c430fe8c013491356255a23dbf550cc6eb252108263c2861adf60451af7887"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "dcf8c7bce62a57c4a199bb536c3b2e07e3293f72dc1cbdf66272b5a2e31d44a8"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "dda6cc1ffba23b584166768c5666be28461ec85d5301d4e304858b29466de344"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "44562625e76f2bb201039f357ba8d68cdc69f28580c1ec248c78feed6470e8e6"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "7a766b7b3bdba0cb2dcc4ae4789135285930d2b6760e07af4cc7ff52638adf53"
+    },
+    {
+      "path": "project/product/open-source-core.json",
+      "sha256": "24cf3260c19873104fc6108b0bd88ded593746fc26f96c9832cee8a1c8c6d2fe"
+    },
+    {
+      "path": "tests/open_source_core_policy_tdd.rs",
+      "sha256": "30ec791ce7dbdc13150b137b2b243cae786c78bc44da7f286570379a3d4b4478"
+    }
+  ],
+  "logs": [
+    {
+      "path": "leselang-product-vm-architecture-20261026.log",
+      "sha256": "f443780690d0af8f877605db9695ef4cd7f8f8dc571bc99b9095f422d50fd91b",
+      "passed_tests": 637
+    },
+    {
+      "path": "leselang-product-vm-bridge-clippy-20261026.log",
+      "sha256": "25c1532680c2d24ebcaea79821859248ee11aec6d01e4b3881e7913a9392abd3",
+      "passed_tests": 0
+    },
+    {
+      "path": "leselang-product-vm-check-20261026.log",
+      "sha256": "6d12c15656622a493848835aa229e2586a4c2ec0df96170d8947af6b19b369f8",
+      "passed_tests": 0
+    },
+    {
+      "path": "leselang-product-vm-clippy-20261026.log",
+      "sha256": "bb4b71135bf97340aeae8610333db65e9967b5e9897df86de5102a0994dc2b1e",
+      "passed_tests": 0
+    },
+    {
+      "path": "leselang-product-vm-compat-memory-20261026.log",
+      "sha256": "ca27adf245fe1c0a63185375ab147e1cb0abb145a2b7ea566b18d7123e7dd1bb",
+      "passed_tests": 164
+    },
+    {
+      "path": "leselang-product-vm-daemon-20261026.log",
+      "sha256": "a75a33c504e74a6ad80bdfd311b3cafd62d4e0a12dcfd64dbc1b96a33aeedb56",
+      "passed_tests": 45
+    },
+    {
+      "path": "leselang-product-vm-export-20261026.log",
+      "sha256": "ede1eb2ecfc18bb60f9f7a848766632ffa3321bdf958b45265a8f5964d6b5b4d",
+      "passed_tests": 2586
+    },
+    {
+      "path": "leselang-product-vm-export-plan-20261026.log",
+      "sha256": "30620d96d6788847b561834e928e2f864331916dfe4182acc28b86f2a099970a",
+      "passed_tests": 23
+    },
+    {
+      "path": "leselang-product-vm-final-gates-20261026.log",
+      "sha256": "f14f59d01c6bf572e9be4b131b90278bc8546185e00537bf0a158ebb7e70b5d7",
+      "passed_tests": 638
+    },
+    {
+      "path": "leselang-product-vm-memory-20261026.log",
+      "sha256": "980b12fd18c5df603fbc75567ca6cdcc5fa1bcb2b3d63e570b78214e483839a4",
+      "passed_tests": 158
+    },
+    {
+      "path": "leselang-product-vm-memory-clippy-20261026.log",
+      "sha256": "81b6455efd5d18c3a5935090876d7bd62706b190c6f5753faffbcc1fc03404db",
+      "passed_tests": 0
+    },
+    {
+      "path": "leselang-product-vm-native-clippy-20261026.log",
+      "sha256": "7448ec59cdf92e7e3f10083b72789c386b8ed133611e0688429c23ec6daba22d",
+      "passed_tests": 0
+    },
+    {
+      "path": "leselang-product-vm-policy-20261026.log",
+      "sha256": "33961b92608c271c1b70edc38f7d2f6ef491f795d6080a9c5ba855a7a41069cf",
+      "passed_tests": 278
+    },
+    {
+      "path": "leselang-product-vm-reopen-20261026.log",
+      "sha256": "2a66be6a72d031635c439372d5418d28539d37d6119fde5a567cb01419525cfa",
+      "passed_tests": 35
+    },
+    {
+      "path": "leselang-product-vm-root-clippy-20261026.log",
+      "sha256": "03b03b78a19620a35e0df4fde202c93d0675b93d938a1f98cf542ff354874255",
+      "passed_tests": 0
+    },
+    {
+      "path": "leselang-product-vm-suite-20261026.log",
+      "sha256": "8fd648dbb9a800263a6a8721f124e9e5949b9f5bd5d33daa69869577e97fb252",
+      "passed_tests": 1043
+    }
+  ]
+}

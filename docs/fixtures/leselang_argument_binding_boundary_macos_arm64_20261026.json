@@ -1,0 +1,174 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-public-argument-binding-boundary",
+  "validated_at": "2026-10-26",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.5.0",
+  "hir_contract": "0.187.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.173.0",
+  "verification_status": "passed",
+  "removed_internal_dependencies": 3,
+  "native_tests": 8,
+  "frozen_helper_cases": 1344,
+  "frozen_host_cases": 2688,
+  "baseline_sha256": {
+    "helper_source": "2594c33f228239e7f941308c29de9ca57850005672af1688a1f8949dcacdef5c",
+    "source_call": "61e0fcfdbfb3354fb1c76bd82804c20769b5bcd0a4adb96cc030549454665962"
+  },
+  "oracle_scope": "Pre-stage argument loops are frozen with imports/visibility adjusted. The host oracle returns its original rows instead of constructing the private output wrapper. Existing structure/type kernels are shared; order, indices, output, callbacks, refusal/unwind and native domain events are compared. This is not an independent compiler.",
+  "binding_scope": "Private immutable top-level named alignments borrow the original source and signature. Descendant source, cold semantics and host work remain native lowerer responsibility. Strict source APIs retain eager preflight. Delayed lowering observes current native domain policy.",
+  "binding_is_source_or_authority_receipt": false,
+  "physical_hir_relocation_complete": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "file_count": 288,
+    "bytes": 6902293,
+    "manifest_sha256": "516ab185995fe5cd8e3725a5bff901a998c330f44983f0198d9009de99177a9b",
+    "consumer_test_byte_identity": true,
+    "all_copied_sources_byte_identical": true,
+    "verification_target_removed": true,
+    "tests_passed": 2635,
+    "complete_vm": false,
+    "full_extraction_gate": false
+  },
+  "remaining_boundaries": [
+    "host/projection preparation and remaining private compiler core references",
+    "acyclic compatibility-facade package layout and physical HIR specialization relocation",
+    "complete independent language and durable recovery acceptance"
+  ],
+  "verification_scope": "Local native/default-profile Rust tests, HIR/command/VM regressions, strict Clippy, source-export workspace and separate consumer tests/lints, architecture/status gates. No Linux host, live GUI, remote CI, benchmark or repository publication claim.",
+  "source_hashes": [
+    {
+      "path": "Cargo.toml",
+      "sha256": "27e9a6e7d5c839b6099dc37c9f1ef55bea0c0ec8bf54293738713035d7a84313"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "21fe76fab4786239aca297ef989a98eb6c4e8cad898f7a2a2046da415c241b1f"
+    },
+    {
+      "path": "crates/leselang-hir/Cargo.toml",
+      "sha256": "7cc04569d0e06153a123db695c3422103c0bffe112897beb4056e675787a501b"
+    },
+    {
+      "path": "crates/leselang-hir/src/lib.rs",
+      "sha256": "b757006ced13c2cae7e3e2bd3f5e6486a36aa3f76c49fd14cc9daf7e9d163d5d"
+    },
+    {
+      "path": "crates/leselang-hir/src/helper_source.rs",
+      "sha256": "cc3f83266fe1973ce786bf55d318614f6178e2b5dcc601e4284cf5c8ce4ffc0d"
+    },
+    {
+      "path": "crates/leselang-hir/src/source_call.rs",
+      "sha256": "9d1081b219ce9b70b4a3794b4ecb0f2396705eee7db57a22863b642809feadff"
+    },
+    {
+      "path": "crates/leselang-hir/src/helper_templates.rs",
+      "sha256": "864ba17806389773a36c21618a705fdd2644f5b8df30208520d2b6e0d01ffc6d"
+    },
+    {
+      "path": "crates/leselang-hir/src/functions.rs",
+      "sha256": "3da53b1b9ef363fec4e8933095d0943ca6053bf91f4f04e68e00747146ca04c0"
+    },
+    {
+      "path": "crates/leselang-hir/src/computation.rs",
+      "sha256": "2e6429de8c84324f570b5c74065c007b1f9148bacf0646f39632ee2e90c970a2"
+    },
+    {
+      "path": "crates/leselang-hir/src/argument_binding_contract_tests.rs",
+      "sha256": "641bae179a7626bd876c93f9da44a4add1149314c2557b6333e05dcafb1c699d"
+    },
+    {
+      "path": "crates/leselang-hir/tests/argument_binding.rs",
+      "sha256": "bb373a83eb666be18e9697af902237847c57e538ebeade8694ab801ef6aad8f7"
+    },
+    {
+      "path": "crates/gewyvern-dev/src/leselang.rs",
+      "sha256": "0754675f12232b91c5e8352416b96780e5463c087782824db52d306890b7ee6d"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "ab65b70af490e3ac4b4e1a89239fa1f3463ec42a2e20b86eba13df92dea7c51f"
+    },
+    {
+      "path": "tests/language_independence_tdd.rs",
+      "sha256": "335dffaa4d34b13f010b46c0beac158288d1cb5fd4cadc7b5652f96e58c8f72b"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "6eb70f67e89634a84752f86677204f7d96152b0586f91ab7ede9c8ca0895fc0d"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "5bf02f92cc17e65ebdfb7146c684a96cf07acda663bd6e88075025ac95e19909"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "da4ece832c5f17f4a0299a83898eb9ba21bbaa3b3e491cdd017cec2b54720523"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "84e2cc07d89c2313927e410b35f302cfcb597dc23251e1d4a5610ac1006251d2"
+    }
+  ],
+  "logs": [
+    {
+      "path": "/private/tmp/leselang-argument-binding-architecture-20261026.log",
+      "sha256": "b7497556083915ea3e0b01eddacc425bc226ad142af89e6e85d7078a1864703e",
+      "passed": 104
+    },
+    {
+      "path": "/private/tmp/leselang-argument-binding-clippy-20261026.log",
+      "sha256": "3cfa74b0d7f69dc9ade7a4f255c73b78876d9dc8f052ec251e622293b82b5929",
+      "passed": 0
+    },
+    {
+      "path": "/private/tmp/leselang-argument-binding-export-20261026.log",
+      "sha256": "d5ce700465d0e19a6a0462be49f8fd9aa905bfb29c3ec3a6afd2f77e663ac6bb",
+      "passed": 2635
+    },
+    {
+      "path": "/private/tmp/leselang-argument-binding-export-plan-20261026.log",
+      "sha256": "008d69b5bab87ea81da8b50101e4914e7ffc8320fc5dcf7d80d3f89a572d9467",
+      "passed": 23
+    },
+    {
+      "path": "/private/tmp/leselang-argument-binding-native-20261026.log",
+      "sha256": "ae6d880c1acfb62e0a3a7ecc0ce1a2b4ef272fcbc06d6d0261624a859a7c5956",
+      "passed": 8
+    },
+    {
+      "path": "/private/tmp/leselang-argument-binding-native-clippy-20261026.log",
+      "sha256": "9afefbefd094261ef7dcb0dbc8aa65c9eaf23498298e6af2fd7ccfe171b4dbcc",
+      "passed": 0
+    },
+    {
+      "path": "/private/tmp/leselang-argument-binding-parity-20261026.log",
+      "sha256": "5892a460a5ab74c634d8fd4358209a1da50124ad81fb483cceb85399f1e195c5",
+      "passed": 2
+    },
+    {
+      "path": "/private/tmp/leselang-argument-binding-root-clippy-20261026.log",
+      "sha256": "b39f4e8b15cb7aeb0e0dece48fac42278f798c493ab8e7adedeb6a24d2a8dd02",
+      "passed": 0
+    },
+    {
+      "path": "/private/tmp/leselang-argument-binding-suite-20261026.log",
+      "sha256": "72f5c3586d96149a1af1d429cea0ffb726e0cb7fb71a1da4f8dca60a851818b8",
+      "passed": 3284
+    },
+    {
+      "path": "/private/tmp/leselang-argument-binding-final-gates-20261026.log",
+      "sha256": "90a73b4932eef4544dcabcf2bdd8507595e2b02ad437eb86d7560ed6772b4b48",
+      "passed": 566
+    }
+  ]
+}

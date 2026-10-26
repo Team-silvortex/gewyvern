@@ -126,6 +126,7 @@ fn every_current_primary_capability_is_mit_open_source_and_free() {
         "leserpent-mobile-clients",
         "leserpent-protocol",
         "leserpent-runtime",
+        "leserpent-vm",
         "leserpent-web-console",
         "leserpentd",
     ]);

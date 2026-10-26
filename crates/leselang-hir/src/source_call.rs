@@ -455,50 +455,48 @@ where
         .catalog
         .authorize(callee.as_str(), host.version, host.granted)
         .map_err(SourceCallError::Catalog)?;
-    lower_preflighted_arguments(arguments, schema, limits, lower)
+    bind_source_arguments(arguments, schema, limits)?.lower(lower)
 }
 
-// Reference adapter only: it preserves legacy source diagnostics/expansion and
-// has already bounded the source in its parser/lowering path. It shares binding,
-// output-shape checks and native domains without changing source-error precedence.
-pub(crate) fn lower_preflighted_arguments<
-    'source,
-    'schema,
-    Key,
-    Domain,
-    Result,
-    Capability,
-    Field,
-    Operation,
-    HostEffect,
-    IrResult,
-    Error,
->(
+/// Immutable named alignment against one original host-selected schema.
+/// This does not certify physical source, lexical typing, versions or grants.
+/// Descendant source/native work is trusted adapter policy. No native metadata
+/// trait bounds, payload formatting, cloning, serde codec or mutable view exist.
+///
+/// ```compile_fail
+/// use leselang_hir::source_call::BoundSourceArguments;
+/// let bound: BoundSourceArguments<'_, '_, (), (), (), ()> =
+///     serde_json::from_str("{}").unwrap();
+/// ```
+#[must_use = "lower the bound operands or deliberately discard the alignment"]
+pub struct BoundSourceArguments<'source, 'schema, Key, Domain, Result, Capability> {
+    arguments: &'source [NamedArgument],
+    schema: &'schema SourceSchema<'schema, Key, Domain, Result, Capability>,
+    bindings: Vec<(usize, usize)>,
+    limits: SourceCallLimits,
+}
+impl<Key, Domain, Result, Capability> fmt::Debug
+    for BoundSourceArguments<'_, '_, Key, Domain, Result, Capability>
+{
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("BoundSourceArguments")
+    }
+}
+
+/// Bound top-level argument/signature counts and bind all submitted names before
+/// lowering. Optional omission creates no default value. Only immutable names
+/// and indices are inspected; no domain callback or native lookup runs. The host
+/// selects and authorizes the exact schema separately. For complete eager cold
+/// source scanning and catalog selection, use `lower_source_call` instead.
+/// Source node/depth fields validate ceilings here, not observed descendants.
+pub fn bind_source_arguments<'source, 'schema, Key, Domain, Result, Capability, Error>(
     arguments: &'source [NamedArgument],
     schema: &'schema SourceSchema<'schema, Key, Domain, Result, Capability>,
     limits: SourceCallLimits,
-    mut lower: impl FnMut(
-        &'source NamedArgument,
-    ) -> std::result::Result<
-        (
-            Computation<Field, Operation, HostEffect, IrResult>,
-            Option<ScalarType>,
-        ),
-        Error,
-    >,
-) -> SourceCallResult<
-    'source,
-    'schema,
-    Key,
-    Domain,
-    Result,
-    Capability,
-    Computation<Field, Operation, HostEffect, IrResult>,
-    Error,
->
-where
-    Domain: ScalarArgumentDomain,
-{
+) -> std::result::Result<
+    BoundSourceArguments<'source, 'schema, Key, Domain, Result, Capability>,
+    SourceCallError<Error>,
+> {
     if !valid_limits(limits) {
         return Err(SourceCallError::InvalidLimits);
     }
@@ -508,75 +506,130 @@ where
     if arguments.len() > limits.max_arguments || arguments.len() > schema.parameters.len() {
         return Err(SourceCallError::ArgumentLimit);
     }
-    let names = arguments
-        .iter()
-        .map(|argument| argument.name.as_str())
-        .collect::<Vec<_>>();
-    let bound = schema
-        .bind_arguments(&names)
-        .map_err(SourceCallError::Names)?;
-    let mut budget = StructureBudget::new(limits.max_lowered_nodes, limits.max_lowered_depth);
-    budget.visit(0, 0, 0).map_err(SourceCallError::OutputRoot)?;
-    let mut lowered = Vec::with_capacity(arguments.len());
-    for (parameter, argument_index) in bound.iter() {
-        let argument = &arguments[argument_index];
-        let parameter_index = schema
-            .parameters
-            .iter()
-            .position(|candidate| std::ptr::eq(candidate, parameter))
-            .ok_or(SourceCallError::Names(
-                NamedArgumentError::UnknownArgument {
-                    index: argument_index,
-                },
-            ))?;
-        budget
-            .check_pending(0, 1)
-            .map_err(|error| SourceCallError::Output {
-                argument_index,
-                error: PureTypeError::Structure(error),
-            })?;
-        let (value, scalar_type) = lower(argument).map_err(|error| SourceCallError::Lowering {
-            argument_index,
-            error,
-        })?;
-        preflight_with_budget(&value, 1, &mut budget).map_err(|error| match error {
-            PureTypeError::Impure => SourceCallError::Argument {
-                parameter_index,
-                argument_index,
-                error: ArgumentTypeError::Impure,
-            },
-            _ => SourceCallError::Output {
-                argument_index,
-                error,
-            },
-        })?;
-        // Generated-IR preflight already proved physical purity; do not walk it again.
-        let facts = ScalarArgumentType {
-            scalar_type,
-            is_pure: true,
-            literal: match &value {
-                Computation::Literal { value } => Some(value),
-                _ => None,
-            },
-        };
-        check_argument_type(&parameter.domain, facts).map_err(|error| {
-            SourceCallError::Argument {
-                parameter_index,
-                argument_index,
-                error,
-            }
-        })?;
-        lowered.push(LoweredSourceArgument {
-            name: argument.name.as_str(),
-            parameter_index,
-            argument_index,
-            value,
-        });
+    let mut names = [""; MAX_SOURCE_CALL_ARGUMENTS];
+    for (name, argument) in names.iter_mut().zip(arguments) {
+        *name = argument.name.as_str();
     }
-    Ok(LoweredSourceCall {
+    let bound = schema
+        .bind_arguments(&names[..arguments.len()])
+        .map_err(SourceCallError::Names)?;
+    let bindings = bound
+        .iter()
+        .map(|(parameter, argument_index)| {
+            schema
+                .parameters
+                .iter()
+                .position(|candidate| std::ptr::eq(candidate, parameter))
+                .map(|parameter_index| (parameter_index, argument_index))
+                .ok_or(SourceCallError::Names(
+                    NamedArgumentError::UnknownArgument {
+                        index: argument_index,
+                    },
+                ))
+        })
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    Ok(BoundSourceArguments {
+        arguments,
         schema,
-        arguments: lowered,
+        bindings,
+        limits,
     })
+}
+
+impl<'source, 'schema, Key, Domain, Result, Capability>
+    BoundSourceArguments<'source, 'schema, Key, Domain, Result, Capability>
+where
+    Domain: ScalarArgumentDomain,
+{
+    /// Consume the alignment once, keeping declaration order and original borrows.
+    /// The output call root and operand forest share one meter; physical purity
+    /// precedes current native scalar-domain queries. Native lowerers must bound
+    /// all descendant source/work and corroborate lexical types before use.
+    /// Failure/unwind releases partial output without retry or native rollback.
+    /// Binding is not source admission or live execution authority.
+    pub fn lower<Field, Operation, HostEffect, IrResult, Error>(
+        self,
+        mut lower: impl FnMut(
+            &'source NamedArgument,
+        ) -> std::result::Result<
+            (
+                Computation<Field, Operation, HostEffect, IrResult>,
+                Option<ScalarType>,
+            ),
+            Error,
+        >,
+    ) -> SourceCallResult<
+        'source,
+        'schema,
+        Key,
+        Domain,
+        Result,
+        Capability,
+        Computation<Field, Operation, HostEffect, IrResult>,
+        Error,
+    > {
+        let Self {
+            arguments,
+            schema,
+            bindings,
+            limits,
+        } = self;
+        let mut budget = StructureBudget::new(limits.max_lowered_nodes, limits.max_lowered_depth);
+        budget.visit(0, 0, 0).map_err(SourceCallError::OutputRoot)?;
+        let mut lowered = Vec::with_capacity(arguments.len());
+        for (parameter_index, argument_index) in bindings {
+            let argument = &arguments[argument_index];
+            let parameter = &schema.parameters[parameter_index];
+            budget
+                .check_pending(0, 1)
+                .map_err(|error| SourceCallError::Output {
+                    argument_index,
+                    error: PureTypeError::Structure(error),
+                })?;
+            let (value, scalar_type) =
+                lower(argument).map_err(|error| SourceCallError::Lowering {
+                    argument_index,
+                    error,
+                })?;
+            preflight_with_budget(&value, 1, &mut budget).map_err(|error| match error {
+                PureTypeError::Impure => SourceCallError::Argument {
+                    parameter_index,
+                    argument_index,
+                    error: ArgumentTypeError::Impure,
+                },
+                _ => SourceCallError::Output {
+                    argument_index,
+                    error,
+                },
+            })?;
+            // Generated-IR preflight already proved physical purity; do not walk it again.
+            let facts = ScalarArgumentType {
+                scalar_type,
+                is_pure: true,
+                literal: match &value {
+                    Computation::Literal { value } => Some(value),
+                    _ => None,
+                },
+            };
+            check_argument_type(&parameter.domain, facts).map_err(|error| {
+                SourceCallError::Argument {
+                    parameter_index,
+                    argument_index,
+                    error,
+                }
+            })?;
+            lowered.push(LoweredSourceArgument {
+                name: argument.name.as_str(),
+                parameter_index,
+                argument_index,
+                value,
+            });
+        }
+        Ok(LoweredSourceCall {
+            schema,
+            arguments: lowered,
+        })
+    }
 }
 
 #[cfg(test)]

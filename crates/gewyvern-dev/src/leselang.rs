@@ -477,8 +477,9 @@ fn native_vm_manifest(source: &str) -> Result<(String, BTreeSet<String>), String
         "description = \"Stackless Leselang evaluator with versioned effect continuations\"",
         "license.workspace = true",
     ];
-    const FEATURES: &str = "default = [\"sqlite-journal\"]\nleserpent-profile = [\n    \"dep:leselang-command\",\n    \"dep:leselang-host-contract\",\n    \"dep:leserpent-domain\",\n    \"dep:serde\",\n    \"dep:serde_json\",\n    \"leselang-hir/leserpent-profile\",\n]\nsqlite-journal = [\"leserpent-profile\", \"dep:rusqlite\"]";
+    const FEATURES: &str = "default = [\"sqlite-journal\"]\nleserpent-profile = [\n    \"dep:leserpent-vm\",\n    \"dep:leselang-command\",\n    \"dep:leselang-host-contract\",\n    \"dep:leserpent-domain\",\n    \"dep:serde\",\n    \"dep:serde_json\",\n    \"leselang-hir/leserpent-profile\",\n]\nsqlite-journal = [\"leserpent-profile\", \"leserpent-vm/sqlite-journal\", \"dep:rusqlite\"]";
     const REFERENCE: &[&str] = &[
+        "leserpent-vm = { path = \"../leserpent-vm\", optional = true, default-features = false }",
         "leselang-command = { path = \"../leselang-command\", optional = true }",
         "leselang-host-contract = { path = \"../leselang-host-contract\", optional = true }",
         "leserpent-domain = { path = \"../leserpent-domain\", optional = true }",
@@ -665,6 +666,22 @@ fn prepare(root: &Path) -> Result<(Plan, String), String> {
     );
     let mut consumer_manifest = consumer_manifest;
     for (name, original) in [
+        (
+            "source_preparation",
+            "crates/leselang-hir/tests/source_preparation.rs",
+        ),
+        (
+            "argument_binding",
+            "crates/leselang-hir/tests/argument_binding.rs",
+        ),
+        (
+            "declaration_source",
+            "crates/leselang-hir/tests/declaration_source.rs",
+        ),
+        (
+            "computation_profile",
+            "crates/leselang-hir/tests/computation_profile.rs",
+        ),
         (
             "checkpoint_recovery",
             "crates/leselang-runtime-core/tests/checkpoint.rs",
@@ -1470,6 +1487,20 @@ mod tests {
             .unwrap();
         let (plan, version) = prepare(root).unwrap();
         for path in [
+            "crates/leselang-hir/src/source_preparation_contract_tests.rs",
+            "crates/leselang-hir/tests/source_preparation.rs",
+            "consumer/tests/source_preparation.rs",
+            "crates/leselang-hir/src/argument_binding_contract_tests.rs",
+            "crates/leselang-hir/tests/argument_binding.rs",
+            "consumer/tests/argument_binding.rs",
+            "crates/leselang-hir/src/helper_declarations.rs",
+            "crates/leselang-hir/src/helper_body_source.rs",
+            "crates/leselang-hir/src/program_source.rs",
+            "crates/leselang-hir/tests/declaration_source.rs",
+            "consumer/tests/declaration_source.rs",
+            "crates/leselang-hir/src/computation_profile.rs",
+            "crates/leselang-hir/tests/computation_profile.rs",
+            "consumer/tests/computation_profile.rs",
             "crates/leselang-hir/src/effect_session.rs",
             "crates/leselang-hir/src/local_effect_session.rs",
             "crates/leselang-hir/src/local_scope.rs",
@@ -1545,17 +1576,18 @@ mod tests {
         }
         for path in [
             "crates/leselang-hir/src/leserpent_profile.rs",
+            "crates/leselang-hir/src/computation_profile_contract_tests.rs",
             "crates/leselang-hir/src/host_call.rs",
             "crates/leselang-hir/tests/control_flow.rs",
-            "crates/leselang-vm/src/leserpent_profile.rs",
-            "crates/leselang-vm/src/journal.rs",
+            "crates/leserpent-vm/src/leserpent_profile.rs",
+            "crates/leserpent-vm/src/journal.rs",
             "crates/leselang-vm/tests/ephemeral_profile.rs",
             "crates/leselang-vm/tests/restore_allocator.rs",
             "crates/leselang-vm/tests/debugger_audit_memory.rs",
             "crates/leselang-vm/tests/debugger_audit_durable.rs",
             "crates/leselang-vm/tests/support/reference_dispatch_authority.rs",
             "crates/leselang-vm/tests/support/reference_request_build_authority.rs",
-            "crates/leselang-vm/src/debugger_audit_contract_tests.rs",
+            "crates/leserpent-vm/src/debugger_audit_contract_tests.rs",
         ] {
             assert!(!plan.entries.contains_key(Path::new(path)));
         }

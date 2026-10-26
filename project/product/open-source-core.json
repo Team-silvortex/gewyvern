@@ -20,6 +20,7 @@
     { "id": "leserpent-domain", "source": "crates/leserpent-domain" },
     { "id": "leserpent-protocol", "source": "crates/leserpent-protocol" },
     { "id": "leserpent-runtime", "source": "crates/leserpent-runtime" },
+    { "id": "leserpent-vm", "source": "crates/leserpent-vm" },
     { "id": "leserpent-adapters", "source": "crates/leserpent-adapters" },
     { "id": "leserpentd", "source": "crates/leserpentd" },
     { "id": "leserpent-cli", "source": "crates/leserpent-cli" },

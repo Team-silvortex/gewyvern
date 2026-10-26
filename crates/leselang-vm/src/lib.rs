@@ -19,6 +19,6 @@ use leselang_vm::{Vm, EffectOperation, PresentationOperation};
 
 pub mod native;
 
-// Preserve the released root paths and private reference adapter paths.
+// Compatibility only: the product implementation lives outside the language crate.
 #[cfg(feature = "leserpent-profile")]
-include!("leserpent_profile.rs");
+pub use leserpent_vm::*;

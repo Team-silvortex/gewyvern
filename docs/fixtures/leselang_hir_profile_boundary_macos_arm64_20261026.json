@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-hir-computation-profile-boundary",
+  "validated_at": "2026-10-26",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.5.0",
+  "hir_contract": "0.185.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.173.0",
+  "verification_status": "passed",
+  "forwarded_methods": 12,
+  "native_tests": 4,
+  "frozen_trees": 55,
+  "frozen_scope_group_cases": 880,
+  "frozen_private_scope_cases": 165,
+  "product_baseline_sha256": "84a4863e71aa9764cc502f924a2732d808ed95038dd3d6508c3f5fa18e64c7c2",
+  "oracle_scope": "Pre-profile computation methods, with recursive policy calls redirected to frozen free functions. The original lowering, type inference, structure budget and opaque-effect helpers are shared; this is not a second interpreter.",
+  "legacy_method_names_preserved": true,
+  "foreign_host_effect_profile_implemented": true,
+  "no_blanket_policy": true,
+  "borrowed_native_slots_preserved": true,
+  "physical_hir_relocation_complete": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "file_count": 283,
+    "bytes": 6807954,
+    "manifest_sha256": "3f5d1fb1adb343be630953d1f2e284a1d12d37ef654c8e62bb25e620853bcd67",
+    "verification_target_removed": true,
+    "consumer_test_byte_identity": true,
+    "complete_vm": false,
+    "full_extraction_gate": false
+  },
+  "remaining_boundaries": [
+    "crate-private product compiler preflight calls",
+    "acyclic compatibility-facade package layout",
+    "complete independent language and durable recovery acceptance"
+  ],
+  "verification_scope": "Local Rust profile, HIR/adapter/VM regression and memory-only tests; strict Clippy; verified source-export workspace and separate consumer tests/lints. No Linux, live GUI, remote CI, benchmark, or repository publication claim.",
+  "source_hashes": [
+    {
+      "path": "Cargo.toml",
+      "sha256": "27e9a6e7d5c839b6099dc37c9f1ef55bea0c0ec8bf54293738713035d7a84313"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "21fe76fab4786239aca297ef989a98eb6c4e8cad898f7a2a2046da415c241b1f"
+    },
+    {
+      "path": "crates/leselang-hir/Cargo.toml",
+      "sha256": "7cc04569d0e06153a123db695c3422103c0bffe112897beb4056e675787a501b"
+    },
+    {
+      "path": "crates/leselang-hir/src/lib.rs",
+      "sha256": "950367297ae6ba9327308b36ae7a060ce84140683bb80bbc5d029f6929600945"
+    },
+    {
+      "path": "crates/leselang-hir/src/ir.rs",
+      "sha256": "0ed1a9a843a219053cd08c49c21c9a5cc1d5d443942f2c69e22fc4917c6d0275"
+    },
+    {
+      "path": "crates/leselang-hir/src/computation_profile.rs",
+      "sha256": "533ee1c9cfd02524380d2fe4763fa97c2589449906be69cd3b2ca6f979b36370"
+    },
+    {
+      "path": "crates/leselang-hir/src/computation.rs",
+      "sha256": "8d86ac8f5b55e48687f4fecccdbfd9fe669639942835d00b33e6d5485161149d"
+    },
+    {
+      "path": "crates/leselang-hir/src/functions.rs",
+      "sha256": "a25ce19186cf33952f9c445f95d46069b0a04150278251eacae06f6337e5cac0"
+    },
+    {
+      "path": "crates/leselang-hir/src/pure_reference.rs",
+      "sha256": "cc65b8e45f99c4e0ed8098c7ff6daabd081a5ccf5350c69947afd3b3c1a0598e"
+    },
+    {
+      "path": "crates/leselang-hir/src/leserpent_profile.rs",
+      "sha256": "94bac18e821dc831abd4310b13794a9c7aa107ebca55905f95b110f7ff2d93ab"
+    },
+    {
+      "path": "crates/leselang-hir/src/host_call.rs",
+      "sha256": "e651b12bff737cf9a8feee99a2b720f9a818d8a72f035c652c916ff7453b7d3a"
+    },
+    {
+      "path": "crates/leselang-hir/src/computation_profile_contract_tests.rs",
+      "sha256": "64508fec8259218835dd3f7ad4bdbb2f8c283379d094b07e7e1d2a94bfde87d7"
+    },
+    {
+      "path": "crates/leselang-hir/tests/computation_profile.rs",
+      "sha256": "7c0f0f225066b0b5411afc68a7059623eca134402d4923d3dc92e0d7cd2d493a"
+    },
+    {
+      "path": "crates/gewyvern-dev/src/leselang.rs",
+      "sha256": "6c27adcb8d008110a50f8f979a9d3349684008a37cc2c7c266f2c36663c6432d"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "0d6329b24602a9396d331d22ec8f3eb1182977b8e365bc93f2a0ef496822267d"
+    },
+    {
+      "path": "tests/language_independence_tdd.rs",
+      "sha256": "9ccf87028419d9bc6ff85fdacba74dc95ffa0042c1b9e6b2c5b1cb0b1e12b9e1"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "64869403d1525307534b81c924844f3040983786ae006eac8df0793003bbab4a"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "46a95ed194c05b47cbad6243972a17663ed78f794712fa935370a5c6e17b8ebe"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "56a57170bac8007da28ee0b88e1973156a2c18c4b61c6c6fd10a72ec77c65dbb"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "728973ceb24f91caaba901d5e4fc5b10878deeae841c99aa042faabe520fb0e3"
+    }
+  ],
+  "logs": [
+    {
+      "path": "leselang-hir-profile-architecture-20261026.log",
+      "sha256": "268486bba62fe8eae11ac369da55355757e0a185fbe891da7c72a5484421a3f0",
+      "passed_tests": 622
+    },
+    {
+      "path": "leselang-hir-profile-check-20261026.log",
+      "sha256": "52fb84b59380f5d6f262723726a3e0ca88b5b37da4ddd688f29112f774056a5b",
+      "passed_tests": 0
+    },
+    {
+      "path": "leselang-hir-profile-clippy-20261026.log",
+      "sha256": "8623bfe39e79919aeef560b8e244c538775d9f9b3de6a540dc3aacafb5eeb8ed",
+      "passed_tests": 0
+    },
+    {
+      "path": "leselang-hir-profile-export-20261026.log",
+      "sha256": "75e53082fe0b8ed7bc4c6b5420bfa054b46a3aec5824eabb8f990de1afa44658",
+      "passed_tests": 2595
+    },
+    {
+      "path": "leselang-hir-profile-export-plan-20261026.log",
+      "sha256": "eeafb2d0b185febd45b3f4e1a165bcc7981870a76ec9bc94356e339ad6bcd557",
+      "passed_tests": 23
+    },
+    {
+      "path": "leselang-hir-profile-memory-20261026.log",
+      "sha256": "4b033bc53e4a28127ba0c244bad9ff93e322de129806c65fc96e9b87851dc5d2",
+      "passed_tests": 158
+    },
+    {
+      "path": "leselang-hir-profile-native-20261026.log",
+      "sha256": "ab675aac57af23f68113a9b863d57cc47c85fd18ec9011d23d6a60de73d7a9cd",
+      "passed_tests": 4
+    },
+    {
+      "path": "leselang-hir-profile-native-clippy-20261026.log",
+      "sha256": "b48af0256f3fbb3b7ab2fb160882d8cbd97491b67fca7b1b506e7deddd113683",
+      "passed_tests": 0
+    },
+    {
+      "path": "leselang-hir-profile-parity-20261026.log",
+      "sha256": "86469472e2af2d5a5fed45b007845bb9224f301aabb28ee19293a0d7efb8856b",
+      "passed_tests": 2
+    },
+    {
+      "path": "leselang-hir-profile-root-clippy-20261026.log",
+      "sha256": "e2d200f1b9c76479e29535d6a681f38393e553cd41910e4396ebf976a83ed2e5",
+      "passed_tests": 0
+    },
+    {
+      "path": "leselang-hir-profile-suite-20261026.log",
+      "sha256": "86b6bec84373d2bdc83e90ffb77fc42b99528a0ba0af70414e8cc74df05d10ab",
+      "passed_tests": 3263
+    },
+    {
+      "path": "leselang-hir-profile-final-gates-20261026.log",
+      "sha256": "28657ee53fae009ed46a9e279395467d24f347d5ca73e4a27c8e60d10f835deb",
+      "passed_tests": 623
+    },
+    {
+      "path": "leselang-hir-profile-final-clippy-20261026.log",
+      "sha256": "45ad01088a54bafa7a69914fd60816a68b697cca9e65880b816d6abaf877a8d1",
+      "passed_tests": 0
+    }
+  ]
+}

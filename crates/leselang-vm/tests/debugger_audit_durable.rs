@@ -2,7 +2,7 @@ use leselang_vm::{CancellationReason, RetentionPolicy, Step, Vm};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-#[path = "../src/debugger_audit_contract_tests.rs"]
+#[path = "../../leserpent-vm/src/debugger_audit_contract_tests.rs"]
 mod contract;
 
 struct JournalPath(PathBuf);

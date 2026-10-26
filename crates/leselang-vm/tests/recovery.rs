@@ -55,6 +55,34 @@ const CAPTURE: &str = r#"bind(r: ui.focus(node_id: "bad"), body:
     recover(value: parse_integer(value: field(value: r, name: "node_id")), fallback: 7))"#;
 
 #[test]
+fn durable_journal_crosses_product_and_legacy_entry_points_without_new_receipts() {
+    let path = JournalPath::new();
+    let mut legacy = Vm::open_journal(&path.0, 100).unwrap();
+    let request = effect(start(&mut legacy, CAPTURE));
+    let image = encode_continuation(&request.continuation).unwrap();
+    drop(legacy);
+
+    let mut product = leserpent_vm::Vm::open_journal(&path.0, 100).unwrap();
+    assert_eq!(product.pending_count(), 1);
+    let saved = leserpent_vm::decode_continuation(&image).unwrap();
+    assert_eq!(
+        product.resume(&saved, focus("bad")),
+        done(ScalarValue::Integer(7))
+    );
+    assert_eq!(product.pending_count(), 0);
+    assert_eq!(product.completed_count(), 1);
+    drop(product);
+
+    let mut legacy = Vm::open_journal(&path.0, 100).unwrap();
+    assert_eq!(
+        legacy.resume(&saved, focus("ignored-replay")),
+        done(ScalarValue::Integer(7))
+    );
+    assert_eq!(legacy.pending_count(), 0);
+    assert_eq!(legacy.completed_count(), 1);
+}
+
+#[test]
 fn recovery_returns_success_unchanged_and_lazily_recovers_only_data_errors() {
     use ScalarValue::{Boolean, Integer, None, String};
     for (source, expected) in [

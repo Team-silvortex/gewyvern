@@ -1130,8 +1130,8 @@ dependencies = [
  "leselang-runtime-core",
  "leselang-syntax",
  "leselang-ui",
- "leselang-vm",
  "leserpent-domain",
+ "leserpent-vm",
  "serde",
  "serde_json",
 ]
@@ -1174,6 +1174,7 @@ dependencies = [
  "leselang-runtime-core",
  "leselang-syntax",
  "leserpent-domain",
+ "leserpent-vm",
  "rusqlite",
  "serde",
  "serde_json",
@@ -1272,6 +1273,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "leserpent-vm"
+version = "2.5.0"
+dependencies = [
+ "leselang-command",
+ "leselang-hir",
+ "leselang-host-contract",
+ "leselang-runtime-core",
+ "leselang-syntax",
+ "leserpent-domain",
+ "rusqlite",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "leserpentd"
 version = "2.5.0"
 dependencies = [
@@ -1280,11 +1296,11 @@ dependencies = [
  "leselang-observe",
  "leselang-syntax",
  "leselang-ui",
- "leselang-vm",
  "leserpent-adapters",
  "leserpent-domain",
  "leserpent-protocol",
  "leserpent-runtime",
+ "leserpent-vm",
  "libc",
  "rcgen",
  "ring",

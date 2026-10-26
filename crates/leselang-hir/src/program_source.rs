@@ -176,9 +176,68 @@ pub fn assemble_program<
     )
 }
 
-// The product parser/declaration boundary already bounds entry source. Keep its
-// ready-helper diagnostic priority while sharing complete-state entry admission.
-pub(crate) fn assemble_preflighted_program<
+/// Assemble physically admitted declarations with native entry diagnostic order.
+/// Unlike `assemble_program`, this does not eagerly validate entry names, text or
+/// arity before helper preparation. The mandatory entry lowerer owns all such cold
+/// semantic checks; helper-registry checks and final output admission still run.
+/// The original entry's immutable receipt is checked against current node/depth
+/// limits before any callback, rescanning only when the consumer tightens them.
+/// No caller-supplied boolean or unchecked AST can bypass that physical boundary.
+/// All ownership, native work and authority caveats of `assemble_program` apply.
+pub fn assemble_declared_program<
+    'source,
+    Field,
+    Operation,
+    HostEffect,
+    IrResult,
+    ResultType,
+    State,
+    Output,
+    Lowering,
+    Registration,
+    Entry,
+    Admission,
+>(
+    declarations: &HelperDeclarations<'source>,
+    limits: ProgramSourceLimits,
+    state: State,
+    prepare: impl FnMut(
+        &'source Function,
+        &mut State,
+    ) -> Result<
+        HelperBody<Node<Field, Operation, HostEffect, IrResult>, ResultType>,
+        Lowering,
+    >,
+    register: impl FnMut(
+        &'source Function,
+        HelperBody<Node<Field, Operation, HostEffect, IrResult>, ResultType>,
+        &mut State,
+    ) -> Result<(), Registration>,
+    lower_entry: impl FnOnce(&'source Function, &mut State) -> Result<Output, Entry>,
+    admit: impl FnOnce(&'source Function, &Output, &mut State) -> Result<(), Admission>,
+) -> ProgramSourceResult<'source, Output, State, Lowering, Registration, Entry, Admission> {
+    if !valid_limits(entry_limits(limits)) {
+        return Err(ProgramSourceError::InvalidLimits);
+    }
+    declarations
+        .entry_source()
+        .check_bounds(limits.max_entry_source_nodes, limits.max_entry_source_depth)
+        .map_err(|(span, error)| ProgramSourceError::Source {
+            span,
+            error: SourceShapeError::Structure(error),
+        })?;
+    assemble_preflighted_program(
+        declarations,
+        limits,
+        state,
+        prepare,
+        register,
+        lower_entry,
+        admit,
+    )
+}
+
+fn assemble_preflighted_program<
     'source,
     Field,
     Operation,

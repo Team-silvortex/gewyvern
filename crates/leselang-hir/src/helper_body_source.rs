@@ -6,6 +6,7 @@ use leselang_runtime_core::ScalarType;
 use leselang_syntax::{Function, MAX_FUNCTION_PARAMETERS, Span};
 
 use crate::helper_body::{HelperBody, HelperBodyError, HelperBodyLimits, LoweredHelperBody};
+use crate::helper_declarations::DeclarationBody;
 use crate::helper_source::{HelperParameter, HelperParameterError, helper_parameters};
 use crate::ir::Computation;
 use crate::pure_typing::{
@@ -195,10 +196,19 @@ pub fn lower_helper_body<
     )
 }
 
-// The reference declaration/parser boundary already bounds source. Preserve its
-// recursive diagnostic priority while sharing exact headers, meter and admission.
-#[cfg(feature = "leserpent-profile")]
-pub(crate) fn lower_preflighted_helper_body<
+/// Lower an exact physically admitted declaration without eager semantic scanning.
+/// Header/output/cost ceilings and the original source counter are still checked
+/// before native callbacks. Tighter node/depth limits trigger a fresh physical
+/// walk; otherwise the immutable receipt reuses declaration admission.
+///
+/// Unlike `lower_helper_body`, this entry deliberately leaves source names, text,
+/// argument counts and cold semantic checks to the mandatory native lowerer. It
+/// must reject all malformed cold paths under the host's current policy, preserving
+/// its diagnostic/counter order. `max_arguments` validates a policy ceiling, not
+/// an observed arity. A receipt proves only physical shape, never type/authority.
+/// All ownership, counter, output validation and cost rules of `lower_helper_body`
+/// still apply; this is not an unchecked ingress or a complete compiler.
+pub fn lower_declared_helper_body<
     'source,
     Field,
     Operation,
@@ -209,7 +219,7 @@ pub(crate) fn lower_preflighted_helper_body<
     Validation,
     Cost,
 >(
-    function: &'source Function,
+    declaration: DeclarationBody<'source>,
     limits: HelperBodySourceLimits,
     used_source_nodes: &mut usize,
     lower: impl FnOnce(
@@ -234,7 +244,14 @@ pub(crate) fn lower_preflighted_helper_body<
     Validation,
     Cost,
 > {
+    let function = declaration.function();
     let source = prepare_header(function, limits, *used_source_nodes)?;
+    declaration
+        .check_bounds(limits.max_source_nodes, limits.max_source_depth)
+        .map_err(|(span, error)| HelperBodySourceError::Source {
+            span,
+            error: SourceShapeError::Structure(error),
+        })?;
     finish(
         source,
         limits,

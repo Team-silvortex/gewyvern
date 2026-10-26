@@ -1,0 +1,203 @@
+{
+  "kind": "leselang-reference-selected-record-cleanup-parity",
+  "started_on": "2026-10-25",
+  "validated_on": "2026-10-26",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.5.0",
+  "pre_extraction_revision": "63df912e",
+  "pre_extraction_worktree_included_sequence_gate_and_compaction_batch_slices": true,
+  "hir_contract": "0.184.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.173.0",
+  "direct_adapter_tests": 9,
+  "frozen_group_deletion_cases": 192,
+  "frozen_effect_size_cases": 288,
+  "frozen_cache_reconciliation_cases": 96,
+  "borrowed_transaction_cases": 1,
+  "native_query_and_fault_order_preserved": true,
+  "eager_branch_reads_before_plan_admission": true,
+  "complete_preflight_before_first_delete": true,
+  "borrowed_outer_transaction_only": true,
+  "local_order_duplicates_and_payloads_preserved": true,
+  "full_batch_oracle_uses_frozen_lower_helpers": true,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "scope": "Selected durable-record cleanup: original effect-byte conversion, completed-group plan/state/size/delete checks, and stale local-token projection. Native owners retain raw SQL, eager row collection, foreign-key cascades and transaction ownership.",
+  "limitations": [
+    "Frozen lower-helper bodies come from 63df912e and were unchanged by the preceding uncommitted sequence-gate and compaction-batch slices. They share native storage and existing codecs/admission, but not migrated cleanup policy.",
+    "The 192 group-deletion comparisons cover four source forms, three lifecycle stages and sixteen storage/trigger variants. They compare exact errors/results and in-transaction mutation prefixes, then roll back and verify every original table. Corrupt fixtures are not supported recovery checkpoints.",
+    "The 288 effect-size and 96 stale-cache comparisons cover four source forms, three lifecycle stages and eight low-level variants. Original local order, duplicates, opaque tokens and unchecked local payloads are retained. Neither operation writes, repairs or changes transaction state.",
+    "Nine direct adapter tests exercise read/plan/completeness/size/delete ordering, negative and saturating byte counts, deletion cardinality, unchanged native fault ownership, unwinds without retry or compensation, and empty-local native reads.",
+    "The borrowed-transaction test observes the caller's uncommitted membership change, then demonstrates that a late branch-delete refusal leaves the original deletion prefix inside the still-active outer transaction. Only the caller's rollback restores it.",
+    "The previous full-batch frozen implementation now calls independently frozen effect-size/group-delete/reconciliation helpers. Complete related-crate tests rerun the batch-level rollback, public late-failure cache protection, peer reconciliation and restart paths through the migrated implementation.",
+    "No receipt decoding, token normalization, complete-graph revalidation, recovery admission, nested transaction, watermark repair, commit, rollback or retry is added by this adapter. Native SQL constraints, query diagnostics and full-batch commit ownership remain unchanged.",
+    "No new Linux, remote CI, live GUI, actual exported-source execution, complete independent durable recovery, power-loss, disk-full, multi-host race or performance evidence is claimed."
+  ],
+  "sources": [
+    {
+      "path": "crates/leselang-command/src/reference_compaction_records.rs",
+      "sha256": "0a84af4c5f46a12ed397035ad6d055da68ac5f77b0beb17e5b49b655e819ff46"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_compaction_commit.rs",
+      "sha256": "0034d4ac5bd98efa75847f434a44a8196e71040e48cd133a7f727ff1839219f8"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_settlement/maintenance.rs",
+      "sha256": "2f9ac25a92bfbdf1940a9f41052ee49f04c0042514e7b52ab2288802828f2f18"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_merge.rs",
+      "sha256": "5ae75be28fce48e5e2d66f482bca4e490c01618e2f91abea2a7b422a814a2fbf"
+    },
+    {
+      "path": "crates/leselang-command/src/reference_recovery.rs",
+      "sha256": "6361bdb796bf24a5b19146cadae19646bd45606d9363defa2d5a95721bb73d11"
+    },
+    {
+      "path": "crates/leselang-command/src/bounded_json.rs",
+      "sha256": "5d54d60657544fd097d529dd9682497f76124b108f1087029dbf954b346758ea"
+    },
+    {
+      "path": "crates/leselang-command/src/lib.rs",
+      "sha256": "c6d82309c785b716a3f4b408064b34695e521a22e8c24d1c7f2772e5e0267205"
+    },
+    {
+      "path": "crates/leselang-command/Cargo.toml",
+      "sha256": "51753fa79fce986890ef1948ad092f9875b370be116b228c49513375066e462f"
+    },
+    {
+      "path": "crates/leselang-command/tests/reference_compaction_records.rs",
+      "sha256": "97b14885330a79c4282ae6b411c736791690635bacbda9852d529bf50799c233"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal.rs",
+      "sha256": "517249729dc7ee54a532de93eb90a759ad27387890333ab3720281c71cc181a8"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/compaction_records.rs",
+      "sha256": "72b2267c57fc85917537b1a21ed6a7e5014a56bd300c09924a5cae2c0fd9d7a5"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/compaction_records_contract_tests.rs",
+      "sha256": "e9cb8f2303a19cc4286deca6e53c364c9abf7bd13da753b502a767bd25aa759b"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/compaction_commit.rs",
+      "sha256": "70876f9f380078bca5a9b995182f3b63d685d24fc8b3278c0c4b28023e13ecce"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/compaction_commit_contract_tests.rs",
+      "sha256": "1f88310f368b813ea9672f14067283a48a370e294a47f5f47c758c85297718f1"
+    },
+    {
+      "path": "crates/leselang-vm/src/journal/group_recovery_contract_tests.rs",
+      "sha256": "cb528045c5a41e30aacdc54250381bb50f20d8fa1b45bf065808f20723954a6d"
+    },
+    {
+      "path": "crates/leselang-vm/src/leserpent_profile.rs",
+      "sha256": "b5b38411bcf0e74bed163a8adf2b6d7e88280dd83677abca991f242d930ef5aa"
+    },
+    {
+      "path": "crates/leselang-vm/Cargo.toml",
+      "sha256": "2f1d51815d543a85d8b69662dbb4578170e8c6b0672f52402e4dec5c05260e21"
+    },
+    {
+      "path": "tests/leselang_vm_profile_tdd.rs",
+      "sha256": "e8c1ba8943b1898b881b490e20434af1f697c2afb58933ab4737492c1b3dc208"
+    },
+    {
+      "path": "tests/leselang_native_profile_tdd.rs",
+      "sha256": "108f11dd700615a0d6505885f29724bed134f09e4855b73fb3ba3cda4e9429d0"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "3eb508fc076505048758997976ef616177da54a26a0a843ec6610adc5247cc86"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "50b625c6ba26c57981e464f1d55136ef1c44a6ea2933510f7c464b669a88ef32"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "45394649ed3b485f49d7e0e380b34da48b1106d0029d00a7025ccf0398c943b6"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "04e8793db48917ca8f72d71caa2bb7cb80c26ed22f9174916f36e99a16e20aff"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "0aa7f0343827f3e6f056bc49dd744d097bcdfd5a0d04fb8508c9c80cfad3c4a3"
+    }
+  ],
+  "validation_logs": [
+    {
+      "path": "/private/tmp/leselang-compaction-records-adapter-20261026.log",
+      "sha256": "93ddbf8a2db9eb18d4eaf5f38b8128ba0f4df1035f200acffec0fd194b4304d6"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-records-parity-20261026.log",
+      "sha256": "16d880d24d40a33660610e5bb35053435d4a6c2b195be33cd3e2006aecc60c3c"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-records-suite-20261026.log",
+      "sha256": "751fe295584438c62befb558b034d507a3dbbe24e50a4ab6f233083e8145958e"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-records-memory-20261026.log",
+      "sha256": "742ae05629ea24dd2c2384eafdaf13f32c41c3412e76537afe51a288df60c2e6"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-records-clippy-20261026.log",
+      "sha256": "8c4f1c2a435c1a158d81e8d444d6bd7d93755470a0bf2995ff99f0a0ba9d928f"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-records-bridge-clippy-20261026.log",
+      "sha256": "2b1ba19539959ff7857403701d701304a2267a94e8b76aee69223848f9cb3088"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-records-memory-clippy-20261026.log",
+      "sha256": "76a943bf535c6982907fed23629401bd0cf2f5580f30740216ae75e021eccf69"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-records-native-clippy-20261026.log",
+      "sha256": "b64fd83cf0bcc5e3757fe4f036e321e8705d11976a196cf54c84ff82d69941dc"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-records-source-plan-20261026.log",
+      "sha256": "88254dc1cad65b10480d342ef81e5f3a4a37d6d6465d55dd0c15f52e22250940"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-records-dependencies-20261026.log",
+      "sha256": "e90db153d6482ed2f2de9f8669d0de3a88de74679941851fca212b9ec44783d8"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-records-export-plan-20261026.log",
+      "sha256": "45c691c57fb23fddd99856b0af980ea851a803041f6d0e22c196556f7d42c8ff"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-records-architecture-status-20261026.log",
+      "sha256": "c1c031d63a4862bf7774bd5d80668c6f154059cfe028441552cc911b36be15fa"
+    },
+    {
+      "path": "/private/tmp/leselang-compaction-records-catalog-20261026.log",
+      "sha256": "fa4b3076cde41a92714fd42a24954aedbd823c1054ce9b2348e63107be88cfd9"
+    }
+  ],
+  "related_crate_tests_passed": 1564,
+  "memory_profile_unit_tests_passed": 154,
+  "source_planning_tests_passed": 23,
+  "source_export_dry_run_files": 280,
+  "source_export_dry_run_bytes": 6784528,
+  "adapter_has_no_vm_or_sqlite_normal_dependency": true,
+  "feature_specific_strict_lints_passed": true,
+  "strict_workspace_all_features_all_targets_clippy_passed": true,
+  "verification_status": "passed",
+  "architecture_documentation_status_tests_passed": 518,
+  "status_catalog_valid": true
+}

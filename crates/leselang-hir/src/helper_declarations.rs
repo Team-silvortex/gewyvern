@@ -89,6 +89,7 @@ pub struct HelperDeclarations<'source> {
     entry: &'source Function,
     helpers: Vec<&'source Function>,
     reserved_names: HashSet<&'source str>,
+    source_bounds: (usize, usize),
 }
 impl fmt::Debug for HelperDeclarations<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -108,6 +109,92 @@ impl<'source> HelperDeclarations<'source> {
     }
     pub fn reserved_names(&self) -> impl ExactSizeIterator<Item = &'source str> + '_ {
         self.reserved_names.iter().copied()
+    }
+
+    /// A physical-source receipt for this exact original entry, not a type or
+    /// authority certificate. The shared borrow prevents safe AST replacement.
+    pub fn entry_source(&self) -> DeclarationBody<'source> {
+        DeclarationBody {
+            function: self.entry,
+            source_bounds: self.source_bounds,
+        }
+    }
+
+    /// Borrow an admitted body by identity, never by name or structural equality.
+    /// A cloned or unrelated declaration cannot reuse this forest's checks.
+    pub fn source_for(&self, function: &Function) -> Option<DeclarationBody<'source>> {
+        std::iter::once(self.entry)
+            .chain(self.helpers.iter().copied())
+            .find(|original| std::ptr::eq(*original, function))
+            .map(|function| DeclarationBody {
+                function,
+                source_bounds: self.source_bounds,
+            })
+    }
+}
+
+/// Opaque receipt for a declaration body's complete physical node/depth checks.
+/// It can only be obtained from successful declaration admission. It borrows the
+/// original immutable Function, retains the checked limits and exposes no mutable
+/// AST access, wire decoder or unchecked constructor. It is not consumable runtime
+/// authority: obtaining multiple receipts never grants execution or skips native
+/// lowering, type checking, argument/literal checks or output admission.
+///
+/// ```compile_fail
+/// use leselang_hir::helper_declarations::DeclarationBody;
+/// let receipt = DeclarationBody { function: todo!(), source_bounds: (1, 0) };
+/// ```
+///
+/// ```compile_fail
+/// use leselang_hir::helper_declarations::HelperDeclarations;
+/// fn mutate(declarations: &HelperDeclarations<'_>) {
+///     declarations.entry_source().function().name.clear();
+/// }
+/// ```
+#[must_use = "retain the original declaration receipt for checked lowering"]
+pub struct DeclarationBody<'source> {
+    function: &'source Function,
+    source_bounds: (usize, usize),
+}
+
+impl fmt::Debug for DeclarationBody<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("DeclarationBody")
+    }
+}
+
+impl<'source> DeclarationBody<'source> {
+    pub fn function(&self) -> &'source Function {
+        self.function
+    }
+
+    pub(crate) fn check_bounds(
+        &self,
+        max_nodes: usize,
+        max_depth: usize,
+    ) -> Result<(), (Span, StructureError)> {
+        if max_nodes >= self.source_bounds.0 && max_depth >= self.source_bounds.1 {
+            return Ok(());
+        }
+        // A tighter consumer policy needs a fresh physical check, not trust in
+        // the original (looser) receipt. Keep declaration traversal/error order.
+        let mut budget = StructureBudget::new(max_nodes, max_depth);
+        let mut pending = vec![(&self.function.body, 0)];
+        while let Some((expression, depth)) = pending.pop() {
+            let fail = |error| (crate::source_call::span(expression), error);
+            budget.visit(depth, 0, 0).map_err(fail)?;
+            if let Expression::Call { arguments, .. } = expression {
+                budget
+                    .check_pending(pending.len(), arguments.len())
+                    .map_err(fail)?;
+                pending.extend(
+                    arguments
+                        .iter()
+                        .map(|argument| (&argument.value, depth + 1)),
+                );
+            }
+        }
+        Ok(())
     }
 }
 
@@ -274,5 +361,6 @@ pub fn accept_helper_declarations<'source, Error>(
             .filter(|function| !std::ptr::eq(*function, entry))
             .collect(),
         reserved_names: names,
+        source_bounds: (limits.max_source_nodes, limits.max_source_depth),
     })
 }

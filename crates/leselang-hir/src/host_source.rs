@@ -72,25 +72,44 @@ pub fn lower_host_source<'source, Field, Operation, HostEffect, IrResult, Type, 
         return Err(HostSourceError::Source(SourceCallError::InvalidLimits));
     }
     preflight(expression, limits).map_err(HostSourceError::Source)?;
-    lower_preflighted_host_source(expression, limits, prepare, admit)
+    bind_host_source_root(expression, limits)?.lower(prepare, admit)
 }
 
-// Only the product's already-admitted parser/declaration path skips cold source
-// scanning, preserving its recursive native diagnostic and source-counter order.
-pub(crate) fn lower_preflighted_host_source<
-    'source,
-    Field,
-    Operation,
-    HostEffect,
-    IrResult,
-    Type,
-    Error,
->(
+/// An original call root with checked output-root capacity, not a source, type or
+/// authority receipt. Private fields prevent replacing the borrowed expression.
+/// No native payload or source descendant is copied or inspected by this plan.
+///
+/// ```compile_fail
+/// use leselang_hir::host_source::BoundHostSource;
+/// let plan = BoundHostSource { expression: todo!(), at: todo!() };
+/// ```
+///
+/// ```compile_fail
+/// use leselang_hir::host_source::BoundHostSource;
+/// let plan: BoundHostSource<'_> = serde_json::from_str("{}").unwrap();
+/// ```
+#[must_use = "lower the bound root or deliberately discard its local plan"]
+pub struct BoundHostSource<'source> {
+    expression: &'source Expression,
+    at: Span,
+}
+impl fmt::Debug for BoundHostSource<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("BoundHostSource")
+    }
+}
+
+/// Validate policy ceilings, call-root shape and one generated Host node before
+/// any callback. Source nodes/depth/arity fields validate ceilings here, not the
+/// source descendants. Native lowering MUST bound and check all cold source,
+/// signatures, literal bytes, lexical rules and opaque output growth itself.
+/// Use `lower_host_source` when complete eager source scanning is required.
+/// This phase neither looks up nor authorizes the callee and owns no live quota,
+/// execution fuel or runtime reservation. Rebinding is not a replay grant.
+pub fn bind_host_source_root<'source, Error>(
     expression: &'source Expression,
     limits: SourceCallLimits,
-    prepare: impl FnOnce(&'source Expression) -> NativeHostSource<HostEffect, Type, Error>,
-    admit: impl FnOnce(&'source Expression, &HostEffect, &Type) -> Result<(), Error>,
-) -> HostSourceResult<Node<Field, Operation, HostEffect, IrResult>, Type, Error> {
+) -> Result<BoundHostSource<'source>, HostSourceError<Error>> {
     if !valid_limits(limits) {
         return Err(HostSourceError::Source(SourceCallError::InvalidLimits));
     }
@@ -101,14 +120,31 @@ pub(crate) fn lower_preflighted_host_source<
     StructureBudget::new(limits.max_lowered_nodes, limits.max_lowered_depth)
         .visit(0, 0, 0)
         .map_err(|error| HostSourceError::Output { span: at, error })?;
-    let (effect, ty) =
-        prepare(expression).map_err(|error| HostSourceError::Preparation { span: at, error })?;
-    admit(expression, &effect, &ty)
-        .map_err(|error| HostSourceError::Admission { span: at, error })?;
-    Ok((
-        Computation::Host {
-            effect: Box::new(effect),
-        },
-        ty,
-    ))
+    Ok(BoundHostSource { expression, at })
+}
+
+impl<'source> BoundHostSource<'source> {
+    /// Prepare and then admit exactly once against the original borrowed source.
+    /// Admission must corroborate the complete opaque graph and original result
+    /// under current host policy. Failure/unwind drops owned parts without retry
+    /// or rollback of host work; native callbacks, allocation and Drop are trusted.
+    /// The owned effect/type move unchanged. No Clone/Debug/Send bounds, implicit
+    /// type inference or post-handoff authority certificate are installed.
+    pub fn lower<Field, Operation, HostEffect, IrResult, Type, Error>(
+        self,
+        prepare: impl FnOnce(&'source Expression) -> NativeHostSource<HostEffect, Type, Error>,
+        admit: impl FnOnce(&'source Expression, &HostEffect, &Type) -> Result<(), Error>,
+    ) -> HostSourceResult<Node<Field, Operation, HostEffect, IrResult>, Type, Error> {
+        let Self { expression, at } = self;
+        let (effect, ty) = prepare(expression)
+            .map_err(|error| HostSourceError::Preparation { span: at, error })?;
+        admit(expression, &effect, &ty)
+            .map_err(|error| HostSourceError::Admission { span: at, error })?;
+        Ok((
+            Computation::Host {
+                effect: Box::new(effect),
+            },
+            ty,
+        ))
+    }
 }

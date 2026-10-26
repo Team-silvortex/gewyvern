@@ -157,7 +157,7 @@ pub(super) fn lower_program(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnos
     functions
         .names
         .extend(accepted.reserved_names().map(str::to_owned));
-    let assembled = crate::program_source::assemble_preflighted_program(
+    let assembled = crate::program_source::assemble_declared_program(
         &accepted,
         crate::program_source::ProgramSourceLimits {
             max_entry_source_nodes: MAX_COMPUTATION_NODES,
@@ -176,8 +176,15 @@ pub(super) fn lower_program(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnos
         functions,
         |function, functions| {
             let source_limits = source_cost_limits();
-            let admitted = crate::helper_body_source::lower_preflighted_helper_body(
-                function,
+            let declaration = accepted.source_for(function).ok_or_else(|| {
+                invalid(
+                    "LSH1999",
+                    "helper declaration identity changed",
+                    function.span,
+                )
+            })?;
+            let admitted = crate::helper_body_source::lower_declared_helper_body(
+                declaration,
                 crate::helper_body_source::HelperBodySourceLimits {
                     max_source_nodes: MAX_COMPUTATION_NODES,
                     max_source_depth: MAX_EFFECT_NESTING_DEPTH,
@@ -405,22 +412,21 @@ pub(super) fn lower_call<'a>(
         .get(name)
         .ok_or_else(|| invalid("LSH1504", "unknown helper", span))?;
     let cached = template.prepared.template();
-    crate::helper_templates::preflight(cached.parameters(), cached.body(), template_limits())
-        .map_err(
-            |_: crate::helper_templates::HelperTemplateError<std::convert::Infallible>| {
-                invalid(
-                    "LSH1405",
-                    "expanded helper exceeds computation bounds",
-                    span,
-                )
-            },
-        )?;
+    cached.revalidate(template_limits()).map_err(
+        |_: crate::helper_templates::HelperTemplateError<std::convert::Infallible>| {
+            invalid(
+                "LSH1405",
+                "expanded helper exceeds computation bounds",
+                span,
+            )
+        },
+    )?;
     let parameters = cached.parameters().to_vec();
     let signature = parameters
         .iter()
         .map(|(name, ty)| leselang_runtime_core::NamedParameter::required(name.as_str(), *ty))
         .collect::<Vec<_>>();
-    let lowered = crate::helper_source::lower_preflighted_helper_arguments(
+    let lowered = crate::helper_source::bind_helper_source_arguments(
         arguments,
         &signature,
         crate::helper_source::HelperSourceLimits {
@@ -433,7 +439,9 @@ pub(super) fn lower_call<'a>(
             },
             max_parameters: MAX_FUNCTION_PARAMETERS,
         },
-        |argument| {
+    )
+    .and_then(|bound| {
+        bound.lower(|argument| {
             let (value, ty) = computation::lower_expression_with_functions(
                 &argument.value,
                 scope,
@@ -448,8 +456,8 @@ pub(super) fn lower_call<'a>(
                     _ => None,
                 },
             ))
-        },
-    )
+        })
+    })
     .map_err(|error| match error {
         crate::helper_source::HelperSourceError::Lowering { error, .. } => error,
         crate::helper_source::HelperSourceError::Argument { argument_index, .. } => invalid(
@@ -564,7 +572,9 @@ impl
         expected: ScalarType,
         index: usize,
     ) -> Result<(), Self::Error> {
-        if value.validate_in_type_scope(self.scope).ok() != Some(Type::Scalar(expected)) {
+        if computation::validate_in_type_scope(value, self.scope).ok()
+            != Some(Type::Scalar(expected))
+        {
             return Err(invalid(
                 "LSH1504",
                 "helper arguments must be pure scalars of the declared type",
@@ -589,7 +599,7 @@ impl
         Ok(fresh_name(self.names, self.next_name))
     }
     fn admit(&mut self, value: &Computation, result: &Type) -> Result<(), Self::Error> {
-        if value.validate_in_type_scope(self.scope).ok() != Some(*result) {
+        if computation::validate_in_type_scope(value, self.scope).ok() != Some(*result) {
             return Err(invalid(
                 "LSH1405",
                 "expanded helper exceeds computation bounds",

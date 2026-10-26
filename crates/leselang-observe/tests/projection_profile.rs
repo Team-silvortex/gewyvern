@@ -311,7 +311,7 @@ fn mutation_observation_dtos_remain_available_and_closed_without_the_executor() 
 mod bridge {
     use super::*;
     use leselang_observe::{execute_debugger_cancel, execute_debugger_cancel_effect};
-    use leselang_vm::{Step, Vm, encode_continuation};
+    use leserpent_vm::{Step, Vm, encode_continuation};
 
     fn live() -> (Vm, EffectRequest) {
         let program = leselang_hir::lower(&leselang_syntax::parse(

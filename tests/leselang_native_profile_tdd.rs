@@ -166,8 +166,8 @@ fn native_vm_source_checkpoint_keeps_direct_consumer_proof_and_closed_reference_
         "consumer/tests/native_vm_embedding.rs",
         "vm_manifest_projection_preserves_native_dependencies_and_omits_every_reference_target",
         "vm_manifest_projection_refuses_unreviewed_features_dependencies_sections_and_targets",
-        "crates/leselang-vm/src/leserpent_profile.rs",
-        "crates/leselang-vm/src/journal.rs",
+        "crates/leserpent-vm/src/leserpent_profile.rs",
+        "crates/leserpent-vm/src/journal.rs",
     ] {
         assert!(source.contains(required), "VM export lost {required}");
     }
@@ -1532,7 +1532,7 @@ fn dispatch_lease_fence_is_shared_without_exporting_reference_storage() {
     }
     assert!(core.contains("pub fn validate_dispatch_lease("));
     assert!(core.contains("submitted.expires_at_ms < now_ms"));
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let policy =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_dispatch.rs"))
             .unwrap();
@@ -1541,7 +1541,7 @@ fn dispatch_lease_fence_is_shared_without_exporting_reference_storage() {
     assert!(policy.contains("validate_dispatch_lease("));
     assert!(policy.contains("DispatchLeaseError::Superseded"));
     let successor =
-        fs::read_to_string(root().join("crates/leselang-vm/src/journal/successor.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/journal/successor.rs")).unwrap();
     assert!(successor.contains("validate_stored_lease(&dispatch, lease, now_ms, true)?"));
     for source in [&journal, &successor, &policy] {
         assert!(!source.contains("lease.lease_expires_at_ms < now_ms"));
@@ -1578,7 +1578,7 @@ fn semantic_retry_planning_reuses_numeric_kernels_and_stays_outside_host_storage
         assert!(core.contains(required));
     }
     let profile =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     assert!(profile.contains("leselang_command::reference_retry::report_effect_error("));
     let entry =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_retry.rs")).unwrap();
@@ -1590,7 +1590,7 @@ fn semantic_retry_planning_reuses_numeric_kernels_and_stays_outside_host_storage
     assert!(adapter.contains("plan_retry_schedule("));
     assert!(!adapter.contains("fn retry_delay("));
     assert!(!profile.contains("fn retry_delay("));
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let commit =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_retry_commit.rs"))
             .unwrap();
@@ -1630,7 +1630,7 @@ fn dispatch_capacity_is_shared_without_moving_storage_or_product_policy_into_cor
     assert!(core.contains("pub fn dispatch_lease_capacity_exhausted("));
     assert!(core.contains(".checked_add(additional)"));
     let scheduling =
-        fs::read_to_string(root().join("crates/leselang-vm/src/scheduling.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/scheduling.rs")).unwrap();
     assert!(scheduling.contains("check_scheduler_admission(self, pending, additional)"));
     assert!(scheduling.contains("scheduler_lease_capacity_exhausted(self)"));
     let policy =
@@ -1657,7 +1657,7 @@ fn dispatch_capacity_is_shared_without_moving_storage_or_product_policy_into_cor
         fs::read_to_string(root().join("crates/leselang-command/src/reference_claim.rs")).unwrap();
     assert!(claim.contains("LSV2502"));
     assert!(!claim.contains("dispatch_lease_capacity_exhausted("));
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     assert!(journal.contains("Ok(dispatch_lease_capacity_exhausted(active, limit))"));
     let bounded_query = journal
         .split("fn sql_lease_capacity_exhausted(")
@@ -1699,7 +1699,7 @@ fn lease_issuance_planning_stays_separate_from_existing_lease_settlement() {
     ] {
         assert!(core.contains(required));
     }
-    let journal = fs::read_to_string(root().join("crates/leselang-vm/src/journal.rs")).unwrap();
+    let journal = fs::read_to_string(root().join("crates/leserpent-vm/src/journal.rs")).unwrap();
     let policy =
         fs::read_to_string(root().join("crates/leselang-command/src/reference_dispatch.rs"))
             .unwrap();
@@ -1722,7 +1722,7 @@ fn lease_issuance_planning_stays_separate_from_existing_lease_settlement() {
         2
     );
     let successor =
-        fs::read_to_string(root().join("crates/leselang-vm/src/journal/successor.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/journal/successor.rs")).unwrap();
     assert!(successor.contains("validate_dispatch_clock(now_ms)?;"));
     assert!(!successor.contains("validate_lease_clock("));
     let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
@@ -1755,7 +1755,7 @@ fn dispatch_data_is_host_owned_and_reference_types_are_not_mirrored() {
         assert!(!core.contains(forbidden), "{forbidden}");
     }
     let vm =
-        fs::read_to_string(root().join("crates/leselang-vm/src/leserpent_profile.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/src/leserpent_profile.rs")).unwrap();
     let adapter =
         fs::read_to_string(root().join("crates/leselang-command/src/execution_outcome.rs"))
             .unwrap();

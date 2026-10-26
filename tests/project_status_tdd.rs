@@ -14,6 +14,544 @@ fn repository_root() -> PathBuf {
 }
 
 #[test]
+fn public_source_plans_record_native_order_without_claiming_source_or_execution_authority() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let hir = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-hir/typed-effects")
+        .unwrap();
+    assert_eq!(hir.contract.version, "0.188.0");
+    for surface in [
+        "public-original-source-host-root-plan",
+        "public-field-operand-plan-with-native-diagnostic-order",
+        "mandatory-current-native-export-and-effect-admission",
+    ] {
+        assert!(hir.contract.surfaces.iter().any(|s| s == surface));
+    }
+    let path = "docs/fixtures/leselang_source_preparation_boundary_macos_arm64_20261026.json";
+    for source in [
+        path,
+        "crates/leselang-hir/tests/source_preparation.rs",
+        "crates/leselang-hir/src/source_preparation_contract_tests.rs",
+    ] {
+        assert!(
+            hir.evidence
+                .iter()
+                .any(|e| e.path == source && e.state == EvidenceState::Present)
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["hir_contract"], "0.188.0");
+    assert_eq!(proof["product_private_entry_points_replaced"], 3);
+    assert_eq!(proof["public_source_plans"], 2);
+    assert_eq!(proof["native_tests"], 8);
+    assert_eq!(proof["frozen_field_cases"], 864);
+    assert_eq!(proof["frozen_host_cases"], 144);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["consumer_test_byte_identity"], true);
+    for flag in [
+        "physical_hir_relocation_complete",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+        "wire_format_changed",
+        "journal_schema_changed",
+        "plan_is_source_or_authority_receipt",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.completion, 10);
+}
+
+#[test]
+fn public_argument_stages_record_frozen_compatibility_without_promoting_extraction() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let hir = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-hir/typed-effects")
+        .unwrap();
+    assert_eq!(hir.contract.version, "0.188.0");
+    for surface in [
+        "public-helper-and-host-argument-binding-stages",
+        "immutable-original-source-signature-alignments",
+        "current-helper-template-revalidation",
+    ] {
+        assert!(hir.contract.surfaces.iter().any(|s| s == surface));
+    }
+    let path = "docs/fixtures/leselang_argument_binding_boundary_macos_arm64_20261026.json";
+    for source in [
+        path,
+        "crates/leselang-hir/tests/argument_binding.rs",
+        "crates/leselang-hir/src/argument_binding_contract_tests.rs",
+    ] {
+        assert!(
+            hir.evidence
+                .iter()
+                .any(|e| e.path == source && e.state == EvidenceState::Present)
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["hir_contract"], "0.187.0");
+    assert_eq!(proof["removed_internal_dependencies"], 3);
+    assert_eq!(proof["native_tests"], 8);
+    assert_eq!(proof["frozen_helper_cases"], 1344);
+    assert_eq!(proof["frozen_host_cases"], 2688);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["consumer_test_byte_identity"], true);
+    for flag in [
+        "physical_hir_relocation_complete",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+        "wire_format_changed",
+        "journal_schema_changed",
+        "binding_is_source_or_authority_receipt",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.completion, 10);
+}
+
+#[test]
+fn checked_declaration_receipts_record_compiler_boundary_without_promoting_extraction() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let hir = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-hir/typed-effects")
+        .unwrap();
+    assert_eq!(hir.contract.version, "0.188.0");
+    for surface in [
+        "identity-bound-declaration-source-receipts",
+        "checked-native-order-helper-and-program-assembly",
+        "tightened-source-policy-revalidation",
+    ] {
+        assert!(hir.contract.surfaces.iter().any(|s| s == surface));
+    }
+    let path = "docs/fixtures/leselang_declaration_source_boundary_macos_arm64_20261026.json";
+    for source in [path, "crates/leselang-hir/tests/declaration_source.rs"] {
+        assert!(
+            hir.evidence
+                .iter()
+                .any(|e| e.path == source && e.state == EvidenceState::Present)
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["hir_contract"], "0.186.0");
+    assert_eq!(proof["checked_public_entries"], 2);
+    assert_eq!(proof["native_tests"], 9);
+    assert_eq!(proof["physical_limit_comparisons"], 225);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["consumer_test_byte_identity"], true);
+    for flag in [
+        "physical_hir_relocation_complete",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+        "wire_format_changed",
+        "journal_schema_changed",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.completion, 10);
+}
+
+#[test]
+fn hir_profile_boundary_records_foreign_impl_and_frozen_policy_without_claiming_relocation() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let hir = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-hir/typed-effects")
+        .unwrap();
+    assert_eq!(hir.contract.version, "0.188.0");
+    assert!(
+        hir.contract
+            .surfaces
+            .iter()
+            .any(|s| s == "foreign-host-computation-profile-policy")
+    );
+    let path = "docs/fixtures/leselang_hir_profile_boundary_macos_arm64_20261026.json";
+    for source in [
+        path,
+        "crates/leselang-hir/src/computation_profile.rs",
+        "crates/leselang-hir/tests/computation_profile.rs",
+        "crates/leselang-hir/src/computation_profile_contract_tests.rs",
+    ] {
+        assert!(
+            hir.evidence
+                .iter()
+                .any(|e| e.path == source && e.state == EvidenceState::Present)
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["hir_contract"], "0.185.0");
+    assert_eq!(proof["forwarded_methods"], 12);
+    assert_eq!(proof["native_tests"], 4);
+    assert_eq!(proof["frozen_scope_group_cases"], 880);
+    assert_eq!(proof["frozen_private_scope_cases"], 165);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["consumer_test_byte_identity"], true);
+    for flag in [
+        "physical_hir_relocation_complete",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+        "wire_format_changed",
+        "journal_schema_changed",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.completion, 10);
+}
+
+#[test]
+fn product_vm_ownership_records_migration_without_promoting_native_completion() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let proof_path = "docs/fixtures/leselang_product_vm_ownership_macos_arm64_20261026.json";
+    for id in [
+        "leserpent-2/language-vm/effect-reentry",
+        "leselang/language-vm/host-neutral-embedding",
+    ] {
+        let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
+        for path in [proof_path, "crates/leserpent-vm/Cargo.toml"] {
+            assert!(
+                cell.evidence
+                    .iter()
+                    .any(|e| e.path == path && e.state == EvidenceState::Present)
+            );
+        }
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(proof_path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["moved_source_files"], 99);
+    assert_eq!(proof["byte_identical_files"], 96);
+    assert_eq!(proof["import_only_files"], 3);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["product_free"], true);
+    assert_eq!(proof["native_export"]["verification_target_removed"], true);
+    for flag in [
+        "wire_format_changed",
+        "journal_schema_changed",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+    let rows = proof["migrations"].as_array().unwrap();
+    assert_eq!(rows.len(), 99);
+    assert_eq!(
+        rows.iter()
+            .filter(|r| r["change"] == "byte-identical-move")
+            .count(),
+        96
+    );
+    for row in rows {
+        assert!(
+            row["path"]
+                .as_str()
+                .unwrap()
+                .starts_with("crates/leserpent-vm/src/")
+        );
+        assert!(
+            row["original_path"]
+                .as_str()
+                .unwrap()
+                .starts_with("crates/leselang-vm/src/")
+        );
+        for key in ["sha256", "before_sha256"] {
+            let digest = row[key].as_str().unwrap();
+            assert_eq!(digest.len(), 64);
+            assert!(digest.bytes().all(|b| b.is_ascii_hexdigit()));
+        }
+    }
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.completion, 10);
+}
+
+#[test]
+fn selected_record_cleanup_tracks_parity_without_promoting_independent_recovery() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let reference = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
+        .unwrap();
+    assert_eq!(reference.contract.version, "1.173.0");
+    assert!(
+        reference
+            .contract
+            .surfaces
+            .iter()
+            .any(|s| s == "adapter-owned-selected-record-cleanup-policy")
+    );
+    let path = "docs/fixtures/leselang_compaction_records_macos_arm64_20261026.json";
+    for p in [
+        path,
+        "crates/leselang-command/src/reference_compaction_records.rs",
+        "crates/leserpent-vm/src/journal/compaction_records.rs",
+        "crates/leselang-command/tests/reference_compaction_records.rs",
+        "crates/leserpent-vm/src/journal/compaction_records_contract_tests.rs",
+    ] {
+        assert!(
+            reference
+                .evidence
+                .iter()
+                .any(|e| e.path == p && e.state == EvidenceState::Present),
+            "{p}"
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["reference_execution_contract"], "1.173.0");
+    assert_eq!(proof["verification_status"], "passed");
+    for (key, count) in [
+        ("direct_adapter_tests", 9),
+        ("frozen_group_deletion_cases", 192),
+        ("frozen_effect_size_cases", 288),
+        ("frozen_cache_reconciliation_cases", 96),
+        ("borrowed_transaction_cases", 1),
+    ] {
+        assert_eq!(proof[key], count, "{key}");
+    }
+    for key in [
+        "native_query_and_fault_order_preserved",
+        "eager_branch_reads_before_plan_admission",
+        "complete_preflight_before_first_delete",
+        "borrowed_outer_transaction_only",
+        "local_order_duplicates_and_payloads_preserved",
+        "full_batch_oracle_uses_frozen_lower_helpers",
+        "feature_specific_strict_lints_passed",
+    ] {
+        assert_eq!(proof[key], true, "{key}");
+    }
+    for key in [
+        "wire_format_changed",
+        "journal_schema_changed",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[key], false, "{key}");
+    }
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.completion, 10);
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+}
+
+#[test]
+fn compaction_tracks_batch_parity_without_promoting_independent_recovery() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let reference = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
+        .unwrap();
+    assert_eq!(reference.contract.version, "1.173.0");
+    assert!(
+        reference
+            .contract
+            .surfaces
+            .iter()
+            .any(|s| s == "adapter-owned-retention-batch-compaction-policy")
+    );
+    let path = "docs/fixtures/leselang_compaction_macos_arm64_20261025.json";
+    for p in [
+        path,
+        "crates/leselang-command/src/reference_compaction_commit.rs",
+        "crates/leserpent-vm/src/journal/compaction_commit.rs",
+        "crates/leselang-command/tests/reference_compaction_commit.rs",
+        "crates/leserpent-vm/src/journal/compaction_commit_contract_tests.rs",
+    ] {
+        assert!(
+            reference
+                .evidence
+                .iter()
+                .any(|e| e.path == p && e.state == EvidenceState::Present),
+            "{p}"
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["reference_execution_contract"], "1.172.0");
+    assert_eq!(proof["verification_status"], "passed");
+    for (key, count) in [
+        ("direct_adapter_tests", 9),
+        ("frozen_memory_cases", 240),
+        ("frozen_sqlite_cases", 360),
+        ("public_peer_reconciliation_restart_cases", 1),
+        ("public_late_failure_rollback_cases", 1),
+    ] {
+        assert_eq!(proof[key], count, "{key}");
+    }
+    for key in [
+        "memory_preflight_before_mutation",
+        "native_group_protection_and_accounting_retained",
+        "durable_single_transaction_rollback",
+        "no_removal_reconciles_stale_cache",
+        "commit_before_cache_publication",
+        "watermark_not_reused",
+        "feature_specific_strict_lints_passed",
+    ] {
+        assert_eq!(proof[key], true, "{key}");
+    }
+    for key in [
+        "wire_format_changed",
+        "journal_schema_changed",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[key], false, "{key}");
+    }
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.completion, 10);
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+}
+
+#[test]
+fn sequence_gate_tracks_backend_parity_without_promoting_independent_recovery() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let reference = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
+        .unwrap();
+    assert_eq!(reference.contract.version, "1.173.0");
+    assert!(
+        reference
+            .contract
+            .surfaces
+            .iter()
+            .any(|s| s == "adapter-owned-sequential-predecessor-gate-policy")
+    );
+    let path = "docs/fixtures/leselang_sequence_gate_macos_arm64_20261025.json";
+    for p in [
+        path,
+        "crates/leselang-command/src/reference_sequence_gate.rs",
+        "crates/leserpent-vm/src/journal/sequence_gate.rs",
+        "crates/leselang-command/tests/reference_sequence_gate.rs",
+        "crates/leserpent-vm/src/journal/sequence_gate_contract_tests.rs",
+    ] {
+        assert!(
+            reference
+                .evidence
+                .iter()
+                .any(|e| e.path == p && e.state == EvidenceState::Present),
+            "{p}"
+        );
+    }
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["reference_execution_contract"], "1.171.0");
+    assert_eq!(proof["verification_status"], "passed");
+    for (key, count) in [
+        ("direct_adapter_tests", 7),
+        ("frozen_memory_cases", 2520),
+        ("frozen_sqlite_cases", 432),
+        ("memory_public_group_shapes", 12),
+        ("durable_public_group_shapes", 12),
+        ("borrowed_transaction_cases", 1),
+    ] {
+        assert_eq!(proof[key], count, "{key}");
+    }
+    for key in [
+        "memory_lazy_prefix_and_done_policy_preserved",
+        "durable_state_observation_policy_preserved",
+        "native_indexed_claim_selection_unchanged",
+        "borrowed_outer_transaction_only",
+        "native_query_errors_move_unchanged",
+        "feature_specific_strict_lints_passed",
+    ] {
+        assert_eq!(proof[key], true, "{key}");
+    }
+    for key in [
+        "wire_format_changed",
+        "journal_schema_changed",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[key], false, "{key}");
+    }
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.completion, 10);
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+}
+
+#[test]
 fn group_progress_tracks_read_snapshot_parity_without_promoting_independent_recovery() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     let reference = catalog
@@ -21,7 +559,7 @@ fn group_progress_tracks_read_snapshot_parity_without_promoting_independent_reco
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -33,9 +571,9 @@ fn group_progress_tracks_read_snapshot_parity_without_promoting_independent_reco
     for p in [
         path,
         "crates/leselang-command/src/reference_group_progress.rs",
-        "crates/leselang-vm/src/journal/group_progress.rs",
+        "crates/leserpent-vm/src/journal/group_progress.rs",
         "crates/leselang-command/tests/reference_group_progress.rs",
-        "crates/leselang-vm/src/journal/group_progress_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/group_progress_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -99,7 +637,7 @@ fn group_successor_registration_tracks_parity_without_promoting_independent_reco
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -111,9 +649,9 @@ fn group_successor_registration_tracks_parity_without_promoting_independent_reco
     for p in [
         path,
         "crates/leselang-command/src/reference_group_successor_commit.rs",
-        "crates/leselang-vm/src/journal/group_successor_commit.rs",
+        "crates/leserpent-vm/src/journal/group_successor_commit.rs",
         "crates/leselang-command/tests/reference_group_successor_commit.rs",
-        "crates/leselang-vm/src/journal/group_successor_commit_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/group_successor_commit_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -179,7 +717,7 @@ fn group_finalization_tracks_outer_atomicity_without_promoting_independent_recov
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -191,9 +729,9 @@ fn group_finalization_tracks_outer_atomicity_without_promoting_independent_recov
     for p in [
         path,
         "crates/leselang-command/src/reference_group_finalization.rs",
-        "crates/leselang-vm/src/journal/group_finalization.rs",
+        "crates/leserpent-vm/src/journal/group_finalization.rs",
         "crates/leselang-command/tests/reference_group_finalization.rs",
-        "crates/leselang-vm/src/journal/group_finalization_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/group_finalization_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -257,7 +795,7 @@ fn dispatch_claim_commit_tracks_parity_without_promoting_independent_runtime() {
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -269,9 +807,9 @@ fn dispatch_claim_commit_tracks_parity_without_promoting_independent_runtime() {
     for source in [
         path,
         "crates/leselang-command/src/reference_claim_commit.rs",
-        "crates/leselang-vm/src/journal/claim_commit.rs",
+        "crates/leserpent-vm/src/journal/claim_commit.rs",
         "crates/leselang-command/tests/reference_claim_commit.rs",
-        "crates/leselang-vm/src/journal/claim_commit_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/claim_commit_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -336,7 +874,7 @@ fn merge_graph_registration_tracks_parity_without_promoting_complete_extraction(
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -348,9 +886,9 @@ fn merge_graph_registration_tracks_parity_without_promoting_complete_extraction(
     for source in [
         path,
         "crates/leselang-command/src/reference_merge_graph_commit.rs",
-        "crates/leselang-vm/src/journal/merge_graph_commit.rs",
+        "crates/leserpent-vm/src/journal/merge_graph_commit.rs",
         "crates/leselang-command/tests/reference_merge_graph_commit.rs",
-        "crates/leselang-vm/src/journal/merge_graph_commit_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/merge_graph_commit_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -415,7 +953,7 @@ fn pending_registration_commit_tracks_conflict_and_watermark_parity_without_extr
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -427,9 +965,9 @@ fn pending_registration_commit_tracks_conflict_and_watermark_parity_without_extr
     for source in [
         path,
         "crates/leselang-command/src/reference_pending_commit.rs",
-        "crates/leselang-vm/src/journal/pending_commit.rs",
+        "crates/leserpent-vm/src/journal/pending_commit.rs",
         "crates/leselang-command/tests/reference_pending_commit.rs",
-        "crates/leselang-vm/src/journal/pending_commit_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/pending_commit_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -495,7 +1033,7 @@ fn expiration_batch_commit_tracks_native_parity_without_promoting_independent_re
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -507,9 +1045,9 @@ fn expiration_batch_commit_tracks_native_parity_without_promoting_independent_re
     for source in [
         path,
         "crates/leselang-command/src/reference_expiration_commit.rs",
-        "crates/leselang-vm/src/journal/expiration_commit.rs",
+        "crates/leserpent-vm/src/journal/expiration_commit.rs",
         "crates/leselang-command/tests/reference_expiration_commit.rs",
-        "crates/leselang-vm/src/journal/expiration_commit_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/expiration_commit_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -575,7 +1113,7 @@ fn ordinary_completion_commit_tracks_backend_parity_without_promoting_extraction
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -587,9 +1125,9 @@ fn ordinary_completion_commit_tracks_backend_parity_without_promoting_extraction
     for source in [
         path,
         "crates/leselang-command/src/reference_completion_commit.rs",
-        "crates/leselang-vm/src/journal/completion_commit.rs",
+        "crates/leserpent-vm/src/journal/completion_commit.rs",
         "crates/leselang-command/tests/reference_completion_commit.rs",
-        "crates/leselang-vm/src/journal/completion_commit_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/completion_commit_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -654,7 +1192,7 @@ fn acknowledgement_commit_tracks_native_parity_without_promoting_independent_rec
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -666,9 +1204,9 @@ fn acknowledgement_commit_tracks_native_parity_without_promoting_independent_rec
     for source in [
         path,
         "crates/leselang-command/src/reference_acknowledgement_commit.rs",
-        "crates/leselang-vm/src/journal/acknowledgement_commit.rs",
+        "crates/leserpent-vm/src/journal/acknowledgement_commit.rs",
         "crates/leselang-command/tests/reference_acknowledgement_commit.rs",
-        "crates/leselang-vm/src/journal/acknowledgement_commit_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/acknowledgement_commit_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -732,7 +1270,7 @@ fn retry_journal_commit_tracks_lease_replay_and_rollback_parity_without_extracti
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -744,9 +1282,9 @@ fn retry_journal_commit_tracks_lease_replay_and_rollback_parity_without_extracti
     for source in [
         path,
         "crates/leselang-command/src/reference_retry_commit.rs",
-        "crates/leselang-vm/src/journal/retry_commit.rs",
+        "crates/leserpent-vm/src/journal/retry_commit.rs",
         "crates/leselang-command/tests/reference_retry_commit.rs",
-        "crates/leselang-vm/src/journal/retry_commit_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/retry_commit_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -809,7 +1347,7 @@ fn ordinary_cancellation_commit_tracks_replay_and_native_transaction_parity_with
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -821,9 +1359,9 @@ fn ordinary_cancellation_commit_tracks_replay_and_native_transaction_parity_with
     for source in [
         path,
         "crates/leselang-command/src/reference_cancellation_commit.rs",
-        "crates/leselang-vm/src/journal/cancellation_commit.rs",
+        "crates/leserpent-vm/src/journal/cancellation_commit.rs",
         "crates/leselang-command/tests/reference_cancellation_commit.rs",
-        "crates/leselang-vm/src/journal/cancellation_commit_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/cancellation_commit_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -886,7 +1424,7 @@ fn audit_read_projection_tracks_native_error_parity_without_authority_or_extract
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -898,9 +1436,9 @@ fn audit_read_projection_tracks_native_error_parity_without_authority_or_extract
     for source in [
         path,
         "crates/leselang-command/src/reference_audit_read.rs",
-        "crates/leselang-vm/src/journal/audit_read.rs",
+        "crates/leserpent-vm/src/journal/audit_read.rs",
         "crates/leselang-command/tests/reference_audit_read.rs",
-        "crates/leselang-vm/src/journal/audit_read_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/audit_read_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -960,7 +1498,7 @@ fn audited_cancellation_commit_tracks_native_parity_without_promoting_independen
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -972,9 +1510,9 @@ fn audited_cancellation_commit_tracks_native_parity_without_promoting_independen
     for source in [
         path,
         "crates/leselang-command/src/reference_audit_commit.rs",
-        "crates/leselang-vm/src/journal/audit_commit.rs",
+        "crates/leserpent-vm/src/journal/audit_commit.rs",
         "crates/leselang-command/tests/reference_audit_commit.rs",
-        "crates/leselang-vm/src/journal/audit_commit_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/audit_commit_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -1035,7 +1573,7 @@ fn audit_recovery_tracks_read_only_parity_and_atomic_refusal_without_extraction_
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -1048,7 +1586,7 @@ fn audit_recovery_tracks_read_only_parity_and_atomic_refusal_without_extraction_
         path,
         "crates/leselang-command/src/reference_audit_recovery.rs",
         "crates/leselang-command/tests/reference_audit_recovery.rs",
-        "crates/leselang-vm/src/journal/audit_recovery_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/audit_recovery_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -1111,7 +1649,7 @@ fn journal_schema_policy_tracks_native_migration_parity_without_durable_extracti
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -1124,7 +1662,7 @@ fn journal_schema_policy_tracks_native_migration_parity_without_durable_extracti
         path,
         "crates/leselang-command/src/reference_journal_schema.rs",
         "crates/leselang-command/tests/reference_journal_schema.rs",
-        "crates/leselang-vm/src/journal/schema_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/schema_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -1186,7 +1724,7 @@ fn root_admission_policy_tracks_compatibility_without_claiming_native_durable_ex
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -1199,7 +1737,7 @@ fn root_admission_policy_tracks_compatibility_without_claiming_native_durable_ex
         path,
         "crates/leselang-command/src/reference_admission.rs",
         "crates/leselang-command/tests/reference_admission.rs",
-        "crates/leselang-vm/src/admission_contract_tests.rs",
+        "crates/leserpent-vm/src/admission_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -1261,7 +1799,7 @@ fn import_cache_and_claim_adoption_keep_native_commit_authority_without_promotio
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -1276,7 +1814,7 @@ fn import_cache_and_claim_adoption_keep_native_commit_authority_without_promotio
         "crates/leselang-command/src/reference_claim.rs",
         "crates/leselang-command/tests/reference_restore.rs",
         "crates/leselang-command/tests/reference_claim.rs",
-        "crates/leselang-vm/src/adoption_contract_tests.rs",
+        "crates/leserpent-vm/src/adoption_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -1342,7 +1880,7 @@ fn root_publication_tracks_native_commit_ownership_without_extraction_promotion(
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -1355,7 +1893,7 @@ fn root_publication_tracks_native_commit_ownership_without_extraction_promotion(
         path,
         "crates/leselang-command/src/reference_publication.rs",
         "crates/leselang-command/tests/reference_publication.rs",
-        "crates/leselang-vm/src/publication_contract_tests.rs",
+        "crates/leserpent-vm/src/publication_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -1423,7 +1961,7 @@ fn startup_tracks_native_recovery_ownership_without_extraction_promotion() {
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -1436,7 +1974,7 @@ fn startup_tracks_native_recovery_ownership_without_extraction_promotion() {
         path,
         "crates/leselang-command/src/reference_startup.rs",
         "crates/leselang-command/tests/reference_startup.rs",
-        "crates/leselang-vm/src/startup_contract_tests.rs",
+        "crates/leserpent-vm/src/startup_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -1506,7 +2044,7 @@ fn allocation_tracks_native_reservation_ownership_without_extraction_promotion()
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -1519,7 +2057,7 @@ fn allocation_tracks_native_reservation_ownership_without_extraction_promotion()
         path,
         "crates/leselang-command/src/reference_allocation.rs",
         "crates/leselang-command/tests/reference_allocation.rs",
-        "crates/leselang-vm/src/allocation_contract_tests.rs",
+        "crates/leserpent-vm/src/allocation_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -1588,7 +2126,7 @@ fn maintenance_tracks_native_transaction_ownership_without_extraction_promotion(
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -1601,7 +2139,7 @@ fn maintenance_tracks_native_transaction_ownership_without_extraction_promotion(
         path,
         "crates/leselang-command/src/reference_settlement/maintenance.rs",
         "crates/leselang-command/tests/reference_maintenance.rs",
-        "crates/leselang-vm/src/maintenance_contract_tests.rs",
+        "crates/leserpent-vm/src/maintenance_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -1665,7 +2203,7 @@ fn group_visibility_tracks_native_cache_ownership_without_extraction_promotion()
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -1678,7 +2216,7 @@ fn group_visibility_tracks_native_cache_ownership_without_extraction_promotion()
         path,
         "crates/leselang-command/src/reference_settlement/visibility.rs",
         "crates/leselang-command/tests/reference_visibility.rs",
-        "crates/leselang-vm/src/visibility_contract_tests.rs",
+        "crates/leserpent-vm/src/visibility_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -1743,7 +2281,7 @@ fn interruption_settlement_tracks_distinct_returns_without_extraction_promotion(
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -1818,7 +2356,7 @@ fn settlement_routes_track_commit_authority_without_promoting_native_extraction(
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -1831,7 +2369,7 @@ fn settlement_routes_track_commit_authority_without_promoting_native_extraction(
         path,
         "crates/leselang-command/src/reference_settlement.rs",
         "crates/leselang-command/tests/reference_settlement.rs",
-        "crates/leselang-vm/src/settlement_contract_tests.rs",
+        "crates/leserpent-vm/src/settlement_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -1894,7 +2432,7 @@ fn result_conversion_tracks_native_settlement_boundaries_without_extraction_prom
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -1907,7 +2445,7 @@ fn result_conversion_tracks_native_settlement_boundaries_without_extraction_prom
         path,
         "crates/leselang-command/src/reference_result.rs",
         "crates/leselang-command/tests/reference_result.rs",
-        "crates/leselang-vm/src/result_conversion_contract_tests.rs",
+        "crates/leserpent-vm/src/result_conversion_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -1970,7 +2508,7 @@ fn claim_entries_track_native_issuance_and_cache_boundaries_without_extraction_p
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -1983,7 +2521,7 @@ fn claim_entries_track_native_issuance_and_cache_boundaries_without_extraction_p
         path,
         "crates/leselang-command/src/reference_claim.rs",
         "crates/leselang-command/tests/reference_claim.rs",
-        "crates/leselang-vm/src/claim_contract_tests.rs",
+        "crates/leserpent-vm/src/claim_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -2050,7 +2588,7 @@ fn retry_entry_tracks_native_lease_authority_without_extraction_promotion() {
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -2063,7 +2601,7 @@ fn retry_entry_tracks_native_lease_authority_without_extraction_promotion() {
         path,
         "crates/leselang-command/src/reference_retry.rs",
         "crates/leselang-command/tests/reference_retry.rs",
-        "crates/leselang-vm/src/retry_contract_tests.rs",
+        "crates/leserpent-vm/src/retry_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -2130,7 +2668,7 @@ fn cancellation_entries_track_native_audit_authority_without_extraction_promotio
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -2143,7 +2681,7 @@ fn cancellation_entries_track_native_audit_authority_without_extraction_promotio
         path,
         "crates/leselang-command/src/reference_cancellation.rs",
         "crates/leselang-command/tests/reference_cancellation.rs",
-        "crates/leselang-vm/src/cancellation_contract_tests.rs",
+        "crates/leserpent-vm/src/cancellation_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -2209,7 +2747,7 @@ fn atomic_successor_assembly_tracks_native_commit_authority_without_extraction_p
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -2222,7 +2760,7 @@ fn atomic_successor_assembly_tracks_native_commit_authority_without_extraction_p
         path,
         "crates/leselang-command/src/reference_successor.rs",
         "crates/leselang-command/tests/reference_successor.rs",
-        "crates/leselang-vm/src/successor_assembly_contract_tests.rs",
+        "crates/leserpent-vm/src/successor_assembly_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -2289,7 +2827,7 @@ fn product_result_completion_tracks_saved_fuel_without_promoting_native_extracti
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -2302,7 +2840,7 @@ fn product_result_completion_tracks_saved_fuel_without_promoting_native_extracti
         path,
         "crates/leselang-command/src/reference_result_completion.rs",
         "crates/leselang-command/tests/reference_result_completion.rs",
-        "crates/leselang-vm/src/completion_contract_tests.rs",
+        "crates/leserpent-vm/src/completion_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -2370,7 +2908,7 @@ fn product_reply_tracks_native_settlement_without_promoting_durable_extraction()
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -2383,7 +2921,7 @@ fn product_reply_tracks_native_settlement_without_promoting_durable_extraction()
         path,
         "crates/leselang-command/src/reference_reply.rs",
         "crates/leselang-command/tests/reference_reply.rs",
-        "crates/leselang-vm/src/reply_contract_tests.rs",
+        "crates/leserpent-vm/src/reply_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -2447,7 +2985,7 @@ fn product_restore_tracks_commit_authority_without_promoting_durable_extraction(
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -2460,7 +2998,7 @@ fn product_restore_tracks_commit_authority_without_promoting_durable_extraction(
         path,
         "crates/leselang-command/src/reference_restore.rs",
         "crates/leselang-command/tests/reference_restore.rs",
-        "crates/leselang-vm/src/restore_contract_tests.rs",
+        "crates/leserpent-vm/src/restore_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -2524,7 +3062,7 @@ fn product_root_start_tracks_ordered_policy_without_promoting_native_recovery() 
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -2537,7 +3075,7 @@ fn product_root_start_tracks_ordered_policy_without_promoting_native_recovery() 
         path,
         "crates/leselang-command/src/reference_start.rs",
         "crates/leselang-command/tests/reference_start.rs",
-        "crates/leselang-vm/src/start_contract_tests.rs",
+        "crates/leserpent-vm/src/start_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -2596,7 +3134,7 @@ fn product_group_start_tracks_native_hooks_without_claiming_complete_extraction(
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -2609,7 +3147,7 @@ fn product_group_start_tracks_native_hooks_without_claiming_complete_extraction(
         path,
         "crates/leselang-command/src/reference_group_start.rs",
         "crates/leselang-command/tests/reference_group_start.rs",
-        "crates/leselang-vm/src/group_start_contract_tests.rs",
+        "crates/leserpent-vm/src/group_start_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -2665,7 +3203,7 @@ fn product_request_construction_tracks_static_policy_without_native_promotion() 
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -2732,7 +3270,7 @@ fn product_computation_policy_tracks_the_whole_facade_without_native_extraction_
         .iter()
         .find(|c| c.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -2745,8 +3283,8 @@ fn product_computation_policy_tracks_the_whole_facade_without_native_extraction_
         path,
         "crates/leselang-command/src/reference_computation.rs",
         "crates/leselang-command/tests/reference_computation.rs",
-        "crates/leselang-vm/src/computation_contract_tests.rs",
-        "crates/leselang-vm/src/computation_contract_tests/frozen.rs",
+        "crates/leserpent-vm/src/computation_contract_tests.rs",
+        "crates/leserpent-vm/src/computation_contract_tests/frozen.rs",
     ] {
         assert!(
             reference
@@ -2803,7 +3341,7 @@ fn product_group_reentry_coordination_retains_execution_hooks_and_unfinished_ext
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -2816,7 +3354,7 @@ fn product_group_reentry_coordination_retains_execution_hooks_and_unfinished_ext
         path,
         "crates/leselang-command/src/reference_group_execution.rs",
         "crates/leselang-command/tests/reference_group_execution.rs",
-        "crates/leselang-vm/src/group_execution_contract_tests.rs",
+        "crates/leserpent-vm/src/group_execution_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -2872,7 +3410,7 @@ fn product_group_successor_assembly_retains_native_builder_and_unfinished_extrac
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -2885,7 +3423,7 @@ fn product_group_successor_assembly_retains_native_builder_and_unfinished_extrac
         path,
         "crates/leselang-command/src/reference_group_successor.rs",
         "crates/leselang-command/tests/reference_group_successor.rs",
-        "crates/leselang-vm/src/group_successor_contract_tests.rs",
+        "crates/leserpent-vm/src/group_successor_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -2941,7 +3479,7 @@ fn product_checkpoint_coordination_retains_native_transaction_and_unfinished_ext
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -3009,7 +3547,7 @@ fn product_group_binding_policy_preserves_native_authority_and_unfinished_extrac
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -3076,7 +3614,7 @@ fn product_bound_record_policy_preserves_lazy_native_proofs_without_promoting_ex
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -3089,7 +3627,7 @@ fn product_bound_record_policy_preserves_lazy_native_proofs_without_promoting_ex
         path,
         "crates/leselang-command/src/reference_bound_records.rs",
         "crates/leselang-command/tests/reference_bound_records.rs",
-        "crates/leselang-vm/src/journal/bound_record_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/bound_record_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -3144,7 +3682,7 @@ fn product_bound_receipt_policy_does_not_promote_scalar_authenticity_or_native_r
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -3209,7 +3747,7 @@ fn product_reservation_policy_preserves_original_snapshot_and_unfinished_native_
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -3273,7 +3811,7 @@ fn product_group_batch_policy_does_not_promote_durable_recovery_or_allocator_aut
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -3338,7 +3876,7 @@ fn product_merge_output_policy_keeps_evaluation_and_native_gates_separate() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -3408,7 +3946,7 @@ fn product_single_group_policy_keeps_batch_receipt_and_native_gates_open() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -3476,7 +4014,7 @@ fn product_dispatch_recovery_policy_keeps_native_extraction_gates_open() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -3543,7 +4081,7 @@ fn product_record_recovery_policy_status_keeps_native_durable_graphs_open() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -3565,7 +4103,7 @@ fn product_record_recovery_policy_status_keeps_native_durable_graphs_open() {
         path,
         "crates/leselang-command/src/reference_recovery.rs",
         "crates/leselang-command/tests/reference_recovery.rs",
-        "crates/leselang-vm/src/journal/record_recovery_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/record_recovery_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -3610,7 +4148,7 @@ fn static_dispatch_policy_status_does_not_claim_native_durable_recovery() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -3676,7 +4214,7 @@ fn static_completion_policy_status_keeps_journal_authority_and_native_recovery_o
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -3698,7 +4236,7 @@ fn static_completion_policy_status_keeps_journal_authority_and_native_recovery_o
         path,
         "crates/leselang-command/src/reference_completion.rs",
         "crates/leselang-command/tests/reference_completion.rs",
-        "crates/leselang-vm/src/journal/reference_completion_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/reference_completion_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -3840,7 +4378,7 @@ fn native_computed_fields_record_vertical_proofs_without_completing_extraction()
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     let proof_path = "docs/fixtures/leselang_native_computed_projection_macos_arm64_20261023.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -3899,7 +4437,7 @@ fn static_merge_policy_status_preserves_complete_recovery_and_native_extraction_
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(reference.contract.surfaces.iter().any(|surface| surface == "adapter-owned-static-merge-plan-and-group-binding-admission"));
     let native = catalog
         .cells
@@ -3914,8 +4452,8 @@ fn static_merge_policy_status_preserves_complete_recovery_and_native_extraction_
         path,
         "crates/leselang-command/src/reference_merge.rs",
         "crates/leselang-command/tests/reference_merge.rs",
-        "crates/leselang-vm/src/merge_plan_contract_tests.rs",
-        "crates/leselang-vm/src/group_plan_contract_tests.rs",
+        "crates/leserpent-vm/src/merge_plan_contract_tests.rs",
+        "crates/leserpent-vm/src/group_plan_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -3963,7 +4501,7 @@ fn static_value_policy_status_preserves_live_authority_and_native_extraction_gat
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -3984,7 +4522,7 @@ fn static_value_policy_status_preserves_live_authority_and_native_extraction_gat
         path,
         "crates/leselang-command/src/reference_value.rs",
         "crates/leselang-command/tests/reference_value.rs",
-        "crates/leselang-vm/src/reference_value_contract_tests.rs",
+        "crates/leserpent-vm/src/reference_value_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -4032,7 +4570,7 @@ fn static_continuation_codec_status_does_not_claim_restore_or_complete_native_re
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -4054,7 +4592,7 @@ fn static_continuation_codec_status_does_not_claim_restore_or_complete_native_re
         path,
         "crates/leselang-command/src/reference_continuation.rs",
         "crates/leselang-command/tests/reference_continuation.rs",
-        "crates/leselang-vm/src/continuation_codec_contract_tests.rs",
+        "crates/leserpent-vm/src/continuation_codec_contract_tests.rs",
         "crates/leselang-vm/tests/ephemeral_profile.rs",
     ] {
         assert!(
@@ -4106,7 +4644,7 @@ fn observation_dependency_split_retains_product_scope_and_live_mutation_authorit
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -4179,7 +4717,7 @@ fn execution_observation_migration_does_not_promote_native_recovery_or_state_aut
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -4200,7 +4738,7 @@ fn execution_observation_migration_does_not_promote_native_recovery_or_state_aut
         path,
         "crates/leselang-command/src/execution_outcome.rs",
         "crates/leselang-command/tests/execution_outcome.rs",
-        "crates/leselang-vm/src/execution_outcome_contract_tests.rs",
+        "crates/leserpent-vm/src/execution_outcome_contract_tests.rs",
         "crates/leselang-vm/tests/ephemeral_profile.rs",
     ] {
         assert!(
@@ -4251,7 +4789,7 @@ fn concrete_request_migration_keeps_full_native_and_durable_gates_incomplete() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -4272,7 +4810,7 @@ fn concrete_request_migration_keeps_full_native_and_durable_gates_incomplete() {
         path,
         "crates/leselang-command/src/reference_request.rs",
         "crates/leselang-command/tests/reference_request.rs",
-        "crates/leselang-vm/src/request_codec_tests.rs",
+        "crates/leserpent-vm/src/request_codec_tests.rs",
         "crates/leselang-vm/tests/ephemeral_profile.rs",
     ] {
         assert!(
@@ -4320,7 +4858,7 @@ fn product_identity_data_migration_keeps_native_and_recovery_gates_incomplete() 
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -4342,7 +4880,7 @@ fn product_identity_data_migration_keeps_native_and_recovery_gates_incomplete() 
         "crates/leselang-command/src/continuation_identity.rs",
         "crates/leselang-command/src/terminal_outcome.rs",
         "crates/leselang-command/tests/identity_outcome.rs",
-        "crates/leselang-vm/src/identity_outcome_contract_tests.rs",
+        "crates/leserpent-vm/src/identity_outcome_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -4393,7 +4931,7 @@ fn bounded_decode_migration_retains_native_completion_and_recovery_authority_gat
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -4414,8 +4952,8 @@ fn bounded_decode_migration_retains_native_completion_and_recovery_authority_gat
         path,
         "crates/leselang-command/src/bounded_json.rs",
         "crates/leselang-command/tests/bounded_decode.rs",
-        "crates/leselang-vm/src/bounded_decode_tests.rs",
-        "crates/leselang-vm/src/journal/bounded_decode_tests.rs",
+        "crates/leserpent-vm/src/bounded_decode_tests.rs",
+        "crates/leserpent-vm/src/journal/bounded_decode_tests.rs",
     ] {
         assert!(
             reference
@@ -4467,7 +5005,7 @@ fn product_scheduler_migration_keeps_native_and_storage_authority_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -4488,7 +5026,7 @@ fn product_scheduler_migration_keeps_native_and_storage_authority_gates() {
         path,
         "crates/leselang-command/src/scheduler_policy.rs",
         "crates/leselang-command/tests/scheduler_policy.rs",
-        "crates/leselang-vm/src/scheduling_contract_tests.rs",
+        "crates/leserpent-vm/src/scheduling_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -4536,7 +5074,7 @@ fn product_retention_migration_keeps_storage_and_native_completion_boundaries() 
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -4557,7 +5095,7 @@ fn product_retention_migration_keeps_storage_and_native_completion_boundaries() 
         path,
         "crates/leselang-command/src/retention_policy.rs",
         "crates/leselang-command/tests/retention_policy.rs",
-        "crates/leselang-vm/src/journal/retention_tests.rs",
+        "crates/leserpent-vm/src/journal/retention_tests.rs",
     ] {
         assert!(
             reference
@@ -4607,7 +5145,7 @@ fn product_bounded_json_migration_does_not_promote_native_completion() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -4628,7 +5166,7 @@ fn product_bounded_json_migration_does_not_promote_native_completion() {
         path,
         "crates/leselang-command/src/bounded_json.rs",
         "crates/leselang-command/tests/bounded_json.rs",
-        "crates/leselang-vm/src/bounded_json_tests.rs",
+        "crates/leserpent-vm/src/bounded_json_tests.rs",
     ] {
         assert!(
             reference
@@ -4675,7 +5213,7 @@ fn product_merge_completion_migration_preserves_native_extraction_boundaries() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -4696,7 +5234,7 @@ fn product_merge_completion_migration_preserves_native_extraction_boundaries() {
         path,
         "crates/leselang-command/src/merge_completion.rs",
         "crates/leselang-command/tests/merge_completion.rs",
-        "crates/leselang-vm/src/merge_completion_tests.rs",
+        "crates/leserpent-vm/src/merge_completion_tests.rs",
     ] {
         assert!(
             reference
@@ -4744,7 +5282,7 @@ fn product_retry_policy_migration_does_not_promote_native_durable_completion() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -4765,7 +5303,7 @@ fn product_retry_policy_migration_does_not_promote_native_durable_completion() {
         path,
         "crates/leselang-command/src/retry_policy.rs",
         "crates/leselang-command/tests/retry_policy.rs",
-        "crates/leselang-vm/src/retry_policy_adapter_tests.rs",
+        "crates/leserpent-vm/src/retry_policy_adapter_tests.rs",
         "crates/leselang-vm/tests/retry_backoff.rs",
     ] {
         assert!(
@@ -4815,7 +5353,7 @@ fn product_debugger_audit_migration_keeps_commit_policy_out_of_language_core() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -4836,7 +5374,7 @@ fn product_debugger_audit_migration_keeps_commit_policy_out_of_language_core() {
         path,
         "crates/leselang-command/src/debugger_audit.rs",
         "crates/leselang-command/tests/debugger_audit.rs",
-        "crates/leselang-vm/src/debugger_audit_adapter_tests.rs",
+        "crates/leserpent-vm/src/debugger_audit_adapter_tests.rs",
         "crates/leselang-observe/src/lib.rs",
     ] {
         assert!(
@@ -4886,7 +5424,7 @@ fn product_request_codec_migration_preserves_native_extraction_boundaries() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .contract
@@ -4907,7 +5445,7 @@ fn product_request_codec_migration_preserves_native_extraction_boundaries() {
         path,
         "crates/leselang-command/src/request_codec.rs",
         "crates/leselang-command/tests/request_codec.rs",
-        "crates/leselang-vm/src/request_codec_tests.rs",
+        "crates/leserpent-vm/src/request_codec_tests.rs",
     ] {
         assert!(
             reference
@@ -5739,7 +6277,7 @@ fn ordered_checkpoint_finalization_tracks_atomic_parity_without_native_vm_promot
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "shared-complete-checkpoint-finalization",
         "dispatch-graph-audit-watermark-commit-before-snapshot-handoff",
@@ -5765,7 +6303,7 @@ fn ordered_checkpoint_finalization_tracks_atomic_parity_without_native_vm_promot
         fixture,
         "crates/leselang-runtime-core/src/checkpoint.rs",
         "crates/leselang-runtime-core/tests/checkpoint.rs",
-        "crates/leselang-vm/src/journal/finalization_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/finalization_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -5813,7 +6351,7 @@ fn stored_dispatch_recovery_tracks_parity_without_native_vm_promotion() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "shared-complete-stored-dispatch-recovery",
         "request-image-retry-history-and-completion-before-checkpoint-commit",
@@ -5838,7 +6376,7 @@ fn stored_dispatch_recovery_tracks_parity_without_native_vm_promotion() {
     for path in [
         fixture,
         "crates/leselang-runtime-core/src/dispatch_recovery.rs",
-        "crates/leselang-vm/src/journal/dispatch_recovery_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/dispatch_recovery_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -5885,7 +6423,7 @@ fn stored_effect_record_tracks_sqlite_parity_without_native_vm_promotion() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "shared-complete-stored-effect-record-recovery",
         "image-identity-deadline-owner-state-receipt-successor-before-staging",
@@ -5910,7 +6448,7 @@ fn stored_effect_record_tracks_sqlite_parity_without_native_vm_promotion() {
     for path in [
         fixture,
         "crates/leselang-runtime-core/src/record_recovery.rs",
-        "crates/leselang-vm/src/journal/record_recovery_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/record_recovery_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -5959,7 +6497,7 @@ fn stored_group_batch_tracks_cross_group_parity_without_native_vm_promotion() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "shared-complete-stored-group-batch-recovery",
         "global-reservations-and-ordered-groups-before-checkpoint-commit",
@@ -6028,7 +6566,7 @@ fn stored_group_recovery_tracks_real_sqlite_parity_without_native_vm_promotion()
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "shared-complete-stored-group-recovery-inspection",
         "graph-chain-frontier-receipt-record-order-before-checkpoint-commit",
@@ -6053,7 +6591,7 @@ fn stored_group_recovery_tracks_real_sqlite_parity_without_native_vm_promotion()
     for path in [
         fixture,
         "crates/leselang-runtime-core/src/group_recovery.rs",
-        "crates/leselang-vm/src/journal/group_recovery_contract_tests.rs",
+        "crates/leserpent-vm/src/journal/group_recovery_contract_tests.rs",
     ] {
         assert!(
             reference
@@ -6099,7 +6637,7 @@ fn complete_merge_admission_tracks_ordered_graph_parity_without_native_recovery_
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "shared-complete-merge-graph-admission",
         "plan-owner-request-graph-and-binding-recheck-order",
@@ -6167,7 +6705,7 @@ fn complete_successor_admission_tracks_frozen_order_without_native_durable_promo
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "shared-complete-successor-admission",
         "parent-child-value-order-and-native-error-provenance",
@@ -6242,7 +6780,7 @@ fn complete_request_admission_tracks_composed_parity_without_claiming_native_rec
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "shared-complete-request-admission",
         "frame-before-request-policy-and-native-error-provenance",
@@ -6312,7 +6850,7 @@ fn shared_frame_admission_tracks_frozen_parity_without_native_durable_promotion(
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "shared-ordered-continuation-frame-admission",
         "vm-free-wire-frame-admission-and-frozen-fault-parity",
@@ -6383,7 +6921,7 @@ fn successor_pair_correspondence_tracks_source_parity_without_promoting_durable_
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "shared-admitted-successor-pair-correspondence",
         "source-wire-successor-parity-and-opaque-token-hooks",
@@ -6449,7 +6987,7 @@ fn group_request_correspondence_tracks_real_journal_parity_without_native_promot
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "shared-admitted-group-request-correspondence",
         "borrowed-request-context-and-capture-type-parity",
@@ -6513,7 +7051,7 @@ fn request_correspondence_tracks_checked_decoding_without_promoting_native_recov
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "shared-post-image-request-correspondence",
         "opaque-once-only-identity-hook-and-checked-decoder-parity",
@@ -6575,7 +7113,7 @@ fn shared_group_binding_admission_preserves_explicit_encoding_and_native_recover
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "shared-ordered-group-binding-admission",
         "explicit-once-only-native-plan-encoding",
@@ -6639,7 +7177,7 @@ fn group_plan_correspondence_tracks_reference_policy_without_native_recovery_pro
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "adapter-owned-group-plan-correspondence",
         "explicit-group-plan-limits-with-original-vm-gate-order",
@@ -6706,7 +7244,7 @@ fn structured_plan_protocol_tracks_actual_migration_without_native_vm_promotion(
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "adapter-owned-structured-plan-vocabulary",
         "explicit-outer-plan-admission-before-vm-binding-validation",
@@ -6768,7 +7306,7 @@ fn group_protocol_tracks_adapter_data_without_promoting_native_durable_recovery(
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "adapter-owned-group-continuation-data-and-classification",
         "borrowed-successor-version-edge-policy",
@@ -6829,7 +7367,7 @@ fn continuation_schema_tracks_product_protocol_without_native_promotion() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "adapter-owned-continuation-schema-vocabulary",
         "explicit-preflighted-group-version-compatibility",
@@ -6893,7 +7431,7 @@ fn operation_construction_tracks_adapter_ownership_without_independent_vm_promot
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "adapter-owned-operation-construction-policy",
         "lazy-original-command-identity-without-gui-allocation",
@@ -6955,7 +7493,7 @@ fn operation_request_policy_tracks_adapter_convergence_without_native_promotion(
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "adapter-owned-operation-request-admission",
         "borrowed-product-authority-access",
@@ -7071,7 +7609,7 @@ fn pending_retention_status_tracks_lazy_reference_reconciliation_without_native_
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
     let fixture = "docs/fixtures/leselang_reference_pending_retention_macos_arm64_20261015.json";
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(reference.evidence.iter().any(|entry| entry.path == fixture
         && entry.kind == EvidenceKind::Test
         && entry.state == EvidenceState::Present));
@@ -7139,7 +7677,7 @@ fn debugger_shared_journal_status_keeps_observation_distinct_from_admission() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .next_gate
@@ -7209,7 +7747,7 @@ fn debugger_audit_retention_tracks_reference_cleanup_without_native_promotion() 
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(reference.next_gate.contains("one sweep per deleting batch"));
     let fixture =
         "docs/fixtures/leselang_reference_debugger_audit_retention_macos_arm64_20261015.json";
@@ -7269,7 +7807,7 @@ fn debugger_audit_parity_is_reference_evidence_without_native_promotion() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     assert!(
         reference
             .next_gate
@@ -7278,7 +7816,7 @@ fn debugger_audit_parity_is_reference_evidence_without_native_promotion() {
     let fixture =
         "docs/fixtures/leselang_reference_debugger_audit_parity_macos_arm64_20261015.json";
     for path in [
-        "crates/leselang-vm/src/debugger_audit_contract_tests.rs",
+        "crates/leserpent-vm/src/debugger_audit_contract_tests.rs",
         "crates/leselang-vm/tests/debugger_audit_memory.rs",
         "crates/leselang-vm/tests/debugger_audit_durable.rs",
         "crates/leselang-observe/src/lib.rs",
@@ -7339,7 +7877,7 @@ fn continuation_signature_status_records_reference_parity_without_durable_extrac
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .unwrap();
-    assert_eq!(reference.contract.version, "1.170.0");
+    assert_eq!(reference.contract.version, "1.173.0");
     for surface in [
         "catalog-backed-continuation-result-type-validation",
         "closed-seventy-operation-frame-type-compatibility",
@@ -7370,7 +7908,7 @@ fn continuation_signature_status_records_reference_parity_without_durable_extrac
     assert_eq!(embedding.completion, 10);
     for cell in [reference, embedding] {
         assert!(cell.evidence.iter().any(|entry| entry.path
-            == "crates/leselang-vm/src/continuation_contract_tests.rs"
+            == "crates/leserpent-vm/src/continuation_contract_tests.rs"
             && entry.kind == EvidenceKind::Test
             && entry.state == EvidenceState::Present));
     }
@@ -8282,7 +8820,7 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         "crates/leselang-vm/tests/projection_contract.rs",
         "crates/leselang-runtime-core/src/recovery.rs",
         "crates/leselang-runtime-core/tests/recovery.rs",
-        "crates/leselang-vm/src/computation.rs",
+        "crates/leserpent-vm/src/computation.rs",
         "crates/leselang-vm/tests/recovery_boundaries.rs",
         "crates/leselang-runtime-core/src/structure.rs",
         "crates/leselang-runtime-core/tests/structure.rs",
@@ -8329,7 +8867,7 @@ fn independent_leselang_runtime_is_tracked_as_a_target_not_a_released_claim() {
         "crates/leselang-runtime-core/src/reply.rs",
         "crates/leselang-runtime-core/tests/reply.rs",
         "crates/leselang-hir/tests/host_result.rs",
-        "crates/leselang-vm/src/host_result.rs",
+        "crates/leserpent-vm/src/host_result.rs",
         "crates/leselang-runtime-core/tests/clock.rs",
         "crates/leselang-runtime-core/tests/backoff.rs",
         "tests/language_independence_tdd.rs",
@@ -9012,7 +9550,7 @@ fn committed_checkpoint_status_tracks_actual_recovery_without_full_vm_promotion(
     for path in [
         "crates/leselang-runtime-core/src/checkpoint.rs",
         "crates/leselang-runtime-core/tests/checkpoint.rs",
-        "crates/leselang-vm/src/journal.rs",
+        "crates/leserpent-vm/src/journal.rs",
         "crates/gewyvern-dev/src/leselang.rs",
         "tests/leselang_vm_profile_tdd.rs",
     ] {
@@ -17856,7 +18394,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leselang/language-hir/typed-effects")
         .expect("Leselang HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.184.0");
+    assert_eq!(hir.contract.version, "0.188.0");
     for surface in [
         "shared-scalar-choose-recover-and-list-source-construction",
         "cold-control-signatures-and-list-labels-before-source-extensions",
@@ -18313,7 +18851,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.170.0");
+    assert_eq!(vm.contract.version, "1.173.0");
     for surface in [
         "borrowed-shared-reply-acceptance-observation-checkpoint",
         "original-bound-frame-value-pointer-and-fuel-preservation",
@@ -18602,7 +19140,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "crates/leselang-vm/tests/projection_contract.rs",
         "crates/leselang-runtime-core/src/recovery.rs",
         "crates/leselang-runtime-core/tests/recovery.rs",
-        "crates/leselang-vm/src/computation.rs",
+        "crates/leserpent-vm/src/computation.rs",
         "crates/leselang-vm/tests/recovery_boundaries.rs",
         "crates/leselang-vm/tests/string_lists.rs",
         "crates/leselang-vm/tests/iteration.rs",
@@ -18714,9 +19252,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "crates/leselang-command/src/value_validation.rs",
         "crates/leselang-command/src/presentation_request.rs",
         "crates/leselang-command/src/control_plane_request.rs",
-        "crates/leselang-vm/src/control_plane_request_tests.rs",
+        "crates/leserpent-vm/src/control_plane_request_tests.rs",
         "crates/leselang-command/src/control_plane_reply.rs",
-        "crates/leselang-vm/src/control_plane_reply_tests.rs",
+        "crates/leserpent-vm/src/control_plane_reply_tests.rs",
         "crates/leselang-command/src/control_plane_value.rs",
         "crates/leselang-command/src/scalar_projection.rs",
         "crates/leselang-command/src/projected_result.rs",
@@ -18738,7 +19276,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "crates/leselang-command/src/result_domain.rs",
         "crates/leselang-command/tests/result_domain.rs",
         "crates/leselang-command/tests/structured_value.rs",
-        "crates/leselang-vm/src/value_validation_tests.rs",
+        "crates/leserpent-vm/src/value_validation_tests.rs",
         "crates/leselang-command/tests/capture_scope.rs",
         "crates/leselang-command/src/reference_computation/effect_preparation_tests.rs",
         "crates/leselang-command/src/reference_computation/result_view_tests.rs",
@@ -20270,7 +20808,7 @@ fn fresh_closed_member_lookup_tracks_actual_selection_without_schema_or_authorit
         .iter()
         .find(|cell| cell.id == "leselang/language-hir/typed-effects")
         .unwrap();
-    assert_eq!(hir.contract.version, "0.184.0");
+    assert_eq!(hir.contract.version, "0.188.0");
     let embedding = catalog
         .cells
         .iter()
@@ -20336,7 +20874,7 @@ fn shared_language_group_shape_tracks_existing_walkers_without_new_admission_or_
         .iter()
         .find(|cell| cell.id == "leselang/language-hir/typed-effects")
         .unwrap();
-    assert_eq!(hir.contract.version, "0.184.0");
+    assert_eq!(hir.contract.version, "0.188.0");
     let embedding = catalog
         .cells
         .iter()
@@ -20352,7 +20890,7 @@ fn shared_language_group_shape_tracks_existing_walkers_without_new_admission_or_
 fn fixed_source_signatures_track_private_metadata_without_native_schema_or_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -20414,7 +20952,7 @@ fn exact_child_and_physical_cursors_track_scratch_reduction_without_native_admis
  {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -20476,7 +21014,7 @@ fn exact_child_and_physical_cursors_track_scratch_reduction_without_native_admis
 fn cursor_purity_tracks_fresh_structural_inspection_without_native_admission_or_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -20537,7 +21075,7 @@ fn catalog_compiler_vertical_tracks_closed_profile_without_promoting_full_native
  {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -20598,7 +21136,7 @@ fn catalog_compiler_vertical_tracks_closed_profile_without_promoting_full_native
 fn catalog_helper_vertical_tracks_acyclic_profile_without_promoting_group_or_durable_maturity() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -20657,7 +21195,7 @@ fn catalog_helper_vertical_tracks_acyclic_profile_without_promoting_group_or_dur
 fn optional_hir_profile_tracks_native_dependency_and_compatibility_proofs_without_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -20699,7 +21237,7 @@ fn optional_hir_profile_tracks_native_dependency_and_compatibility_proofs_withou
 fn complete_flat_group_source_entry_is_tracked_without_promoting_helpers_or_independent_vm() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -20746,7 +21284,7 @@ fn complete_flat_group_source_entry_is_tracked_without_promoting_helpers_or_inde
 fn group_entry_program_tracks_closed_helper_composition_without_group_return_or_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -20801,7 +21339,7 @@ fn group_entry_program_tracks_closed_helper_composition_without_group_return_or_
 fn group_helper_program_tracks_opt_in_compilation_and_preserves_runtime_extraction_gaps() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -20861,7 +21399,7 @@ fn group_helper_program_tracks_opt_in_compilation_and_preserves_runtime_extracti
 fn bounded_native_return_frames_track_actual_composition_without_durable_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -20922,7 +21460,7 @@ fn bounded_native_return_frames_track_actual_composition_without_durable_vm_prom
 fn complete_group_reply_reentry_is_tracked_without_independent_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -20968,7 +21506,7 @@ fn complete_group_reply_reentry_is_tracked_without_independent_vm_promotion() {
 fn stacked_owned_sessions_are_tracked_without_promoting_durable_or_product_vm_authority() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -21075,7 +21613,7 @@ fn scoped_native_group_preparation_is_tracked_without_claiming_dispatch_or_indep
  {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -21135,7 +21673,7 @@ fn scoped_native_group_preparation_is_tracked_without_claiming_dispatch_or_indep
 fn prepared_member_barriers_are_tracked_without_durable_or_automatic_dispatch_authority() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -21196,7 +21734,7 @@ fn prepared_member_barriers_are_tracked_without_durable_or_automatic_dispatch_au
 fn atomic_call_ir_preparation_is_tracked_without_promoting_source_profile_or_embedding_maturity() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21254,7 +21792,7 @@ fn atomic_call_ir_preparation_is_tracked_without_promoting_source_profile_or_emb
 fn prepared_sequence_publication_tracks_distinct_correlation_and_fresh_ready_member_policy() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -21317,7 +21855,7 @@ fn prepared_sequence_publication_tracks_distinct_correlation_and_fresh_ready_mem
 fn prepared_source_members_are_tracked_without_promoting_embedding_or_legacy_profiles() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21376,7 +21914,7 @@ fn prepared_source_members_are_tracked_without_promoting_embedding_or_legacy_pro
 fn complete_atomic_group_preparation_tracks_cold_order_and_one_meter_without_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21435,7 +21973,7 @@ fn complete_atomic_group_preparation_tracks_cold_order_and_one_meter_without_vm_
 fn headless_gui_second_schema_tracks_complete_in_memory_proof_without_platform_or_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21498,7 +22036,7 @@ fn native_vm_profile_tracks_product_free_entry_without_promoting_complete_extrac
     }
     for path in [
         "crates/leselang-vm/src/native.rs",
-        "crates/leselang-vm/src/leserpent_profile.rs",
+        "crates/leserpent-vm/src/leserpent_profile.rs",
         "crates/leselang-vm/tests/native_embedding.rs",
     ] {
         assert!(
@@ -21521,7 +22059,7 @@ fn native_vm_profile_tracks_product_free_entry_without_promoting_complete_extrac
 fn prepared_repeat_tracks_two_host_parity_without_promoting_full_extraction() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21566,7 +22104,7 @@ fn prepared_repeat_tracks_two_host_parity_without_promoting_full_extraction() {
 fn composed_sequence_tracks_existing_runtime_parity_and_remaining_nested_parallel_gate() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21613,7 +22151,7 @@ fn composed_sequence_tracks_existing_runtime_parity_and_remaining_nested_paralle
 fn cold_sequential_export_preflight_tracks_early_refusal_without_extraction_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21660,7 +22198,7 @@ fn cold_sequential_export_preflight_tracks_early_refusal_without_extraction_prom
 fn local_session_entry_tracks_terminal_liveness_without_full_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21711,7 +22249,7 @@ fn local_session_entry_tracks_terminal_liveness_without_full_vm_promotion() {
 fn classified_host_outcomes_track_cleanup_fences_without_full_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21765,7 +22303,7 @@ fn classified_host_outcomes_track_cleanup_fences_without_full_vm_promotion() {
 fn explicit_native_host_work_tracks_original_pending_state_without_extraction_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21811,7 +22349,7 @@ fn explicit_native_host_work_tracks_original_pending_state_without_extraction_pr
 fn scoped_reentry_tracks_retained_cleanup_and_recovery_parity_without_extraction_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21858,7 +22396,7 @@ fn scoped_reentry_tracks_retained_cleanup_and_recovery_parity_without_extraction
 fn scoped_acceptance_tracks_core_cleanup_order_without_full_vm_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21921,7 +22459,7 @@ fn scoped_acceptance_tracks_core_cleanup_order_without_full_vm_promotion() {
 fn guarded_native_execution_tracks_real_gui_adoption_without_runtime_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -21967,7 +22505,7 @@ fn guarded_native_execution_tracks_real_gui_adoption_without_runtime_promotion()
 fn shared_gui_ir_isolation_tracks_native_proof_without_claiming_concurrent_product_gui() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -22006,7 +22544,7 @@ fn shared_gui_ir_isolation_tracks_native_proof_without_claiming_concurrent_produ
 fn prepared_host_expression_tracks_typed_prefix_and_scoped_gui_proof_without_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -22179,9 +22717,9 @@ fn optional_reference_vm_storage_tracks_removed_sqlite_linkage_without_product_f
     for path in [
         "crates/leselang-vm/Cargo.toml",
         "crates/leselang-vm/src/lib.rs",
-        "crates/leselang-vm/src/journal.rs",
-        "crates/leselang-vm/src/journal/successor.rs",
-        "crates/leselang-vm/src/journal/group_binding.rs",
+        "crates/leserpent-vm/src/journal.rs",
+        "crates/leserpent-vm/src/journal/successor.rs",
+        "crates/leserpent-vm/src/journal/group_binding.rs",
         ".github/workflows/ci.yml",
         "crates/leselang-vm/tests/ephemeral_profile.rs",
         "tests/leselang_vm_profile_tdd.rs",
@@ -22233,7 +22771,7 @@ fn shared_owned_capture_data_tracks_actual_reference_migration_without_execution
     for (id, version) in [
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
-        ("leserpent-2/language-vm/effect-reentry", "1.170.0"),
+        ("leserpent-2/language-vm/effect-reentry", "1.173.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -22250,7 +22788,7 @@ fn shared_owned_capture_data_tracks_actual_reference_migration_without_execution
         for path in [
             "crates/leselang-runtime-core/src/captured_bindings.rs",
             "crates/leselang-runtime-core/tests/captured_bindings.rs",
-            "crates/leselang-vm/src/result_binding.rs",
+            "crates/leserpent-vm/src/result_binding.rs",
             "crates/leselang-vm/tests/capture_contract.rs",
             "crates/leselang-vm/tests/dataflow.rs",
         ] {
@@ -22292,7 +22830,7 @@ fn shared_capture_structure_validation_tracks_reference_use_without_authority_or
     for (id, version) in [
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
-        ("leserpent-2/language-vm/effect-reentry", "1.170.0"),
+        ("leserpent-2/language-vm/effect-reentry", "1.173.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -22309,7 +22847,7 @@ fn shared_capture_structure_validation_tracks_reference_use_without_authority_or
         for path in [
             "crates/leselang-runtime-core/src/capture_validation.rs",
             "crates/leselang-runtime-core/tests/capture_validation.rs",
-            "crates/leselang-vm/src/result_binding.rs",
+            "crates/leserpent-vm/src/result_binding.rs",
             "crates/leselang-vm/tests/capture_contract.rs",
         ] {
             assert!(
@@ -22351,7 +22889,7 @@ fn stateful_capture_reentry_status_tracks_original_meter_and_native_execution_bo
     for (id, version) in [
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
-        ("leserpent-2/language-vm/effect-reentry", "1.170.0"),
+        ("leserpent-2/language-vm/effect-reentry", "1.173.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -22368,7 +22906,7 @@ fn stateful_capture_reentry_status_tracks_original_meter_and_native_execution_bo
         for path in [
             "crates/leselang-runtime-core/src/capture_scope.rs",
             "crates/leselang-runtime-core/tests/capture_scope_state.rs",
-            "crates/leselang-vm/src/computation.rs",
+            "crates/leserpent-vm/src/computation.rs",
             "crates/leselang-vm/tests/capture_contract.rs",
             "crates/leselang-vm/tests/group_dataflow.rs",
             "crates/leselang-vm/tests/dataflow.rs",
@@ -22412,7 +22950,7 @@ fn capture_snapshot_status_tracks_real_construction_without_independent_vm_promo
     for (id, version) in [
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
-        ("leserpent-2/language-vm/effect-reentry", "1.170.0"),
+        ("leserpent-2/language-vm/effect-reentry", "1.173.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -22467,7 +23005,7 @@ fn shared_projection_access_status_tracks_real_native_delegation_without_extract
     for (id, version) in [
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
-        ("leserpent-2/language-vm/effect-reentry", "1.170.0"),
+        ("leserpent-2/language-vm/effect-reentry", "1.173.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -22484,7 +23022,7 @@ fn shared_projection_access_status_tracks_real_native_delegation_without_extract
         for path in [
             "crates/leselang-hir/src/projection_access.rs",
             "crates/leselang-hir/tests/projection_access.rs",
-            "crates/leselang-vm/src/result_binding.rs",
+            "crates/leserpent-vm/src/result_binding.rs",
             "crates/leselang-vm/tests/projection_scope.rs",
         ] {
             assert!(
@@ -22524,7 +23062,7 @@ fn owned_prefix_cleanup_status_tracks_real_shared_control_without_extraction_pro
     for (id, version) in [
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
-        ("leserpent-2/language-vm/effect-reentry", "1.170.0"),
+        ("leserpent-2/language-vm/effect-reentry", "1.173.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -22584,7 +23122,7 @@ fn shared_capture_scope_tracks_actual_nested_reference_entry_and_cleanup_without
     for (id, version) in [
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
         ("leserpent-2/language-vm/script-control-flow", "0.36.0"),
-        ("leserpent-2/language-vm/effect-reentry", "1.170.0"),
+        ("leserpent-2/language-vm/effect-reentry", "1.173.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
         assert_eq!(cell.contract.version, version);
@@ -22601,7 +23139,7 @@ fn shared_capture_scope_tracks_actual_nested_reference_entry_and_cleanup_without
         for path in [
             "crates/leselang-runtime-core/src/capture_scope.rs",
             "crates/leselang-runtime-core/tests/capture_scope.rs",
-            "crates/leselang-vm/src/result_binding.rs",
+            "crates/leserpent-vm/src/result_binding.rs",
             "crates/leselang-vm/tests/capture_contract.rs",
             "crates/leselang-vm/tests/projection_scope.rs",
         ] {
@@ -22695,7 +23233,7 @@ fn saved_return_stack_status_tracks_shared_execution_without_durable_backend_pro
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     let path = "docs/fixtures/leselang_native_saved_stack_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -22806,7 +23344,7 @@ fn saved_sequence_status_tracks_flat_frontiers_without_promoting_full_recovery()
     let proof_path =
         "docs/fixtures/leselang_native_saved_sequence_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -23011,7 +23549,7 @@ fn two_capture_status_tracks_bounded_graph_tables_without_full_extraction() {
     let path =
         "docs/fixtures/leselang_native_multi_capture_source_export_macos_arm64_20261015.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -23135,7 +23673,7 @@ fn pending_session_restore_status_tracks_shared_ownership_without_durable_vm_cla
     let path =
         "docs/fixtures/leselang_native_restored_session_source_export_macos_arm64_20261015.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -23238,7 +23776,7 @@ fn metered_owned_checkpoint_status_keeps_durable_settlement_explicitly_open() {
     let path =
         "docs/fixtures/leselang_native_owned_recovery_source_export_macos_arm64_20261015.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -23351,7 +23889,7 @@ fn bounded_repeat_capture_status_separates_operation_and_receipt_identity() {
     let path =
         "docs/fixtures/leselang_native_repeat_capture_source_export_macos_arm64_20261015.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -23473,7 +24011,7 @@ fn helper_origin_capture_status_keeps_bounded_program_proofs_below_full_extracti
     let path =
         "docs/fixtures/leselang_native_helper_capture_source_export_macos_arm64_20261015.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -23597,7 +24135,7 @@ fn source_compiled_capture_status_does_not_promote_whole_program_recovery() {
     let path =
         "docs/fixtures/leselang_native_compiled_capture_source_export_macos_arm64_20261015.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -23712,7 +24250,7 @@ fn captured_partial_parallel_status_records_barrier_proofs_without_durable_promo
     let path =
         "docs/fixtures/leselang_native_parallel_capture_source_export_macos_arm64_20261015.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -23822,7 +24360,7 @@ fn captured_inflight_status_keeps_sequential_composition_below_full_extraction()
     let path =
         "docs/fixtures/leselang_native_inflight_capture_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -23928,7 +24466,7 @@ fn byte_capture_status_tracks_composition_without_promoting_full_checkpoint_reco
     let path =
         "docs/fixtures/leselang_native_saved_capture_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -24039,7 +24577,7 @@ fn saved_assembled_group_status_preserves_budget_and_keeps_full_recovery_open() 
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     let path = "docs/fixtures/leselang_native_saved_group_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|c| c.id == id).unwrap();
@@ -24250,7 +24788,7 @@ fn saved_parallel_status_keeps_mixed_graph_and_crash_recovery_gates_open() {
     let proof_path =
         "docs/fixtures/leselang_native_saved_parallel_source_export_macos_arm64_20261013.json";
     for (id, version) in [
-        ("leselang/language-hir/typed-effects", "0.184.0"),
+        ("leselang/language-hir/typed-effects", "0.188.0"),
         ("leselang/language-vm/host-neutral-embedding", "0.172.0"),
     ] {
         let cell = catalog.cells.iter().find(|cell| cell.id == id).unwrap();
@@ -24373,7 +24911,7 @@ fn saved_body_execution_status_tracks_actual_shared_walker_without_storage_autho
         "crates/leselang-hir/src/effect_reentry.rs",
         "crates/leselang-hir/tests/captured_reentry.rs",
         "crates/leselang-hir/tests/durable_control.rs",
-        "crates/leselang-vm/src/computation.rs",
+        "crates/leserpent-vm/src/computation.rs",
     ] {
         assert!(
             cell.evidence
@@ -24423,7 +24961,7 @@ fn shared_group_graph_status_retains_full_recovery_as_a_separate_gate() {
     for path in [
         "crates/leselang-runtime-core/src/group_graph.rs",
         "crates/leselang-runtime-core/tests/group_graph.rs",
-        "crates/leselang-vm/src/journal.rs",
+        "crates/leserpent-vm/src/journal.rs",
     ] {
         assert!(
             cell.evidence
@@ -24776,7 +25314,7 @@ fn shared_recovery_fence_status_does_not_promote_allocator_receipt_or_complete_v
     for path in [
         "crates/leselang-runtime-core/src/recovery_fence.rs",
         "crates/leselang-runtime-core/tests/recovery_fence.rs",
-        "crates/leselang-vm/src/journal/group_binding.rs",
+        "crates/leserpent-vm/src/journal/group_binding.rs",
         "crates/leselang-vm/tests/group_tail.rs",
     ] {
         assert!(
@@ -24888,7 +25426,7 @@ fn watermark_planning_status_keeps_numeric_observations_separate_from_durable_al
         "crates/leselang-runtime-core/src/sequence_watermark.rs",
         "crates/leselang-runtime-core/tests/sequence_watermark.rs",
         "crates/leselang-vm/src/lib.rs",
-        "crates/leselang-vm/src/journal.rs",
+        "crates/leserpent-vm/src/journal.rs",
         "crates/leselang-vm/tests/restore_allocator.rs",
     ] {
         assert!(
@@ -24945,8 +25483,8 @@ fn inherited_context_status_does_not_promote_agreement_to_budget_or_execution_au
     for path in [
         "crates/leselang-runtime-core/src/continuation_context.rs",
         "crates/leselang-runtime-core/tests/continuation_context.rs",
-        "crates/leselang-vm/src/successor.rs",
-        "crates/leselang-vm/src/group_binding.rs",
+        "crates/leserpent-vm/src/successor.rs",
+        "crates/leserpent-vm/src/group_binding.rs",
         "crates/leselang-vm/tests/successor.rs",
     ] {
         assert!(
@@ -25003,7 +25541,7 @@ fn capture_extension_status_keeps_native_succession_and_complete_graph_gate_open
     for path in [
         "crates/leselang-runtime-core/src/capture_extension.rs",
         "crates/leselang-runtime-core/tests/capture_extension.rs",
-        "crates/leselang-vm/src/successor.rs",
+        "crates/leserpent-vm/src/successor.rs",
         "crates/leselang-vm/tests/dataflow.rs",
     ] {
         assert!(
@@ -25058,7 +25596,7 @@ fn capture_correspondence_status_keeps_native_projection_identity_and_snapshot_a
     for path in [
         "crates/leselang-runtime-core/src/capture_correspondence.rs",
         "crates/leselang-runtime-core/tests/capture_correspondence.rs",
-        "crates/leselang-vm/src/group_binding.rs",
+        "crates/leserpent-vm/src/group_binding.rs",
         "crates/leselang-vm/tests/parallel_group_tail.rs",
     ] {
         assert!(
@@ -25115,7 +25653,7 @@ fn ordered_outcome_status_does_not_promote_observation_to_settlement_or_complete
     for path in [
         "crates/leselang-runtime-core/src/outcome_summary.rs",
         "crates/leselang-runtime-core/tests/outcome_summary.rs",
-        "crates/leselang-vm/src/journal/group_binding.rs",
+        "crates/leserpent-vm/src/journal/group_binding.rs",
         "crates/leselang-vm/tests/group_receipts.rs",
     ] {
         assert!(
@@ -25172,7 +25710,7 @@ fn sequential_frontier_status_retains_native_dispatch_and_durable_recovery_gates
     for path in [
         "crates/leselang-runtime-core/src/sequence_frontier.rs",
         "crates/leselang-runtime-core/tests/sequence_frontier.rs",
-        "crates/leselang-vm/src/journal.rs",
+        "crates/leserpent-vm/src/journal.rs",
     ] {
         assert!(
             cell.evidence
@@ -25227,7 +25765,7 @@ fn shared_successor_chain_status_keeps_native_recovery_and_extraction_gates_open
     for path in [
         "crates/leselang-runtime-core/src/successor_chain.rs",
         "crates/leselang-runtime-core/tests/successor_chain.rs",
-        "crates/leselang-vm/src/journal/successor.rs",
+        "crates/leserpent-vm/src/journal/successor.rs",
     ] {
         assert!(
             cell.evidence

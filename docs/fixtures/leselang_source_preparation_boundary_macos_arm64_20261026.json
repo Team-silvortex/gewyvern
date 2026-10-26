@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-public-source-preparation-boundary",
+  "validated_at": "2026-10-26",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "product_version": "2.5.0",
+  "hir_contract": "0.188.0",
+  "native_embedding_contract": "0.172.0",
+  "reference_execution_contract": "1.173.0",
+  "verification_status": "passed",
+  "product_private_entry_points_replaced": 3,
+  "public_source_plans": 2,
+  "native_tests": 8,
+  "frozen_field_cases": 864,
+  "frozen_host_cases": 144,
+  "baseline_sha256": {
+    "projection_source": "576cd5d6d855dd191288f29bf3ee8b49b9a26e65d8c8abc87e3574cdcf01429f",
+    "host_source": "efa9e19fec328b4f30e3806a304a9d30dfaf0e420c5f5c8deae3215f3449bec6"
+  },
+  "oracle_scope": "Pre-stage field and host-root preparation pipelines are frozen with imports and type aliases adjusted. Source/structure/pure-IR kernels are shared; original order, output, error spans, callbacks, refusal/unwind and native domain events are compared. This is not an independent compiler.",
+  "plan_scope": "Private immutable plans borrow original call roots or exactly aligned field operands. They are not physical-source/type/authority receipts. Native lowerers own complete cold-source semantics and bounded opaque expansion; current native export/effect admission remains mandatory. Strict source APIs retain eager preflight. The private field kernel remains shared within the language module rather than duplicated.",
+  "plan_is_source_or_authority_receipt": false,
+  "physical_hir_relocation_complete": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "file_count": 291,
+    "bytes": 6949676,
+    "manifest_sha256": "e02b0c60a73dc0632e0c8fa5e09b8bf01eaa1026f6e5bb45e0b040c658b2b21e",
+    "consumer_test_byte_identity": true,
+    "all_copied_sources_byte_identical": true,
+    "verification_target_removed": true,
+    "tests_passed": 2657,
+    "complete_vm": false,
+    "full_extraction_gate": false
+  },
+  "remaining_boundaries": [
+    "scalar binding, loop/fold adaptation and remaining private compiler core references",
+    "acyclic compatibility-facade package layout and physical HIR specialization relocation",
+    "complete independent language and durable recovery acceptance"
+  ],
+  "verification_scope": "Local native/default-profile Rust tests, HIR/command/VM regressions, strict Clippy, source-export workspace and separate consumer tests/lints, architecture/status gates. No Linux host, live GUI, remote CI, benchmark or repository publication claim.",
+  "source_hashes": [
+    {
+      "path": "Cargo.toml",
+      "sha256": "27e9a6e7d5c839b6099dc37c9f1ef55bea0c0ec8bf54293738713035d7a84313"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "21fe76fab4786239aca297ef989a98eb6c4e8cad898f7a2a2046da415c241b1f"
+    },
+    {
+      "path": "crates/leselang-hir/Cargo.toml",
+      "sha256": "7cc04569d0e06153a123db695c3422103c0bffe112897beb4056e675787a501b"
+    },
+    {
+      "path": "crates/leselang-hir/src/lib.rs",
+      "sha256": "084e85863cc945eb06853f9cbf2f10604cbd42e95c2ad361efa216fb7a6b79ca"
+    },
+    {
+      "path": "crates/leselang-hir/src/host_source.rs",
+      "sha256": "0e1b01d2c75b1ea2a8671352e167949d998893644a18dfb94a6cfac0e7f7a9c5"
+    },
+    {
+      "path": "crates/leselang-hir/src/projection_source.rs",
+      "sha256": "f29d7178b41976f5a5d858357ce850a172d16bd96f77c3b3f2f816a7da696035"
+    },
+    {
+      "path": "crates/leselang-hir/src/computation.rs",
+      "sha256": "4250e68898575dbce5ca9db1c0de5a13f23cf392037c3ceb9c3675ae1f1c55e4"
+    },
+    {
+      "path": "crates/leselang-hir/src/source_preparation_contract_tests.rs",
+      "sha256": "00c40084426b681775316e6996393ca5ae88e0fb2640aa6f26e4b5ba8c6acdc6"
+    },
+    {
+      "path": "crates/leselang-hir/tests/source_preparation.rs",
+      "sha256": "86a292242487c349c2a41ccf7534368644faa1c7db237879708aa604d564f48f"
+    },
+    {
+      "path": "crates/gewyvern-dev/src/leselang.rs",
+      "sha256": "bcb7f07a1387e03a8614439b5be69aa4f61da6840ffa32efa48d8e3a41adf470"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "0e8b9a51b288f8001b3ba93024f0d45a76e6734970ad82c5e931dbc9af317282"
+    },
+    {
+      "path": "tests/language_independence_tdd.rs",
+      "sha256": "5ef9086275fbfa8cfc695c86359a0baf0504c1ec65bd566ce04eb6e4cc9368fb"
+    },
+    {
+      "path": "tests/project_status_tdd.rs",
+      "sha256": "89a96fbb74d7d7ee09162c091955514bb1484ca4c6dfbc6602e216f4239e4e2f"
+    },
+    {
+      "path": "project/status/catalog.json",
+      "sha256": "6b4d34d17652eaf544af1e4ef7c214790ba006d0d2e59c780fb7c32f056f49bc"
+    },
+    {
+      "path": "docs/leselang-embedding.md",
+      "sha256": "609ac0e7a9cf6aa48bd866b77f1516c19047d9b5345cfcefd2633a724af3513c"
+    },
+    {
+      "path": "docs/monorepo-stack.md",
+      "sha256": "7d03dc0b4b6e5ef894151146b87686af0abd37d509d082400690be40bc7ba02e"
+    }
+  ],
+  "logs": [
+    {
+      "path": "/private/tmp/leselang-source-preparation-architecture-20261026.log",
+      "sha256": "0dabc48f57880408abbe32bf135744a867eb11ae15da31342fd2d1dab898e6f9",
+      "passed": 105
+    },
+    {
+      "path": "/private/tmp/leselang-source-preparation-clippy-20261026.log",
+      "sha256": "3483f1e7ac310823737b70d955408fb10e8143e99b1f15b08c7faf5cad4b4c4d",
+      "passed": 0
+    },
+    {
+      "path": "/private/tmp/leselang-source-preparation-export-20261026.log",
+      "sha256": "2d3dc547625f3ccd117d3f490a42cc650da857d7bcbd7c6671ad01108d076a27",
+      "passed": 2657
+    },
+    {
+      "path": "/private/tmp/leselang-source-preparation-export-plan-20261026.log",
+      "sha256": "6b4ee2719bbca01ceeec130e21470f8d4f0e2ba5040fd20fcb7a53369757bd5f",
+      "passed": 23
+    },
+    {
+      "path": "/private/tmp/leselang-source-preparation-native-20261026.log",
+      "sha256": "b56ff3e90688878fe5e4475a03f93b608aa8ac44bdcdbbdc8e2d343fc59ce68f",
+      "passed": 8
+    },
+    {
+      "path": "/private/tmp/leselang-source-preparation-native-clippy-20261026.log",
+      "sha256": "4ca0640936a5120a41a3cab0e740da01ff2c95b37b193a83a68e9aa190a49e03",
+      "passed": 0
+    },
+    {
+      "path": "/private/tmp/leselang-source-preparation-parity-20261026.log",
+      "sha256": "40b69006a9b208150f03f5a1a6f9d7c0e6773ab0f0f1b6aacab2807a5e574798",
+      "passed": 2
+    },
+    {
+      "path": "/private/tmp/leselang-source-preparation-root-clippy-20261026.log",
+      "sha256": "d1cd8bfe8276a4740490806c9069b77aff74d1df523b6bc8054c7e3f4898981e",
+      "passed": 0
+    },
+    {
+      "path": "/private/tmp/leselang-source-preparation-suite-20261026.log",
+      "sha256": "156d08b146f0c5c6f53626f38f7e79fbb75d710c9edd53300166108e8e5155c0",
+      "passed": 3298
+    },
+    {
+      "path": "/private/tmp/leselang-source-preparation-final-gates-20261026.log",
+      "sha256": "da04c3a24cbde5aa98baa0b5df80f162f96c98499cc85c66bdba767c342f6c3d",
+      "passed": 568
+    }
+  ]
+}

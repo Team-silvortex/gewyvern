@@ -28,7 +28,7 @@ pub fn complete_memory<Host: MemoryCompletionJournal + ?Sized>(
     step: &Step,
 ) -> Result<Step, Fault> {
     if !host.sequence_ready(&image.token) {
-        return Err(fault("LSV2410", "sequential predecessor has not completed"));
+        return Err(crate::reference_sequence_gate::predecessor_pending());
     }
     if let Some(state) = host.dispatch(&image.token) {
         if state.lease_expires_at_ms.is_some() && !*state.acknowledged {

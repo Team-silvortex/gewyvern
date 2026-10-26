@@ -431,7 +431,7 @@
             { "stage": "semantic", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteUiActionRouter.cs", "contains": "public static RemoteDebuggerActionResolution ResolveDebuggerActivation(" },
             { "stage": "transport", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteDebuggerClient.cs", "contains": "public async Task<RemoteDebuggerSession> StartAsync(" },
             { "stage": "authority", "path": "crates/leserpentd/src/debugger.rs", "contains": "pub fn cancel(" },
-            { "stage": "persistence", "path": "crates/leselang-vm/src/leserpent_profile.rs", "contains": "cancel_effect_audited(" },
+            { "stage": "persistence", "path": "crates/leserpent-vm/src/leserpent_profile.rs", "contains": "cancel_effect_audited(" },
             { "stage": "projection", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteDebuggerClient.cs", "contains": "private static RemoteDebuggerSession DecodeSession(" },
             { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteDebuggerWindow.cs", "contains": "\"status.cancelled\"" },
             { "stage": "automation", "path": "crates/leselang-command/src/lib.rs", "contains": "Effect::DebuggerCancel { .. } => CAPABILITY_DEBUGGER_CONTROL" }
@@ -456,9 +456,9 @@
             { "stage": "transport", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteDebuggerClient.cs", "contains": "public async Task<RemoteDebuggerPresentationResult> AdvancePresentationAsync(" },
             { "stage": "authority", "path": "crates/leserpentd/src/debugger.rs", "contains": "pub fn acknowledge_presentation(" },
             { "stage": "persistence", "path": "crates/leselang-command/src/reference_settlement.rs", "contains": "host.publish_completed(image, authoritative)" },
-            { "stage": "persistence", "path": "crates/leselang-vm/src/successor.rs", "contains": "self.0.journal.record_completed(image, proposed)" },
-            { "stage": "persistence", "path": "crates/leselang-vm/src/successor.rs", "contains": "self.0.journal.acknowledge_dispatch(lease, now_ms, proposed)" },
-            { "stage": "persistence", "path": "crates/leselang-vm/src/successor.rs", "contains": "self.visible_step(&image.token, authoritative)" },
+            { "stage": "persistence", "path": "crates/leserpent-vm/src/successor.rs", "contains": "self.0.journal.record_completed(image, proposed)" },
+            { "stage": "persistence", "path": "crates/leserpent-vm/src/successor.rs", "contains": "self.0.journal.acknowledge_dispatch(lease, now_ms, proposed)" },
+            { "stage": "persistence", "path": "crates/leserpent-vm/src/successor.rs", "contains": "self.visible_step(&image.token, authoritative)" },
             { "stage": "projection", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteDebuggerClient.cs", "contains": "private static RemoteDebuggerSession DecodeSession(" },
             { "stage": "feedback", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteDebuggerWindow.cs", "contains": "\"status.live_completed\"" },
             { "stage": "automation", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/AvaloniaDocumentRenderer.cs", "contains": "ApplyPresentationAsync(" }
