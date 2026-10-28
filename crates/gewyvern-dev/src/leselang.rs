@@ -266,13 +266,8 @@ fn module_names(source: &str) -> Result<Vec<&str>, String> {
 
 fn validate_vm_test_support(root: &Path, relative: &Path, plan: &mut Plan) -> Result<(), String> {
     let children = regular_children(root, relative)?;
-    let expected = [
-        "native_checkpoint.rs",
-        "native_group_checkpoint.rs",
-        "reference_dispatch_authority.rs",
-        "reference_request_build_authority.rs",
-    ]
-    .map(|name| relative.join(name));
+    let expected =
+        ["native_checkpoint.rs", "native_group_checkpoint.rs"].map(|name| relative.join(name));
     if children != expected {
         return Err(format!(
             "untracked VM test support asset: {}",
@@ -280,14 +275,7 @@ fn validate_vm_test_support(root: &Path, relative: &Path, plan: &mut Plan) -> Re
         ));
     }
     for child in children {
-        if ["native_checkpoint.rs", "native_group_checkpoint.rs"]
-            .iter()
-            .any(|name| child == relative.join(name))
-        {
-            plan.copy(root, &child, &child)?;
-        } else {
-            read_regular(root, &child)?;
-        }
+        plan.copy(root, &child, &child)?;
     }
     Ok(())
 }
@@ -1460,12 +1448,6 @@ mod tests {
         let directory = temp.0.join(relative);
         fs::create_dir_all(&directory).unwrap();
         assert!(validate().is_err());
-        let helper = directory.join("reference_dispatch_authority.rs");
-        fs::write(&helper, "pub fn exercise() {}\n").unwrap();
-        assert!(validate().is_err());
-        let request_helper = directory.join("reference_request_build_authority.rs");
-        fs::write(&request_helper, "pub fn request() {}\n").unwrap();
-        assert!(validate().is_err());
         let native = directory.join("native_checkpoint.rs");
         fs::write(&native, "pub fn reopen() {}\n").unwrap();
         assert!(validate().is_err());
@@ -1481,10 +1463,17 @@ mod tests {
             plan.entries[&relative.join("native_checkpoint.rs")].bytes,
             b"pub fn reopen() {}\n"
         );
-        fs::remove_file(&helper).unwrap();
+        // Native export must not require product-owned acceptance helpers.
+        assert!(!temp.0.join("crates/leserpent-vm").exists());
+        fs::remove_file(&native).unwrap();
         assert!(validate().is_err());
-        fs::write(&helper, "pub fn exercise() {}\n").unwrap();
-        for extra in ["unknown.rs", "fixture.json"] {
+        fs::write(&native, "pub fn reopen() {}\n").unwrap();
+        for extra in [
+            "reference_dispatch_authority.rs",
+            "reference_request_build_authority.rs",
+            "unknown.rs",
+            "fixture.json",
+        ] {
             fs::write(directory.join(extra), "unreviewed").unwrap();
             assert!(validate().is_err());
             fs::remove_file(directory.join(extra)).unwrap();
@@ -1492,7 +1481,7 @@ mod tests {
         fs::create_dir(directory.join("nested")).unwrap();
         assert!(validate().is_err());
         fs::remove_dir(directory.join("nested")).unwrap();
-        for path in [&helper, &request_helper, &native, &group] {
+        for path in [&native, &group] {
             OpenOptions::new()
                 .write(true)
                 .open(path)
@@ -1513,12 +1502,7 @@ mod tests {
         let relative = Path::new("support");
         fs::create_dir(temp.0.join(relative)).unwrap();
         fs::write(temp.0.join("outside.rs"), "private").unwrap();
-        let helpers = [
-            "native_checkpoint.rs",
-            "native_group_checkpoint.rs",
-            "reference_dispatch_authority.rs",
-            "reference_request_build_authority.rs",
-        ];
+        let helpers = ["native_checkpoint.rs", "native_group_checkpoint.rs"];
         for helper in helpers {
             fs::write(temp.0.join(relative).join(helper), "pub fn exercise() {}\n").unwrap();
         }
@@ -1929,12 +1913,52 @@ mod tests {
             "crates/leserpent-vm/src/journal.rs",
             "crates/leselang-vm/tests/ephemeral_profile.rs",
             "crates/leselang-vm/tests/restore_allocator.rs",
+            "crates/leselang-vm/tests/admission.rs",
+            "crates/leselang-vm/tests/concurrency.rs",
+            "crates/leserpent-vm/tests/restore_allocator.rs",
+            "crates/leserpent-vm/tests/admission.rs",
+            "crates/leserpent-vm/tests/concurrency.rs",
+            "crates/leselang-vm/tests/prepared_groups.rs",
+            "crates/leselang-vm/tests/prepared_bindings.rs",
+            "crates/leselang-vm/tests/group_receipts.rs",
+            "crates/leserpent-vm/tests/prepared_groups.rs",
+            "crates/leserpent-vm/tests/prepared_bindings.rs",
+            "crates/leserpent-vm/tests/group_receipts.rs",
+            "crates/leselang-vm/tests/group_binding.rs",
+            "crates/leselang-vm/tests/group_capture.rs",
+            "crates/leselang-vm/tests/group_dataflow.rs",
+            "crates/leselang-vm/tests/group_conditional.rs",
+            "crates/leserpent-vm/tests/group_binding.rs",
+            "crates/leserpent-vm/tests/group_capture.rs",
+            "crates/leserpent-vm/tests/group_dataflow.rs",
+            "crates/leserpent-vm/tests/group_conditional.rs",
+            "crates/leselang-vm/tests/result_binding.rs",
+            "crates/leselang-vm/tests/successor.rs",
+            "crates/leselang-vm/tests/dataflow.rs",
+            "crates/leselang-vm/tests/group_tail.rs",
+            "crates/leselang-vm/tests/parallel_group_tail.rs",
+            "crates/leserpent-vm/tests/result_binding.rs",
+            "crates/leserpent-vm/tests/successor.rs",
+            "crates/leserpent-vm/tests/dataflow.rs",
+            "crates/leserpent-vm/tests/group_tail.rs",
+            "crates/leserpent-vm/tests/parallel_group_tail.rs",
             "crates/leselang-vm/tests/debugger_audit_memory.rs",
             "crates/leselang-vm/tests/debugger_audit_durable.rs",
             "crates/leserpent-vm/tests/debugger_audit_memory.rs",
             "crates/leserpent-vm/tests/debugger_audit_durable.rs",
+            "crates/leselang-vm/tests/backpressure.rs",
+            "crates/leselang-vm/tests/clock_boundaries.rs",
+            "crates/leselang-vm/tests/retry_backoff.rs",
+            "crates/leserpent-vm/tests/backpressure.rs",
+            "crates/leserpent-vm/tests/clock_boundaries.rs",
+            "crates/leserpent-vm/tests/retry_backoff.rs",
             "crates/leselang-vm/tests/support/reference_dispatch_authority.rs",
             "crates/leselang-vm/tests/support/reference_request_build_authority.rs",
+            "crates/leselang-vm/tests/dispatch_scheduling.rs",
+            "crates/leserpent-vm/tests/dispatch_scheduling.rs",
+            "crates/leserpent-vm/tests/dispatch_authority_memory.rs",
+            "crates/leserpent-vm/tests/support/reference_dispatch_authority.rs",
+            "crates/leserpent-vm/tests/support/reference_request_build_authority.rs",
             "crates/leserpent-vm/src/debugger_audit_contract_tests.rs",
         ] {
             assert!(!plan.entries.contains_key(Path::new(path)));

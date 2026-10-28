@@ -4376,7 +4376,7 @@ fn product_request_construction_tracks_static_policy_without_native_promotion() 
     for evidence in [
         path,
         "crates/leselang-command/src/reference_request_build.rs",
-        "crates/leselang-vm/tests/support/reference_request_build_authority.rs",
+        "crates/leserpent-vm/tests/support/reference_request_build_authority.rs",
     ] {
         assert!(
             reference
@@ -9034,6 +9034,152 @@ fn debugger_audit_parity_is_reference_evidence_without_native_promotion() {
 }
 
 #[test]
+fn product_acceptance_ownership_is_reference_evidence_without_native_promotion() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let reference = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
+        .unwrap();
+    assert_eq!(reference.contract.version, "1.173.0");
+    let fixture = "docs/fixtures/leselang_product_scheduling_ownership_macos_arm64_20261028.json";
+    let dispatch_fixture =
+        "docs/fixtures/leselang_product_dispatch_ownership_macos_arm64_20261028.json";
+    let admission_fixture =
+        "docs/fixtures/leselang_product_admission_ownership_macos_arm64_20261028.json";
+    let group_fixture = "docs/fixtures/leselang_product_group_ownership_macos_arm64_20261028.json";
+    let group_flow_fixture =
+        "docs/fixtures/leselang_product_group_flow_ownership_macos_arm64_20261028.json";
+    let result_chain_fixture =
+        "docs/fixtures/leselang_product_result_chain_ownership_macos_arm64_20261028.json";
+    for path in [
+        "crates/leserpent-vm/tests/backpressure.rs",
+        "crates/leserpent-vm/tests/clock_boundaries.rs",
+        "crates/leserpent-vm/tests/retry_backoff.rs",
+        "crates/leselang-vm/tests/backpressure.rs",
+        "crates/leselang-vm/tests/clock_boundaries.rs",
+        "crates/leselang-vm/tests/retry_backoff.rs",
+        "crates/leserpent-vm/tests/dispatch_scheduling.rs",
+        "crates/leserpent-vm/tests/dispatch_authority_memory.rs",
+        "crates/leserpent-vm/tests/support/reference_dispatch_authority.rs",
+        "crates/leserpent-vm/tests/support/reference_request_build_authority.rs",
+        "crates/leselang-vm/tests/dispatch_scheduling.rs",
+        "crates/leserpent-vm/tests/admission.rs",
+        "crates/leserpent-vm/tests/concurrency.rs",
+        "crates/leserpent-vm/tests/restore_allocator.rs",
+        "crates/leselang-vm/tests/admission.rs",
+        "crates/leselang-vm/tests/concurrency.rs",
+        "crates/leselang-vm/tests/restore_allocator.rs",
+        "crates/leserpent-vm/tests/prepared_groups.rs",
+        "crates/leserpent-vm/tests/prepared_bindings.rs",
+        "crates/leserpent-vm/tests/group_receipts.rs",
+        "crates/leselang-vm/tests/prepared_groups.rs",
+        "crates/leselang-vm/tests/prepared_bindings.rs",
+        "crates/leselang-vm/tests/group_receipts.rs",
+        "crates/leserpent-vm/tests/group_binding.rs",
+        "crates/leserpent-vm/tests/group_capture.rs",
+        "crates/leserpent-vm/tests/group_dataflow.rs",
+        "crates/leserpent-vm/tests/group_conditional.rs",
+        "crates/leselang-vm/tests/group_binding.rs",
+        "crates/leselang-vm/tests/group_capture.rs",
+        "crates/leselang-vm/tests/group_dataflow.rs",
+        "crates/leselang-vm/tests/group_conditional.rs",
+        "crates/leserpent-vm/tests/result_binding.rs",
+        "crates/leserpent-vm/tests/successor.rs",
+        "crates/leserpent-vm/tests/dataflow.rs",
+        "crates/leserpent-vm/tests/group_tail.rs",
+        "crates/leserpent-vm/tests/parallel_group_tail.rs",
+        "crates/leselang-vm/tests/result_binding.rs",
+        "crates/leselang-vm/tests/successor.rs",
+        "crates/leselang-vm/tests/dataflow.rs",
+        "crates/leselang-vm/tests/group_tail.rs",
+        "crates/leselang-vm/tests/parallel_group_tail.rs",
+        fixture,
+        dispatch_fixture,
+        admission_fixture,
+        group_fixture,
+        group_flow_fixture,
+        result_chain_fixture,
+    ] {
+        assert!(reference.evidence.iter().any(|entry| entry.path == path
+            && entry.kind == EvidenceKind::Test
+            && entry.state == EvidenceState::Present));
+    }
+    let embedding = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(embedding.contract.version, "0.172.0");
+    assert_eq!(embedding.maturity, Maturity::Developing);
+    assert_eq!(embedding.completion, 10);
+    for (fixture, baseline, product, compatibility) in [
+        (fixture, 34, 34, 34),
+        (dispatch_fixture, 35, 14, 35),
+        (admission_fixture, 51, 51, 51),
+        (group_fixture, 23, 23, 23),
+        (group_flow_fixture, 68, 68, 68),
+        (result_chain_fixture, 81, 81, 81),
+    ] {
+        let proof: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(repository_root().join(fixture)).unwrap())
+                .unwrap();
+        assert_eq!(proof["verification_status"], "passed");
+        assert_eq!(proof["baseline_test_runs"], baseline);
+        assert_eq!(proof["product_test_runs"], product);
+        assert_eq!(proof["compatibility_test_runs"], compatibility);
+        assert_eq!(proof["test_bodies_unchanged"], true);
+        assert_eq!(proof["product_tests_match_original_inventory"], true);
+        assert_eq!(proof["compatibility_tests_match_original_inventory"], true);
+        assert_eq!(proof["complete_vm"], false);
+        assert_eq!(proof["full_extraction_gate"], false);
+        assert_eq!(proof["native_durable_recovery_complete"], false);
+        if [
+            admission_fixture,
+            group_fixture,
+            group_flow_fixture,
+            result_chain_fixture,
+        ]
+        .contains(&fixture)
+        {
+            assert_eq!(proof["native_export"]["verified"], false);
+            assert_eq!(
+                proof["native_export"]["fresh_isolated_verification_run"],
+                false
+            );
+            assert_eq!(
+                proof["native_export"]["contents_match_previous_verified_checkpoint"],
+                true
+            );
+            assert_eq!(proof["native_export"]["previous_checkpoint_verified"], true);
+        } else {
+            assert_eq!(
+                proof["native_export"]["identical_to_previous_verified_checkpoint"],
+                true
+            );
+        }
+        assert!(!embedding.evidence.iter().any(|entry| entry.path == fixture));
+    }
+    for cell in &catalog.cells {
+        for name in [
+            "result_binding",
+            "successor",
+            "dataflow",
+            "group_tail",
+            "parallel_group_tail",
+        ] {
+            let legacy = format!("crates/leselang-vm/tests/{name}.rs");
+            if cell.evidence.iter().any(|entry| entry.path == legacy) {
+                let canonical = format!("crates/leserpent-vm/tests/{name}.rs");
+                assert!(cell.evidence.iter().any(|entry| entry.path == canonical
+                    && entry.kind == EvidenceKind::Test
+                    && entry.state == EvidenceState::Present));
+            }
+        }
+    }
+}
+
+#[test]
 fn continuation_signature_status_records_reference_parity_without_durable_extraction_promotion() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     let reference = catalog
@@ -9483,15 +9629,18 @@ fn leselang_computation_evidence_does_not_claim_durable_dataflow_completion() {
         "crates/leselang-hir/tests/prepared_groups.rs",
         "crates/leselang-vm/tests/prepared_groups.rs",
         "crates/leselang-hir/tests/selected_groups.rs",
+        "crates/leserpent-vm/tests/prepared_groups.rs",
         "crates/leselang-vm/tests/selected_groups.rs",
         "crates/leselang-hir/tests/prepared_bindings.rs",
         "crates/leselang-vm/tests/prepared_bindings.rs",
         "crates/leselang-hir/tests/selected_functions.rs",
+        "crates/leserpent-vm/tests/prepared_bindings.rs",
         "crates/leselang-vm/tests/selected_functions.rs",
         "crates/leselang-hir/tests/recovery.rs",
         "crates/leselang-hir/tests/group_binding.rs",
         "crates/leselang-vm/tests/group_binding.rs",
         "crates/leselang-vm/tests/recovery.rs",
+        "crates/leserpent-vm/tests/group_binding.rs",
         "crates/leselang-syntax/tests/functions.rs",
         "crates/leselang-hir/tests/functions.rs",
         "crates/leselang-vm/tests/functions.rs",
@@ -9501,12 +9650,15 @@ fn leselang_computation_evidence_does_not_claim_durable_dataflow_completion() {
         "crates/leselang-vm/tests/group_tail.rs",
         "crates/leselang-hir/tests/group_capture.rs",
         "crates/leselang-vm/tests/group_capture.rs",
+        "crates/leserpent-vm/tests/group_capture.rs",
         "crates/leselang-hir/tests/parallel_group_tail.rs",
         "crates/leselang-vm/tests/parallel_group_tail.rs",
         "crates/leselang-hir/tests/group_dataflow.rs",
         "crates/leselang-vm/tests/group_dataflow.rs",
+        "crates/leserpent-vm/tests/group_dataflow.rs",
         "crates/leselang-hir/tests/group_conditional.rs",
         "crates/leselang-vm/tests/group_conditional.rs",
+        "crates/leserpent-vm/tests/group_conditional.rs",
         "crates/leselang-hir/tests/text_projections.rs",
         "crates/leselang-vm/tests/text_projections.rs",
         "crates/leselang-hir/tests/kind_projections.rs",
@@ -24074,6 +24226,7 @@ fn stateful_capture_reentry_status_tracks_original_meter_and_native_execution_bo
             "crates/leselang-vm/tests/capture_contract.rs",
             "crates/leselang-vm/tests/group_dataflow.rs",
             "crates/leselang-vm/tests/dataflow.rs",
+            "crates/leserpent-vm/tests/group_dataflow.rs",
         ] {
             assert!(
                 cell.evidence
@@ -26819,6 +26972,7 @@ fn ordered_outcome_status_does_not_promote_observation_to_settlement_or_complete
         "crates/leselang-runtime-core/tests/outcome_summary.rs",
         "crates/leserpent-vm/src/journal/group_binding.rs",
         "crates/leselang-vm/tests/group_receipts.rs",
+        "crates/leserpent-vm/tests/group_receipts.rs",
     ] {
         assert!(
             cell.evidence

@@ -1,7 +1,7 @@
-use leselang_hir::lower;
 use leselang_host_contract::{CapabilitySet, Principal, Revision};
 use leselang_syntax::parse;
-use leselang_vm::{
+use leserpent_hir::lower;
+use leserpent_vm::{
     DispatchLease, EffectError, EffectErrorClass, EffectRequest, EffectResult, PresentationResult,
     RetryDisposition, RetryPolicy, RetrySchedule, Step, Value, Vm,
 };

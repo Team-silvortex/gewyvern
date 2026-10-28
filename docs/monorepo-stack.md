@@ -30,7 +30,7 @@ changing a cross-project boundary.
 | [`crates/leselang-vm/`](../crates/leselang-vm) | native session facade and feature-gated legacy product API re-export | no product executor implementation; not yet a fully extracted durable VM |
 | [`crates/leserpent-vm/`](../crates/leserpent-vm) | Leserpent-specialized evaluator, live dispatch, memory and SQLite journals | product execution/transaction authority; excluded from the native language export |
 | [`crates/leselang-host-contract/`](../crates/leselang-host-contract) | reference-host identities, capabilities and ABI values | host exchange types without a product runtime dependency |
-| [`crates/leselang-command/`](../crates/leselang-command) | Leserpent protocol payloads, codecs, pure lowering, static request construction, product computation/capture execution policy, merge-output and record/dispatch/group/batch/reservation/bound-record/bound-receipt recovery policy, capture/member admission, debugger-audit read projections/recovery/commit, pending registration/replay, whole-graph registration and dispatch selection/lease commit, group finalization and successor registration within outer settlement, ordinary completion/cancellation/retry/dispatch-acknowledgement and deadline-expiration batch journal coordination and journal schema/migration policy, root-admission lifecycle, root-start and root commit/cache publication, continuation-import/cache-publication, reply-entry, result conversion/bound observation, result-completion, result/successor/cancellation/retry settlement routing, sequential-predecessor gates, retention-batch compaction and selected-record cleanup, group progress projection over native read snapshots, group visibility/completion-cache reconciliation, retention/expiry, sequence-allocation and startup/recovery-entry coordination and cancellation-entry, retry-entry and dispatch-claim/cache-adoption coordination, group-start, atomic-successor and group-successor assembly, group re-entry and checkpoint coordination | product adapter, not generic language core; computation invokes the original shared evaluator, not an independent interpreter; native owners retain sequence reservations, live admission/proofs, dispatch, transactions, durable watermark writes and commit authority |
+| [`crates/leselang-command/`](../crates/leselang-command) | Leserpent payloads/codecs, pure policy planning and reference execution/recovery coordination | product adapter, not generic language core; native VM owners retain live admission, dispatch and journal commit authority |
 | [`crates/leselang-ui/`](../crates/leselang-ui) | renderer-neutral Leserpent UI IR | product presentation contract, not a GUI toolkit |
 | [`crates/leselang-observe/`](../crates/leselang-observe) | sanitized projections and optional reference-VM bridge | product observation; read-only does not require a VM |
 | [`crates/leserpent-runtime/`](../crates/leserpent-runtime) | transactions, journal, effects, projections | durable control truth |
@@ -164,51 +164,55 @@ There are two distinct layers today:
 | Native language foundation | `leselang-syntax`, `leselang-runtime-core`, and HIR/VM with `default-features = false`; host-owned operations, values and synchronous re-entry |
 | Leserpent reference specialization | `leserpent-profile`, host contract, command payloads, UI and observation; explicit product vocabulary and adapters |
 
-Feature selection is part of the boundary:
+### Implementation Owners
 
-- HIR enables `leserpent-profile` by default; native embedders opt out.
-  Its generic computation methods delegate to an explicit host-effect profile;
-  the Leserpent alias no longer defines inherent methods on the generic IR.
-  Declared helper-body lowering and program assembly now use public checked
-  receipts tied to original immutable declarations; tighter physical policies
-  are revalidated without changing native semantic diagnostic order. Ordinary
-  binding already uses the public native binding adapter.
-  Helper/host argument alignment now has public, immutable bind-then-lower stages,
-  and cached templates expose current-bound revalidation; neither is an execution
-  grant or a replacement for complete cold-source checks.
-  Public host-root and field-operand plans also remove direct product access to
-  private source-preparation kernels, preserving native diagnostic/export order.
-  Loop compilation now also uses public source/initial/body stages, keeping
-  native scope admission before limits and scope cleanup before final assembly.
-  Private paired stages retain original IR/metadata; complete cold-source and
-  native type/authority checks remain explicit rather than implied by a plan.
-  Fold compilation also uses public collection/initial/next stages, preserving
-  collection-first lowering, two-local admission and post-scope next validation.
-  The private scalar kernels remain shared language internals, not product APIs.
-  Primitive scalar forms now also use a public original-source binder and
-  consuming lowerer. The product computation compiler imports only public scalar
-  diagnostic types, not private scalar helpers or unchecked purity observations.
-  The base local-name rule is public without changing lexical admission. An
-  isolated consumer now depends directly on the real `leserpent-hir` adapter,
-  alongside a default-free HIR facade, without included-source copies or root
-  workspace feature unification. Native implementation belongs to
-  `leselang-hir-core`, product implementation to `leserpent-hir`; the facade only
-  re-exports their exact types. Cargo edges are facade -> product -> core and
-  facade -> core, never product -> facade. Pure language export excludes the
-  product crate and private migration harness. Full VM/repository acceptance
-  remains a separate gate.
-  Product command, VM, UI, observation and daemon code now consumes the product
-  owner directly; runtime/CLI tests do the same. Shared evaluation/typing imports
-  go directly to the core. Neither language compatibility facade belongs to
-  those seven packages' normal/build closure; legacy external paths remain valid.
-- VM with no defaults exposes the native facade. Adding `leserpent-profile`
-  enables the in-memory product evaluator; default `sqlite-journal` adds durable
-  reference storage. Removing SQLite alone does not remove the product profile.
-- Observe with no defaults remains a product-specific read-only projection
-  library without VM/SQLite. `vm-bridge` adds the in-memory evaluator bridge;
-  default `sqlite-journal` preserves the released durable bridge.
-- Command payloads, continuation codecs, and UI IR are product adapters even
-  when they do not depend on the VM. Static validation is not live authorization.
+The arrows below mean consumer -> dependency, unlike the foundation-to-consumer
+overview above. Optional compatibility edges do not move implementation ownership.
+
+```text
+leselang-vm -> leselang-hir -> leselang-hir-core -> syntax / runtime-core
+leselang-hir --[leserpent-profile]--> leserpent-hir -> leselang-hir-core
+leselang-vm  --[leserpent-profile]--> leserpent-vm
+leserpent-vm -> leselang-command + leserpent-hir -> leselang-hir-core
+```
+
+The HIR and VM facades re-export the original owners' types, not parallel
+compilers or evaluators. Product command, VM, UI, observation and daemon code
+imports product owners directly; runtime/CLI tests do the same. Shared typing
+and evaluation go directly to the core. Their normal/build dependency closure
+excludes both language compatibility facades. Detailed lowering and recovery contracts belong
+in [the embedding reference](leselang-embedding.md), not in this overview.
+
+### Build Profiles
+
+| Entry | Feature selection | Boundary |
+| --- | --- | --- |
+| Native HIR/VM facades | `default-features = false` | host-defined operations and synchronous re-entry, no Leserpent evaluator or SQLite |
+| HIR facade | default `leserpent-profile` | exact product HIR types and lowering through `leserpent-hir` |
+| VM facade | no defaults + `leserpent-profile` | product evaluator with an in-memory journal |
+| VM facade | default `sqlite-journal` | product evaluator with SQLite; implies `leserpent-profile` |
+| Observe | no defaults; optional `vm-bridge`; default `sqlite-journal` | product projections only; memory VM bridge; durable bridge respectively |
+
+Removing SQLite alone does not remove the product profile. Command payloads,
+continuation codecs, host contracts and UI IR do not become generic language
+core merely by avoiding a VM dependency. Static validation is not live authority.
+
+### Acceptance Owners
+
+| Checks | Source owner |
+| --- | --- |
+| Native syntax, values, HIR and execution | native crate tests and default-free facade/isolated-consumer tests |
+| Product-owned execution, scheduling and journal acceptance | [`leserpent-vm/tests/`](../crates/leserpent-vm/tests) |
+| Shared product dispatch/request-construction oracles | [`leserpent-vm/tests/support/`](../crates/leserpent-vm/tests/support) |
+| Released HIR/VM paths and type identity | [`leselang-hir/tests/`](../crates/leselang-hir/tests) and [`leselang-vm/tests/`](../crates/leselang-vm/tests) |
+| Cross-package ownership, feature and status gates | root [`tests/`](../tests) |
+
+Where a product acceptance body has moved, the legacy target includes that
+same body through explicit facade aliases. Remaining legacy suites still need
+individual classification; do not delete them wholesale. The separate
+facade/product type-identity proof must keep comparing distinct import paths.
+The native export support inventory contains only `native_checkpoint.rs` and
+`native_group_checkpoint.rs`; product oracles are not export prerequisites.
 
 Cargo features are additive within a resolved graph. Validate native consumers
 in isolation rather than inferring independence from a default workspace build.

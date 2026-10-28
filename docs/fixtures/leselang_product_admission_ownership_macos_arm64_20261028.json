@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-product-admission-test-ownership",
+  "validated_at": "2026-10-28",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.4",
+  "baseline_commit": "e86ac8ff473cb05da26cf114d8da4aaf97afddd9",
+  "baseline_includes_uncommitted_ownership_and_hygiene": true,
+  "reference_vm_contract": "1.173.0",
+  "native_embedding_contract": "0.172.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "wire_or_journal_schema_changed": false,
+  "compatibility_defaults_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "test_bodies_unchanged": true,
+  "normalized_source_sha256": {
+    "admission": "bd73a861c73f83e002f71133fd656d83d2f6b2336fdf40777e2738fcada1aee2",
+    "concurrency": "fbc092141d2696645518f99623cf599b77be1fa1ba2a9b3dfbe49875f21695aa",
+    "restore_allocator": "e9a4dd28e79c250354ec97e62827366ef1159c1388155e41a7bf2ee1443291c0"
+  },
+  "baseline_test_runs": 51,
+  "product_test_runs": 51,
+  "compatibility_test_runs": 51,
+  "product_tests_match_original_inventory": true,
+  "compatibility_tests_match_original_inventory": true,
+  "product_closure_excludes_language_facades": true,
+  "targeted_product_memory_tests": 11,
+  "cross_api_recovery_tests": 1,
+  "root_gate_tests": 681,
+  "status_catalog_valid": true,
+  "cross_api_recovery_source_unchanged": true,
+  "ownership_scope": "Canonical admission (22 cases), concurrency (13) and restore_allocator (16) suites belong to leserpent-vm. Original assertions, storage fault injections, thread coordination and shared-core type/wire comparisons are unchanged apart from owner-qualified paths and formatting. All three targets require sqlite-journal because their acceptance includes durable storage.",
+  "compatibility_scope": "The released leselang-vm targets retain only explicit HIR/VM aliases and an include of the product-owned source. Each owner executes the original 51-case inventory. The separate cross-API journal-reopen comparison remains byte-identical in recovery.rs and is rerun independently; it is not converted into a product self-comparison.",
+  "verification_scope": "Local macOS only. Product and facade acceptance, targeted no-SQLite audit/dispatch regressions, the distinct cross-API restart case, exporter guards and strict lint are rerun. A fresh unverified native export is compared against every file and metadata field of the retained verified predecessor; only the verified flag differs. No fresh isolated workspace/consumer execution, full-workspace run or remote CI run is claimed.",
+  "remaining_boundaries": [
+    "Complete declared-language and reference compatibility acceptance.",
+    "Independent host-neutral production durability, real GUI/FFI integrations and physical repository extraction."
+  ],
+  "source_hashes": {
+    ".github/workflows/ci.yml": "12b11cb4b04134b35a1eb9aa9f399bf66db909392fd02707b719924c89c00375",
+    "crates/gewyvern-dev/src/leselang.rs": "9ab822d91bfaf7aa37990fb8283678b59ba0a587f9a3a3f645baae8f1eb8a912",
+    "crates/leserpent-vm/Cargo.toml": "ba74762c380ed9dea2e6ae43498e7fba3e976b403418072859308aafa609b940",
+    "crates/leselang-vm/Cargo.toml": "8c7d4724f5af832aa5c6d6b1dc35ef496d3f22a2946a7f26c016dd5c219c86e0",
+    "tests/leselang_vm_profile_tdd.rs": "4b8bb5b20b6a27c67225bbd044dc4acb2cd3576cb2d7da4db1e2b859cbeb01ef",
+    "tests/project_status_tdd.rs": "c0f84526659a418c7e391d717bbebd6d5eb2087ab6885a9bd76eac3c01d68104",
+    "docs/leselang-embedding.md": "9b2773f119c2c9187e078e1f4b2b33d6e08f5191ab97571aa403dd3e753e8afe",
+    "docs/monorepo-stack.md": "f1001a2c284bfb9d1a481df35da9e5ae8c7551d36e3b677b958993d529b6011b",
+    "crates/leselang-vm/README.md": "b34eeeda0bab24328cddc190ca598352265f67da89efe4588020aa7fdac0a563",
+    "project/status/catalog.json": "ab403dbb253783384074350265d3fd5f50bd701e307ec88332990a96887055b2",
+    "crates/leselang-vm/tests/admission.rs": "aec209f8b49f3abd9520395dd1e85e7d41799f6092736b15af6d050526218b08",
+    "crates/leselang-vm/tests/concurrency.rs": "5ebe03369e43e55f4300b06aab34c9e43d16f0543663d0113d6527fa2b2093bb",
+    "crates/leselang-vm/tests/restore_allocator.rs": "f7801be2199bb85881ee83586412e76506613bb42a6ab2d00d0a2ed4efef2b58",
+    "crates/leserpent-vm/tests/admission.rs": "bd73a861c73f83e002f71133fd656d83d2f6b2336fdf40777e2738fcada1aee2",
+    "crates/leserpent-vm/tests/concurrency.rs": "fbc092141d2696645518f99623cf599b77be1fa1ba2a9b3dfbe49875f21695aa",
+    "crates/leserpent-vm/tests/restore_allocator.rs": "e9a4dd28e79c250354ec97e62827366ef1159c1388155e41a7bf2ee1443291c0",
+    "crates/leselang-vm/tests/recovery.rs": "4a42ac546ad8a5edd8ce29c2f566538ab065b958091e75ecc0b889be1283c38c"
+  },
+  "checks": [
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test admission --test concurrency --test restore_allocator",
+      "log": "/private/tmp/leselang-admission-ownership-baseline-20261028.log",
+      "exit_code": 0,
+      "sha256": "0f06d66621514c5b74ead213ffc56e1fda403da199a145e2fc22e43b3462d44a",
+      "tests_passed": 51
+    },
+    {
+      "command": "cargo +1.98.0 test -p leserpent-vm --locked --offline --profile lean --test admission --test concurrency --test restore_allocator",
+      "log": "/private/tmp/leselang-admission-ownership-product-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "4c84d052119a3c6c743db747448ffd79b01b407b0b9d2faebfc295451bbf96d6",
+      "tests_passed": 51
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test admission --test concurrency --test restore_allocator",
+      "log": "/private/tmp/leselang-admission-ownership-compatibility-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "d9b23719041892bb353d23fd64e3581747a4c08661204b47127fc4592052f740",
+      "tests_passed": 51
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leserpent-vm --locked --offline --profile lean --test admission --test concurrency --test restore_allocator -- -D warnings",
+      "log": "/private/tmp/leselang-admission-ownership-product-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "954e78f7f6a77e143673642ebd024bc0ae51ca63109a54b3233b551493d4cbf6",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --test admission --test concurrency --test restore_allocator -- -D warnings",
+      "log": "/private/tmp/leselang-admission-ownership-compatibility-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "a84759769ba5916f0edb7f2777544dbad53e6b31dfecbf16eaf7682bef3eb1c2",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p leserpent-vm --no-default-features --locked --offline --profile lean --test dispatch_authority_memory --test debugger_audit_memory",
+      "log": "/private/tmp/leselang-admission-ownership-product-memory-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "c6b879f873caadbbfd1c5e007f8e63d87050244c6b821f0b04a76d6f1867614f",
+      "tests_passed": 11
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leserpent-vm --no-default-features --locked --offline --profile lean --lib --test dispatch_authority_memory --test debugger_audit_memory -- -D warnings",
+      "log": "/private/tmp/leselang-admission-ownership-product-memory-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "109a22deea5c97f7a4198a0d91a1e6bf178f9dd5a99be17743b230415d641e75",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "log": "/private/tmp/leselang-admission-ownership-exporter-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "debfd63d6d418fea1571dcd112c715e61017243862e4c56cb47082579a7e585b",
+      "tests_passed": 27
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern-dev --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-admission-ownership-exporter-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "f22435f35f48c1ef521c7002284f7f02b72979f197d18940126f434280acbdc5",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "log": "/private/tmp/leselang-admission-ownership-format-20261028.log",
+      "exit_code": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test leselang_vm_profile_tdd --test project_status_tdd -- -D warnings",
+      "log": "/private/tmp/leselang-admission-ownership-root-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "bcc4056feef914ce4322b60fc2d9b815e2b2a9c72fdffab10a9c471549cea1ba",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 tree -p leserpent-vm --locked --offline --edges normal,build,dev --prefix none",
+      "log": "/private/tmp/leselang-admission-ownership-product-tree-20261028.log",
+      "exit_code": 0,
+      "sha256": "09d36617f603b8846ff36b779f0dbfb9aac0c9875ecbcada9f07fd6e2b12b029",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-product-admission-export-20261028",
+      "log": "/private/tmp/leselang-admission-ownership-export-20261028.log",
+      "exit_code": 0,
+      "sha256": "2ae6fc7ea35cf9d0b8cb07ff49ee8659736bbfcdfbc64da0a1eef1ad50c8e105",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test recovery durable_journal_crosses_product_and_legacy_entry_points_without_new_receipts",
+      "log": "/private/tmp/leselang-admission-ownership-cross-api-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "303a106538fba15ab9968ec51f77e77f32adc9e357d046c4e1e2d5e12a93e3f4",
+      "tests_passed": 1
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test documentation_system_tdd --test reliability_gate_tdd",
+      "log": "/private/tmp/leselang-admission-ownership-root-20261028.log",
+      "exit_code": 0,
+      "sha256": "721cf455dc173baf9850d979ee382d68870c1988351e8e934462fb637c2dd62a",
+      "tests_passed": 681
+    },
+    {
+      "command": "target/lean/gewyvern_status validate --json",
+      "log": "/private/tmp/leselang-admission-ownership-status-20261028.log",
+      "exit_code": 0,
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0
+    }
+  ],
+  "native_export": {
+    "verified": false,
+    "fresh_isolated_verification_run": false,
+    "mode": "content-equivalence-to-verified-checkpoint",
+    "contents_match_previous_verified_checkpoint": true,
+    "previous_checkpoint_verified": true,
+    "only_manifest_difference": "verified: true -> false",
+    "path": "/private/tmp/leselang-product-admission-export-20261028",
+    "file_count": 312,
+    "total_bytes": 7697177,
+    "copied_source_entries": 301,
+    "copied_sources_match": true,
+    "product_admission_tests_excluded": true,
+    "manifest_sha256": "5d450bbbb0b9cb288d27a07e332a6d57c9e1cabcce2c6efc0142080a2064d1a8",
+    "previous_checkpoint": "docs/fixtures/leselang_product_dispatch_ownership_macos_arm64_20261028.json",
+    "previous_export_path": "/private/tmp/leselang-product-dispatch-export-20261028",
+    "previous_manifest_sha256": "0f687696b9cbdbc6a262ded2cd066d0fa79e1932e347ac269095419dc5bdb987",
+    "previous_isolated_test_executions": 2891,
+    "fresh_isolated_test_executions": 0,
+    "temporary_build_target_created": false
+  }
+}

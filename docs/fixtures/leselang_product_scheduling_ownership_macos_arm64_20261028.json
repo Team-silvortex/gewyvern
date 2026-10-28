@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-product-scheduling-test-ownership",
+  "validated_at": "2026-10-28",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.4",
+  "baseline_commit": "e86ac8ff473cb05da26cf114d8da4aaf97afddd9",
+  "reference_vm_contract": "1.173.0",
+  "native_embedding_contract": "0.172.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "wire_or_journal_schema_changed": false,
+  "compatibility_defaults_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "test_bodies_unchanged": true,
+  "normalized_source_sha256": {
+    "backpressure": "5b2fc0974bc24f8260057f467d42f80d4f7768435bd6776261977524d38ad27b",
+    "clock_boundaries": "1c2d028ee650ce488e69cfa5c0aa655263d5c069ddc62022b76d2f0b7520667d",
+    "retry_backoff": "1b4ebbc7e743233970acb550cb40cf073e60025503ad36bf91e843c09fc75150"
+  },
+  "baseline_test_runs": 34,
+  "product_test_runs": 34,
+  "compatibility_test_runs": 34,
+  "product_tests_match_original_inventory": true,
+  "compatibility_tests_match_original_inventory": true,
+  "product_test_closure_excludes_language_facades": true,
+  "product_no_sqlite_tests": 167,
+  "sqlite_targets_skipped_without_default_features": true,
+  "ownership_scope": "Canonical backpressure (20 cases), clock_boundaries (10) and retry_backoff (4) acceptance suites belong to leserpent-vm and import product HIR/VM directly. Entire original sources match after owner-qualified path replacement and rustfmt import sorting. Each suite checks both memory and SQLite, so every target requires sqlite-journal.",
+  "compatibility_scope": "The three released leselang-vm target names remain. Their only code is two explicit extern-crate aliases and an include of the canonical product suite. Both owners execute the same assertions with identical test names; no test-body copies, public API, default features or journal/wire changes.",
+  "verification_scope": "Original baseline, direct product and legacy facade each pass the identical 34-case inventory. These repeated executions are compatibility evidence, not 102 distinct features. The separate no-SQLite product run passes 167 tests and skips the three durable suites. Local macOS verification only; CI definitions and commands were checked, not executed on a remote runner. The five-crate native checkpoint remains byte-identical.",
+  "remaining_boundaries": [
+    "Complete declared-language and reference compatibility acceptance.",
+    "Independent host-neutral production durability, real GUI/FFI integrations and physical repository extraction."
+  ],
+  "source_hashes": {
+    ".github/workflows/ci.yml": "004b893f75da962edcc9e89b47762ca42da8d6967b35fd4a570efa27045292b0",
+    "crates/gewyvern-dev/src/leselang.rs": "b3673adb487defe44d4fa13632270c42a53cd98fe48723458715c6fec7eb3f12",
+    "crates/leserpent-vm/Cargo.toml": "4cd00aba0b9ec46f3fdaa860edd02ed29ece50f01372a25478d5e76930e22fa9",
+    "crates/leselang-vm/Cargo.toml": "8c7d4724f5af832aa5c6d6b1dc35ef496d3f22a2946a7f26c016dd5c219c86e0",
+    "tests/leselang_vm_profile_tdd.rs": "b3d70a1a89ccba4c1b9e6f33ecaba74f1ec0f89b5b86fc6235af5d2342b10b4c",
+    "tests/project_status_tdd.rs": "da6d7a0e024acb0506c4c0e8641f7c5e8f486d6356ea2b2f903ce081ee5d7e69",
+    "docs/leselang-embedding.md": "4b1458a746e4f13b9796419d5ea529b0cef86ee48136537faa41f08f40a1458e",
+    "crates/leselang-vm/README.md": "7da5e133c2b8e865ec2e688f327feb3bfa4b07c9c645513452e20040483a9264",
+    "project/status/catalog.json": "a29e70ec2216ebf5d15d32176711387cde6be52817a5206c19b4af100cde5edd",
+    "crates/leselang-vm/tests/backpressure.rs": "e645561fcac96113f5e38a718f5ab5f67caaa00241de314251351ce4a31bf44d",
+    "crates/leselang-vm/tests/clock_boundaries.rs": "3232b8412a1776f0e4593561161ee53b8f31271488d8e790a42fc83ed5c0273e",
+    "crates/leselang-vm/tests/retry_backoff.rs": "504a9d84a71855deff7467952041e562c27d85c86f9a53258cd6cfce6ba2194f",
+    "crates/leserpent-vm/tests/backpressure.rs": "5b2fc0974bc24f8260057f467d42f80d4f7768435bd6776261977524d38ad27b",
+    "crates/leserpent-vm/tests/clock_boundaries.rs": "1c2d028ee650ce488e69cfa5c0aa655263d5c069ddc62022b76d2f0b7520667d",
+    "crates/leserpent-vm/tests/retry_backoff.rs": "1b4ebbc7e743233970acb550cb40cf073e60025503ad36bf91e843c09fc75150"
+  },
+  "checks": [
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test backpressure --test clock_boundaries --test retry_backoff",
+      "log": "/private/tmp/leselang-scheduling-ownership-baseline-20261028.log",
+      "exit_code": 0,
+      "sha256": "b8ef162b1aa5230336e5c997a4ba52f03be877fe7860ceb757edfb0714293a05",
+      "tests_passed": 34
+    },
+    {
+      "command": "cargo +1.98.0 test -p leserpent-vm --locked --offline --profile lean --test backpressure --test clock_boundaries --test retry_backoff",
+      "log": "/private/tmp/leselang-scheduling-ownership-product-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "90e3da465faa03ab37810967889d179995d59d2a4fd3e0b51b3cb6d61cf453e1",
+      "tests_passed": 34
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test backpressure --test clock_boundaries --test retry_backoff",
+      "log": "/private/tmp/leselang-scheduling-ownership-compatibility-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "4096f5421a0d2b6796319cde7fafe005f32103c8d3de3cd939e951d992de85ef",
+      "tests_passed": 34
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leserpent-vm --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-scheduling-ownership-product-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "be204408936a017c75ea2a3df0639dbf27dff8728138ac1ff5a1e3ee4f508b5c",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leserpent-vm --no-default-features --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-scheduling-ownership-product-memory-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "b64fd83cf0bcc5e3757fe4f036e321e8705d11976a196cf54c84ff82d69941dc",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --test backpressure --test clock_boundaries --test retry_backoff -- -D warnings",
+      "log": "/private/tmp/leselang-scheduling-ownership-compatibility-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "2389574311bff4b4373f5684bf416e2b0efc31167c8a2586d3b2c4a03cd816df",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p leserpent-vm --no-default-features --locked --offline --profile lean",
+      "log": "/private/tmp/leselang-scheduling-ownership-product-memory-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "39cd8f841af5f329b21b79c0d429e9da1490ba854e92ff10fd35eb4374f5b2dc",
+      "tests_passed": 167
+    },
+    {
+      "command": "cargo +1.98.0 tree -p leserpent-vm --locked --offline --edges normal,build,dev --prefix none",
+      "log": "/private/tmp/leselang-scheduling-ownership-product-tree-20261028.log",
+      "exit_code": 0,
+      "sha256": "09d36617f603b8846ff36b779f0dbfb9aac0c9875ecbcada9f07fd6e2b12b029",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "log": "/private/tmp/leselang-scheduling-ownership-exporter-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "a64d4119e789967c31df22be496653fb98a56c9f2430c38caa43e88a11786fb8",
+      "tests_passed": 27
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern-dev --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-scheduling-ownership-exporter-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "6a7870c61f5ea68f096730fef4b2b010e452115f483c02a1aeb79372de64fd97",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test leselang_vm_profile_tdd product_scheduling_suites_share_one_body_with_released_api_compatibility",
+      "log": "/private/tmp/leselang-scheduling-ownership-boundary-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "761ab6063e4c6a1279420fa2227de166cdc18b958f2104d60f6e3eafae8c935d",
+      "tests_passed": 1
+    },
+    {
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "log": "/private/tmp/leselang-scheduling-ownership-format-20261028.log",
+      "exit_code": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test leselang_vm_profile_tdd --test project_status_tdd -- -D warnings",
+      "log": "/private/tmp/leselang-scheduling-ownership-root-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "5511f6f1798144e17e4aed2492f2e2663e22669e9a9ac1d5f2496b1dbde82a11",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-product-scheduling-export-20261028 --verify",
+      "log": "/private/tmp/leselang-scheduling-ownership-export-20261028.log",
+      "exit_code": 0,
+      "sha256": "66aa8963f7d4c5fe2d193b7d9920efbe8e2766b15a6b3fe71484d7259fd22416",
+      "tests_passed": 2891
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test native_validation_harness_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-scheduling-ownership-root-20261028.log",
+      "exit_code": 0,
+      "sha256": "c8e3410a1aadd654b515ee90682b51cbc7ef793c95beac1ec7e8046b73643fd9",
+      "tests_passed": 721
+    },
+    {
+      "command": "target/lean/gewyvern_status validate --json",
+      "log": "/private/tmp/leselang-scheduling-ownership-status-20261028.log",
+      "exit_code": 0,
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0
+    }
+  ],
+  "native_export": {
+    "verified": true,
+    "product_scheduling_tests_excluded": true,
+    "path": "/private/tmp/leselang-product-scheduling-export-20261028",
+    "file_count": 312,
+    "total_bytes": 7697177,
+    "copied_source_entries": 301,
+    "copied_sources_match": true,
+    "manifest_sha256": "0f687696b9cbdbc6a262ded2cd066d0fa79e1932e347ac269095419dc5bdb987",
+    "identical_to_previous_verified_checkpoint": true,
+    "previous_checkpoint": "docs/fixtures/leselang_product_audit_ownership_macos_arm64_20261028.json",
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-59824-1793187220248854000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2891,
+    "log": "/private/tmp/leselang-scheduling-ownership-export-20261028.log",
+    "log_sha256": "66aa8963f7d4c5fe2d193b7d9920efbe8e2766b15a6b3fe71484d7259fd22416"
+  },
+  "root_gate_tests": 721
+}

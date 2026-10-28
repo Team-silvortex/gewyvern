@@ -96,6 +96,57 @@ fn repository_guide_keeps_native_extraction_and_disk_retention_separate() {
 }
 
 #[test]
+fn repository_guide_routes_acceptance_to_current_owners_and_names_the_five_crate_export() {
+    let root = repository_root();
+    let map = fs::read_to_string(root.join("docs/monorepo-stack.md")).unwrap();
+    let owners = map
+        .split_once("### Acceptance Owners\n")
+        .unwrap()
+        .1
+        .split_once("## Toolchain Boundaries\n")
+        .unwrap()
+        .0;
+    for path in [
+        "crates/leserpent-vm/tests",
+        "crates/leserpent-vm/tests/support",
+        "crates/leselang-hir/tests",
+        "crates/leselang-vm/tests",
+        "tests",
+    ] {
+        assert!(root.join(path).is_dir(), "missing owner: {path}");
+        assert!(
+            owners.contains(&format!("(../{path})")),
+            "unmapped owner: {path}"
+        );
+    }
+    assert!(owners.contains("product oracles are not export prerequisites"));
+    assert!(owners.contains("individual classification; do not delete them wholesale"));
+    let development = fs::read_to_string(root.join("docs/development.md")).unwrap();
+    assert!(development.contains("The five exported crates are"));
+    let exporter = fs::read_to_string(root.join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    let crates = exporter
+        .split_once("const CRATES: &[&str] = &[")
+        .unwrap()
+        .1
+        .split_once("];\n")
+        .unwrap()
+        .0;
+    let crates: Vec<_> = crates
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+    assert_eq!(crates.len(), 5);
+    for name in crates {
+        let name = name.trim_end_matches(',').trim_matches('"');
+        assert!(
+            development.contains(&format!("`{name}`")),
+            "missing export: {name}"
+        );
+    }
+}
+
+#[test]
 fn optional_leserpent_profile_docs_preserve_default_api_and_native_vm_boundaries() {
     let embedding =
         fs::read_to_string(repository_root().join("docs/leselang-embedding.md")).unwrap();

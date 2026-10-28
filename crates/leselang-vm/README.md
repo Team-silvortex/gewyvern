@@ -301,6 +301,48 @@ use `--no-default-features --test debugger_audit_memory` for the memory-only tar
 No runtime, schema or compatibility-default change follows from this ownership split.
 Cargo features are additive, not a capability or security boundary.
 
+Scheduling acceptance bodies also live under `leserpent-vm/tests`: run
+`cargo test -p leserpent-vm --test backpressure --test clock_boundaries --test retry_backoff`.
+The facade's three compatibility targets include those exact bodies through
+the released HIR/VM aliases, preserving all 34 test names and assertions without
+maintaining duplicate implementations. Every suite covers both memory and SQLite,
+so both owners require `sqlite-journal`; none belongs to the native source export.
+
+Product dispatch acceptance runs with
+`cargo test -p leserpent-vm --test dispatch_scheduling --test dispatch_authority_memory`.
+Only the scheduling target requires SQLite. Run the two memory authority cases
+with `--no-default-features --test dispatch_authority_memory`. The facade retains
+its 12-case scheduling wrapper and all 23 memory-profile cases, including the
+direct product/facade type-identity check. Both routes use the product-owned
+authority oracles; native export requires neither those helpers nor the product crate.
+
+Admission, shared-worker concurrency and allocator recovery also use canonical
+product bodies. Run
+`cargo test -p leserpent-vm --test admission --test concurrency --test restore_allocator`
+for the 51 product cases, or select `leselang-vm` for the identical released-API
+inventory. Both require SQLite. The distinct product/facade reopen comparison
+in `tests/recovery.rs` remains a legacy compatibility check, not a self-comparison.
+
+Group preparation, prepared result capture and receipt integrity acceptance use
+`cargo test -p leserpent-vm --test prepared_groups --test prepared_bindings --test group_receipts`.
+The facade runs the same 23 cases through shared canonical bodies. These targets
+require SQLite and stay outside the native export; their transaction, restart,
+concurrent-successor and forged-receipt checks do not establish native durability.
+
+Group binding, captured dataflow and conditional exit acceptance run with
+`cargo test -p leserpent-vm --test group_binding --test group_capture --test group_dataflow --test group_conditional`.
+Use `leselang-vm` for the same 68 released-API cases. Both owners require SQLite;
+the shared bodies preserve whole-graph recovery, original receipt/frame checks,
+shared fuel, transactional successor creation and whole-unit compaction. Pure
+language mechanisms and the cross-product/facade restart proof stay separate.
+
+Result-driven chains and sequential/parallel group tails use
+`cargo test -p leserpent-vm --test result_binding --test successor --test dataflow --test group_tail --test parallel_group_tail`.
+Select `leselang-vm` for the same 81 released-API cases. Both routes require
+SQLite and preserve inherited authority, atomic successor creation, legacy
+journal migration, frame correspondence and protected whole-chain retention.
+Their canonical bodies and compatibility wrappers are excluded from native export.
+
 Both reference profiles reject fresh debugger audit attribution after completion
 (`LSV4033`), including ordinary and propagated sibling cancellations. Only an
 exact original command replay returns the original audit timestamp; refusal does

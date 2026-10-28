@@ -93,9 +93,13 @@ the verified output. It retains the source checkpoint and `export-manifest.json`
 not a per-export compiler cache. Locked registry downloads remain reusable.
 The exported workspace and its separate consumer own explicit metadata,
 locked registry dependencies, MIT license and native CI. This is not the full
-durable VM extraction or publication gate. The four exported crates now include
-the native VM facade and its unchanged direct-consumer host tests; neither
-product/reference nor SQLite features are enableable in the checkpoint.
+durable VM extraction or publication gate. The five exported crates are
+`leselang-syntax`, `leselang-runtime-core`, `leselang-hir-core`, `leselang-hir`
+and `leselang-vm`. The native VM facade and its direct-consumer host tests are
+included; neither product/reference nor SQLite features are enableable in the
+checkpoint. Product execution acceptance belongs to `leserpent-vm`; legacy API
+checks remain in the facades. See the [acceptance owner map](monorepo-stack.md#acceptance-owners)
+before choosing where a new test belongs.
 See [embedding boundaries](leselang-embedding.md).
 
 Before cutting a release, use `cargo dev version check` to verify that Cargo,
@@ -417,9 +421,17 @@ Start with `du -h -d 1 .` and `du -h -d 2 target`, then preview the trim below.
 `target/lean/deps/` can still accumulate large test binaries and feature/profile
 variants even though `lean` disables incremental compilation. Do not delete
 individual hashed dependencies or fingerprints by age; use Cargo's profile
-cleanup so build metadata and outputs are reset together. After cleanup, run
-only the checks relevant to the changed boundary and retain their fresh cache
-for the next edit loop.
+cleanup so build metadata and outputs are reset together. A small or empty
+`incremental/` does not mean the whole profile is small: linked test executables
+can dominate `deps/` after repeated feature combinations and source revisions.
+
+For a documentation/housekeeping change, validate it with the existing profile
+before trimming, then record the before/after sizes without rebuilding the full
+workspace just to confirm deletion. Cleanup also removes development tools built
+inside that profile; invoke their normal Cargo entrypoint to rebuild them when
+needed. For a code change, run only the relevant checks after cleanup and retain
+their fresh cache for the next edit loop. A source checkpoint and its verifier
+logs remain valid evidence after disposable compiler outputs are removed.
 
 Build outputs and test sources have different retention rules. Rust `target/`,
 .NET `bin/`, `obj/`, and `TestResults/`, frontend `node_modules/`, Python bytecode

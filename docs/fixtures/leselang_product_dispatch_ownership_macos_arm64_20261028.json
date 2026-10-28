@@ -1,0 +1,215 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-product-dispatch-test-ownership",
+  "validated_at": "2026-10-28",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.4",
+  "baseline_commit": "e86ac8ff473cb05da26cf114d8da4aaf97afddd9",
+  "baseline_includes_uncommitted_scheduling_ownership": true,
+  "reference_vm_contract": "1.173.0",
+  "native_embedding_contract": "0.172.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "wire_or_journal_schema_changed": false,
+  "compatibility_defaults_changed": false,
+  "exporter_support_inventory_changed": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "test_bodies_unchanged": true,
+  "normalized_source_sha256": {
+    "dispatch_scheduling": "39bf0799af019c3c0802641a690edec454c8ffbbadff71e31f6302f16361007c",
+    "support/reference_dispatch_authority": "2ef690defa7f802b2252e7f0173bc84b7197ef9edf97ee0e4642fd5bc1398de8",
+    "support/reference_request_build_authority": "8e79b498fee54537685bb899fa5f3f28c9fabd25c02525d3ecd8efb3be55d15e"
+  },
+  "legacy_memory_body_sha256": "63de722a0d081cf818c3387c0cb448e285fdda61ea1af732edb74dc394954b76",
+  "removed_product_support_sources": {
+    "crates/leselang-vm/tests/support/reference_dispatch_authority.rs": "a3391499a5dbe5868e0fe18aa7c2ac72a88a20a50a4e172f3251c810e0e84efc",
+    "crates/leselang-vm/tests/support/reference_request_build_authority.rs": "5792bb7c70bbe16190d17c16b0f4a82114d3482e7ad47a913f624f21faf56e73"
+  },
+  "baseline_test_runs": 35,
+  "product_test_runs": 14,
+  "compatibility_test_runs": 35,
+  "product_memory_only_tests": 2,
+  "compatibility_memory_only_tests": 23,
+  "product_no_sqlite_tests": 169,
+  "product_tests_match_original_inventory": true,
+  "compatibility_tests_match_original_inventory": true,
+  "product_memory_test_closure_excludes_language_facades_and_sqlite": true,
+  "native_export_requires_product_support": false,
+  "ownership_scope": "Product-owned dispatch_scheduling retains all twelve scheduling, delivery-attempt, lease, restart and migration cases. Both shared dispatch/request-construction authority oracles move unchanged apart from qualified owner imports and formatting. A direct product memory target executes the original two memory entries over those same oracles.",
+  "compatibility_scope": "The legacy scheduling target aliases the released HIR/VM crates and includes the canonical product body. All twenty-three existing ephemeral-profile test bodies remain byte-identical; only the two oracle modules now include product-owned sources through local facade aliases. The distinct facade/product in-flight type-identity comparison remains unchanged.",
+  "verification_scope": "Local macOS only. Baseline and legacy compatibility each execute the same thirty-five named cases. Direct product acceptance executes the corresponding twelve scheduling plus two memory cases; these are not fourteen newly invented scenarios or full replacement of the remaining facade tests. No-SQLite runs pass two product authority cases and twenty-three legacy memory cases; the complete product memory suite passes 169 tests. CI definitions and commands were checked locally, not run on a remote worker.",
+  "export_scope": "The closed language test-support inventory requires only native_checkpoint.rs and native_group_checkpoint.rs. Product oracle files no longer exist in that directory and are not export prerequisites. Unknown files, directories, oversized files and native source symlinks remain rejected. Export contents stay byte-identical and temporary build targets are removed.",
+  "remaining_boundaries": [
+    "Complete declared-language and reference compatibility acceptance.",
+    "Independent host-neutral production durability, real GUI/FFI integrations and physical repository extraction."
+  ],
+  "source_hashes": {
+    ".github/workflows/ci.yml": "11d91861b60073242ef94313109b7af6302c890ab403140c20f679d5204dded9",
+    "crates/gewyvern-dev/src/leselang.rs": "656110877165be947d716aa5df43fab58340620b752f1a5269cb0f78e9448896",
+    "crates/leserpent-vm/Cargo.toml": "dd12b238cfb5459d7930e8cb7c920077592aa1639073c208b2d4d3ee21b19af6",
+    "crates/leselang-vm/Cargo.toml": "8c7d4724f5af832aa5c6d6b1dc35ef496d3f22a2946a7f26c016dd5c219c86e0",
+    "tests/leselang_vm_profile_tdd.rs": "a1b50865d4d23bfae588ff43733666ba3e140755e9d0b5b5be62f2234d4a5ce6",
+    "tests/project_status_tdd.rs": "af560d702df687272e1d1b71d88e6ce04119c809b9d4d6ddae1e46e168f8c681",
+    "docs/leselang-embedding.md": "2beffdfcb544b5a3604873dbbd45455ae168fa2e8c0a2b65e3c50fde81053199",
+    "crates/leselang-vm/README.md": "6692dc28e9937e79c68f6623241c7504e7e796000fd10fc13da5ed566fd19b73",
+    "project/status/catalog.json": "8e519fd3261d96ada1be8cbac15168341f13fac1e8ac954ab9feb20f2d1a612d",
+    "crates/leselang-vm/tests/dispatch_scheduling.rs": "dc51cb0a01459c5252a3e6139e913c3b92c93767775cfa0fe3aa9ff50e556871",
+    "crates/leselang-vm/tests/ephemeral_profile.rs": "d738a44803df068a5641b55a7deb4b23fef9592b3dc58b029f1dc59874ba85f4",
+    "crates/leserpent-vm/tests/dispatch_authority_memory.rs": "f20ddeb95afe0c698fc4d868385df3463f6159a30b8e87aae2eea757368c1b69",
+    "crates/leserpent-vm/tests/dispatch_scheduling.rs": "39bf0799af019c3c0802641a690edec454c8ffbbadff71e31f6302f16361007c",
+    "crates/leserpent-vm/tests/support/reference_dispatch_authority.rs": "2ef690defa7f802b2252e7f0173bc84b7197ef9edf97ee0e4642fd5bc1398de8",
+    "crates/leserpent-vm/tests/support/reference_request_build_authority.rs": "8e79b498fee54537685bb899fa5f3f28c9fabd25c02525d3ecd8efb3be55d15e"
+  },
+  "checks": [
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test dispatch_scheduling --test ephemeral_profile",
+      "log": "/private/tmp/leselang-dispatch-ownership-baseline-20261028.log",
+      "exit_code": 0,
+      "sha256": "f116a63934328d5aa31d76eadca0eddb37d04d5da50e056e359ab9746f645237",
+      "tests_passed": 35
+    },
+    {
+      "command": "cargo +1.98.0 test -p leserpent-vm --locked --offline --profile lean --test dispatch_scheduling --test dispatch_authority_memory",
+      "log": "/private/tmp/leselang-dispatch-ownership-product-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "a0f0fc8ae8e03abdbc25d6856d4aca78a6bfcd0e208c716948ce5e18d6d110ba",
+      "tests_passed": 14
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test dispatch_scheduling --test ephemeral_profile",
+      "log": "/private/tmp/leselang-dispatch-ownership-compatibility-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "59d417b171b9869d14d04a34afde9f576ffbdd777a9c81d8deea9c8f13e1b1a2",
+      "tests_passed": 35
+    },
+    {
+      "command": "cargo +1.98.0 test -p leserpent-vm --locked --offline --profile lean --no-default-features --test dispatch_authority_memory",
+      "log": "/private/tmp/leselang-dispatch-ownership-product-memory-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "16c26e736177802686ffc1002bb687d5055150a45b42a579c9a7f0979786c31a",
+      "tests_passed": 2
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --no-default-features --features leserpent-profile --test ephemeral_profile",
+      "log": "/private/tmp/leselang-dispatch-ownership-compatibility-memory-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "7fc78757ab9b4b19b28122f66ed72b287f42e794875bf9b2c1b16d91e1fa44a0",
+      "tests_passed": 23
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leserpent-vm --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-dispatch-ownership-product-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "d5a77b514b29e2b772675b36fa98b770d5a6d6fd7e66fff28fc2a3201ae7bbe3",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --test dispatch_scheduling --test ephemeral_profile -- -D warnings",
+      "log": "/private/tmp/leselang-dispatch-ownership-compatibility-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "31993c8c784ebe282397580622fd138e167bc88fb9da4e54b0ccadc396ae45c2",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leserpent-vm --no-default-features --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-dispatch-ownership-product-memory-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "be204408936a017c75ea2a3df0639dbf27dff8728138ac1ff5a1e3ee4f508b5c",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "log": "/private/tmp/leselang-dispatch-ownership-exporter-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "c4d3a745654cb8a0ae466da99a706d19f7aa0b94baa76f26b59aaa8e0b0261ee",
+      "tests_passed": 27
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern-dev --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-dispatch-ownership-exporter-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "f8dad8bf3517830e775179a723604fd61dac364e42e6f70fbfce3440875f86be",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test leselang_vm_profile_tdd dispatch_authority_oracles_are_product_owned_without_a_native_export_prerequisite",
+      "log": "/private/tmp/leselang-dispatch-ownership-boundary-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "22671aa7c5b27d49e81906101d4ea14c0e3b6f555094a947d1ddcfe52149947a",
+      "tests_passed": 1
+    },
+    {
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "log": "/private/tmp/leselang-dispatch-ownership-format-20261028.log",
+      "exit_code": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test leselang_vm_profile_tdd --test project_status_tdd -- -D warnings",
+      "log": "/private/tmp/leselang-dispatch-ownership-root-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "56b27fc7c3849c955e0e0ea841ee5bbced57140446e401a5e5123ece30653af2",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 tree -p leserpent-vm --no-default-features --locked --offline --edges normal,build,dev --prefix none",
+      "log": "/private/tmp/leselang-dispatch-ownership-product-tree-20261028.log",
+      "exit_code": 0,
+      "sha256": "942c8c67b0611491edf8f29910a59a999fdebab442387a2c9f68eddf8c01d579",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p leserpent-vm --no-default-features --locked --offline --profile lean",
+      "log": "/private/tmp/leselang-dispatch-ownership-product-memory-full-20261028.log",
+      "exit_code": 0,
+      "sha256": "94604c48294cad7306507534603be581a9ed4b172bb8bbe4fcdd8cc186e258ff",
+      "tests_passed": 169
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-product-dispatch-export-20261028 --verify",
+      "log": "/private/tmp/leselang-dispatch-ownership-export-20261028.log",
+      "exit_code": 0,
+      "sha256": "1d8d08bfe4e5afc5abac069c6aa45c36bd04ec89577ef274da69a673dc6d2280",
+      "tests_passed": 2891
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test native_validation_harness_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-dispatch-ownership-root-20261028.log",
+      "exit_code": 0,
+      "sha256": "5654ea2a712d92ef39d9839d04c3004d20ac6cb0676675eaac7780897a1521ae",
+      "tests_passed": 722
+    },
+    {
+      "command": "target/lean/gewyvern_status validate --json",
+      "log": "/private/tmp/leselang-dispatch-ownership-status-20261028.log",
+      "exit_code": 0,
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0
+    }
+  ],
+  "native_export": {
+    "verified": true,
+    "product_dispatch_tests_excluded": true,
+    "path": "/private/tmp/leselang-product-dispatch-export-20261028",
+    "file_count": 312,
+    "total_bytes": 7697177,
+    "copied_source_entries": 301,
+    "copied_sources_match": true,
+    "manifest_sha256": "0f687696b9cbdbc6a262ded2cd066d0fa79e1932e347ac269095419dc5bdb987",
+    "identical_to_previous_verified_checkpoint": true,
+    "previous_checkpoint": "docs/fixtures/leselang_product_scheduling_ownership_macos_arm64_20261028.json",
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-79021-1793188149345525000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2891,
+    "log": "/private/tmp/leselang-dispatch-ownership-export-20261028.log",
+    "log_sha256": "1d8d08bfe4e5afc5abac069c6aa45c36bd04ec89577ef274da69a673dc6d2280"
+  },
+  "root_gate_tests": 722
+}

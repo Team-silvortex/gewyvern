@@ -141,8 +141,40 @@ jobs:
       - name: Test product benchmark workload without SQLite
         run: cargo +1.98.0 test -p leserpent-vm --locked --no-default-features --example language_benchmark
 
+      - name: Test product scheduling and released API compatibility
+        run: |
+          cargo +1.98.0 test -p leserpent-vm --locked --test backpressure --test clock_boundaries --test retry_backoff
+          cargo +1.98.0 test -p leselang-vm --locked --test backpressure --test clock_boundaries --test retry_backoff
+
+      - name: Test product dispatch authority and released API compatibility
+        run: |
+          cargo +1.98.0 test -p leserpent-vm --locked --test dispatch_scheduling --test dispatch_authority_memory
+          cargo +1.98.0 test -p leselang-vm --locked --test dispatch_scheduling --test ephemeral_profile
+          cargo +1.98.0 test -p leserpent-vm --locked --no-default-features --test dispatch_authority_memory
+          cargo +1.98.0 test -p leselang-vm --locked --no-default-features --features leserpent-profile --test ephemeral_profile
+
       - name: Lint product-owned evaluator without SQLite
         run: cargo +1.98.0 clippy -p leserpent-vm --locked --no-default-features --all-targets -- -D warnings
+
+      - name: Test product admission, shared workers and allocator recovery
+        run: |
+          cargo +1.98.0 test -p leserpent-vm --locked --test admission --test concurrency --test restore_allocator
+          cargo +1.98.0 test -p leselang-vm --locked --test admission --test concurrency --test restore_allocator
+
+      - name: Test product group preparation and receipt integrity
+        run: |
+          cargo +1.98.0 test -p leserpent-vm --locked --test prepared_groups --test prepared_bindings --test group_receipts
+          cargo +1.98.0 test -p leselang-vm --locked --test prepared_groups --test prepared_bindings --test group_receipts
+
+      - name: Test product group binding, captures and conditional dataflow
+        run: |
+          cargo +1.98.0 test -p leserpent-vm --locked --test group_binding --test group_capture --test group_dataflow --test group_conditional
+          cargo +1.98.0 test -p leselang-vm --locked --test group_binding --test group_capture --test group_dataflow --test group_conditional
+
+      - name: Test product result chains and group successors
+        run: |
+          cargo +1.98.0 test -p leserpent-vm --locked --test result_binding --test successor --test dataflow --test group_tail --test parallel_group_tail
+          cargo +1.98.0 test -p leselang-vm --locked --test result_binding --test successor --test dataflow --test group_tail --test parallel_group_tail
 
       - name: Test reply entry policy without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_reply

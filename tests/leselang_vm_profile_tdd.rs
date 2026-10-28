@@ -1,5 +1,152 @@
 use std::{fs, path::Path, process::Command};
 
+const PRODUCT_OWNED_DURABLE_SUITES: &[(&str, usize)] = &[
+    ("backpressure", 20),
+    ("clock_boundaries", 10),
+    ("retry_backoff", 4),
+    ("dispatch_scheduling", 12),
+    ("admission", 22),
+    ("concurrency", 13),
+    ("restore_allocator", 16),
+    ("prepared_groups", 9),
+    ("prepared_bindings", 8),
+    ("group_receipts", 6),
+    ("group_binding", 17),
+    ("group_capture", 15),
+    ("group_dataflow", 18),
+    ("group_conditional", 18),
+    ("result_binding", 9),
+    ("successor", 15),
+    ("dataflow", 16),
+    ("group_tail", 19),
+    ("parallel_group_tail", 22),
+];
+
+#[test]
+fn dispatch_authority_oracles_are_product_owned_without_a_native_export_prerequisite() {
+    let read = |p: &str| fs::read_to_string(root().join(p)).unwrap();
+    let legacy = read("crates/leselang-vm/tests/ephemeral_profile.rs");
+    let memory = read("crates/leserpent-vm/tests/dispatch_authority_memory.rs");
+    for name in [
+        "reference_dispatch_authority",
+        "reference_request_build_authority",
+    ] {
+        assert!(
+            !root()
+                .join(format!("crates/leselang-vm/tests/support/{name}.rs"))
+                .exists()
+        );
+        let product = read(&format!("crates/leserpent-vm/tests/support/{name}.rs"));
+        assert!(product.contains("pub fn exercise(mut vm: Vm, reopen: impl Fn(Vm) -> Vm)"));
+        assert!(!product.contains("leselang_hir::"));
+        assert!(!product.contains("leselang_vm::"));
+        assert!(product.contains("use leserpent_vm::{"));
+        assert!(legacy.contains(&format!(
+            "mod {name} {{\n    extern crate leselang_hir as leserpent_hir;\n    extern crate leselang_vm as leserpent_vm;\n    include!(\"../../leserpent-vm/tests/support/{name}.rs\");\n}}"
+        )));
+        assert!(memory.contains(&format!("mod {name};")));
+        assert!(memory.contains(&format!("{name}::exercise(Vm::new(100), |vm| vm)")));
+    }
+    assert_eq!(memory.matches("\n#[test]\n").count(), 2);
+    assert!(memory.contains("use leserpent_vm::Vm;"));
+    for absent in [
+        "leselang_vm",
+        "leselang_hir",
+        "rusqlite",
+        "std::fs",
+        "open_journal",
+        "#[cfg(",
+    ] {
+        assert!(!memory.contains(absent));
+    }
+    // The separate facade/product type-identity proof must not become self-comparison.
+    assert!(legacy.contains("let mut product = leserpent_vm::Vm::new(100);"));
+    assert!(legacy.contains("let facade: &mut Vm = &mut product;"));
+    assert!(legacy.contains("use leselang_vm::{"));
+    let exporter = read("crates/gewyvern-dev/src/leselang.rs");
+    let selection = exporter
+        .split("fn validate_vm_test_support(")
+        .nth(1)
+        .unwrap()
+        .split("fn copy_crate(")
+        .next()
+        .unwrap();
+    assert!(selection.contains("native_checkpoint.rs"));
+    assert!(selection.contains("native_group_checkpoint.rs"));
+    assert!(!selection.contains("reference_dispatch_authority"));
+    assert!(!selection.contains("reference_request_build_authority"));
+    let ci = read(".github/workflows/ci.yml");
+    for command in [
+        "test -p leserpent-vm --locked --test dispatch_scheduling --test dispatch_authority_memory",
+        "test -p leselang-vm --locked --test dispatch_scheduling --test ephemeral_profile",
+        "test -p leserpent-vm --locked --no-default-features --test dispatch_authority_memory",
+        "test -p leselang-vm --locked --no-default-features --features leserpent-profile --test ephemeral_profile",
+    ] {
+        assert!(ci.contains(command));
+    }
+}
+
+#[test]
+fn product_durable_suites_share_one_body_with_released_api_compatibility() {
+    let read = |p: &str| fs::read_to_string(root().join(p)).unwrap();
+    let ci = read(".github/workflows/ci.yml");
+    for &(name, count) in PRODUCT_OWNED_DURABLE_SUITES {
+        let legacy = read(&format!("crates/leselang-vm/tests/{name}.rs"));
+        let lines: Vec<_> = legacy
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty() && !line.starts_with("//"))
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                "extern crate leselang_hir as leserpent_hir;".to_owned(),
+                "extern crate leselang_vm as leserpent_vm;".to_owned(),
+                format!("include!(\"../../leserpent-vm/tests/{name}.rs\");"),
+            ]
+        );
+        let product = read(&format!("crates/leserpent-vm/tests/{name}.rs"));
+        assert!(product.contains("use leserpent_hir::"));
+        assert!(product.contains("use leserpent_vm::{"));
+        assert!(!product.contains("leselang_hir"));
+        assert!(!product.contains("leselang_vm"));
+        assert_eq!(product.matches("\n#[test]\n").count(), count);
+        assert!(product.contains("open_journal"));
+        for owner in ["leserpent-vm", "leselang-vm"] {
+            let manifest = read(&format!("crates/{owner}/Cargo.toml"));
+            assert!(manifest.contains(&format!(
+                "name = \"{name}\"\nrequired-features = [\"sqlite-journal\"]"
+            )));
+        }
+    }
+    for owner in ["leserpent-vm", "leselang-vm"] {
+        assert!(ci.contains(&format!(
+            "test -p {owner} --locked --test backpressure --test clock_boundaries --test retry_backoff"
+        )));
+        assert!(ci.contains(&format!(
+            "test -p {owner} --locked --test admission --test concurrency --test restore_allocator"
+        )));
+        assert!(ci.contains(&format!(
+            "test -p {owner} --locked --test prepared_groups --test prepared_bindings --test group_receipts"
+        )));
+        assert!(ci.contains(&format!(
+            "test -p {owner} --locked --test group_binding --test group_capture --test group_dataflow --test group_conditional"
+        )));
+        assert!(ci.contains(&format!(
+            "test -p {owner} --locked --test result_binding --test successor --test dataflow --test group_tail --test parallel_group_tail"
+        )));
+    }
+    let recovery = read("crates/leselang-vm/tests/recovery.rs");
+    assert!(
+        recovery.contains(
+            "durable_journal_crosses_product_and_legacy_entry_points_without_new_receipts"
+        )
+    );
+    assert!(recovery.contains("use leselang_vm::{"));
+    assert!(recovery.contains("let mut product = leserpent_vm::Vm::open_journal("));
+    assert!(!recovery.contains("extern crate leselang_vm as leserpent_vm"));
+}
+
 #[test]
 fn audit_storage_tests_belong_to_product_while_released_api_oracles_remain() {
     let read = |p: &str| fs::read_to_string(root().join(p)).unwrap();
@@ -4499,10 +4646,11 @@ fn static_dispatch_policy_is_adapter_owned_while_observations_and_commit_stay_lo
         "memory_dispatch_adapter_proposals_cannot_replace_current_leases_or_commit_retries"
     ));
     let durable =
-        fs::read_to_string(root().join("crates/leselang-vm/tests/dispatch_scheduling.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/tests/dispatch_scheduling.rs"))
+            .unwrap();
     assert!(durable.contains("durable_dispatch_adapter_proposals_remain_fenced_across_restarts"));
     for source in [&integration, &durable] {
-        assert!(source.contains("mod reference_dispatch_authority;"));
+        assert!(source.contains("mod reference_dispatch_authority"));
         assert!(source.contains("reference_dispatch_authority::exercise("));
     }
     assert!(
@@ -5195,7 +5343,7 @@ fn product_identity_and_terminal_data_move_without_runtime_or_storage_authority(
         "identity_and_terminal_data_are_exact_adapter_types_without_cancellation_authority"
     ));
     let clocks =
-        fs::read_to_string(root().join("crates/leselang-vm/tests/clock_boundaries.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/tests/clock_boundaries.rs")).unwrap();
     assert!(clocks.contains("use leselang_command::CancellationReason"));
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     assert!(docs.contains("### Product Identity And Terminal Data Ownership"));
@@ -5345,7 +5493,7 @@ fn product_scheduler_policy_moves_without_owning_leases_or_journal_admission() {
     assert!(!frozen.contains("leselang_command"));
     assert!(frozen.contains("check_dispatch_admission("));
     let integration =
-        fs::read_to_string(root().join("crates/leselang-vm/tests/backpressure.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/tests/backpressure.rs")).unwrap();
     assert!(integration.contains("use leselang_command::{SchedulerLimits, SchedulerPressure}"));
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     assert!(docs.contains("### Product Scheduler Policy Ownership"));
@@ -5803,7 +5951,7 @@ fn product_retry_policy_is_adapter_owned_but_replay_and_journal_fencing_keep_nat
     }
     assert!(adapter.contains("A proposal is not dispatch authority"));
     let integration =
-        fs::read_to_string(root().join("crates/leselang-vm/tests/retry_backoff.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/tests/retry_backoff.rs")).unwrap();
     assert!(
         integration.contains("use leselang_command::{EffectError, EffectErrorClass, RetryPolicy}")
     );
@@ -6239,7 +6387,7 @@ fn product_dispatch_recovery_keeps_sql_reads_and_authority_outside_the_adapter()
         assert!(direct.contains(case), "{case}");
     }
     let authority = fs::read_to_string(
-        root().join("crates/leselang-vm/tests/support/reference_dispatch_authority.rs"),
+        root().join("crates/leserpent-vm/tests/support/reference_dispatch_authority.rs"),
     )
     .unwrap();
     assert!(authority.contains("inspect_supplied_dispatch(&forged)"));
@@ -9383,7 +9531,7 @@ fn shared_watermark_planning_keeps_native_validation_reads_and_commit_before_pub
     );
     assert!(journal.contains("watermark_planning_preserves_frozen_sqlite_fault_order_and_writes"));
     assert!(
-        fs::read_to_string(root().join("crates/leselang-vm/tests/restore_allocator.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/tests/restore_allocator.rs"))
             .unwrap()
             .contains(
                 "watermark_planning_preserves_every_table_on_import_recovery_and_exhaustion_refusal"
@@ -9533,7 +9681,7 @@ fn continuation_context_kernel_preserves_native_phase_order_in_every_succession_
     assert!(
         source.contains("inherited_context_keeps_frozen_native_agreement_across_operation_domains")
     );
-    assert!(fs::read_to_string(root().join("crates/leselang-vm/tests/successor.rs")).unwrap()
+    assert!(fs::read_to_string(root().join("crates/leserpent-vm/tests/successor.rs")).unwrap()
         .contains("inherited_context_refusal_preserves_journal_and_imported_watermark_for_every_succession_kind"));
     assert!(
         fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs"))
@@ -9603,7 +9751,7 @@ fn successor_capture_extension_shares_retention_without_authority_or_saved_body_
         fs::read_to_string(root().join("crates/leserpent-vm/src/journal/successor.rs")).unwrap();
     assert!(journal.contains("validate_pair(parent, step, next)?"));
     assert!(journal.contains("validate_pair(parent, &result, &next)?"));
-    assert!(fs::read_to_string(root().join("crates/leselang-vm/tests/dataflow.rs")).unwrap()
+    assert!(fs::read_to_string(root().join("crates/leserpent-vm/tests/dataflow.rs")).unwrap()
         .contains("successor_capture_extension_refusal_preserves_every_journal_table_and_original_budget"));
     let core =
         fs::read_to_string(root().join("crates/leselang-runtime-core/src/capture_extension.rs"))
@@ -9740,7 +9888,7 @@ fn live_and_recovered_capture_correspondence_delegates_traversal_without_project
             )
     );
     assert!(source.contains("saved_capture_correspondence_preserves_frozen_native_fault_order"));
-    assert!(fs::read_to_string(root().join("crates/leselang-vm/tests/parallel_group_tail.rs")).unwrap().contains("false_group_alias_and_result_capture_correspondence_blocks_recovery_without_mutation"));
+    assert!(fs::read_to_string(root().join("crates/leserpent-vm/tests/parallel_group_tail.rs")).unwrap().contains("false_group_alias_and_result_capture_correspondence_blocks_recovery_without_mutation"));
     let core = fs::read_to_string(
         root().join("crates/leselang-runtime-core/src/capture_correspondence.rs"),
     )
@@ -9875,7 +10023,7 @@ fn live_sequence_and_bound_recovery_share_stop_precedence_without_replay_or_sett
         journal.contains("sequence_stop_preserves_frozen_early_exit_and_native_fault_precedence")
     );
     assert!(
-        fs::read_to_string(root().join("crates/leselang-vm/tests/group_receipts.rs"))
+        fs::read_to_string(root().join("crates/leserpent-vm/tests/group_receipts.rs"))
             .unwrap()
             .contains("bound_output_precedence_receipts_cannot_replace_aggregate_or_first_stop")
     );
@@ -10271,7 +10419,7 @@ fn sqlite_reservation_and_completion_fences_are_shared_without_repair_or_executi
     ] {
         assert!(
             code.contains(proof)
-                || fs::read_to_string(root().join("crates/leselang-vm/tests/group_tail.rs"))
+                || fs::read_to_string(root().join("crates/leserpent-vm/tests/group_tail.rs"))
                     .unwrap()
                     .contains(proof)
         );
@@ -10363,7 +10511,7 @@ fn native_unbound_receipt_correspondence_uses_original_data_merge_without_evalua
         "group_receipt_native_admission_runs_once_after_state_decode_and_terminal_validation"
     ));
     let tests =
-        fs::read_to_string(root().join("crates/leselang-vm/tests/group_receipts.rs")).unwrap();
+        fs::read_to_string(root().join("crates/leserpent-vm/tests/group_receipts.rs")).unwrap();
     for proof in [
         "unbound_completed_receipt_must_match_original_members_before_watermark_repair",
         "original_field_values_names_and_declared_order_are_not_interchangeable",
@@ -10888,6 +11036,15 @@ fn only_database_dependent_integration_suites_require_sqlite_and_memory_vertical
             continue;
         }
         let source = fs::read_to_string(target["src_path"].as_str().unwrap()).unwrap();
+        // The compatibility target includes the product-owned body verbatim.
+        let source = if let Some((name, _)) = PRODUCT_OWNED_DURABLE_SUITES
+            .iter()
+            .find(|(name, _)| Some(*name) == target["name"].as_str())
+        {
+            fs::read_to_string(root().join(format!("crates/leserpent-vm/tests/{name}.rs"))).unwrap()
+        } else {
+            source
+        };
         if source.contains("open_journal") || source.contains("rusqlite") {
             assert_eq!(
                 target["required-features"],

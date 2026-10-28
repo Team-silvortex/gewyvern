@@ -10,11 +10,18 @@ use leselang_vm::{
     encode_continuation,
 };
 
-#[path = "support/reference_dispatch_authority.rs"]
-mod reference_dispatch_authority;
+// Exercise the product-owned oracles through the released language API paths.
+mod reference_dispatch_authority {
+    extern crate leselang_hir as leserpent_hir;
+    extern crate leselang_vm as leserpent_vm;
+    include!("../../leserpent-vm/tests/support/reference_dispatch_authority.rs");
+}
 
-#[path = "support/reference_request_build_authority.rs"]
-mod reference_request_build_authority;
+mod reference_request_build_authority {
+    extern crate leselang_hir as leserpent_hir;
+    extern crate leselang_vm as leserpent_vm;
+    include!("../../leserpent-vm/tests/support/reference_request_build_authority.rs");
+}
 
 #[test]
 fn released_facade_and_product_executor_share_types_and_in_flight_state() {

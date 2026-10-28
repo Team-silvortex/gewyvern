@@ -24,3 +24,79 @@ serde_json.workspace = true
 [[test]]
 name = "debugger_audit_durable"
 required-features = ["sqlite-journal"]
+
+[[test]]
+name = "backpressure"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "clock_boundaries"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "retry_backoff"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "dispatch_scheduling"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "admission"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "concurrency"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "restore_allocator"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "prepared_groups"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "prepared_bindings"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "group_receipts"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "group_binding"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "group_capture"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "group_dataflow"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "group_conditional"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "result_binding"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "successor"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "dataflow"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "group_tail"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "parallel_group_tail"
+required-features = ["sqlite-journal"]

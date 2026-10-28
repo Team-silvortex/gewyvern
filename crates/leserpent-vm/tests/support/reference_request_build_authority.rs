@@ -1,8 +1,8 @@
 use leselang_command::reference_request_build::{ReservedEffectInput, build_effect_request};
-use leselang_hir::{Effect, Type, lower};
 use leselang_host_contract::{CapabilitySet, Principal};
 use leselang_syntax::parse;
-use leselang_vm::{DispatchLease, EffectResult, PresentationResult, Step, Vm};
+use leserpent_hir::{Effect, Type, lower};
+use leserpent_vm::{DispatchLease, EffectResult, PresentationResult, Step, Vm};
 
 pub fn exercise(mut vm: Vm, reopen: impl Fn(Vm) -> Vm) {
     let effect = Effect::UiFocus {

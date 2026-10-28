@@ -1275,7 +1275,7 @@ fn capture_data_extraction_keeps_native_ownership_and_real_memory_durable_compat
             ][..],
         ),
         (
-            "crates/leselang-vm/tests/dataflow.rs",
+            "crates/leserpent-vm/tests/dataflow.rs",
             &[
                 "shared_owned_capture_frames_keep_exact_journal_bytes_and_restart_successor_authority",
             ][..],

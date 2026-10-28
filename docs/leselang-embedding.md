@@ -105,6 +105,84 @@ formats or the independent durable-VM gate. These suites are excluded from the
 native source export, and old evidence retains its original checkpoint counts.
 Evidence: `docs/fixtures/leselang_product_audit_ownership_macos_arm64_20261028.json`.
 
+Scheduling acceptance now belongs to the product as well: `backpressure`,
+`clock_boundaries` and `retry_backoff` run 20, 10 and 4 cases directly under
+`leserpent-vm`. Each suite covers memory and SQLite behavior, so all three
+targets require `sqlite-journal`. The language facade retains only explicit
+HIR/VM aliases and an include of the same product-owned body. Both entry points
+run the original 34 named cases; there are no duplicated test implementations
+or lost released-API checks. CI runs both owners. Original bodies and assertions
+are unchanged apart from the owner-qualified imports and type paths.
+These are product scheduling checks, not native durability or new runtime
+features. Neither the canonical suites nor the compatibility wrappers enter the
+native source checkpoint; its verified contents remain unchanged.
+Evidence: `docs/fixtures/leselang_product_scheduling_ownership_macos_arm64_20261028.json`.
+
+The product now also owns `dispatch_scheduling` (12 cases) and the shared
+dispatch/request-construction authority oracles. `dispatch_authority_memory`
+runs both oracles directly without SQLite. The released facade retains all 12
+dispatch cases through the same canonical body, plus its unchanged 23-case
+memory profile; only the memory oracle imports are redirected through explicit
+facade aliases. Its direct facade/product type-identity check stays separate.
+The two product helper files no longer live in the language support directory
+or appear in the export prerequisites. That closed inventory now contains only
+the two native checkpoint helpers, still rejecting missing, unknown, oversized
+or symlinked assets. Exported bytes are unchanged; this is acceptance ownership
+and packaging separation, not native durable-VM completion.
+Evidence: `docs/fixtures/leselang_product_dispatch_ownership_macos_arm64_20261028.json`.
+
+Product admission (22 cases), shared-worker concurrency (13) and allocator
+recovery (16) now have canonical `leserpent-vm` targets. Their original bodies
+remain unchanged apart from owner-qualified imports and formatting. The legacy
+targets include those same sources through explicit HIR/VM aliases, retaining
+all 51 named cases, including shared-core type/wire checks. Each suite needs
+`sqlite-journal`; memory-only consumers remain free of those storage targets.
+The separate cross-product/facade journal-reopen proof stays in the legacy
+`recovery` suite and still compares distinct import paths.
+Local product and compatibility acceptance is rerun. The fresh native source
+inventory is compared byte-for-byte with the previous verified checkpoint,
+without repeating its unchanged isolated compilation. Its new export metadata
+therefore remains `verified=false`; content equivalence does not impersonate a
+fresh verification run or promote the independent durability/extraction gates.
+Evidence: `docs/fixtures/leselang_product_admission_ownership_macos_arm64_20261028.json`.
+
+Prepared groups (9 cases), prepared captures/bindings (8) and group receipt
+integrity (6) now also have product-owned acceptance bodies. Both product and
+released facade targets run the same 23 cases with `sqlite-journal`: preparation
+before admission, capture/successor atomicity, restart fences, concurrent commits
+and rejection of forged terminal receipts retain their original assertions.
+The canonical sources use product HIR/VM paths; compatibility wrappers include
+them through the released aliases. CI checks both owners and native export
+excludes both sets of targets. Source-export content equivalence reuses the last
+verified checkpoint without a fresh isolated run (`verified=false`). This moves
+acceptance ownership only, not runtime code or independent durability gates.
+Evidence: `docs/fixtures/leselang_product_group_ownership_macos_arm64_20261028.json`.
+
+Group binding (17 cases), single capture (15), multi-capture dataflow (18) and
+conditional exits (18) now use canonical product-owned suites as well. Both
+owners run the original 68 cases through the same bodies and require
+`sqlite-journal`. Whole-graph recovery, original receipt/frame correspondence,
+shared fuel, concurrent successor admission, rollback and whole-unit retention
+remain product behavior. Pure language/core tests and the distinct cross-API
+journal-reopen proof are unchanged. CI runs both owners; neither the product
+suites nor their facade wrappers enter the native source export. Exported bytes
+still match the last verified checkpoint, with no fresh isolated run or native
+durability/extraction promotion (`verified=false`).
+Evidence: `docs/fixtures/leselang_product_group_flow_ownership_macos_arm64_20261028.json`.
+
+Result binding (9 cases), atomic successors (15), multi-step dataflow (16),
+sequential group tails (19) and parallel group tails (22) now belong to the
+product acceptance owner. Both entry points retain all 81 original tests via
+the same canonical bodies, including inherited authority, whole-transition
+rollback, once-only successor admission, old journal migration, immutable
+capture correspondence and protected retention units. These are product
+HIR/VM and SQLite checks, not host-neutral language durability. Source-reading
+architecture guards follow the canonical files while the released wrappers
+continue exercising compatibility. Native export excludes both target sets;
+its unchanged content reuses the prior verified checkpoint without a fresh
+isolated run (`verified=false`) or completion-gate promotion.
+Evidence: `docs/fixtures/leselang_product_result_chain_ownership_macos_arm64_20261028.json`.
+
 ## HIR Policy Boundary
 
 HIR contract `0.185.0` removes the Rust inherent-implementation dependency
