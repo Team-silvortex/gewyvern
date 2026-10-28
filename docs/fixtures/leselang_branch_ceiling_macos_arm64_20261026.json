@@ -1,0 +1,174 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-branch-ceiling-pipeline-acceptance",
+  "validated_at": "2026-10-26",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.2",
+  "baseline_commit": "e2688d54546f75ed641bac011f430c74fd0293a3",
+  "native_embedding_contract": "0.172.0",
+  "hir_contract": "0.194.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "production_limits_changed": false,
+  "native_call_limit_is_product_selected_effect_limit": false,
+  "whole_language_acceptance_complete": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "external_effect_rollback": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "public_branch_ceiling": 64,
+  "fixture_cold_call_limit": 128,
+  "fixture_source_argument_limit": 64,
+  "runtime_operation_argument_limit": 8,
+  "shapes": [
+    "seq",
+    "all",
+    "atomic repeat",
+    "nested seq"
+  ],
+  "successful_pipeline_cases": 32,
+  "cold_refusals": 64,
+  "hidden_valid_controls": 16,
+  "preparation_failures": 40,
+  "completion_fuel_threshold_cases": 32,
+  "first_request_fuel_cutoff_cases": 32,
+  "hosts": [
+    "stateful scalar counter",
+    "structured headless panel reply"
+  ],
+  "helper_alternatives": 2,
+  "oracle": "Fixed invocation order and scalar results through the original compiler, preparation, collectors, receipt validation and LocalVm. Named projections retain m64, iteration_64 and tail__m64; reverse parallel receipt arrival does not change declaration order.",
+  "success_scope": "Each host and conditional helper alternative executes 64 members without a successor, or 63 members followed by one capture-gated operation, for four group forms. Every selected path invokes 64 operations.",
+  "cold_scope": "Oversized 65-member groups, including an unselected helper branch, and valid full groups under stricter 63-member or 127-cold-call host limits refuse without invocation or identity. Matching-type hidden 64-member controls compile.",
+  "preparation_failure_scope": "Arithmetic faults at source members 1, 32 and 64 of flat/nested groups compile then fail on the first poll with no root/member identity or invocation. Repeated identical leaves fail at their first evaluated copy. Scope closure, stable spent fuel and terminal polling are checked.",
+  "fuel_scope": "Completion cost minus one, exact cost and cost plus one are checked for all 32 paths. An additional budget just below first-request publication fails without dispatch. Correlation after successful preparation may already consume identity serials; no rollback or zero-allocation claim is made for that stage. Later polls neither allocate identities nor spend fuel.",
+  "policy_scope": "The mixed fixture uses existing public source argument/group ceilings and a host-selected cold physical call budget of 128 for two helper alternatives per member. This is not the product's selected 64-effect slot policy or an increase to a production ceiling.",
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "crate_count": 5,
+    "path": "/private/tmp/leselang-branch-ceiling-export-20261026",
+    "file_count": 306,
+    "total_bytes": 7257167,
+    "manifest_sha256": "b5890aa1210e1df523b3b5cc33b89975f53af466c020ffb8a283fa2efe522a19",
+    "copied_sources_match": true,
+    "copied_source_entries": 295,
+    "branch_ceiling_acceptance_test_runs": 8,
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-27468-1793019819758243000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2789,
+    "log": "/private/tmp/leselang-branch-ceiling-export-20261026.log",
+    "log_sha256": "cc29bf10b0658c4c15b59ecb9b4231a64f091f8627b0e5b2fd9b8f3340c7500d"
+  },
+  "verification_scope": "Local macOS native and released product compatibility profiles, plus isolated native source workspace and separate consumer. Matrix cases are iterations inside four Rust tests, not separate test functions. Counts across commands overlap and are not unique totals. No Linux, live GUI, remote CI, callback sandboxing or external rollback claim.",
+  "remaining_boundaries": [
+    "Remaining whole-program physical limits and declared-language combinations.",
+    "Host-neutral durable recovery ownership and full checkpoint acceptance.",
+    "Final independent repository and distribution acceptance."
+  ],
+  "checks": [
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --no-default-features",
+      "log": "/private/tmp/leselang-branch-ceiling-native-20261026.log",
+      "sha256": "791f7e3a9bcd6c335593c6ba164af16e158f62006b74cca0c4de9ab59638c514",
+      "tests_passed": 96,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --no-default-features --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-branch-ceiling-native-clippy-20261026.log",
+      "sha256": "9cff680ca3bdcfc495fb5ef80e0f468b0e1b9bc8a0ab247cb2f794dc54976a3f",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-branch-ceiling-export-20261026 --verify",
+      "log": "/private/tmp/leselang-branch-ceiling-export-20261026.log",
+      "sha256": "cc29bf10b0658c4c15b59ecb9b4231a64f091f8627b0e5b2fd9b8f3340c7500d",
+      "tests_passed": 2789,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions",
+      "log": "/private/tmp/leselang-branch-ceiling-compatibility-20261026.log",
+      "sha256": "e66b9673e5552d4be5c9dff4a8e5e7e3110ccb8f4feae0216d377ed5b84ace88",
+      "tests_passed": 113,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-branch-ceiling-root-20261026.log",
+      "sha256": "a6d8e567f69b76ad487a7ad95f3de82ac1dd2f29beefe5c89db451b78e537179",
+      "tests_passed": 373,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "log": "/private/tmp/leselang-branch-ceiling-exporter-tests-20261026.log",
+      "sha256": "8ce4f1bd71efa1b4c94a983ca53b29d31d62fcb13827258671f2e85f69e9d1b0",
+      "tests_passed": 26,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions -- -D warnings",
+      "log": "/private/tmp/leselang-branch-ceiling-compatibility-clippy-20261026.log",
+      "sha256": "d44419d173d45a7047cd210ef330efa41307bdf214c028d3de22d88f46b3447a",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd -- -D warnings",
+      "log": "/private/tmp/leselang-branch-ceiling-root-clippy-20261026.log",
+      "sha256": "d2c8e67aa8aad558286d1514c4c19da5cbd9d031848551c272c8291f60169f06",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "log": "/private/tmp/leselang-branch-ceiling-format-20261026.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "target/lean/gewyvern_status validate --json",
+      "log": "/private/tmp/leselang-branch-ceiling-status-20261026.log",
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test project_status_tdd",
+      "log": "/private/tmp/leselang-branch-ceiling-status-tests-20261026.log",
+      "sha256": "f0f0681b0fd30a0ae1a8d3fc87c645dd0a92b74a62b02389bbc5a0ffff8ef5d1",
+      "tests_passed": 293,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-branch-ceiling-final-root-20261026.log",
+      "sha256": "1577f30eb7dfe0fe85d85ad2a8c2a70931ebcf7a25247f7cd4e8bb0cd8f19aec",
+      "tests_passed": 666,
+      "exit_code": 0
+    }
+  ],
+  "source_hashes": {
+    "crates/leselang-vm/tests/native_host_pipeline.rs": "e8383a69cab3091d4aa6ea1d30bce1fad4b49bcb0eb9af8ec15597e6020a6703",
+    "crates/leselang-hir-core/src/group_exports.rs": "7cb4c96aa9775aed3172910fadc5c5a32e394c7fd79322f21917853ab7adae22",
+    "crates/leselang-hir-core/src/flow_typing.rs": "9e9a90bb71efa44c52f53b24570be9393344f3a8bd99edf7af78ac1c40004211",
+    "crates/leselang-hir-core/src/source_call.rs": "cd6d8cfbe164444e879310d668ee859b62c4f0f8a597edc3165992e092c67b0f",
+    "crates/leselang-hir-core/src/prepared_call_evaluation.rs": "fbb347f0c91b5d7b59fafde2ae8cd47c7cdc2904740ab16e4f7c79eeb66dce09",
+    "crates/gewyvern-dev/src/leselang.rs": "902308e0437359ea3adac1942e0a867021271e79e853680d4af7fcc70db96e91",
+    "tests/language_independence_tdd.rs": "a3ff0b38ce238741b44d40952c393a8aa8c2de2c9582144a97c10fb1e64c84b1",
+    "tests/project_status_tdd.rs": "72090e84655db46a3e38dacd31c5a5f58a4b35c7761f7824a676ec5e8647160a",
+    "docs/leselang-embedding.md": "d35e74c4cbbd0436ec12040424ad8a9597723616b13dbdeae4f46e397eb0485a",
+    "project/status/catalog.json": "6484c504e28a452ae4b1b78817e877ed3d62f730eb9a2b6dd3ecee99542a98d3"
+  },
+  "root_gate_tests": 666
+}

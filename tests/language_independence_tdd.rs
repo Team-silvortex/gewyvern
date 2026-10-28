@@ -2,6 +2,331 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::process::Command;
 
 #[test]
+fn native_sequence_disk_reopen_keeps_publication_separate_from_restoration_and_acceptance() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let fixture = std::fs::read_to_string(
+        root.join("crates/leselang-vm/tests/support/native_group_checkpoint.rs"),
+    )
+    .unwrap();
+    for marker in [
+        "Sequence::restore_in_scope(",
+        "try_into_saved(prefix)",
+        "SavedSequenceReply::Prepared(",
+        "SavedSequenceReply::Awaiting",
+        "SavedSequenceReply::Accepted(",
+        "awaiting work must not be republished",
+        "acceptance must not publish its successor",
+        "Fault::PublicationDenied(index)",
+        "SequenceRestoreError::Frontier",
+        "malformed frontier must fail before native admission",
+        "assert_eq!(sequence_cuts().len(), 10)",
+        "assert_eq!(cases, 12)",
+    ] {
+        assert!(fixture.contains(marker), "{marker}");
+    }
+}
+
+#[test]
+fn native_group_disk_reopen_restores_parent_and_collector_under_one_owner() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let fixture = std::fs::read_to_string(
+        root.join("crates/leselang-vm/tests/support/native_group_checkpoint.rs"),
+    )
+    .unwrap();
+    for marker in [
+        "Vm::restore_pending_in_scope(",
+        "Parallel::restore_in_scope(",
+        "try_into_pending_binding()",
+        "try_into_saved()",
+        "frame_site(&root, name, body)",
+        "PendingReply::new(",
+        "row.call.restore(&host, &id)",
+        "scope.bind(None::<Vm",
+        "Fuel::new(image.remaining)",
+        "root != image.ir",
+        "Fault::ChildDenied",
+        "Fault::ChildRevoked",
+        "Fault::Cancelled",
+        "old.same_scope(&scope.lease())",
+        "const ORDERS: [[usize; 3]; 6]",
+        "this cut has only pure captured locals",
+    ] {
+        assert!(fixture.contains(marker), "{marker}");
+    }
+    for forbidden in ["leserpent", "rusqlite", "unsafe {", "#[cfg("] {
+        assert!(!fixture.contains(forbidden), "{forbidden}");
+    }
+    let export = std::fs::read_to_string(root.join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(export.contains("consumer/tests/support/native_group_checkpoint.rs"));
+}
+
+#[test]
+fn native_disk_reopen_reuses_original_frames_and_host_owned_receipts() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let fixture =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/support/native_checkpoint.rs"))
+            .unwrap();
+    for marker in [
+        "try_into_pending_binding()",
+        "frame_site(&root, name, body)",
+        "LocalVm::restore_pending(",
+        "PreparedCall::restore(",
+        "Fuel::new(image.remaining)",
+        "root != image.ir",
+        "candidate != store.read(\"checkpoint.json\")",
+        "ledger.settled.iter().find",
+        "old.same_scope(&vm.lease())",
+        "vm.try_accept(&stale, reply, &host)",
+        "Policy::DeniedAtRestore, Policy::DeniedAtDispatch",
+        "byte equality is not a signature",
+    ] {
+        assert!(fixture.contains(marker), "{marker}");
+    }
+    for forbidden in ["leserpent", "rusqlite", "unsafe {", "#[cfg("] {
+        assert!(!fixture.contains(forbidden), "{forbidden}");
+    }
+    let export = std::fs::read_to_string(root.join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(export.contains("consumer/tests/support/native_checkpoint.rs"));
+}
+
+#[test]
+fn native_program_boundaries_distinguish_source_expansion_and_runtime_budgets() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let pipeline =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/native_host_pipeline.rs"))
+            .unwrap();
+    let program = pipeline
+        .split_once("mod program_boundary_acceptance {")
+        .unwrap()
+        .1
+        .split_once("mod branch_ceiling_acceptance {")
+        .unwrap()
+        .0;
+    for marker in [
+        "[CompilerBoundary; 13]",
+        "[RuntimeBoundary; 6]",
+        "(23, 7)",
+        "(11, 3)",
+        "52",
+        "24",
+        "152",
+        "60 + nodes",
+        "balanced_sum(512)",
+        "MAX_CALL_DEPTH",
+        "LSE1110",
+        "required - 1",
+        "ceiling + 1, usize::MAX",
+        "Prepared operands have their own host policy",
+        "p.identity.borrow().is_none()",
+    ] {
+        assert!(program.contains(marker), "{marker}");
+    }
+}
+
+#[test]
+fn native_branch_ceiling_acceptance_uses_public_limits_without_a_product_call_budget() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let pipeline =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/native_host_pipeline.rs"))
+            .unwrap();
+    let ceiling = pipeline
+        .split_once("mod branch_ceiling_acceptance {")
+        .unwrap()
+        .1
+        .split_once("mod prepared_acceptance {")
+        .unwrap()
+        .0;
+    for marker in [
+        "group_exports::MAX_GROUP_EXPORT_MEMBERS",
+        "assert_eq!(LIMIT, 64)",
+        "LIMIT - usize::from(successor)",
+        "2 * LIMIT - 1",
+        "tail__m{members}",
+        "first_request_cost.unwrap() - 1",
+        "used - 1",
+        "32",
+        "64",
+        "40",
+        "assert_eq!(host.serial.get(), 0)",
+    ] {
+        assert!(ceiling.contains(marker), "{marker}");
+    }
+    let typing =
+        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/flow_typing.rs")).unwrap();
+    assert!(typing.contains("max_calls includes all cold call sites"));
+}
+
+#[test]
+fn native_prepared_pipeline_preserves_the_preparation_before_identity_boundary() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let pipeline =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/native_host_pipeline.rs"))
+            .unwrap();
+    let prepared = pipeline
+        .split_once("mod prepared_acceptance {")
+        .unwrap()
+        .1
+        .split_once("mod declaration_acceptance {")
+        .unwrap()
+        .0;
+    for marker in [
+        "const SHAPES: [&str; 4]",
+        "const FAULTS: [Fault; 5]",
+        "192",
+        "320",
+        "40",
+        "tail__iteration_3__right",
+        "used - 1",
+        "assert_eq!(host.serial.get(), 0)",
+        "p.identity.borrow().is_none()",
+        "p.members.borrow().is_empty()",
+    ] {
+        assert!(prepared.contains(marker), "{marker}");
+    }
+}
+
+#[test]
+fn native_declaration_pipeline_uses_the_public_declaration_and_parameter_ceilings() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let syntax = std::fs::read_to_string(root.join("crates/leselang-syntax/src/lib.rs")).unwrap();
+    let pipeline =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/native_host_pipeline.rs"))
+            .unwrap();
+    for (name, count) in [("MAX_FUNCTIONS", 32), ("MAX_FUNCTION_PARAMETERS", 8)] {
+        assert!(syntax.contains(&format!("pub const {name}: usize = {count};")));
+        assert!(pipeline.contains(&format!("leselang_vm::native::syntax::{name}")));
+    }
+    let declarations = pipeline
+        .split_once("mod declaration_acceptance {")
+        .unwrap()
+        .1
+        .split_once("mod control_acceptance {")
+        .unwrap()
+        .0;
+    for marker in [
+        "const ARGUMENTS: [&str; 8]",
+        "arguments.reverse()",
+        "arguments.rotate_left(3)",
+        "432",
+        "576",
+        "(72, 936)",
+        "used - 1",
+        "unselected || recoverable_first",
+    ] {
+        assert!(declarations.contains(marker), "{marker}");
+    }
+}
+
+#[test]
+fn native_control_pipeline_covers_the_closed_scalar_type_inventory() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let values =
+        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/value.rs")).unwrap();
+    let pipeline =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/native_host_pipeline.rs"))
+            .unwrap();
+    let variants = values
+        .split_once("pub enum ScalarType {")
+        .unwrap()
+        .1
+        .split_once('}')
+        .unwrap()
+        .0
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(|line| line.strip_suffix(',').unwrap())
+        .collect::<BTreeSet<_>>();
+    let tested = pipeline
+        .split_once("const TYPES:")
+        .unwrap()
+        .1
+        .split_once("];")
+        .unwrap()
+        .0
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("ScalarType::"))
+        .map(|line| line.trim_end_matches(','))
+        .collect::<BTreeSet<_>>();
+    assert_eq!(variants.len(), 6);
+    assert_eq!(tested, variants);
+    let controls = pipeline
+        .split_once("mod control_acceptance {")
+        .unwrap()
+        .1
+        .split_once("mod scalar_acceptance {")
+        .unwrap()
+        .0;
+    for marker in [
+        "const FORMS: [&str; 8]",
+        "576",
+        "288",
+        "648",
+        "used - 1",
+        "fn typed(value: {name}) = bind(caller: value, body: caller)",
+    ] {
+        assert!(controls.contains(marker), "{marker}");
+    }
+}
+
+#[test]
+fn native_scalar_pipeline_acceptance_covers_the_current_closed_operator_inventory() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let operators =
+        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/scalar_ops.rs"))
+            .unwrap();
+    let pipeline =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/native_host_pipeline.rs"))
+            .unwrap();
+    let scalar = pipeline.split_once("mod scalar_acceptance {").unwrap().1;
+    for (name, array, count) in [
+        ("BinaryOperator", "BINARY", 23),
+        ("UnaryOperator", "UNARY", 7),
+    ] {
+        let declaration = operators
+            .split_once(&format!("pub enum {name} {{"))
+            .unwrap()
+            .1
+            .split_once('}')
+            .unwrap()
+            .0;
+        let variants = declaration
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(|line| line.strip_suffix(',').unwrap())
+            .collect::<BTreeSet<_>>();
+        let list = scalar
+            .split_once(&format!("const {array}:"))
+            .unwrap()
+            .1
+            .split_once("];")
+            .unwrap()
+            .0;
+        let actual = list
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix(&format!("{name}::")))
+            .map(|line| line.trim_end_matches(','))
+            .collect::<BTreeSet<_>>();
+        assert_eq!(variants.len(), count);
+        assert_eq!(actual, variants, "{name} gained an uncovered variant");
+    }
+    for marker in [
+        "assert_eq!(probes.len(), 44)",
+        "assert_eq!(valid.len(), 30)",
+        "528",
+        "1440",
+        "used - 1",
+        "expected.clone()",
+    ] {
+        assert!(scalar.contains(marker), "{marker}");
+    }
+    let oracle = scalar.split_once("fn pipeline<").unwrap().0;
+    assert!(!oracle.contains("apply_binary("));
+    assert!(!oracle.contains("apply_unary("));
+}
+
+#[test]
 fn product_hir_consumers_do_not_depend_on_language_compatibility_facades() {
     let graph = workspace_dependency_graph();
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));

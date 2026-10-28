@@ -31,6 +31,10 @@ rusqlite = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true
+
 [[example]]
 name = "language_benchmark"
 required-features = ["leserpent-profile"]

@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-program-budget-acceptance",
+  "validated_at": "2026-10-26",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.2",
+  "baseline_commit": "e2688d54546f75ed641bac011f430c74fd0293a3",
+  "native_embedding_contract": "0.172.0",
+  "hir_contract": "0.194.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "production_limits_changed": false,
+  "vm_scope_budget_is_host_preparation_budget": false,
+  "all_program_ceiling_shapes_exercised": false,
+  "whole_language_acceptance_complete": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "compiler_dimensions": 13,
+  "runtime_dimensions": 6,
+  "compiler_boundary_cases": 52,
+  "runtime_boundary_cases": 24,
+  "threshold_successful_executions": 152,
+  "legal_safety_ceiling_controls": 76,
+  "over_ceiling_refusals": 152,
+  "unused_body_cases": 12,
+  "unused_body_refusals": 36,
+  "composed_programs": 4,
+  "hosts": [
+    "stateful scalar counter",
+    "structured headless panel reply"
+  ],
+  "groups": [
+    "seq",
+    "all"
+  ],
+  "exact_program_shape": {
+    "source_max_nodes_per_body": 11,
+    "source_max_depth": 3,
+    "expanded_ir_nodes": 23,
+    "expanded_ir_depth": 7,
+    "compilation_work": 60,
+    "compiler_bindings": 3,
+    "vm_active_bindings": 2,
+    "vm_return_frames": 2
+  },
+  "compiler_thresholds": {
+    "source_nodes": 11,
+    "source_depth": 3,
+    "lowered_nodes": 23,
+    "lowered_depth": 7,
+    "compilation_work": 60,
+    "expansion_depth": 3,
+    "bindings": 3,
+    "groups": 1,
+    "cold_calls": 3,
+    "functions": 4,
+    "parameters": 1,
+    "branches": 2,
+    "source_arguments": 2
+  },
+  "runtime_thresholds": {
+    "nodes": 23,
+    "depth": 7,
+    "bindings": 2,
+    "frames": 2,
+    "arguments": 1,
+    "branches": 2
+  },
+  "oracle": "Fixed scalar results and invocation order use the original compiler, preparation, collectors, reply validation and LocalVm. Borrowed AST/IR traversal checks structural size/depth only, not evaluation. Standalone helper compilation costs 1 + 5 + 23; entry and repeated expansion cost 31.",
+  "threshold_scope": "Each dimension is tightened independently. Required-minus-one refuses, while exact and plus-one execute with the same outcome, invocation order and remaining fuel. Runtime failures precede identity correlation or host invocation, close the scope and keep terminal fuel stable.",
+  "unused_scope": "Unused bodies include a division fault, 1024-node balanced source at the fixture bound and 16 nested calls at the parser ceiling. All 12 accepted programs require 60 plus the unused body's node count compilation work, yet preserve runtime fuel and effects. Twelve work-budget, sixteen physical-budget and eight excess-source refusals cover ignored declarations without running them.",
+  "policy_scope": "Compiler-expanded lexical bounds include prepared operands. VM active-local and return-frame budgets govern the VM walker, while native preparation callbacks keep their own explicit operand policy. Source parser depth 16, configurable source/IR depth, expansion nesting and return frames are distinct. Source fixture nodes 1024 are below the public generic 16384-node safety cap.",
+  "configuration_scope": "Each of 19 compiler/runtime dimensions admits a small valid composed program with its public safety ceiling. Ceiling-plus-one and usize::MAX refuse, giving 76 legal controls and 152 refusals. This is not execution of every shape at every public maximum.",
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "crate_count": 5,
+    "path": "/private/tmp/leselang-program-boundaries-export-20261026",
+    "file_count": 306,
+    "total_bytes": 7298042,
+    "manifest_sha256": "ecd3647d71b8860ac0626cc0f42776251b185d758d7beb85ec5eddb1d8d33932",
+    "copied_source_entries": 295,
+    "copied_sources_match": true,
+    "program_boundary_acceptance_test_runs": 8,
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-46823-1793021138435604000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2797,
+    "log": "/private/tmp/leselang-program-boundaries-export-20261026.log",
+    "log_sha256": "4e19d441f69f06ea9de122edbb2bcfd91ebdcbc69872bc9d0154a951117908a9"
+  },
+  "verification_scope": "Local macOS native and released product compatibility profiles, isolated native source workspace and external consumer. Matrix counts are iterations within four Rust tests; command counts overlap and must not be summed as unique tests. No Linux, live GUI, remote CI, callback sandboxing or durable settlement claim.",
+  "remaining_boundaries": [
+    "Remaining declared-language combinations and maximum-size shapes outside these composed programs.",
+    "Host-neutral durable recovery ownership and full checkpoint acceptance.",
+    "Final independent repository and distribution acceptance."
+  ],
+  "checks": [
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --no-default-features --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-program-boundaries-native-clippy-20261026.log",
+      "sha256": "ec9890a546cf9f6b45815d87b2eb6324008f460d90f4b0813d2f9af95eb64db0",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-program-boundaries-export-20261026 --verify",
+      "log": "/private/tmp/leselang-program-boundaries-export-20261026.log",
+      "sha256": "4e19d441f69f06ea9de122edbb2bcfd91ebdcbc69872bc9d0154a951117908a9",
+      "tests_passed": 2797,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --no-default-features",
+      "log": "/private/tmp/leselang-program-boundaries-native-20261026.log",
+      "sha256": "ae77a8504490302b77f783082ad2f83229af720a0911e71ffa547e26cf2969c4",
+      "tests_passed": 100,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions",
+      "log": "/private/tmp/leselang-program-boundaries-compatibility-20261026.log",
+      "sha256": "e8a5a9ab123369323ca2d1ec3fbccc44700cdebf5885e26fca82da4bb320b764",
+      "tests_passed": 117,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-program-boundaries-root-20261026.log",
+      "sha256": "f77637479ea5b864f1aaec0b8519493e74be3cf4b330228136708072787c2c51",
+      "tests_passed": 374,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "log": "/private/tmp/leselang-program-boundaries-exporter-tests-20261026.log",
+      "sha256": "dd85666945280f906e35c738ad4612c736b1dfceb8e909c72d1fb3a96cb020a5",
+      "tests_passed": 26,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions -- -D warnings",
+      "log": "/private/tmp/leselang-program-boundaries-compatibility-clippy-20261026.log",
+      "sha256": "202fe57b4cf9ae07b4da253623eebf7cda1967e2d24358626d33683f4ea7f850",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd -- -D warnings",
+      "log": "/private/tmp/leselang-program-boundaries-root-clippy-20261026.log",
+      "sha256": "57009a66f7a721f8373f2a2ae06504a3c20aa9cca1e436b903cfc4a97c159c05",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "log": "/private/tmp/leselang-program-boundaries-format-20261026.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "target/lean/gewyvern_status validate --json",
+      "log": "/private/tmp/leselang-program-boundaries-status-20261026.log",
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-program-boundaries-final-root-20261026.log",
+      "sha256": "97b55084de6329cc2a748b0eacdee417afe87eaebc5af8330cd1074c32ef68d1",
+      "tests_passed": 668,
+      "exit_code": 0
+    }
+  ],
+  "source_hashes": {
+    "crates/leselang-vm/tests/native_host_pipeline.rs": "21f6f3f6a6e043ddcec0fcaf5fc55cccf17cb262cec0ae9bb9782521e1c8037d",
+    "crates/leselang-hir-core/src/catalog_program.rs": "a35e9b63f2260c67fa3e7757daaf030d0fe31f4006619b180d221d7953503e1a",
+    "crates/leselang-hir-core/src/effect_evaluation.rs": "8c7538120e2109a2152bbcc1c9f914da17b4d60d8e73da382375ebf5fd209e1d",
+    "crates/leselang-hir-core/src/helper_declarations.rs": "b8d8687471657939267e9fa0e8e52a4c597d55796fc4cde452a42259bbea5a35",
+    "crates/leselang-syntax/src/lib.rs": "c9e9cbc81bc7c2de7685897db01d4b591ae91f343e6a98769183775efa0ce462",
+    "crates/gewyvern-dev/src/leselang.rs": "7e6394440b8c682e4ea85286d965d68cc93efaed1ce3ca84db1fa2a00150c346",
+    "tests/language_independence_tdd.rs": "380a1b6f40a072661e5382ea71dba64bfe54303488d9a9f35d40de865363293b",
+    "tests/project_status_tdd.rs": "9ee71762f845eb6e894ed098bbfd5be9f9ad087c59a70a2224a29751544b51aa",
+    "docs/leselang-embedding.md": "11f7b91fe926590010d787b053df554f1e342d1bcfa84d7932ed1472a4bb587b",
+    "project/status/catalog.json": "636049026ea191cc76de8395bad99c554c40908271203c153474e1789351716f"
+  },
+  "root_gate_tests": 668
+}

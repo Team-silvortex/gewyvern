@@ -1,0 +1,161 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-scalar-pipeline-acceptance",
+  "validated_at": "2026-10-26",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.2",
+  "native_embedding_contract": "0.172.0",
+  "hir_contract": "0.194.0",
+  "verification_status": "passed",
+  "production_code_changed": false,
+  "whole_language_acceptance_complete": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "binary_operators": 23,
+  "unary_operators": 7,
+  "legal_signatures": 44,
+  "successful_pipeline_cases": 528,
+  "cold_shape_type_refusals": 1440,
+  "dynamic_failure_cases": 108,
+  "lazy_recovery_cases": 60,
+  "unused_helper_cold_refusals": 60,
+  "hosts": [
+    "stateful scalar counter",
+    "structured headless panel reply"
+  ],
+  "group_profiles": [
+    "seq",
+    "all"
+  ],
+  "return_routes": [
+    "atomic helper",
+    "group helper",
+    "pure helper fallback"
+  ],
+  "fuel_scope": "For every successful signature/host/group/return route, observed cost minus one fails; exact cost and cost plus one complete with zero and one remaining. Not every smaller budget in this new matrix.",
+  "oracle": "Fixed expected values; no call to apply_binary/apply_unary. Existing compiler, prepared collectors, evaluator, authenticated reply handling and LocalVm are reused without new execution code.",
+  "failure_scope": "Each call-shape refusal uses valid operands, with 360 positive compilation controls. All operators reject missing/duplicate/extra arguments and invalid operand types before invocation or serial allocation. Nine dynamic faults prevent the final successor effect with fuel remaining; later polls keep the failed terminal meter. Lazy/recovery branches retain cold unknown-name checks in unused helpers.",
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "crate_count": 5,
+    "path": "/private/tmp/leselang-scalar-pipeline-final-export-20261026",
+    "file_count": 306,
+    "total_bytes": 7136443,
+    "manifest_sha256": "614dbdf2c605b2b62867caa3495c7bbcd7d64dc6f1739f3ea105907ee5d9e5a4",
+    "copied_sources_match": true,
+    "copied_source_entries": 295,
+    "scalar_acceptance_test_runs": 10,
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-72349-1793014587476116000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2757,
+    "log": "/private/tmp/leselang-scalar-pipeline-final-export-20261026.log",
+    "log_sha256": "da7a326512ad61577eaea368ef8f53e6d1b0f4ad31bf8f58d46cde85fcb3d64c"
+  },
+  "verification_scope": "Local macOS native and compatibility profiles plus isolated native source workspace and separate consumer. Cases are iterations inside five Rust tests, not independent test functions. Command counts overlap and must not be summed as unique tests. No Linux, remote CI, real GUI or full extraction claim.",
+  "remaining_boundaries": [
+    "Whole declared-language two-host acceptance beyond the scalar signature layer.",
+    "Complete host-neutral durable recovery ownership decision and acceptance.",
+    "Independent repository and distribution acceptance."
+  ],
+  "checks": [
+    {
+      "log": "/private/tmp/leselang-scalar-pipeline-native-final-20261026.log",
+      "sha256": "7339651d2ae861ae673ba762ad5ef6f11308e84163ba4be2a0eb4addc73c790d",
+      "tests_passed": 80,
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --no-default-features",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-scalar-pipeline-compatibility-final-20261026.log",
+      "sha256": "d53f873063b6ec41c305782236d92d1880c355cd0ecbea9c1242702f1bf2abf2",
+      "tests_passed": 64,
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test scalar_operations",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-scalar-pipeline-root-20261026.log",
+      "sha256": "354f4bbece0b58228a2f3125563fa1a2af2ecae79cb35a3bb123a9d4af16e991",
+      "tests_passed": 369,
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-scalar-pipeline-exporter-tests-20261026.log",
+      "sha256": "c12a054a8cdbec288b3501be27b5337c7ff1c918592bd50c236f229efe7ca69d",
+      "tests_passed": 26,
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-scalar-pipeline-native-final-clippy-20261026.log",
+      "sha256": "bf9ace52377b8a3ad2ddcc82d7943d336fb266d0edf7e031ae3a395b39bf405b",
+      "tests_passed": 0,
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --no-default-features --all-targets -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-scalar-pipeline-compatibility-final-clippy-20261026.log",
+      "sha256": "fe52dfb1f065c5ed56808500f037fa533c70534040ad4aa70c27e014320c3cee",
+      "tests_passed": 0,
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test scalar_operations -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-scalar-pipeline-root-final-clippy-20261026.log",
+      "sha256": "a6edc669289497d51cb3e309a363a4b30388cbd871bea47e092aa0dc99767f0e",
+      "tests_passed": 0,
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-scalar-pipeline-format-20261026.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0,
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-scalar-pipeline-status-20261026.log",
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0,
+      "command": "target/lean/gewyvern_status validate --json",
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-scalar-pipeline-final-export-20261026 --verify",
+      "exit_code": 0,
+      "log": "/private/tmp/leselang-scalar-pipeline-final-export-20261026.log",
+      "sha256": "da7a326512ad61577eaea368ef8f53e6d1b0f4ad31bf8f58d46cde85fcb3d64c",
+      "tests_passed": 2757
+    },
+    {
+      "log": "/private/tmp/leselang-scalar-pipeline-status-tests-20261026.log",
+      "sha256": "e5d6aa091e0c26eca32d09c9155b3f8ce249d5ab2c31d6e903e39d0a6db88282",
+      "tests_passed": 289,
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test project_status_tdd",
+      "exit_code": 0
+    }
+  ],
+  "source_hashes": {
+    "crates/leselang-vm/tests/native_host_pipeline.rs": "394d5768304bfdfdf96fa407d1279bf0378d18eb13253ca8d2532b99257a421f",
+    "crates/leselang-runtime-core/src/scalar_ops.rs": "485e482bf5ab109bf84c27c4817584d1ca4781637f255bdd8503bb669f24edaa",
+    "crates/gewyvern-dev/src/leselang.rs": "dc8c7f0965c3134d9bcb6f2ed42539043583e9c7fdfc366dc669f6bad9b09ab7",
+    "tests/language_independence_tdd.rs": "1c26c73b4338ca1939b2bde01e582fe3a7388af2fe34cf7c4abf0b9734cd43b0",
+    "tests/project_status_tdd.rs": "c3a5a97059c29462121a5249c674816246f65c869600d30d14f195c00ebad63e",
+    "docs/leselang-embedding.md": "ef18b3aaabdc55cfb4074aadbe83fa03ef3ae30f2c56f30417fd219592ba57dd",
+    "project/status/catalog.json": "24f6a9c7f325e5604072ba140bf6961a9d352fdab78072777236b19cd7849b42"
+  },
+  "valid_call_shape_controls": 360,
+  "verification_notes": "Initial independent export passed. Review then strengthened the call-shape tests to isolate argument-shape errors from operand-type errors. Final proof uses a fresh export of that strengthened source, not the initial snapshot.",
+  "baseline_commit": "e2688d54546f75ed641bac011f430c74fd0293a3",
+  "root_gate_tests": 658,
+  "production_code_scope": "Language/runtime algorithms and API implementations; the exporter changes only its generated README string."
+}

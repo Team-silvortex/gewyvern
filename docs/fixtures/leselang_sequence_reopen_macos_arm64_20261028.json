@@ -1,0 +1,183 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-sequential-disk-reopen",
+  "validated_at": "2026-10-28",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.2",
+  "baseline_commit": "e2688d54546f75ed641bac011f430c74fd0293a3",
+  "native_embedding_contract": "0.172.0",
+  "hir_contract": "0.194.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "production_journal_added": false,
+  "process_restart_tested": false,
+  "power_loss_tested": false,
+  "storage_authentication_provided": false,
+  "external_effect_crash_atomicity": false,
+  "durable_cancellation_settlement": false,
+  "captured_predecessor_graphs_restored": false,
+  "group_graph_recovery_complete": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "private_fixture_format": 2,
+  "hosts": [
+    "stateful scalar counter",
+    "structured headless panel reply"
+  ],
+  "members": 3,
+  "frontiers_per_host": 10,
+  "successful_reopen_paths": 20,
+  "fuel_boundary_paths": 60,
+  "owner_refusal_and_cancellation_paths": 80,
+  "publication_refusals": 24,
+  "malformed_host_frontier_refusals": 6,
+  "candidate_refusals": 160,
+  "program_scope": "One source-compiled three-member Seq, nested helper returns with scalar captured locals, group projection and an atomic successor. Source, parent restoration, host disk/operand codecs, ledger and completion handling are shared with the existing All fixture. The original VM, collector, IR, catalog and host are dropped before reconstruction.",
+  "frontier_scope": "For accepted-prefix lengths zero, one and two, save either a ready queue, an externally unsettled awaiting request or a settled awaiting receipt. The tenth cut is the fully accepted prefix before parent reentry. Prepared, awaiting and accepted row states reconstruct the original SequenceReplyCore under one shared scope with its parent.",
+  "publication_scope": "Restoration neither prepares expressions nor allocates new correlation identities. Awaiting polls invoke no publication hook or request handoff; the host resumes outstanding external work from its stored operands or receipt. Only unpublished suffix members pass through fresh poll admission. Acceptance and stale/wrong/duplicate receipts do not publish the successor. Twenty-four cases revoke native permission at each reachable queued publication slot and leave only earlier effects in the ledger.",
+  "budget_scope": "Twenty host/frontier combinations each resume at uninterrupted completion-cost minus one, exact cost and plus one, preserving result and remaining fuel through prefix aggregation, parent reentry and successor work.",
+  "ownership_scope": "Parent denial, child denial/revocation and explicit restored-owner cancellation prevent suffix dispatch and parent reentry without changing ledger bytes. A fully accepted child's Completed terminal reason stays sticky while parent cancellation prevents consuming its retained prefix. Cancellation settlement is not persisted by this fixture.",
+  "structural_scope": "Six deliberately malformed host-written records pass the exact-byte correspondence gate but fail with SequenceRestoreError::Frontier before whole-batch admission: awaiting after prepared, two awaiting rows, or accepted after a prepared gap. Decode-time native reply validation may already have run. These are corrupt-writer tests, not accepted recovery records.",
+  "correspondence_scope": "Six altered top-level fields plus truncated and oversized candidates refuse against the trusted committed record at every host/frontier (160 refusals). This is not storage authentication or acceptance of arbitrary malicious committed input.",
+  "remaining_boundaries": [
+    "Captured predecessor group recovery and arbitrary Seq/All graph composition.",
+    "Explicit durable cancellation/settlement and host storage contracts.",
+    "Process restart, external-effect crash consistency and final independent repository/distribution acceptance."
+  ],
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "crate_count": 5,
+    "path": "/private/tmp/leselang-sequence-reopen-export-20261028",
+    "file_count": 310,
+    "total_bytes": 7455052,
+    "manifest_sha256": "af8aefc65c3f380e34fab48e5b95b10f4932e438a73ad1bee1323153653ebccf",
+    "copied_source_entries": 299,
+    "copied_sources_match": true,
+    "sequence_reopen_test_runs": 12,
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-14141-1793174774075472000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2825,
+    "log": "/private/tmp/leselang-sequence-reopen-export-20261028.log",
+    "log_sha256": "680a9ce23049b7440c4c674a98f4dbc279af48f9cf0a0d99840640ece2c24871"
+  },
+  "checks": [
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --no-default-features",
+      "log": "/private/tmp/leselang-sequence-reopen-native-20261028.log",
+      "exit_code": 0,
+      "sha256": "3773d5c5fb2f0de8467c7b2394088fc7efbf4f3514ffe3820b0e228502326e7d",
+      "tests_passed": 114
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions",
+      "log": "/private/tmp/leselang-sequence-reopen-compatibility-20261028.log",
+      "exit_code": 0,
+      "sha256": "92380375d6ece30d28807695278918f197289735cf792e7d75f6e0c9653acb92",
+      "tests_passed": 131
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --no-default-features --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-sequence-reopen-native-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "2232dceadbc9f3a427a1580d3a9270183d103fd90378795d73ce6e9054285f9e",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions -- -D warnings",
+      "log": "/private/tmp/leselang-sequence-reopen-compatibility-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "f747205177640d4b37b28844ad7424324995fab2660837de66bd3985da503089",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-sequence-reopen-root-20261028.log",
+      "exit_code": 0,
+      "sha256": "1c894c4b19c70c8789a419420e7c607507de38fc4f11c1eb20beed31a5210251",
+      "tests_passed": 377
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd -- -D warnings",
+      "log": "/private/tmp/leselang-sequence-reopen-root-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "f1e6e64759ea035feb15ce7e1bd2bb35cd8eced74c9b7ab0e5c71b14770e11d7",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "log": "/private/tmp/leselang-sequence-reopen-exporter-tests-20261028.log",
+      "exit_code": 0,
+      "sha256": "38b17f9f89027370886de0f50dee1dd3bcc09c5345d90cd3135dc0093298c0c0",
+      "tests_passed": 26
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern-dev --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-sequence-reopen-exporter-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "4b22a0925bf16dc452d26733e29f161907836bd0b00d3442a7ae085c0aacd3ec",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "log": "/private/tmp/leselang-sequence-reopen-format-20261028.log",
+      "exit_code": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0
+    },
+    {
+      "command": "rustfmt +1.98.0 --edition 2024 --check crates/leselang-vm/tests/support/native_group_checkpoint.rs",
+      "log": "/private/tmp/leselang-sequence-reopen-fixture-format-20261028.log",
+      "exit_code": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0
+    },
+    {
+      "command": "target/lean/gewyvern_status validate --json",
+      "log": "/private/tmp/leselang-sequence-reopen-status-20261028.log",
+      "exit_code": 0,
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-sequence-reopen-export-20261028 --verify",
+      "log": "/private/tmp/leselang-sequence-reopen-export-20261028.log",
+      "exit_code": 0,
+      "sha256": "680a9ce23049b7440c4c674a98f4dbc279af48f9cf0a0d99840640ece2c24871",
+      "tests_passed": 2825
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-sequence-reopen-final-root-20261028.log",
+      "sha256": "6c48eb53ac1758c7c849153dc62bfd565d9bb54ffca7e15dcd5aae7e182ab69c",
+      "tests_passed": 674,
+      "exit_code": 0
+    }
+  ],
+  "source_hashes": {
+    "crates/leselang-vm/tests/native_host_pipeline.rs": "a2d2fe421293cb215766c9d06e3b6c9a1e00df4d9e05f434f5eb836760d88506",
+    "crates/leselang-vm/tests/support/native_checkpoint.rs": "6f8c8a36f97a5084e062212209e48498c41a5672511b0aae2639bf0ed6e5c0bf",
+    "crates/leselang-vm/tests/support/native_group_checkpoint.rs": "d8af945b4d6e2e0916ebad69f9936fb63394ab4c84b56767dde8b0599a42f969",
+    "crates/leselang-hir-core/src/effect_stack_session.rs": "8fd169c0d0b4d2cb363667c45963ce3cd677ee7f011ba0ca73cb712eed77bcd2",
+    "crates/leselang-hir-core/src/prepared_sequence.rs": "6f0c4e9acc0d13727d1f5b9eb45ac19db1c976e780e4ad8a28fe50f05ea21cde",
+    "crates/leselang-hir-core/src/sequence_evaluation.rs": "646136c2f18b3dd8542c2d696817c26ef8cdc35411bd3345e415e1c6c8c2fbb4",
+    "crates/leselang-hir-core/src/prepared_parallel.rs": "76fc750046ec65f99151aaa145bea3491dc920a6ab2824b1ab52a6c1a37524bd",
+    "crates/leselang-hir-core/src/call_evaluation.rs": "255f19be9024e561ad2f0587c9651ff4828be651f0b2b95f748fbe0103c2cbe8",
+    "crates/leselang-runtime-core/src/local_execution.rs": "5b87372ca61605b4452c69c0541604fdfd4371a64ad4f24c8afc83b09b70508a",
+    "crates/leselang-runtime-core/src/reply.rs": "a876ee1347215b4d75d5c4f943a67684e3c1b7ceca26c6386f4e6afb8df2d0b9",
+    "crates/gewyvern-dev/src/leselang.rs": "bd281e32beb9a42a245728f384d858fba7a0b5809a39063a9f87f5a3dc261cb1",
+    "tests/language_independence_tdd.rs": "22049dc8fb2851524f52746a2492e03dc6c9ef30a4ee4870dbd66c3753cf34ec",
+    "tests/project_status_tdd.rs": "3d60c6648fad02a3f9acb608fe21d4f45b4054b39df0eca39023c05bc97e5710",
+    "docs/leselang-embedding.md": "f433cf51b61f9c56644e1c374240021ac329e981151333e55edddc7af219f4ab",
+    "project/status/catalog.json": "bf476b0b119fe35efae2e0ea66c9be6926e2529d063b77994cb3ab02e82e04f6"
+  },
+  "verification_scope": "Local macOS same-process disk reopen. Counts are iterations inside six added Rust tests; local/package/consumer runs overlap, not unique totals. No Linux, physical GUI, remote CI, subprocess restart, power-loss or production journal claim.",
+  "root_gate_tests": 674
+}

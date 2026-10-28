@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-prepared-group-pipeline-acceptance",
+  "validated_at": "2026-10-26",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.2",
+  "baseline_commit": "e2688d54546f75ed641bac011f430c74fd0293a3",
+  "native_embedding_contract": "0.172.0",
+  "hir_contract": "0.194.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "production_limits_changed": false,
+  "whole_language_acceptance_complete": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "full_branch_ceiling_coverage": false,
+  "external_effect_rollback": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "prepared_shapes": 4,
+  "successful_pipeline_cases": 192,
+  "preparation_failures": 320,
+  "cold_refusals": 40,
+  "source_fault_sites": 8,
+  "maximum_expanded_members": 7,
+  "shapes": [
+    "two-member seq",
+    "two-member all",
+    "seven-copy atomic repeat",
+    "head followed by three copies of a two-member seq"
+  ],
+  "hosts": [
+    "stateful scalar counter",
+    "structured headless panel reply"
+  ],
+  "scalar_return_types": 6,
+  "helper_alternatives": 2,
+  "written_argument_orders": 2,
+  "oracle": "The selected-data fixture supplies fixed final scalar expectations. Explicit source-leaf expansion supplies invocation order; native named projections include tail__iteration_3__right. Compiler, original prepared group construction, collectors, reply validation and LocalVm are reused without a second evaluator.",
+  "faults": [
+    "arithmetic in a helper parameter",
+    "invalid integer parsing in a helper parameter",
+    "loop-limit failure in a helper parameter",
+    "helper-local arithmetic failure",
+    "integer overflow or oversized computed string operand"
+  ],
+  "failure_scope": "Each case compiles successfully and fails on the first VM poll before a group request escapes. Native invocation logs, identity serial, all root plan identities and member identity vectors remain empty. Spent fuel is retained; the scope closes and later polls remain failed. Faults are placed at each distinct source leaf, including later source members. Identical repeated leaves fail at their first evaluated copy, not independently selected later copies.",
+  "cold_cases": [
+    "data-only member",
+    "group-returning helper",
+    "multi-effect helper",
+    "free caller-local capture",
+    "unselected data-return branch"
+  ],
+  "fuel_scope": "Every successful path checks observed completion cost minus one, exact cost and cost plus one; successful boundaries retain zero and one fuel. This is not every smaller fuel budget or every preparation-stage fuel cutoff.",
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "crate_count": 5,
+    "path": "/private/tmp/leselang-prepared-pipeline-export-20261026",
+    "file_count": 306,
+    "total_bytes": 7223716,
+    "manifest_sha256": "0b5ec80071628930ec6c1b697dcb2e4e5e09f31eb38a5e499cb3fcb9d98add21",
+    "copied_sources_match": true,
+    "copied_source_entries": 295,
+    "prepared_acceptance_test_runs": 8,
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-14556-1793018489845424000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2781,
+    "log": "/private/tmp/leselang-prepared-pipeline-export-20261026.log",
+    "log_sha256": "80e3ce86b1d8edf0081341421a30f8c7f7f0ef03d51c32a882a8074e54287f32"
+  },
+  "verification_scope": "Local macOS native and released product compatibility profiles plus isolated native source workspace and separate consumer. Matrix counts are iterations inside four Rust tests. Command counts overlap and must not be summed as unique tests. Callback side effects, cleanup panic, external rollback, arbitrary late repeated-copy faults, full branch ceiling, Linux, remote CI and live GUI are outside this proof.",
+  "remaining_boundaries": [
+    "Complete declared-language acceptance including whole-program and branch-ceiling boundaries.",
+    "Host-neutral durable recovery ownership and full checkpoint acceptance.",
+    "Final independent repository and distribution acceptance."
+  ],
+  "checks": [
+    {
+      "log": "/private/tmp/leselang-prepared-pipeline-native-20261026.log",
+      "sha256": "24a8d23b34bc7f5156e72eb478e1bbbe359fc3f4b64ff8c464c1e57214c0f783",
+      "tests_passed": 92,
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --no-default-features",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-prepared-pipeline-compatibility-20261026.log",
+      "sha256": "31ea766d9f1dc6ebf5bd889f2a43f07533160d1fc1ef92cbd02d40783eff7871",
+      "tests_passed": 109,
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-prepared-pipeline-root-20261026.log",
+      "sha256": "73ddbe67b4ea1fa96344187301fcf97134f32cf5edba6a2219f089b4dcbae495",
+      "tests_passed": 372,
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-prepared-pipeline-exporter-tests-20261026.log",
+      "sha256": "da45a9f9516d08b8d7d613639eb3afe1c9a057911846828d1c72643d2f806b7a",
+      "tests_passed": 26,
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-prepared-pipeline-native-clippy-20261026.log",
+      "sha256": "250c11d50942a573ce58b5fcd2d5120ca91240a43af8a09aff33db7c25600bea",
+      "tests_passed": 0,
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --no-default-features --all-targets -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-prepared-pipeline-compatibility-clippy-20261026.log",
+      "sha256": "1eafea95f5d6fb1188f5038b84cedaf79e52db00b47fcb21b8f0d9a1277f21e9",
+      "tests_passed": 0,
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-prepared-pipeline-root-clippy-20261026.log",
+      "sha256": "38d54cb20edc31de801aa31ae652a0713e62f0407c35a91cd1e64692f143aee0",
+      "tests_passed": 0,
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-prepared-pipeline-format-20261026.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0,
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-prepared-pipeline-status-20261026.log",
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0,
+      "command": "target/lean/gewyvern_status validate --json",
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-prepared-pipeline-export-20261026 --verify",
+      "exit_code": 0,
+      "log": "/private/tmp/leselang-prepared-pipeline-export-20261026.log",
+      "sha256": "80e3ce86b1d8edf0081341421a30f8c7f7f0ef03d51c32a882a8074e54287f32",
+      "tests_passed": 2781
+    },
+    {
+      "log": "/private/tmp/leselang-prepared-pipeline-status-tests-20261026.log",
+      "sha256": "427dd0d2684cfb07388266b8148b09e5c63d27404f605aa838f8666ef2fa8f0d",
+      "tests_passed": 292,
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test project_status_tdd",
+      "exit_code": 0
+    }
+  ],
+  "source_hashes": {
+    "crates/leselang-vm/tests/native_host_pipeline.rs": "d5d24f848468ac93ded825fc5847b214fe3c1fe773a092320ba11ef241e83071",
+    "crates/leselang-hir-core/src/prepared_call_evaluation.rs": "fbb347f0c91b5d7b59fafde2ae8cd47c7cdc2904740ab16e4f7c79eeb66dce09",
+    "crates/gewyvern-dev/src/leselang.rs": "f3c0cd3b204b3f8a0e9bd1047feb1c57542f91ffacbc6c773b2aeb91fbd03be0",
+    "tests/language_independence_tdd.rs": "fd97249fae58013362bfa83fe9b8d8d38775ffb355548bda6862e37961243bde",
+    "tests/project_status_tdd.rs": "6a78c68c257c289a801b285999b191e5c82d481005ac5fa62dc8ba95e79560bc",
+    "docs/leselang-embedding.md": "19e04890e56a0fc25c6afb26708cc132b0744a1fd26b716a710f48d41ac5b941",
+    "project/status/catalog.json": "000d82487de5bea834ae2f2408fb036e3071aa4058c39423547341ed5d6914ca"
+  },
+  "root_gate_tests": 664
+}

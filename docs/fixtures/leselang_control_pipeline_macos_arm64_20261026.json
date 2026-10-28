@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-typed-control-pipeline-acceptance",
+  "validated_at": "2026-10-26",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.2",
+  "baseline_commit": "e2688d54546f75ed641bac011f430c74fd0293a3",
+  "native_embedding_contract": "0.172.0",
+  "hir_contract": "0.194.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "whole_language_acceptance_complete": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "scalar_types": 6,
+  "control_forms": 8,
+  "successful_pipeline_cases": 576,
+  "limit_failure_cases": 288,
+  "cold_refusals": 648,
+  "forms": [
+    "typed helper",
+    "loop",
+    "zero-iteration loop",
+    "fold",
+    "empty fold",
+    "nested fold/loop",
+    "arithmetic recovery around loop",
+    "arithmetic recovery around fold"
+  ],
+  "hosts": [
+    "stateful scalar counter",
+    "structured headless panel reply"
+  ],
+  "group_profiles": [
+    "seq",
+    "all"
+  ],
+  "return_routes": [
+    "atomic helper",
+    "group helper",
+    "pure helper fallback"
+  ],
+  "oracle": "The existing selected-data fixture supplies fixed expected values and typed successor inputs. Source compiler, prepared collectors, evaluator, reply identity checks and LocalVm are reused. The new tests add no runtime or second interpreter.",
+  "type_scope": "All six production scalar variants occur as typed helper parameters and loop/fold state. A helper-local caller deliberately shares the enclosing caller name but cannot capture it. Fold labels disagree with source order. The singleton none state cannot change value: its successful conditional loop exits immediately, while a bounded always-true loop separately checks its update and limit failure.",
+  "fuel_scope": "Every successful path checks observed completion cost minus one, exact cost and cost plus one, with zero and one remaining on successful boundaries. This is not every smaller fuel budget.",
+  "refusal_scope": "Zero-loop and empty-fold skip dynamically faulting next expressions but still reject cold wrong types, impure next expressions and escaped locals. Arithmetic faults inside active iteration can recover. Iteration-limit failures cannot recover into the successor; original invocation prefixes, terminal closure and spent fuel remain observable.",
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "crate_count": 5,
+    "path": "/private/tmp/leselang-control-pipeline-export-20261026",
+    "file_count": 306,
+    "total_bytes": 7162996,
+    "manifest_sha256": "7d6901b99540cf527dd48229a2be182aa98f15dde99d7d877d11f51e8dec096d",
+    "copied_sources_match": true,
+    "copied_source_entries": 295,
+    "control_acceptance_test_runs": 8,
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-78405-1793015461978233000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2765,
+    "log": "/private/tmp/leselang-control-pipeline-export-20261026.log",
+    "log_sha256": "36f16169913aab60ad56cee3f4045ba42962037e61c3831da31011aa9eaf03b2"
+  },
+  "verification_scope": "Local macOS native and released compatibility profiles, isolated native source workspace and separate consumer. Matrix counts are iterations inside four Rust tests. Command counts overlap and are not a unique combined test total. No Linux, remote CI, live GUI, benchmark or full extraction claim.",
+  "remaining_boundaries": [
+    "Complete declared-language acceptance beyond the scalar and typed-control slices.",
+    "Host-neutral durable recovery ownership and full checkpoint acceptance.",
+    "Final independent repository and distribution acceptance."
+  ],
+  "checks": [
+    {
+      "log": "/private/tmp/leselang-control-pipeline-native-20261026.log",
+      "sha256": "f33d54513fb29d4fd556e0ac43275d6402a2bbecc232d9a288a50a57f2bb3c17",
+      "tests_passed": 84,
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --no-default-features",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-control-pipeline-compatibility-20261026.log",
+      "sha256": "b566acebb1c036ca0065f1a9f4b7d1d88012589458892a0815ff7b862caab8c9",
+      "tests_passed": 87,
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test iteration --test functions --test scalar_operations",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-control-pipeline-root-20261026.log",
+      "sha256": "fb16dfb0cb63a261e9ed9d78c692767888fc38d5ba940f91a3c3fdd44ff06a65",
+      "tests_passed": 370,
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-control-pipeline-exporter-tests-20261026.log",
+      "sha256": "283ad33fb0c1e0b8586582ac3e3a6c5b6a86c6da521ea6a54515cd6bce2948c0",
+      "tests_passed": 26,
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-control-pipeline-native-clippy-20261026.log",
+      "sha256": "9eaa3e8f6c85aadfe3639b94453da6d6bbf09942ff4d7957a5d7ed02573ca731",
+      "tests_passed": 0,
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --no-default-features --all-targets -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-control-pipeline-compatibility-clippy-20261026.log",
+      "sha256": "98f5a0b18a492bb24ef5fb9c3cfebdf75c513260a8f67b6abd5c04a5bf55d0fd",
+      "tests_passed": 0,
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test iteration --test functions --test scalar_operations -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-control-pipeline-root-clippy-20261026.log",
+      "sha256": "517f58d100aa755228801dc767b4b1e636b425b3477cd26c67633120d3e8dc07",
+      "tests_passed": 0,
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-control-pipeline-format-20261026.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0,
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-control-pipeline-status-20261026.log",
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0,
+      "command": "target/lean/gewyvern_status validate --json",
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-control-pipeline-export-20261026 --verify",
+      "exit_code": 0,
+      "log": "/private/tmp/leselang-control-pipeline-export-20261026.log",
+      "sha256": "36f16169913aab60ad56cee3f4045ba42962037e61c3831da31011aa9eaf03b2",
+      "tests_passed": 2765
+    },
+    {
+      "log": "/private/tmp/leselang-control-pipeline-status-tests-20261026.log",
+      "sha256": "3dd60e933405b6e31916ab3b5349ceee6fdc75fbb2c3f4902fb9f2c2b8f56c2f",
+      "tests_passed": 290,
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test project_status_tdd",
+      "exit_code": 0
+    }
+  ],
+  "source_hashes": {
+    "crates/leselang-vm/tests/native_host_pipeline.rs": "092bb41b5f27b3f0ea9d9cd92c2e0e5b1572a904d1da5c8c24ddd9e0f2bd80ec",
+    "crates/leselang-runtime-core/src/value.rs": "3431ae6589bb53ef9061a7657fe1d752236d450ad26bffc20e91483a11f3b981",
+    "crates/gewyvern-dev/src/leselang.rs": "4a5dda3f7183a8543aa5f70d8097048a63999769e7e9ef6d5598c265033f5a47",
+    "tests/language_independence_tdd.rs": "26763e565be5385b370896716679b92599f2b2068a4aa3f363cd9628a906fe1e",
+    "tests/project_status_tdd.rs": "ef1a3d8a910ae7d007aacf837b8c7fd729ce1fd800b63cae5b91f974668fd5f0",
+    "docs/leselang-embedding.md": "03a3c0ca936e8eab135204d45ea6189c568c1bee5d1c6ebbf9385fd2b6e4b736",
+    "project/status/catalog.json": "312adeb0429ca16e69b7aa5381bcfb30e1c20735db2aca67695760a5099bc9ab"
+  },
+  "root_gate_tests": 660
+}

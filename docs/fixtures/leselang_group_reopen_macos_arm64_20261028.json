@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-parallel-group-disk-reopen",
+  "validated_at": "2026-10-28",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.2",
+  "baseline_commit": "e2688d54546f75ed641bac011f430c74fd0293a3",
+  "native_embedding_contract": "0.172.0",
+  "hir_contract": "0.194.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "production_journal_added": false,
+  "process_restart_tested": false,
+  "power_loss_tested": false,
+  "storage_authentication_provided": false,
+  "external_effect_crash_atomicity": false,
+  "captured_predecessor_graphs_restored": false,
+  "sequence_disk_reopen_tested": false,
+  "group_graph_recovery_complete": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "hosts": [
+    "stateful scalar counter",
+    "structured headless panel reply"
+  ],
+  "members": 3,
+  "frontiers_per_host": 15,
+  "receipt_orders": 6,
+  "successful_reopen_paths": 180,
+  "fuel_boundary_paths": 90,
+  "owner_refusal_and_cancellation_paths": 120,
+  "candidate_refusals": 240,
+  "program_scope": "One source-compiled three-member All, nested helper returns with scalar captured locals, group projection and an atomic successor. Original VM, collector, IR, catalog and host are dropped. New objects load exact original return-site paths, member identities, operands, accepted values and remaining fuel from host-owned disk records.",
+  "frontier_scope": "Dispatch follows original member order. Prefix lengths 0..3 and all accepted subsets give 1+2+4+8=15 cuts per host. Six receipt permutations cover empty, partial and fully accepted but unpublished collectors. External concurrent execution orders are not tested.",
+  "ownership_scope": "Parent Vm::restore_pending_in_scope and PreparedParallelSession::restore_in_scope borrow one ScopedLocalExecution owner. Parent denial, child denial/revocation and explicit post-restore cancellation close the owner, cancel retained parent/collector state and leave ledger bytes unchanged. No dispatch or successor follows these refusals.",
+  "receipt_scope": "Accepted values are revalidated through PendingReply; settled but unaccepted rows use recorded replies; only unsettled effects dispatch. Stale parent/member and duplicate member receipts retain their buffers. Ordered results hand off once, and terminal checkpoint replay leaves the ledger unchanged. Host ledger policy owns deduplication, not the VM.",
+  "budget_scope": "Each of 30 host/frontier combinations resumes at uninterrupted completion-cost minus one, exact cost and plus one. Outcomes and remaining fuel match the original compiler/evaluator/collector pipeline without charging preparation again or refilling parent fuel.",
+  "correspondence_scope": "For each host/frontier, six altered top-level fields plus truncated and oversized candidates refuse before reconstruction against trusted committed fixture bytes. Neither the committed image nor ledger is authenticated by this fixture.",
+  "remaining_boundaries": [
+    "Sequential disk recovery and captured predecessor graph composition.",
+    "General graph checkpoint ownership/codec acceptance and explicit host storage contract.",
+    "Process restart, effect-to-receipt crash consistency and final independent repository/distribution acceptance."
+  ],
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "crate_count": 5,
+    "path": "/private/tmp/leselang-group-reopen-export-20261028",
+    "file_count": 310,
+    "total_bytes": 7405409,
+    "manifest_sha256": "1dd63441a79844c0605159face85a996872e89029995a8767f17016188e96685",
+    "copied_source_entries": 299,
+    "copied_sources_match": true,
+    "group_reopen_test_runs": 8,
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-94544-1793173427220467000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2813,
+    "log": "/private/tmp/leselang-group-reopen-export-20261028.log",
+    "log_sha256": "11699447ee49907bd054d535f3f4499498d08cef871d1e3821ba1ff044de1b93"
+  },
+  "checks": [
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --no-default-features",
+      "log": "/private/tmp/leselang-group-reopen-native-20261028.log",
+      "exit_code": 0,
+      "sha256": "d889a1d5b417c68f97c4f44241c55a5b7659e96a21bf6fe63fbf94323aff929c",
+      "tests_passed": 108
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions",
+      "log": "/private/tmp/leselang-group-reopen-compatibility-20261028.log",
+      "exit_code": 0,
+      "sha256": "beecdb9472d3968b5a29c9729d75dc31f5bfe58e1fb4977e41a0b966cd5a7cd5",
+      "tests_passed": 125
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --no-default-features --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-group-reopen-native-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "e095fd61c509f5d0120cb730c82eefb038883db71ff03958adc86a3139c91dd9",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions -- -D warnings",
+      "log": "/private/tmp/leselang-group-reopen-compatibility-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "a03694b9cfa496c7fdeb6b39b3d2ecedea794d6901bab13402e090f78f0b7e8c",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-group-reopen-root-20261028.log",
+      "exit_code": 0,
+      "sha256": "2d5431b64a231d7fdb1d79172be2c057e3901a5da4fcc71659603b9c869beff7",
+      "tests_passed": 376
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd -- -D warnings",
+      "log": "/private/tmp/leselang-group-reopen-root-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "c8894b917303bf212155fb256f3a76f04104af5f37e5963c87171007366e4bd8",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "log": "/private/tmp/leselang-group-reopen-exporter-tests-20261028.log",
+      "exit_code": 0,
+      "sha256": "99f39ce89bd629ba00a4dd711d20e2fb2180a3ce064cba17b4da143e0bd9e67b",
+      "tests_passed": 26
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern-dev --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-group-reopen-exporter-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "5e92a9ebf04c4b7fcb01c905d5b29a2604d649317a1cbcb61c739bc9c0d5d24a",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "log": "/private/tmp/leselang-group-reopen-format-20261028.log",
+      "exit_code": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0
+    },
+    {
+      "command": "rustfmt +1.98.0 --edition 2024 --check crates/leselang-vm/tests/support/native_group_checkpoint.rs",
+      "log": "/private/tmp/leselang-group-reopen-fixture-format-20261028.log",
+      "exit_code": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0
+    },
+    {
+      "command": "target/lean/gewyvern_status validate --json",
+      "log": "/private/tmp/leselang-group-reopen-status-20261028.log",
+      "exit_code": 0,
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-group-reopen-export-20261028 --verify",
+      "log": "/private/tmp/leselang-group-reopen-export-20261028.log",
+      "exit_code": 0,
+      "sha256": "11699447ee49907bd054d535f3f4499498d08cef871d1e3821ba1ff044de1b93",
+      "tests_passed": 2813
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-group-reopen-final-root-20261028.log",
+      "sha256": "1e28bb3f63d69034559ddab993738fed483b9550a3ebfe04a1463cfefb93266d",
+      "tests_passed": 672,
+      "exit_code": 0
+    }
+  ],
+  "source_hashes": {
+    "crates/leselang-vm/tests/native_host_pipeline.rs": "a2d2fe421293cb215766c9d06e3b6c9a1e00df4d9e05f434f5eb836760d88506",
+    "crates/leselang-vm/tests/support/native_checkpoint.rs": "6f8c8a36f97a5084e062212209e48498c41a5672511b0aae2639bf0ed6e5c0bf",
+    "crates/leselang-vm/tests/support/native_group_checkpoint.rs": "e7c1f0d6ac926673822ea9f1ac99711c128699dd024db3f6e5e30554496321c3",
+    "crates/leselang-hir-core/src/effect_stack_session.rs": "8fd169c0d0b4d2cb363667c45963ce3cd677ee7f011ba0ca73cb712eed77bcd2",
+    "crates/leselang-hir-core/src/prepared_parallel.rs": "76fc750046ec65f99151aaa145bea3491dc920a6ab2824b1ab52a6c1a37524bd",
+    "crates/leselang-hir-core/src/parallel_evaluation.rs": "d6b9e6da99e6dd9aa24a14819bea153331e495703a2f68a86708a26fc3aa2427",
+    "crates/leselang-hir-core/src/call_evaluation.rs": "255f19be9024e561ad2f0587c9651ff4828be651f0b2b95f748fbe0103c2cbe8",
+    "crates/leselang-runtime-core/src/local_execution.rs": "5b87372ca61605b4452c69c0541604fdfd4371a64ad4f24c8afc83b09b70508a",
+    "crates/leselang-runtime-core/src/reply.rs": "a876ee1347215b4d75d5c4f943a67684e3c1b7ceca26c6386f4e6afb8df2d0b9",
+    "crates/gewyvern-dev/src/leselang.rs": "816fdaad7fe093fc75bb053547ffdad2582893c8e57c753d1b2991a6a7410218",
+    "tests/language_independence_tdd.rs": "2acd669568d892e1730484cb902c90782a93cf20d2456a50cbd68b419b746537",
+    "tests/project_status_tdd.rs": "fc4791a7733caed9e6df33e8bc0520cefd5fa5de39d3abe6949dfc580056e1cb",
+    "docs/leselang-embedding.md": "13d820388f668e093da6831d7607501cac081f4ab0fa4c4785a8258c75146fdc",
+    "project/status/catalog.json": "de9971664c63da7a78edb3bb93ddd3f8caf28b24969d9314450f57e4cda87765"
+  },
+  "verification_scope": "Local macOS same-process disk reopen, not process restart, power loss, physical GUI, remote CI or external-effect atomicity. Counts are iterations inside four tests; package and consumer runs overlap and are not unique totals.",
+  "root_gate_tests": 672
+}

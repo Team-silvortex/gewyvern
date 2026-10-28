@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-declaration-pipeline-acceptance",
+  "validated_at": "2026-10-26",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.2",
+  "baseline_commit": "e2688d54546f75ed641bac011f430c74fd0293a3",
+  "native_embedding_contract": "0.172.0",
+  "hir_contract": "0.194.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "production_limits_changed": false,
+  "whole_language_acceptance_complete": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "max_declarations": 32,
+  "max_parameters": 8,
+  "scalar_types": 6,
+  "written_argument_orders": 3,
+  "helper_placements": 2,
+  "mixed_signature_cases": 432,
+  "declaration_order_cases": 576,
+  "declaration_order_completions": 432,
+  "declaration_order_terminal_refusals": 144,
+  "max_declaration_cases": 72,
+  "cold_refusals": 936,
+  "hosts": [
+    "stateful scalar counter",
+    "structured headless panel reply"
+  ],
+  "group_profiles": [
+    "seq",
+    "all"
+  ],
+  "return_routes": [
+    "atomic helper",
+    "group helper",
+    "pure helper fallback"
+  ],
+  "oracle": "The existing selected-data fixture supplies fixed expected values and typed successor inputs. Compiler, collectors, evaluator, reply identity checks and LocalVm are unchanged. A caller-named parameter checks hygiene; forward/backward helper declarations and three argument orders preserve values, invocation counts and remaining fuel.",
+  "declaration_order_oracle": "Two unused integer parameters respectively cause recoverable arithmetic failure and nonrecoverable loop-limit failure. Declaration order determines whether outer recovery completes or the pipeline fails before its successor, irrespective of written argument order. An unselected call evaluates neither argument. This tests observable behaviour without a second evaluator or private binding-order inspection.",
+  "ceiling_scope": "The test fixture now takes MAX_FUNCTIONS and MAX_FUNCTION_PARAMETERS from the native syntax facade instead of capping declarations at eight. Production ceilings remain 32 and eight. Full-ceiling programs contain unused arithmetic-faulting helpers; compilation checks them but execution does not evaluate them.",
+  "fuel_scope": "Every mixed-signature path compares observed cost minus one, exact cost and cost plus one, with zero and one remaining on successful boundaries. This is not every smaller fuel budget.",
+  "cold_cases": [
+    "33 declarations",
+    "nine parameters with a matching ninth call argument",
+    "missing argument",
+    "duplicate argument name within eight entries",
+    "unknown argument name",
+    "wrong argument type",
+    "duplicate parameter name",
+    "unused helper captures a caller-local name",
+    "direct recursion",
+    "mutual recursion",
+    "recursion in a cold branch",
+    "helper calls the entry",
+    "helper shadows a builtin"
+  ],
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "crate_count": 5,
+    "path": "/private/tmp/leselang-declaration-pipeline-export-20261026",
+    "file_count": 306,
+    "total_bytes": 7192116,
+    "manifest_sha256": "d37100c1352512ff35a86f0ef02bd8d8d41ef5c4ac62a33f599b30a934cccf96",
+    "copied_sources_match": true,
+    "copied_source_entries": 295,
+    "declaration_acceptance_test_runs": 8,
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-92904-1793016529251571000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2773,
+    "log": "/private/tmp/leselang-declaration-pipeline-export-20261026.log",
+    "log_sha256": "666b15a30e83046e56657d31bfb8f438ed01ab1702a68559532736e334deafdd"
+  },
+  "verification_scope": "Local macOS native and released compatibility profiles, isolated native source workspace and separate consumer. Case counts are iterations within four Rust tests, not independent test functions. Overlapping commands must not be summed as unique tests. No Linux, remote CI, live GUI or complete extraction claim.",
+  "remaining_boundaries": [
+    "Complete declared-language acceptance beyond scalar, control and declaration slices.",
+    "Host-neutral durable recovery ownership and full checkpoint acceptance.",
+    "Final independent repository and distribution acceptance."
+  ],
+  "checks": [
+    {
+      "log": "/private/tmp/leselang-declaration-pipeline-native-20261026.log",
+      "sha256": "0aaf6a229e6015a6b7eee3ae78fc5d9d156f90c5143c8c5a90879492609f4d9a",
+      "tests_passed": 88,
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --no-default-features",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-declaration-pipeline-compatibility-20261026.log",
+      "sha256": "1b0ef0da0ad8fd3013cb1b1c55352328ed638dcb7ce46df12b64f9c76898d414",
+      "tests_passed": 106,
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test functions --test effectful_functions --test selected_functions --test prepared_groups",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-declaration-pipeline-root-20261026.log",
+      "sha256": "c2b3e8bec39a68d0009bb71ab4e1f3dab8282be6653e4775c3e9c5959a06de0e",
+      "tests_passed": 371,
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-declaration-pipeline-exporter-tests-20261026.log",
+      "sha256": "b9a58bfb977eec91ee2459bd8708afbaa069e3c162fd6bb158166c3b5dba68f3",
+      "tests_passed": 26,
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-declaration-pipeline-native-clippy-20261026.log",
+      "sha256": "4a3730968fd351f084a8fee2b3b825e0aefbd08f6c27b06d59061d1cbf8900cc",
+      "tests_passed": 0,
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --no-default-features --all-targets -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-declaration-pipeline-compatibility-clippy-20261026.log",
+      "sha256": "4effc6006a85adcad5ba82d2ee29643d38e4693ad8482068344cff3e395572c5",
+      "tests_passed": 0,
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test functions --test effectful_functions --test selected_functions --test prepared_groups -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-declaration-pipeline-root-clippy-20261026.log",
+      "sha256": "b883af2b847c4bf8281fdc39936a635e422d561650603358fa42539ff69380d7",
+      "tests_passed": 0,
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-declaration-pipeline-format-20261026.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0,
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "exit_code": 0
+    },
+    {
+      "log": "/private/tmp/leselang-declaration-pipeline-status-20261026.log",
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0,
+      "command": "target/lean/gewyvern_status validate --json",
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-declaration-pipeline-export-20261026 --verify",
+      "exit_code": 0,
+      "log": "/private/tmp/leselang-declaration-pipeline-export-20261026.log",
+      "sha256": "666b15a30e83046e56657d31bfb8f438ed01ab1702a68559532736e334deafdd",
+      "tests_passed": 2773
+    },
+    {
+      "log": "/private/tmp/leselang-declaration-pipeline-status-tests-20261026.log",
+      "sha256": "bf0ff0c13750c3e45ce4f3802c020c893fde33bbbb1c0f3480f0c49c2f1a003e",
+      "tests_passed": 291,
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test project_status_tdd",
+      "exit_code": 0
+    }
+  ],
+  "source_hashes": {
+    "crates/leselang-vm/tests/native_host_pipeline.rs": "e3a8e58053d2322e46dace26cc409907d29fcc94786073601e5c6130bc19e94d",
+    "crates/leselang-syntax/src/lib.rs": "c9e9cbc81bc7c2de7685897db01d4b591ae91f343e6a98769183775efa0ce462",
+    "crates/gewyvern-dev/src/leselang.rs": "ba40e40203494fb457209efa08239c1754a2f4a8d5e8244a519b8d82be45c51b",
+    "tests/language_independence_tdd.rs": "a8492d3b40cc2b1f505bb6386d258b868963a85ef05e731d5e86e40ef676e4ae",
+    "tests/project_status_tdd.rs": "14f6885da7c8f9bea7e23f5d9735d083944fef47f32c7ff94ba30b14834cc94d",
+    "docs/leselang-embedding.md": "fa682b4747ae4395c68521b40ec32f52671ce9c5bf49cab50ea45eddffe53b31",
+    "project/status/catalog.json": "625b0ec83d9b4ffc2d448577b8c7b6a3324b5f9a8bce7987263f14c6824f2493"
+  },
+  "root_gate_tests": 662
+}

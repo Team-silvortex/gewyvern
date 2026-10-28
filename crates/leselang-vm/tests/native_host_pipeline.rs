@@ -26,6 +26,9 @@ use pure_evaluation::{
 use pure_typing::{PureType, PureTypeEnvironment};
 use source_call::{SourceCallHost, SourceCallLimits};
 
+#[path = "support/native_checkpoint.rs"]
+mod checkpoint_acceptance;
+
 #[derive(Debug, PartialEq)]
 struct Refusal;
 
@@ -316,7 +319,7 @@ const PURE: PureEvaluationLimits = PureEvaluationLimits {
 const EFFECTS: EffectEvaluationLimits = EffectEvaluationLimits {
     pure: PURE,
     max_arguments: 8,
-    max_branches: 8,
+    max_branches: group_exports::MAX_GROUP_EXPORT_MEMBERS,
 };
 const STACK: EffectStackLimits = EffectStackLimits {
     effects: EFFECTS,
@@ -336,8 +339,8 @@ const PROGRAM: CatalogProgramLimits = CatalogProgramLimits {
         },
         max_calls: 16,
     },
-    max_functions: 8,
-    max_parameters: 8,
+    max_functions: leselang_vm::native::syntax::MAX_FUNCTIONS,
+    max_parameters: leselang_vm::native::syntax::MAX_FUNCTION_PARAMETERS,
     max_compilation_nodes: 8192,
     max_expansion_depth: 32,
 };
@@ -1411,6 +1414,9 @@ fn both_hosts_reject_a_settled_predecessor_receipt_without_consuming_the_success
 
 mod mixed {
     use super::*;
+    mod disk_reopen {
+        include!("support/native_group_checkpoint.rs");
+    }
     use call_evaluation::CallEvaluationHost;
     use catalog_group_source::{
         CatalogGroupProgramLimits, CatalogGroupSourceEnvironment,
@@ -1543,6 +1549,48 @@ mod mixed {
         }
     }
     fn compile<P: Profile>(source: &str, host: &Host<'_, '_, P>) -> Result<Node, String> {
+        compile_with_limits(source, host, BATCH.max_branches, 2 * BATCH.max_branches)
+    }
+
+    fn compile_with_limits<P: Profile>(
+        source: &str,
+        host: &Host<'_, '_, P>,
+        max_branches: usize,
+        max_calls: usize,
+    ) -> Result<Node, String> {
+        let mut limits = group_program_limits();
+        limits.max_branches = max_branches;
+        limits.program.expression.max_calls = max_calls;
+        compile_with_policy(source, host, limits)
+    }
+
+    fn group_program_limits() -> CatalogGroupProgramLimits {
+        CatalogGroupProgramLimits {
+            program: CatalogProgramLimits {
+                expression: CatalogSourceLimits {
+                    // Counts both cold helper alternatives, not selected effects.
+                    max_calls: 2 * BATCH.max_branches,
+                    control: ControlSourceLimits {
+                        source: SourceCallLimits {
+                            // Group labels share source syntax, not operation arity.
+                            max_arguments: source_call::MAX_SOURCE_CALL_ARGUMENTS,
+                            ..PROGRAM.expression.control.source
+                        },
+                        ..PROGRAM.expression.control
+                    },
+                },
+                ..PROGRAM
+            },
+            max_groups: 4,
+            max_branches: BATCH.max_branches,
+        }
+    }
+
+    fn compile_with_policy<P: Profile>(
+        source: &str,
+        host: &Host<'_, '_, P>,
+        limits: CatalogGroupProgramLimits,
+    ) -> Result<Node, String> {
         let tree = parse(source);
         if !tree.diagnostics.is_empty() {
             return Err(format!("{:?}", tree.diagnostics));
@@ -1551,11 +1599,7 @@ mod mixed {
         compile_catalog_prepared_group_helper_program(
             &functions,
             "main",
-            CatalogGroupProgramLimits {
-                program: PROGRAM,
-                max_groups: 4,
-                max_branches: 8,
-            },
+            limits,
             &host.source(),
             &Types(host),
         )
@@ -1631,7 +1675,7 @@ mod mixed {
     const BATCH: ParallelEvaluationLimits = ParallelEvaluationLimits {
         max_nodes: 1024,
         max_depth: 64,
-        max_branches: 8,
+        max_branches: group_exports::MAX_GROUP_EXPORT_MEMBERS,
     };
 
     enum View<'ir, P: Profile> {
@@ -2218,7 +2262,7 @@ mod mixed {
                         fuel,
                         PreparedGroupEvaluationLimits {
                             call: limits,
-                            max_branches: 8,
+                            max_branches: BATCH.max_branches,
                         },
                         |_, _, schema| {
                             if !std::ptr::eq(&schema.result, self.plan(node)?.domain) {
@@ -5196,16 +5240,30 @@ fn main() = bind(caller: "outer", body: bind(answer:
         }
 
         fn run<P: Profile>(case: &Case, budget: u64) -> Outcome {
+            run_with_requests::<P>(case, budget, if case.selected == 2 { 1 } else { 2 })
+        }
+
+        fn run_with_requests<P: Profile>(case: &Case, budget: u64, requests: usize) -> Outcome {
+            run_with_policy::<P>(case, budget, requests, group_program_limits(), STACK)
+        }
+
+        fn run_with_policy<P: Profile>(
+            case: &Case,
+            budget: u64,
+            requests: usize,
+            compiler: CatalogGroupProgramLimits,
+            execution: EffectStackLimits,
+        ) -> Outcome {
             let mut outcome = None;
             fixture::<P>(|host, scope| {
-                let node = compile(&case.source, &host).unwrap();
+                let node = compile_with_policy(&case.source, &host, compiler).unwrap();
                 let plans = plans(&node, &host);
                 let runtime = Runtime {
                     host: &host,
                     plans: &plans,
                 };
-                let mut vm = LocalVm::new(scope, &node, Vec::new(), Fuel::new(budget), STACK);
-                for phase in 0..3 {
+                let mut vm = LocalVm::new(scope, &node, Vec::new(), Fuel::new(budget), execution);
+                for phase in 0..=requests {
                     match vm.poll(&runtime) {
                         Ok(EffectSessionPoll::Request(active)) => {
                             assert_eq!(
@@ -5236,7 +5294,7 @@ fn main() = bind(caller: "outer", body: bind(answer:
                                 .iter()
                                 .filter(|plan| plan.identity.borrow().is_some())
                                 .count();
-                            assert_eq!(active, if case.selected == 2 { 1 } else { 2 });
+                            assert_eq!(active, requests);
                             assert!(
                                 plans
                                     .iter()
@@ -5281,6 +5339,1960 @@ fn main() = bind(caller: "outer", body: bind(answer:
                 );
             });
             outcome.unwrap()
+        }
+
+        mod program_boundary_acceptance {
+            use super::*;
+
+            type CompilerBoundary = (
+                &'static str,
+                usize,
+                fn(&mut CatalogGroupProgramLimits, usize),
+            );
+            type RuntimeBoundary = (&'static str, usize, fn(&mut EffectStackLimits, usize));
+
+            fn compiler_boundaries() -> [CompilerBoundary; 13] {
+                [
+                    ("source nodes", 11, |p, n| {
+                        p.program.expression.control.source.max_source_nodes = n
+                    }),
+                    ("source depth", 3, |p, n| {
+                        p.program.expression.control.source.max_source_depth = n
+                    }),
+                    ("lowered nodes", 23, |p, n| {
+                        p.program.expression.control.source.max_lowered_nodes = n
+                    }),
+                    ("lowered depth", 7, |p, n| {
+                        p.program.expression.control.source.max_lowered_depth = n
+                    }),
+                    // Standalone helper checks cost 1 + 5 + 23; main and expansions cost 31.
+                    ("compilation work", 60, |p, n| {
+                        p.program.max_compilation_nodes = n
+                    }),
+                    ("expansion depth", 3, |p, n| {
+                        p.program.max_expansion_depth = n
+                    }),
+                    ("bindings", 3, |p, n| {
+                        p.program.expression.control.max_bindings = n
+                    }),
+                    ("groups", 1, |p, n| p.max_groups = n),
+                    ("cold calls", 3, |p, n| p.program.expression.max_calls = n),
+                    ("functions", 4, |p, n| p.program.max_functions = n),
+                    ("parameters", 1, |p, n| p.program.max_parameters = n),
+                    ("branches", 2, |p, n| p.max_branches = n),
+                    ("source arguments", 2, |p, n| {
+                        p.program.expression.control.source.max_arguments = n
+                    }),
+                ]
+            }
+
+            fn runtime_boundaries() -> [RuntimeBoundary; 6] {
+                [
+                    ("nodes", 23, |p, n| p.effects.pure.max_nodes = n),
+                    ("depth", 7, |p, n| p.effects.pure.max_depth = n),
+                    // Prepared operands have their own host policy; the VM owns two locals.
+                    ("bindings", 2, |p, n| p.effects.pure.max_bindings = n),
+                    ("frames", 2, |p, n| p.max_frames = n),
+                    ("arguments", 1, |p, n| p.effects.max_arguments = n),
+                    ("branches", 2, |p, n| p.effects.max_branches = n),
+                ]
+            }
+
+            fn source_shape(source: &str) -> (usize, usize) {
+                let tree = parse(source);
+                assert!(tree.diagnostics.is_empty());
+                let (mut largest, mut deepest) = (0, 0);
+                for function in tree.function.iter().chain(&tree.helpers) {
+                    let mut nodes = 0;
+                    let mut pending = vec![(&function.body, 0)];
+                    while let Some((node, depth)) = pending.pop() {
+                        nodes += 1;
+                        deepest = deepest.max(depth);
+                        if let leselang_vm::native::syntax::Expression::Call { arguments, .. } =
+                            node
+                        {
+                            pending.extend(arguments.iter().map(|a| (&a.value, depth + 1)));
+                        }
+                    }
+                    largest = largest.max(nodes);
+                }
+                (largest, deepest)
+            }
+
+            fn pipeline<P: Profile>(kind: &str) -> Case {
+                let counter = P::ARGUMENT == ScalarType::Integer;
+                let (ty, literal, field) = if counter {
+                    ("integer", "1", "value")
+                } else {
+                    ("string", "\"x\"", "text")
+                };
+                let call = |argument| format!("{}({}: {argument})", P::OPERATION, P::PARAMETER);
+                let tail = call("answer");
+                let source = format!(
+                    "fn identity(value: {ty}) = value\nfn step(value: {ty}) = {}\nfn gathered(value: {ty}) = bind(batch: {kind}(left: step(value: value), right: step(value: value)), body: field(value: member(value: batch, name: \"right\"), name: \"{field}\"))\nfn main() = bind(answer: gathered(value: {literal}), body: bind(ack: {tail}, body: answer))",
+                    call("identity(value: value)")
+                );
+                Case {
+                    source,
+                    selected: 1,
+                    output: if counter {
+                        ScalarValue::Integer(2)
+                    } else {
+                        ScalarValue::String("x".into())
+                    },
+                    inputs: if counter {
+                        vec![
+                            ScalarValue::Integer(1),
+                            ScalarValue::Integer(1),
+                            ScalarValue::Integer(2),
+                        ]
+                    } else {
+                        vec![ScalarValue::String("x".into()); 3]
+                    },
+                    tail,
+                }
+            }
+
+            fn cold_refusal<P: Profile>(
+                case: &Case,
+                policy: CatalogGroupProgramLimits,
+                label: &str,
+            ) {
+                fixture::<P>(|host, _| {
+                    assert!(
+                        compile_with_policy(&case.source, &host, policy).is_err(),
+                        "{label}"
+                    );
+                    assert_eq!(host.serial.get(), 0);
+                    assert!(host.invoked.borrow().is_empty());
+                });
+            }
+
+            fn runtime_refusal<P: Profile>(case: &Case, policy: EffectStackLimits, label: &str) {
+                fixture::<P>(|host, scope| {
+                    let node = compile(&case.source, &host).unwrap();
+                    let plans = plans(&node, &host);
+                    let runtime = Runtime {
+                        host: &host,
+                        plans: &plans,
+                    };
+                    let mut vm = LocalVm::new(scope, &node, Vec::new(), Fuel::new(10_000), policy);
+                    assert!(vm.poll(&runtime).is_err(), "{label}");
+                    assert_eq!(host.serial.get(), 0, "{label}");
+                    assert!(host.invoked.borrow().is_empty());
+                    assert!(plans.iter().all(|p| p.identity.borrow().is_none() && p.members.borrow().is_empty()));
+                    assert!(!vm.lease().is_open());
+                    let fuel = vm.fuel_remaining();
+                    assert!(matches!(
+                        vm.poll(&runtime).unwrap(),
+                        EffectSessionPoll::Terminal(EffectSessionEnd::Failed)
+                    ));
+                    assert_eq!(vm.fuel_remaining(), fuel);
+                });
+            }
+
+            #[test]
+            fn whole_program_compile_budgets_are_inclusive_and_independent() {
+                fn check<P: Profile>() -> usize {
+                    let mut count = 0;
+                    for kind in ["seq", "all"] {
+                        let case = pipeline::<P>(kind);
+                        assert_eq!(source_shape(&case.source), (11, 3));
+                        fixture::<P>(|host, _| {
+                            let node = compile(&case.source, &host).unwrap();
+                            let mut pending = vec![(&node, 0)];
+                            let (mut nodes, mut depth) = (0, 0);
+                            while let Some((node, level)) = pending.pop() {
+                                nodes += 1;
+                                depth = depth.max(level);
+                                pending.extend(node.children().map(|child| (child, level + 1)));
+                            }
+                            assert_eq!((nodes, depth), (23, 7));
+                        });
+                        let baseline = run::<P>(&case, 10_000);
+                        assert!(baseline.complete);
+                        for (label, required, set) in compiler_boundaries() {
+                            let mut policy = group_program_limits();
+                            set(&mut policy, required - 1);
+                            cold_refusal::<P>(&case, policy, label);
+                            for extra in 0..=1 {
+                                set(&mut policy, required + extra);
+                                assert_eq!(
+                                    run_with_policy::<P>(&case, 10_000, 2, policy, STACK),
+                                    baseline,
+                                    "{label}/{extra}"
+                                );
+                            }
+                            count += 1;
+                        }
+                    }
+                    count
+                }
+                assert_eq!(check::<Counter>() + check::<Panel>(), 52);
+            }
+
+            #[test]
+            fn runtime_budgets_do_not_borrow_compiler_allowances_or_dispatch_partial_work() {
+                fn check<P: Profile>() -> usize {
+                    let mut count = 0;
+                    for kind in ["seq", "all"] {
+                        let case = pipeline::<P>(kind);
+                        let baseline = run::<P>(&case, 10_000);
+                        for (label, required, set) in runtime_boundaries() {
+                            let mut policy = STACK;
+                            set(&mut policy, required - 1);
+                            runtime_refusal::<P>(&case, policy, label);
+                            for extra in 0..=1 {
+                                set(&mut policy, required + extra);
+                                assert_eq!(
+                                    run_with_policy::<P>(
+                                        &case,
+                                        10_000,
+                                        2,
+                                        group_program_limits(),
+                                        policy
+                                    ),
+                                    baseline,
+                                    "{label}/{extra}"
+                                );
+                            }
+                            count += 1;
+                        }
+                    }
+                    count
+                }
+                assert_eq!(check::<Counter>() + check::<Panel>(), 24);
+            }
+
+            fn balanced_sum(leaves: usize) -> String {
+                if leaves == 1 {
+                    return "1".into();
+                }
+                format!(
+                    "add(left: {}, right: {})",
+                    balanced_sum(leaves / 2),
+                    balanced_sum(leaves - leaves / 2)
+                )
+            }
+
+            #[test]
+            fn unused_bodies_obey_source_output_and_nonrefunding_work_budgets() {
+                fn check<P: Profile>() -> usize {
+                    let mut count = 0;
+                    for kind in ["seq", "all"] {
+                        let baseline = pipeline::<P>(kind);
+                        let expected = run::<P>(&baseline, 10_000);
+                        for (body, nodes, depth) in [
+                            ("div(left: 1, right: 0)".into(), 3, 1),
+                            (format!("to_string(value: {})", balanced_sum(512)), 1024, 10),
+                            (
+                                (0..leselang_vm::native::syntax::MAX_CALL_DEPTH)
+                                    .fold("true".into(), |body, _| format!("not(value: {body})")),
+                                leselang_vm::native::syntax::MAX_CALL_DEPTH + 1,
+                                leselang_vm::native::syntax::MAX_CALL_DEPTH,
+                            ),
+                        ] {
+                            let mut case = pipeline::<P>(kind);
+                            case.source.push_str(&format!("\nfn unused() = {body}"));
+                            assert_eq!(source_shape(&case.source), (nodes.max(11), depth.max(3)));
+                            let mut policy = group_program_limits();
+                            policy.program.max_compilation_nodes = 60 + nodes;
+                            assert_eq!(
+                                run_with_policy::<P>(&case, 10_000, 2, policy, STACK),
+                                expected
+                            );
+                            policy.program.max_compilation_nodes -= 1;
+                            cold_refusal::<P>(&case, policy, "unused compilation work");
+                            policy.program.max_compilation_nodes += 1;
+                            if nodes >= 17 {
+                                for lowered in [false, true] {
+                                    let mut limited = policy;
+                                    let source = &mut limited.program.expression.control.source;
+                                    if depth == leselang_vm::native::syntax::MAX_CALL_DEPTH {
+                                        if lowered {
+                                            source.max_lowered_depth = depth - 1;
+                                        } else {
+                                            source.max_source_depth = depth - 1;
+                                        }
+                                    } else if lowered {
+                                        source.max_lowered_nodes = nodes - 1;
+                                    } else {
+                                        source.max_source_nodes = nodes - 1;
+                                    }
+                                    cold_refusal::<P>(&case, limited, "unused physical boundary");
+                                }
+                                let oversized = if nodes == 1024 {
+                                    format!("parse_integer(value: {body})")
+                                } else {
+                                    format!("not(value: {body})")
+                                };
+                                let mut excess = pipeline::<P>(kind);
+                                excess
+                                    .source
+                                    .push_str(&format!("\nfn unused() = {oversized}"));
+                                if depth == leselang_vm::native::syntax::MAX_CALL_DEPTH {
+                                    assert!(
+                                        parse(&excess.source)
+                                            .diagnostics
+                                            .iter()
+                                            .any(|d| d.code == "LSE1110")
+                                    );
+                                }
+                                cold_refusal::<P>(
+                                    &excess,
+                                    group_program_limits(),
+                                    "unused source exceeds fixture/parser ceiling",
+                                );
+                            }
+                            count += 1;
+                        }
+                    }
+                    count
+                }
+                assert_eq!(check::<Counter>() + check::<Panel>(), 12);
+            }
+
+            #[test]
+            fn over_ceiling_configuration_refuses_even_small_valid_programs() {
+                fn check<P: Profile>() -> usize {
+                    use pure_typing::{
+                        MAX_TYPE_INFERENCE_BINDINGS, MAX_TYPE_INFERENCE_DEPTH,
+                        MAX_TYPE_INFERENCE_NODES,
+                    };
+                    let mut count = 0;
+                    for kind in ["seq", "all"] {
+                        let case = pipeline::<P>(kind);
+                        let expected = run::<P>(&case, 10_000);
+                        for (label, _, set) in compiler_boundaries() {
+                            let ceiling = match label {
+                                "source nodes" | "lowered nodes" | "compilation work"
+                                | "cold calls" | "groups" => MAX_TYPE_INFERENCE_NODES,
+                                "source depth" | "lowered depth" | "expansion depth" => {
+                                    MAX_TYPE_INFERENCE_DEPTH
+                                }
+                                "bindings" => MAX_TYPE_INFERENCE_BINDINGS,
+                                "functions" => leselang_vm::native::syntax::MAX_FUNCTIONS,
+                                "parameters" => {
+                                    leselang_vm::native::syntax::MAX_FUNCTION_PARAMETERS
+                                }
+                                "branches" => group_exports::MAX_GROUP_EXPORT_MEMBERS,
+                                "source arguments" => source_call::MAX_SOURCE_CALL_ARGUMENTS,
+                                _ => unreachable!(),
+                            };
+                            let mut policy = group_program_limits();
+                            set(&mut policy, ceiling);
+                            assert_eq!(
+                                run_with_policy::<P>(&case, 10_000, 2, policy, STACK),
+                                expected
+                            );
+                            for denied in [ceiling + 1, usize::MAX] {
+                                set(&mut policy, denied);
+                                cold_refusal::<P>(&case, policy, label);
+                                count += 1;
+                            }
+                        }
+                        for (label, _, set) in runtime_boundaries() {
+                            let ceiling = match label {
+                                "nodes" => MAX_TYPE_INFERENCE_NODES,
+                                "depth" => MAX_TYPE_INFERENCE_DEPTH,
+                                "bindings" => MAX_TYPE_INFERENCE_BINDINGS,
+                                "frames" => effect_stack::MAX_EFFECT_RETURN_FRAMES,
+                                "arguments" => call_typing::MAX_CALL_ARGUMENTS,
+                                "branches" => flow_typing::MAX_TYPED_GROUP_BRANCHES,
+                                _ => unreachable!(),
+                            };
+                            let mut policy = STACK;
+                            set(&mut policy, ceiling);
+                            assert_eq!(
+                                run_with_policy::<P>(
+                                    &case,
+                                    10_000,
+                                    2,
+                                    group_program_limits(),
+                                    policy
+                                ),
+                                expected
+                            );
+                            for denied in [ceiling + 1, usize::MAX] {
+                                set(&mut policy, denied);
+                                runtime_refusal::<P>(&case, policy, label);
+                                count += 1;
+                            }
+                        }
+                    }
+                    count
+                }
+                assert_eq!(check::<Counter>() + check::<Panel>(), 152);
+            }
+        }
+
+        mod branch_ceiling_acceptance {
+            use super::*;
+
+            const SHAPES: [&str; 4] = ["seq", "all", "repeat", "nested-seq"];
+            const LIMIT: usize = group_exports::MAX_GROUP_EXPORT_MEMBERS;
+
+            fn pipeline<P: Profile>(
+                shape: &str,
+                members: usize,
+                alternate: bool,
+                successor: bool,
+                fault: Option<usize>,
+            ) -> Case {
+                let counter = P::ARGUMENT == ScalarType::Integer;
+                let (ty, value, bad) = if counter {
+                    ("integer", "1", "div(left: 1, right: 0)")
+                } else {
+                    (
+                        "string",
+                        "\"x\"",
+                        "to_string(value: div(left: 1, right: 0))",
+                    )
+                };
+                let member = |index| {
+                    format!(
+                        "step(value: {})",
+                        if fault == Some(index) { bad } else { value }
+                    )
+                };
+                let rows = |range: std::ops::Range<usize>| {
+                    range
+                        .map(|i| format!("m{}: {}", i + 1, member(i)))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                };
+                let (group, selected) = match shape {
+                    "seq" | "all" => (
+                        format!("{shape}({})", rows(0..members)),
+                        format!("m{members}"),
+                    ),
+                    "repeat" => (
+                        format!("repeat(times: {members}, body: {})", member(0)),
+                        format!("iteration_{members}"),
+                    ),
+                    "nested-seq" => (
+                        format!(
+                            "seq(head: seq({}), tail: seq({}))",
+                            rows(0..members / 2),
+                            rows(members / 2..members)
+                        ),
+                        format!("tail__m{members}"),
+                    ),
+                    _ => unreachable!(),
+                };
+                let operation = |value| format!("{}({}: {value})", P::OPERATION, P::PARAMETER);
+                let (left, right) = if alternate {
+                    ("value", bad)
+                } else {
+                    (bad, "value")
+                };
+                let helper = format!(
+                    "fn step(value: {ty}) = choose(when: {alternate}, then: {}, otherwise: {})",
+                    operation(left),
+                    operation(right)
+                );
+                let projection = format!(
+                    "field(value: member(value: batch, name: \"{selected}\"), name: \"{}\")",
+                    if counter { "value" } else { "text" }
+                );
+                let expected = if counter {
+                    members.to_string()
+                } else {
+                    "\"x\"".into()
+                };
+                let next = if counter { "1" } else { "\"done\"" };
+                let tail = operation(&format!(
+                    "choose(when: eq(left: answer, right: {expected}), then: {next}, otherwise: {bad})"
+                ));
+                let body = if successor {
+                    format!("bind(ack: {tail}, body: answer)")
+                } else {
+                    "answer".into()
+                };
+                let source = format!(
+                    "{helper}\nfn main() = bind(batch: {group}, body: bind(answer: {projection}, body: {body}))"
+                );
+                let mut inputs = vec![
+                    if counter {
+                        ScalarValue::Integer(1)
+                    } else {
+                        ScalarValue::String("x".into())
+                    };
+                    members
+                ];
+                if successor {
+                    inputs.push(if counter {
+                        ScalarValue::Integer(1)
+                    } else {
+                        ScalarValue::String("done".into())
+                    });
+                }
+                Case {
+                    source,
+                    selected: 1,
+                    output: if counter {
+                        ScalarValue::Integer(members as u64)
+                    } else {
+                        ScalarValue::String("x".into())
+                    },
+                    inputs,
+                    tail,
+                }
+            }
+
+            fn unpublished_failure<P: Profile>(case: &Case, budget: u64, preparing: bool) -> u64 {
+                let mut remaining = None;
+                fixture::<P>(|host, scope| {
+                    let node = compile(&case.source, &host).unwrap();
+                    let plans = plans(&node, &host);
+                    let runtime = Runtime {
+                        host: &host,
+                        plans: &plans,
+                    };
+                    let mut vm = LocalVm::new(scope, &node, Vec::new(), Fuel::new(budget), STACK);
+                    assert!(vm.poll(&runtime).is_err());
+                    let fuel = vm.fuel_remaining();
+                    assert!(fuel < budget);
+                    let serial = host.serial.get();
+                    assert_eq!(
+                        vm.status(),
+                        EffectSessionStatus::Terminal(EffectSessionEnd::Failed)
+                    );
+                    assert!(!vm.lease().is_open());
+                    assert!(matches!(
+                        vm.poll(&runtime).unwrap(),
+                        EffectSessionPoll::Terminal(EffectSessionEnd::Failed)
+                    ));
+                    assert_eq!(vm.fuel_remaining(), fuel);
+                    assert_eq!(host.serial.get(), serial);
+                    assert!(host.invoked.borrow().is_empty());
+                    if preparing {
+                        assert_eq!(host.serial.get(), 0);
+                        assert!(plans.iter().all(
+                            |p| p.identity.borrow().is_none() && p.members.borrow().is_empty()
+                        ));
+                    }
+                    remaining = Some(fuel);
+                });
+                remaining.unwrap()
+            }
+
+            #[test]
+            fn full_groups_and_captured_successors_reach_the_public_branch_ceiling() {
+                fn check<P: Profile>() -> usize {
+                    let mut count = 0;
+                    for shape in SHAPES {
+                        for alternate in [false, true] {
+                            for successor in [false, true] {
+                                let case = pipeline::<P>(
+                                    shape,
+                                    LIMIT - usize::from(successor),
+                                    alternate,
+                                    successor,
+                                    None,
+                                );
+                                assert_eq!(case.inputs.len(), LIMIT);
+                                let outcome = run_with_requests::<P>(
+                                    &case,
+                                    100_000,
+                                    1 + usize::from(successor),
+                                );
+                                assert!(outcome.complete, "{shape}/{alternate}/{successor}");
+                                assert_eq!(outcome.invoked, LIMIT);
+                                count += 1;
+                            }
+                        }
+                    }
+                    count
+                }
+                assert_eq!(LIMIT, 64);
+                assert_eq!(check::<Counter>() + check::<Panel>(), 32);
+            }
+
+            #[test]
+            fn full_group_completion_keeps_the_exact_fuel_threshold() {
+                fn check<P: Profile>() {
+                    for shape in SHAPES {
+                        for alternate in [false, true] {
+                            for successor in [false, true] {
+                                let case = pipeline::<P>(
+                                    shape,
+                                    LIMIT - usize::from(successor),
+                                    alternate,
+                                    successor,
+                                    None,
+                                );
+                                let requests = 1 + usize::from(successor);
+                                let mut first_request_cost = None;
+                                fixture::<P>(|host, scope| {
+                                    let node = compile(&case.source, &host).unwrap();
+                                    let plans = plans(&node, &host);
+                                    let runtime = Runtime {
+                                        host: &host,
+                                        plans: &plans,
+                                    };
+                                    let mut vm = LocalVm::new(
+                                        scope,
+                                        &node,
+                                        Vec::new(),
+                                        Fuel::new(100_000),
+                                        STACK,
+                                    );
+                                    assert!(matches!(
+                                        vm.poll(&runtime).unwrap(),
+                                        EffectSessionPoll::Request(_)
+                                    ));
+                                    assert!(host.invoked.borrow().is_empty());
+                                    first_request_cost = Some(100_000 - vm.fuel_remaining());
+                                });
+                                // Correlation can consume identities after preparation; no request
+                                // escapes and the closed scope does not roll those identities back.
+                                unpublished_failure::<P>(
+                                    &case,
+                                    first_request_cost.unwrap() - 1,
+                                    false,
+                                );
+                                let ample = run_with_requests::<P>(&case, 100_000, requests);
+                                assert!(ample.complete);
+                                let used = 100_000 - ample.remaining;
+                                assert!(
+                                    !run_with_requests::<P>(&case, used - 1, requests).complete
+                                );
+                                for extra in 0..=1 {
+                                    assert_eq!(
+                                        run_with_requests::<P>(&case, used + extra, requests),
+                                        Outcome {
+                                            complete: true,
+                                            remaining: extra,
+                                            invoked: LIMIT
+                                        }
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                check::<Counter>();
+                check::<Panel>();
+            }
+
+            #[test]
+            fn oversized_groups_and_stricter_host_limits_refuse_before_dispatch() {
+                fn check<P: Profile>() -> usize {
+                    let mut count = 0;
+                    for shape in SHAPES {
+                        for alternate in [false, true] {
+                            let full = pipeline::<P>(shape, LIMIT, alternate, false, None);
+                            let oversized = pipeline::<P>(shape, LIMIT + 1, alternate, false, None);
+                            let hidden = |source: &str| {
+                                source.replace("fn main() = ", "fn hidden() = ")
+                                    + &format!(
+                                        "\nfn main() = choose(when: true, then: {}, otherwise: hidden())",
+                                        if P::ARGUMENT == ScalarType::Integer {
+                                            "0"
+                                        } else {
+                                            "\"unused\""
+                                        }
+                                    )
+                            };
+                            fixture::<P>(|host, _| {
+                                compile_with_limits(&hidden(&full.source), &host, LIMIT, 2 * LIMIT)
+                                    .unwrap();
+                                assert_eq!(host.serial.get(), 0);
+                                assert!(host.invoked.borrow().is_empty());
+                            });
+                            let hidden = hidden(&oversized.source);
+                            for (source, branches, calls) in [
+                                (&oversized.source, LIMIT, 2 * (LIMIT + 1)),
+                                (&hidden, LIMIT, 2 * (LIMIT + 1)),
+                                (&full.source, LIMIT - 1, 2 * LIMIT),
+                                (&full.source, LIMIT, 2 * LIMIT - 1),
+                            ] {
+                                fixture::<P>(|host, _| {
+                                    assert!(
+                                        compile_with_limits(source, &host, branches, calls)
+                                            .is_err(),
+                                        "{shape}/{branches}/{calls}"
+                                    );
+                                    assert!(host.invoked.borrow().is_empty());
+                                    assert_eq!(host.serial.get(), 0);
+                                });
+                                count += 1;
+                            }
+                        }
+                    }
+                    count
+                }
+                assert_eq!(check::<Counter>() + check::<Panel>(), 64);
+            }
+
+            #[test]
+            fn preparation_failure_at_the_full_group_boundary_never_publishes_partial_work() {
+                fn check<P: Profile>() -> usize {
+                    let mut count = 0;
+                    for shape in SHAPES {
+                        let sites = if shape == "repeat" {
+                            vec![0]
+                        } else {
+                            vec![0, LIMIT / 2 - 1, LIMIT - 1]
+                        };
+                        for alternate in [false, true] {
+                            for site in &sites {
+                                let case =
+                                    pipeline::<P>(shape, LIMIT, alternate, false, Some(*site));
+                                assert!(unpublished_failure::<P>(&case, 100_000, true) > 0);
+                                count += 1;
+                            }
+                        }
+                    }
+                    count
+                }
+                assert_eq!(check::<Counter>() + check::<Panel>(), 40);
+            }
+        }
+
+        mod prepared_acceptance {
+            use super::*;
+
+            const SHAPES: [&str; 4] = ["seq", "all", "repeat", "nested-seq"];
+            #[derive(Clone, Copy, Debug)]
+            enum Fault {
+                Arithmetic,
+                Parse,
+                IterationLimit,
+                HelperBody,
+                OperandOverflow,
+            }
+            const FAULTS: [Fault; 5] = [
+                Fault::Arithmetic,
+                Fault::Parse,
+                Fault::IterationLimit,
+                Fault::HelperBody,
+                Fault::OperandOverflow,
+            ];
+            struct Program {
+                case: Case,
+                signature: String,
+                helper: String,
+            }
+
+            fn sites(shape: &str) -> usize {
+                match shape {
+                    "seq" | "all" => 2,
+                    "repeat" => 1,
+                    "nested-seq" => 3,
+                    _ => panic!("unknown prepared group shape"),
+                }
+            }
+
+            fn pipeline<P: Profile>(
+                shape: &str,
+                alternate: bool,
+                reversed: bool,
+                ty: ScalarType,
+                fault: Option<(usize, Fault)>,
+            ) -> Program {
+                let counter = P::ARGUMENT == ScalarType::Integer;
+                let mode = if shape == "all" { "all" } else { "seq" };
+                let mut case = case::<P>(mode, 1, ty);
+                let original = if counter {
+                    format!("{mode}(left: counter.add(amount: 3), right: counter.add(amount: 4))")
+                } else {
+                    format!(
+                        "{mode}(left: panel.set_text(text: \"3\"), right: panel.set_text(text: \"7\"))"
+                    )
+                };
+                let literal = |site: usize| {
+                    if counter {
+                        match shape {
+                            "seq" | "all" => (site + 3).to_string(),
+                            _ => "1".into(),
+                        }
+                    } else if shape != "repeat" && site == 0 {
+                        "\"3\"".into()
+                    } else {
+                        "\"7\"".into()
+                    }
+                };
+                let member = |site: usize| {
+                    let mut value = literal(site);
+                    let mut check = "0";
+                    if let Some((_, fault)) = fault.filter(|(target, _)| *target == site) {
+                        match fault {
+                            Fault::Arithmetic => check = "div(left: 1, right: 0)",
+                            Fault::Parse => check = "parse_integer(value: \"invalid\")",
+                            Fault::IterationLimit => {
+                                check = "loop(state: 0, while: true, next: state, limit: 0)"
+                            }
+                            Fault::HelperBody => check = "1",
+                            Fault::OperandOverflow => {
+                                value = if counter {
+                                    format!("add(left: {}, right: 1)", u64::MAX)
+                                } else {
+                                    format!(
+                                        "concat(left: \"{}\", right: \"x\")",
+                                        "x".repeat(MAX_SCALAR_STRING_BYTES)
+                                    )
+                                };
+                            }
+                        }
+                    }
+                    let mut arguments = [
+                        format!("value: {value}"),
+                        format!("alternate: {alternate}"),
+                        format!("check: {check}"),
+                    ];
+                    if reversed {
+                        arguments.reverse();
+                    }
+                    format!("prepared({})", arguments.join(", "))
+                };
+                let (group, selected, expanded) = match shape {
+                    "seq" | "all" => (
+                        format!("{shape}(left: {}, right: {})", member(0), member(1)),
+                        "right",
+                        vec![0, 1],
+                    ),
+                    "repeat" => (
+                        format!("repeat(times: 7, body: {})", member(0)),
+                        "iteration_7",
+                        vec![0; 7],
+                    ),
+                    "nested-seq" => (
+                        format!(
+                            "seq(head: {}, tail: repeat(times: 3, body: seq(left: {}, right: {})))",
+                            member(0),
+                            member(1),
+                            member(2)
+                        ),
+                        "tail__iteration_3__right",
+                        vec![0, 1, 2, 1, 2, 1, 2],
+                    ),
+                    _ => panic!("unknown prepared group shape"),
+                };
+                assert_eq!(case.source.matches(&original).count(), 1);
+                case.source = case.source.replace(&original, &group).replace(
+                    "member(value: batch, name: \"right\")",
+                    &format!("member(value: batch, name: \"{selected}\")"),
+                );
+                let tail = case.inputs.pop().unwrap();
+                case.inputs = expanded
+                    .into_iter()
+                    .map(|site| {
+                        if counter {
+                            ScalarValue::Integer(literal(site).parse().unwrap())
+                        } else {
+                            ScalarValue::String(literal(site).trim_matches('"').into())
+                        }
+                    })
+                    .collect();
+                case.inputs.push(tail);
+                let type_name = if counter { "integer" } else { "string" };
+                let signature =
+                    format!("fn prepared(value: {type_name}, alternate: boolean, check: integer)");
+                let bad = if counter {
+                    "div(left: 1, right: 0)"
+                } else {
+                    "to_string(value: div(left: 1, right: 0))"
+                };
+                let operation =
+                    |value: &str| format!("{}({}: {value})", P::OPERATION, P::PARAMETER);
+                let (left, right) = if alternate {
+                    ("caller", bad)
+                } else {
+                    (bad, "caller")
+                };
+                let helper = format!(
+                    "{signature} = bind(caller: value, body: bind(checked: choose(when: eq(left: check, right: 0), then: 0, otherwise: div(left: 1, right: 0)), body: choose(when: alternate, then: {}, otherwise: {})))",
+                    operation(left),
+                    operation(right)
+                );
+                case.source.push_str(&format!("\n{helper}\n"));
+                Program {
+                    case,
+                    signature,
+                    helper,
+                }
+            }
+
+            #[test]
+            fn prepared_helpers_cross_flattened_groups_and_six_typed_successor_returns() {
+                fn check<P: Profile>() -> usize {
+                    let mut count = 0;
+                    for shape in SHAPES {
+                        for alternate in [false, true] {
+                            for ty in TYPES {
+                                let baseline = run::<P>(
+                                    &pipeline::<P>(shape, alternate, false, ty, None).case,
+                                    100_000,
+                                );
+                                assert!(baseline.complete, "{shape}/{ty:?}");
+                                for reversed in [false, true] {
+                                    let program =
+                                        pipeline::<P>(shape, alternate, reversed, ty, None);
+                                    assert_eq!(run::<P>(&program.case, 100_000), baseline);
+                                    count += 1;
+                                }
+                            }
+                        }
+                    }
+                    count
+                }
+                assert_eq!(check::<Counter>() + check::<Panel>(), 192);
+            }
+
+            #[test]
+            fn prepared_group_calls_keep_the_exact_completion_threshold() {
+                fn check<P: Profile>() {
+                    for shape in SHAPES {
+                        for alternate in [false, true] {
+                            for reversed in [false, true] {
+                                for ty in TYPES {
+                                    let case =
+                                        pipeline::<P>(shape, alternate, reversed, ty, None).case;
+                                    let ample = run::<P>(&case, 100_000);
+                                    assert!(ample.complete);
+                                    let used = 100_000 - ample.remaining;
+                                    assert!(!run::<P>(&case, used - 1).complete);
+                                    for extra in 0..=1 {
+                                        assert_eq!(
+                                            run::<P>(&case, used + extra),
+                                            Outcome {
+                                                complete: true,
+                                                remaining: extra,
+                                                invoked: case.inputs.len(),
+                                            }
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                check::<Counter>();
+                check::<Panel>();
+            }
+
+            #[test]
+            fn failed_member_preparation_publishes_no_group_identity_or_partial_work() {
+                fn check<P: Profile>() -> usize {
+                    let mut count = 0;
+                    for shape in SHAPES {
+                        for site in 0..sites(shape) {
+                            for alternate in [false, true] {
+                                for reversed in [false, true] {
+                                    for fault in FAULTS {
+                                        let program = pipeline::<P>(
+                                            shape,
+                                            alternate,
+                                            reversed,
+                                            ScalarType::String,
+                                            Some((site, fault)),
+                                        );
+                                        fixture::<P>(|host, scope| {
+                                            let node =
+                                                compile(&program.case.source, &host).unwrap();
+                                            let plans = plans(&node, &host);
+                                            let runtime = Runtime {
+                                                host: &host,
+                                                plans: &plans,
+                                            };
+                                            let mut vm = LocalVm::new(
+                                                scope,
+                                                &node,
+                                                Vec::new(),
+                                                Fuel::new(100_000),
+                                                STACK,
+                                            );
+                                            assert!(
+                                                vm.poll(&runtime).is_err(),
+                                                "{shape}/{site}/{fault:?}"
+                                            );
+                                            let remaining = vm.fuel_remaining();
+                                            assert!(remaining > 0 && remaining < 100_000);
+                                            assert_eq!(
+                                                vm.status(),
+                                                EffectSessionStatus::Terminal(
+                                                    EffectSessionEnd::Failed
+                                                )
+                                            );
+                                            assert!(!vm.lease().is_open());
+                                            assert!(matches!(
+                                                vm.poll(&runtime).unwrap(),
+                                                EffectSessionPoll::Terminal(
+                                                    EffectSessionEnd::Failed
+                                                )
+                                            ));
+                                            assert_eq!(vm.fuel_remaining(), remaining);
+                                            assert_eq!(host.serial.get(), 0);
+                                            assert!(host.invoked.borrow().is_empty());
+                                            assert!(
+                                                plans.iter().all(|p| p.identity.borrow().is_none()
+                                                    && p.members.borrow().is_empty())
+                                            );
+                                        });
+                                        count += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    count
+                }
+                assert_eq!(check::<Counter>() + check::<Panel>(), 320);
+            }
+
+            #[test]
+            fn cold_prepared_members_must_return_exactly_one_call_on_every_path() {
+                fn check<P: Profile>() -> usize {
+                    let mut count = 0;
+                    for shape in SHAPES {
+                        let program = pipeline::<P>(shape, true, false, ScalarType::String, None);
+                        let call = format!("{}({}: value)", P::OPERATION, P::PARAMETER);
+                        for body in [
+                            "value".to_owned(),
+                            format!("seq(only: {call})"),
+                            format!("bind(first: {call}, body: {call})"),
+                            format!("{}({}: caller)", P::OPERATION, P::PARAMETER),
+                            format!("choose(when: alternate, then: {call}, otherwise: value)"),
+                        ] {
+                            let source = program.case.source.replace(
+                                &program.helper,
+                                &format!("{} = {body}", program.signature),
+                            );
+                            assert_ne!(source, program.case.source);
+                            fixture::<P>(|host, _| {
+                                assert!(compile(&source, &host).is_err(), "{shape}/{body}");
+                                assert!(host.invoked.borrow().is_empty());
+                                assert_eq!(host.serial.get(), 0);
+                            });
+                            count += 1;
+                        }
+                    }
+                    count
+                }
+                assert_eq!(check::<Counter>() + check::<Panel>(), 40);
+            }
+        }
+
+        mod declaration_acceptance {
+            use super::*;
+
+            const PARAMETERS: &str = "number: integer, flag: boolean, text: string, absent: none, option: optional_string, entries: string_list, unused: integer, caller: string";
+            const ARGUMENTS: [&str; 8] = [
+                "number: parse_integer(value: text)",
+                "flag: eq(left: text, right: \"7\")",
+                "text: text",
+                "absent: none",
+                "option: optional_string(value: text)",
+                "entries: strings(first: text, second: \"tail\")",
+                "unused: 1",
+                "caller: \"inner\"",
+            ];
+
+            fn extend(
+                mut case: Case,
+                helper: &str,
+                before: bool,
+                body: impl FnOnce(&str) -> String,
+            ) -> Case {
+                let original = case
+                    .source
+                    .lines()
+                    .find(|line| line.starts_with("fn convert(text: string) = "))
+                    .unwrap()
+                    .to_owned();
+                let value = original
+                    .strip_prefix("fn convert(text: string) = ")
+                    .unwrap();
+                assert_eq!(case.source.matches(&original).count(), 1);
+                case.source = case.source.replace(
+                    &original,
+                    &format!("fn convert(text: string) = {}", body(value)),
+                );
+                case.source = if before {
+                    format!("{helper}\n{}", case.source)
+                } else {
+                    format!("{}\n{helper}\n", case.source)
+                };
+                case
+            }
+
+            fn mixed_case<P: Profile>(
+                kind: &str,
+                selected: usize,
+                ty: ScalarType,
+                order: usize,
+                before: bool,
+            ) -> Case {
+                let value = match ty {
+                    ScalarType::Integer => "number",
+                    ScalarType::Boolean => "flag",
+                    ScalarType::String => "concat(left: text, right: \"!\")",
+                    ScalarType::None => "absent",
+                    ScalarType::OptionalString => "option",
+                    ScalarType::StringList => "entries",
+                };
+                let helper = format!(
+                    "fn combine({PARAMETERS}) = choose(when: eq(left: caller, right: \"inner\"), then: {value}, otherwise: bind(fault: div(left: 1, right: 0), body: {value}))"
+                );
+                let mut arguments = ARGUMENTS;
+                match order {
+                    0 => (),
+                    1 => arguments.reverse(),
+                    2 => arguments.rotate_left(3),
+                    _ => panic!("unknown named argument order"),
+                }
+                extend(case::<P>(kind, selected, ty), &helper, before, |_| {
+                    format!("combine({})", arguments.join(", "))
+                })
+            }
+
+            #[test]
+            fn eight_mixed_parameters_preserve_values_hygiene_and_named_order_fuel() {
+                fn check<P: Profile>() -> usize {
+                    let mut count = 0;
+                    for kind in ["seq", "all"] {
+                        for selected in 0..3 {
+                            for ty in TYPES {
+                                let baseline = run::<P>(
+                                    &mixed_case::<P>(kind, selected, ty, 0, false),
+                                    10_000,
+                                );
+                                assert!(baseline.complete);
+                                for order in 0..3 {
+                                    for before in [false, true] {
+                                        let case =
+                                            mixed_case::<P>(kind, selected, ty, order, before);
+                                        assert_eq!(
+                                            run::<P>(&case, 10_000),
+                                            baseline,
+                                            "{kind}/{selected}/{ty:?}/{order}/{before}"
+                                        );
+                                        count += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    count
+                }
+                assert_eq!(check::<Counter>() + check::<Panel>(), 432);
+            }
+
+            #[test]
+            fn mixed_parameter_calls_keep_the_exact_completion_threshold() {
+                fn check<P: Profile>() {
+                    for kind in ["seq", "all"] {
+                        for selected in 0..3 {
+                            for ty in TYPES {
+                                for order in 0..3 {
+                                    for before in [false, true] {
+                                        let case =
+                                            mixed_case::<P>(kind, selected, ty, order, before);
+                                        let ample = run::<P>(&case, 10_000);
+                                        assert!(ample.complete);
+                                        let used = 10_000 - ample.remaining;
+                                        assert!(!run::<P>(&case, used - 1).complete);
+                                        for extra in 0..=1 {
+                                            assert_eq!(
+                                                run::<P>(&case, used + extra),
+                                                Outcome {
+                                                    complete: true,
+                                                    remaining: extra,
+                                                    invoked: case.inputs.len(),
+                                                }
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                check::<Counter>();
+                check::<Panel>();
+            }
+
+            #[test]
+            fn unused_arguments_follow_declaration_order_not_written_order_or_body_usage() {
+                fn ordered_case<P: Profile>(
+                    kind: &str,
+                    selected: usize,
+                    ty: ScalarType,
+                    recoverable_first: bool,
+                    reverse: bool,
+                    unselected: bool,
+                ) -> Case {
+                    let (type_name, _) = super::control_acceptance::scalar_source(ty);
+                    let parameters = if recoverable_first {
+                        "arithmetic: integer, limited: integer"
+                    } else {
+                        "limited: integer, arithmetic: integer"
+                    };
+                    let helper = format!("fn ordered({parameters}, value: {type_name}) = value");
+                    extend(case::<P>(kind, selected, ty), &helper, false, |value| {
+                        let mut arguments = [
+                            "arithmetic: div(left: 1, right: 0)".to_owned(),
+                            "limited: loop(state: 0, while: true, next: state, limit: 0)"
+                                .to_owned(),
+                            format!("value: {value}"),
+                        ];
+                        if reverse {
+                            arguments.reverse();
+                        }
+                        let call = format!("ordered({})", arguments.join(", "));
+                        if unselected {
+                            format!("choose(when: false, then: {call}, otherwise: {value})")
+                        } else {
+                            format!("recover(value: {call}, fallback: {value})")
+                        }
+                    })
+                }
+                fn check<P: Profile>() -> usize {
+                    let mut count = 0;
+                    for kind in ["seq", "all"] {
+                        for selected in 0..3 {
+                            for ty in TYPES {
+                                for recoverable_first in [false, true] {
+                                    for reverse in [false, true] {
+                                        for unselected in [false, true] {
+                                            let case = ordered_case::<P>(
+                                                kind,
+                                                selected,
+                                                ty,
+                                                recoverable_first,
+                                                reverse,
+                                                unselected,
+                                            );
+                                            let outcome = run::<P>(&case, 10_000);
+                                            // Arithmetic can recover; an iteration limit cannot.
+                                            let complete = unselected || recoverable_first;
+                                            assert_eq!(
+                                                outcome.complete, complete,
+                                                "{ty:?}/{recoverable_first}/{reverse}/{unselected}"
+                                            );
+                                            assert_eq!(
+                                                outcome.invoked,
+                                                case.inputs.len() - usize::from(!complete)
+                                            );
+                                            assert!(
+                                                outcome.remaining > 0 && outcome.remaining < 10_000
+                                            );
+                                            count += 1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    count
+                }
+                assert_eq!(check::<Counter>() + check::<Panel>(), 576);
+            }
+
+            #[test]
+            fn full_declaration_ceiling_and_cold_helpers_are_checked_before_host_work() {
+                assert_eq!(PROGRAM.max_functions, 32);
+                assert_eq!(PROGRAM.max_parameters, ARGUMENTS.len());
+                fn check<P: Profile>() -> (usize, usize) {
+                    let mut admitted = 0;
+                    let mut refused = 0;
+                    for kind in ["seq", "all"] {
+                        for selected in 0..3 {
+                            for ty in TYPES {
+                                let mut case = mixed_case::<P>(kind, selected, ty, 0, false);
+                                let original = case.source.clone();
+                                let tree = parse(&case.source);
+                                let count =
+                                    usize::from(tree.function.is_some()) + tree.helpers.len();
+                                for index in count..PROGRAM.max_functions {
+                                    case.source.push_str(&format!(
+                                        "\nfn padding_{index}() = div(left: 1, right: 0)\n"
+                                    ));
+                                }
+                                assert!(run::<P>(&case, 10_000).complete);
+                                admitted += 1;
+                                let ninth_parameter = original
+                                    .replace(PARAMETERS, &format!("{PARAMETERS}, extra: integer"))
+                                    .replace(ARGUMENTS[7], &format!("{}, extra: 0", ARGUMENTS[7]));
+                                let invalid = [
+                                    format!("{}\nfn overflow() = 0\n", case.source),
+                                    ninth_parameter,
+                                    original.replace(&format!(", {}", ARGUMENTS[6]), ""),
+                                    original.replace(ARGUMENTS[1], "number: 7"),
+                                    original.replace(ARGUMENTS[6], "unknown: 1"),
+                                    original.replace(ARGUMENTS[0], "number: true"),
+                                    original.replace("unused: integer", "number: integer"),
+                                    format!("{original}\nfn unbound() = caller\n"),
+                                    format!("{original}\nfn recurse() = recurse()\n"),
+                                    format!(
+                                        "{original}\nfn recurse() = another()\nfn another() = recurse()\n"
+                                    ),
+                                    format!(
+                                        "{original}\nfn recurse() = choose(when: false, then: recurse(), otherwise: 0)\n"
+                                    ),
+                                    format!("{original}\nfn back() = main()\n"),
+                                    format!("{original}\nfn add() = 0\n"),
+                                ];
+                                for source in invalid {
+                                    assert_ne!(source, original);
+                                    fixture::<P>(|host, _| {
+                                        assert!(compile(&source, &host).is_err(), "{source}");
+                                        assert!(host.invoked.borrow().is_empty());
+                                        assert_eq!(host.serial.get(), 0);
+                                    });
+                                    refused += 1;
+                                }
+                            }
+                        }
+                    }
+                    (admitted, refused)
+                }
+                let counter = check::<Counter>();
+                let panel = check::<Panel>();
+                assert_eq!((counter.0 + panel.0, counter.1 + panel.1), (72, 936));
+            }
+        }
+
+        mod control_acceptance {
+            use super::*;
+
+            const FORMS: [&str; 8] = [
+                "helper",
+                "loop",
+                "zero-loop",
+                "fold",
+                "empty-fold",
+                "nested",
+                "recover-loop",
+                "recover-fold",
+            ];
+
+            pub(super) fn scalar_source(ty: ScalarType) -> (&'static str, &'static str) {
+                match ty {
+                    ScalarType::Integer => ("integer", "0"),
+                    ScalarType::Boolean => ("boolean", "false"),
+                    ScalarType::String => ("string", "\"\""),
+                    ScalarType::None => ("none", "none"),
+                    ScalarType::OptionalString => {
+                        ("optional_string", "optional_string(value: none)")
+                    }
+                    ScalarType::StringList => ("string_list", "strings()"),
+                }
+            }
+
+            fn expression(ty: ScalarType, value: &str, form: &str) -> String {
+                let (_, initial) = scalar_source(ty);
+                let fault = "bind(fault: div(left: 1, right: 0), body: state)";
+                let items = "strings(last: \"left\", first: \"right\")";
+                let step = format!(
+                    "choose(when: eq(left: piece, right: \"right\"), then: {value}, otherwise: {initial})"
+                );
+                match form {
+                    "helper" => format!("typed(value: {value})"),
+                    "loop" => format!(
+                        "loop(state: {initial}, while: ne(left: state, right: {value}), next: typed(value: {value}), limit: 1)"
+                    ),
+                    "zero-loop" => {
+                        format!("loop(state: {value}, while: false, next: {fault}, limit: 0)")
+                    }
+                    "fold" => format!(
+                        "fold(state: {initial}, items: {items}, item: \"piece\", next: typed(value: {step}), limit: 2)"
+                    ),
+                    "empty-fold" => format!(
+                        "fold(state: {value}, items: strings(), item: \"piece\", next: {fault}, limit: 0)"
+                    ),
+                    "nested" => format!(
+                        "fold(state: {initial}, items: {items}, item: \"piece\", next: loop(cursor: state, while: ne(left: cursor, right: {step}), next: typed(value: {step}), limit: 1), limit: 2)"
+                    ),
+                    "recover-loop" => format!(
+                        "recover(value: loop(state: {initial}, while: true, next: {fault}, limit: 1), fallback: typed(value: {value}))"
+                    ),
+                    "recover-fold" => format!(
+                        "recover(value: fold(state: {initial}, items: {items}, item: \"piece\", next: {fault}, limit: 2), fallback: typed(value: {value}))"
+                    ),
+                    _ => panic!("unknown control acceptance form"),
+                }
+            }
+
+            fn pipeline<P: Profile>(
+                kind: &str,
+                selected: usize,
+                ty: ScalarType,
+                make: impl FnOnce(&str) -> String,
+            ) -> Case {
+                let mut case = case::<P>(kind, selected, ty);
+                let original = case
+                    .source
+                    .lines()
+                    .find(|line| line.starts_with("fn convert(text: string) = "))
+                    .unwrap()
+                    .to_owned();
+                let value = original
+                    .strip_prefix("fn convert(text: string) = ")
+                    .unwrap();
+                assert_eq!(case.source.matches(&original).count(), 1);
+                case.source = case.source.replace(
+                    &original,
+                    &format!("fn convert(text: string) = {}", make(value)),
+                );
+                let (name, _) = scalar_source(ty);
+                // The helper's local deliberately collides with the caller's captured local.
+                case.source.push_str(&format!(
+                    "\nfn typed(value: {name}) = bind(caller: value, body: caller)\n"
+                ));
+                case
+            }
+
+            #[test]
+            fn all_six_state_types_cross_helpers_iterations_and_successor_capture() {
+                fn check<P: Profile>() -> usize {
+                    let mut count = 0;
+                    for kind in ["seq", "all"] {
+                        for selected in 0..3 {
+                            for ty in TYPES {
+                                for form in FORMS {
+                                    let case = pipeline::<P>(kind, selected, ty, |value| {
+                                        expression(ty, value, form)
+                                    });
+                                    assert!(
+                                        run::<P>(&case, 10_000).complete,
+                                        "{kind}/{selected}/{ty:?}/{form}"
+                                    );
+                                    count += 1;
+                                }
+                            }
+                        }
+                    }
+                    count
+                }
+                assert_eq!(check::<Counter>() + check::<Panel>(), 576);
+            }
+
+            #[test]
+            fn control_state_paths_keep_the_exact_shared_fuel_threshold() {
+                fn check<P: Profile>() {
+                    for kind in ["seq", "all"] {
+                        for selected in 0..3 {
+                            for ty in TYPES {
+                                for form in FORMS {
+                                    let case = pipeline::<P>(kind, selected, ty, |value| {
+                                        expression(ty, value, form)
+                                    });
+                                    let ample = run::<P>(&case, 10_000);
+                                    assert!(ample.complete, "{ty:?}/{form}");
+                                    let used = 10_000 - ample.remaining;
+                                    assert!(!run::<P>(&case, used - 1).complete, "{ty:?}/{form}");
+                                    for extra in 0..=1 {
+                                        assert_eq!(
+                                            run::<P>(&case, used + extra),
+                                            Outcome {
+                                                complete: true,
+                                                remaining: extra,
+                                                invoked: case.inputs.len(),
+                                            },
+                                            "{kind}/{selected}/{ty:?}/{form}"
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                check::<Counter>();
+                check::<Panel>();
+            }
+
+            #[test]
+            fn typed_loop_and_fold_limits_cannot_recover_into_a_successor() {
+                fn check<P: Profile>() -> usize {
+                    let mut count = 0;
+                    for kind in ["seq", "all"] {
+                        for selected in 0..3 {
+                            for ty in TYPES {
+                                let (_, initial) = scalar_source(ty);
+                                for exhausted in [
+                                    format!(
+                                        "loop(state: {initial}, while: true, next: typed(value: state), limit: 1)"
+                                    ),
+                                    format!(
+                                        "fold(state: {initial}, items: strings(a: \"a\", b: \"b\"), item: \"piece\", next: typed(value: state), limit: 1)"
+                                    ),
+                                ] {
+                                    for recover in [false, true] {
+                                        let case = pipeline::<P>(kind, selected, ty, |value| {
+                                            if recover {
+                                                format!(
+                                                    "recover(value: {exhausted}, fallback: {value})"
+                                                )
+                                            } else {
+                                                exhausted.clone()
+                                            }
+                                        });
+                                        let outcome = run::<P>(&case, 10_000);
+                                        assert!(!outcome.complete, "{ty:?}/{exhausted}/{recover}");
+                                        assert!(
+                                            outcome.remaining > 0 && outcome.remaining < 10_000
+                                        );
+                                        assert_eq!(outcome.invoked, case.inputs.len() - 1);
+                                        count += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    count
+                }
+                assert_eq!(check::<Counter>() + check::<Panel>(), 288);
+            }
+
+            #[test]
+            fn cold_control_types_purity_and_lexical_scope_fail_before_host_work() {
+                fn check<P: Profile>() -> usize {
+                    let mut count = 0;
+                    for kind in ["seq", "all"] {
+                        for selected in 0..3 {
+                            for ty in TYPES {
+                                let (_, initial) = scalar_source(ty);
+                                let wrong = if ty == ScalarType::Boolean {
+                                    "0"
+                                } else {
+                                    "true"
+                                };
+                                let effect = if P::ARGUMENT == ScalarType::Integer {
+                                    "counter.add(amount: 1)"
+                                } else {
+                                    "panel.set_text(text: \"forbidden\")"
+                                };
+                                for invalid in [
+                                    format!(
+                                        "loop(state: {initial}, while: 0, next: state, limit: 0)"
+                                    ),
+                                    format!(
+                                        "loop(state: {initial}, while: false, next: {wrong}, limit: 0)"
+                                    ),
+                                    format!(
+                                        "fold(state: {initial}, items: strings(), item: \"piece\", next: {wrong}, limit: 0)"
+                                    ),
+                                    format!(
+                                        "fold(state: {initial}, items: false, item: \"piece\", next: state, limit: 0)"
+                                    ),
+                                    format!(
+                                        "loop(state: {initial}, while: false, next: bind(blocked: {effect}, body: state), limit: 0)"
+                                    ),
+                                    format!(
+                                        "fold(state: {initial}, items: strings(), item: \"piece\", next: bind(blocked: {effect}, body: state), limit: 0)"
+                                    ),
+                                    format!(
+                                        "bind(done: loop(state: {initial}, while: false, next: state, limit: 0), body: state)"
+                                    ),
+                                    format!(
+                                        "bind(done: fold(state: {initial}, items: strings(), item: \"piece\", next: state, limit: 0), body: piece)"
+                                    ),
+                                    format!("typed(value: {wrong})"),
+                                ] {
+                                    let case =
+                                        pipeline::<P>(kind, selected, ty, |_| invalid.clone());
+                                    fixture::<P>(|host, _| {
+                                        assert!(compile(&case.source, &host).is_err(), "{invalid}");
+                                        assert!(host.invoked.borrow().is_empty());
+                                        assert_eq!(host.serial.get(), 0);
+                                    });
+                                    count += 1;
+                                }
+                            }
+                        }
+                    }
+                    count
+                }
+                assert_eq!(check::<Counter>() + check::<Panel>(), 648);
+            }
+        }
+
+        mod scalar_acceptance {
+            use super::*;
+
+            const BINARY: [BinaryOperator; 23] = [
+                BinaryOperator::Add,
+                BinaryOperator::Sub,
+                BinaryOperator::Mul,
+                BinaryOperator::Div,
+                BinaryOperator::Rem,
+                BinaryOperator::Eq,
+                BinaryOperator::Ne,
+                BinaryOperator::Lt,
+                BinaryOperator::Le,
+                BinaryOperator::Gt,
+                BinaryOperator::Ge,
+                BinaryOperator::And,
+                BinaryOperator::Or,
+                BinaryOperator::Concat,
+                BinaryOperator::ValueOr,
+                BinaryOperator::Contains,
+                BinaryOperator::StartsWith,
+                BinaryOperator::EndsWith,
+                BinaryOperator::CharAt,
+                BinaryOperator::Split,
+                BinaryOperator::Join,
+                BinaryOperator::Append,
+                BinaryOperator::ItemAt,
+            ];
+            const UNARY: [UnaryOperator; 7] = [
+                UnaryOperator::Not,
+                UnaryOperator::Len,
+                UnaryOperator::ToString,
+                UnaryOperator::ParseInteger,
+                UnaryOperator::ParseBoolean,
+                UnaryOperator::OptionalString,
+                UnaryOperator::HasValue,
+            ];
+            const INTEGER: &str = "parse_integer(value: text)";
+            const BOOLEAN: &str = "eq(left: text, right: \"7\")";
+            const NONE: &str =
+                "choose(when: eq(left: text, right: \"7\"), then: none, otherwise: none)";
+            const OPTIONAL: &str = "optional_string(value: text)";
+            const LIST: &str = "strings(item: text)";
+
+            fn optional(value: &str) -> ScalarValue {
+                ScalarValue::OptionalString(OptionalStringValue(Some(value.into())))
+            }
+            fn list(values: &[&str]) -> ScalarValue {
+                ScalarValue::StringList(StringListValue(
+                    values.iter().map(|s| (*s).into()).collect(),
+                ))
+            }
+
+            // Expected values are fixed acceptance data, not results from apply_*.
+            fn signatures() -> Vec<(String, ScalarValue)> {
+                use BinaryOperator::*;
+                let mut probes = Vec::new();
+                for operator in BINARY {
+                    if matches!(operator, Eq | Ne) {
+                        for value in [INTEGER, BOOLEAN, "text", NONE, OPTIONAL, LIST] {
+                            probes.push((
+                                format!("{}(left: {value}, right: {value})", operator.name()),
+                                ScalarValue::Boolean(operator == Eq),
+                            ));
+                        }
+                        continue;
+                    }
+                    let (left, right, expected) = match operator {
+                        Add => (INTEGER, "3", ScalarValue::Integer(10)),
+                        Sub => (INTEGER, "3", ScalarValue::Integer(4)),
+                        Mul => (INTEGER, "3", ScalarValue::Integer(21)),
+                        Div => (INTEGER, "3", ScalarValue::Integer(2)),
+                        Rem => (INTEGER, "3", ScalarValue::Integer(1)),
+                        Lt | Le => (INTEGER, "3", ScalarValue::Boolean(false)),
+                        Gt | Ge => (INTEGER, "3", ScalarValue::Boolean(true)),
+                        And => (BOOLEAN, "false", ScalarValue::Boolean(false)),
+                        Or => (BOOLEAN, "false", ScalarValue::Boolean(true)),
+                        Concat => ("text", "\"!\"", ScalarValue::String("7!".into())),
+                        ValueOr => (OPTIONAL, "\"fallback\"", ScalarValue::String("7".into())),
+                        Contains | StartsWith | EndsWith => {
+                            ("text", "\"7\"", ScalarValue::Boolean(true))
+                        }
+                        CharAt => ("text", "0", optional("7")),
+                        Split => (
+                            "concat(left: text, right: \",x\")",
+                            "\",\"",
+                            list(&["7", "x"]),
+                        ),
+                        Join => (
+                            "strings(a: text, b: \"x\")",
+                            "\"/\"",
+                            ScalarValue::String("7/x".into()),
+                        ),
+                        Append => (LIST, "\"x\"", list(&["7", "x"])),
+                        ItemAt => (LIST, "0", optional("7")),
+                        Eq | Ne => unreachable!("overloaded signatures handled above"),
+                    };
+                    probes.push((
+                        format!("{}(left: {left}, right: {right})", operator.name()),
+                        expected,
+                    ));
+                }
+                assert_eq!(probes.len(), 33);
+                for operator in UNARY {
+                    let values = match operator {
+                        UnaryOperator::Not => vec![(BOOLEAN, ScalarValue::Boolean(false))],
+                        UnaryOperator::Len => vec![
+                            ("text", ScalarValue::Integer(1)),
+                            (LIST, ScalarValue::Integer(1)),
+                        ],
+                        UnaryOperator::ToString => vec![
+                            (INTEGER, ScalarValue::String("7".into())),
+                            (BOOLEAN, ScalarValue::String("true".into())),
+                            ("text", ScalarValue::String("7".into())),
+                        ],
+                        UnaryOperator::ParseInteger => vec![("text", ScalarValue::Integer(7))],
+                        UnaryOperator::ParseBoolean => vec![(
+                            "choose(when: eq(left: text, right: \"7\"), then: \"true\", otherwise: \"false\")",
+                            ScalarValue::Boolean(true),
+                        )],
+                        UnaryOperator::OptionalString => vec![
+                            ("text", optional("7")),
+                            (NONE, ScalarValue::OptionalString(OptionalStringValue(None))),
+                        ],
+                        UnaryOperator::HasValue => vec![(OPTIONAL, ScalarValue::Boolean(true))],
+                    };
+                    for (value, expected) in values {
+                        probes.push((format!("{}(value: {value})", operator.name()), expected));
+                    }
+                }
+                assert_eq!(probes.len(), 44);
+                probes
+            }
+
+            fn pipeline<P: Profile>(
+                kind: &str,
+                selected: usize,
+                expression: &str,
+                expected: ScalarValue,
+            ) -> Case {
+                let mut case = case::<P>(kind, selected, ScalarType::String);
+                let original = "fn convert(text: string) = concat(left: text, right: \"!\")";
+                assert_eq!(case.source.matches(original).count(), 1);
+                case.source = case.source.replace(
+                    original,
+                    &format!("fn convert(text: string) = {expression}"),
+                );
+                let (tail, input) = if P::ARGUMENT == ScalarType::Integer {
+                    ("counter.add(amount: 1)", ScalarValue::Integer(1))
+                } else {
+                    (
+                        "panel.set_text(text: \"ok\")",
+                        ScalarValue::String("ok".into()),
+                    )
+                };
+                let old_tail = format!("ack: {},", case.tail);
+                assert_eq!(case.source.matches(&old_tail).count(), 1);
+                case.source = case.source.replace(&old_tail, &format!("ack: {tail},"));
+                case.tail = tail.into();
+                *case.inputs.last_mut().unwrap() = input;
+                case.output = expected;
+                case
+            }
+
+            #[test]
+            fn all_44_declared_scalar_signatures_cross_two_hosts_and_three_return_routes() {
+                fn check<P: Profile>() -> usize {
+                    let mut cases = 0;
+                    for kind in ["seq", "all"] {
+                        for selected in 0..3 {
+                            for (expression, expected) in signatures() {
+                                let case = pipeline::<P>(kind, selected, &expression, expected);
+                                assert!(
+                                    run::<P>(&case, 10_000).complete,
+                                    "{kind}/{selected}/{expression}"
+                                );
+                                cases += 1;
+                            }
+                        }
+                    }
+                    cases
+                }
+                assert_eq!(check::<Counter>() + check::<Panel>(), 528);
+            }
+
+            #[test]
+            fn all_scalar_signatures_preserve_the_exact_completion_fuel_threshold() {
+                fn check<P: Profile>() {
+                    for kind in ["seq", "all"] {
+                        for selected in 0..3 {
+                            for (expression, expected) in signatures() {
+                                let case = pipeline::<P>(kind, selected, &expression, expected);
+                                let ample = run::<P>(&case, 10_000);
+                                assert!(ample.complete, "{expression}");
+                                let used = 10_000 - ample.remaining;
+                                assert!(!run::<P>(&case, used - 1).complete, "{expression}");
+                                for extra in 0..=1 {
+                                    assert_eq!(
+                                        run::<P>(&case, used + extra),
+                                        Outcome {
+                                            complete: true,
+                                            remaining: extra,
+                                            invoked: case.inputs.len(),
+                                        },
+                                        "{kind}/{selected}/{expression}"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                check::<Counter>();
+                check::<Panel>();
+            }
+
+            #[test]
+            fn scalar_shape_and_type_errors_are_cold_for_every_operator_and_host_route() {
+                let mut valid = Vec::new();
+                let mut invalid = Vec::new();
+                for operator in BINARY {
+                    use BinaryOperator::*;
+                    let (left, right) = match operator {
+                        And | Or => (BOOLEAN, "false"),
+                        ValueOr => (OPTIONAL, "text"),
+                        Concat | Contains | StartsWith | EndsWith | Split => ("text", "\"7\""),
+                        CharAt => ("text", "0"),
+                        Join | Append => (LIST, "text"),
+                        ItemAt => (LIST, "0"),
+                        Add | Sub | Mul | Div | Rem | Eq | Ne | Lt | Le | Gt | Ge => (INTEGER, "3"),
+                    };
+                    valid.push(format!("{}(left: {left}, right: {right})", operator.name()));
+                    for arguments in [
+                        format!("left: {left}"),
+                        format!("left: {left}, left: {left}, right: {right}"),
+                        format!("left: {left}, right: {right}, extra: 0"),
+                        "left: true, right: 7".into(),
+                    ] {
+                        invalid.push(format!("{}({arguments})", operator.name()));
+                    }
+                }
+                for operator in UNARY {
+                    let value = match operator {
+                        UnaryOperator::Not => BOOLEAN,
+                        UnaryOperator::HasValue => OPTIONAL,
+                        UnaryOperator::ParseBoolean => "\"true\"",
+                        UnaryOperator::ToString
+                        | UnaryOperator::Len
+                        | UnaryOperator::ParseInteger
+                        | UnaryOperator::OptionalString => "text",
+                    };
+                    valid.push(format!("{}(value: {value})", operator.name()));
+                    let wrong_type = match operator {
+                        UnaryOperator::Not | UnaryOperator::HasValue => "7",
+                        UnaryOperator::ToString => "none",
+                        UnaryOperator::Len
+                        | UnaryOperator::ParseInteger
+                        | UnaryOperator::ParseBoolean
+                        | UnaryOperator::OptionalString => "true",
+                    };
+                    for arguments in [
+                        String::new(),
+                        format!("value: {value}, value: {value}"),
+                        format!("value: {value}, extra: 0"),
+                        format!("value: {wrong_type}"),
+                    ] {
+                        invalid.push(format!("{}({arguments})", operator.name()));
+                    }
+                }
+                assert_eq!(valid.len(), 30);
+                assert_eq!(invalid.len(), 120);
+                fn check<P: Profile>(valid: &[String], invalid: &[String]) -> usize {
+                    let mut cases = 0;
+                    for kind in ["seq", "all"] {
+                        for selected in 0..3 {
+                            // Prove the operands compile before mutating only the call shape.
+                            for expression in valid {
+                                let case =
+                                    pipeline::<P>(kind, selected, expression, ScalarValue::None);
+                                fixture::<P>(|host, _| {
+                                    assert!(compile(&case.source, &host).is_ok(), "{expression}");
+                                    assert!(host.invoked.borrow().is_empty());
+                                    assert_eq!(host.serial.get(), 0);
+                                });
+                            }
+                            for expression in invalid {
+                                let case =
+                                    pipeline::<P>(kind, selected, expression, ScalarValue::None);
+                                fixture::<P>(|host, _| {
+                                    assert!(compile(&case.source, &host).is_err(), "{expression}");
+                                    assert!(host.invoked.borrow().is_empty());
+                                    assert_eq!(host.serial.get(), 0);
+                                });
+                                cases += 1;
+                            }
+                        }
+                    }
+                    cases
+                }
+                assert_eq!(
+                    check::<Counter>(&valid, &invalid) + check::<Panel>(&valid, &invalid),
+                    1440
+                );
+            }
+
+            #[test]
+            fn scalar_dynamic_failures_after_a_reply_never_dispatch_the_successor() {
+                let large = "x".repeat(MAX_SCALAR_STRING_BYTES);
+                let failures = [
+                    format!("div(left: {INTEGER}, right: 0)"),
+                    format!("rem(left: {INTEGER}, right: 0)"),
+                    format!("sub(left: 0, right: {INTEGER})"),
+                    format!("add(left: {INTEGER}, right: {})", u64::MAX),
+                    format!("mul(left: {INTEGER}, right: {})", u64::MAX),
+                    "parse_integer(value: concat(left: text, right: \"x\"))".into(),
+                    "parse_boolean(value: text)".into(),
+                    format!("concat(left: text, right: \"{large}\")"),
+                    format!("append(left: strings(item: \"{large}\"), right: text)"),
+                ];
+                fn check<P: Profile>(failures: &[String]) {
+                    for kind in ["seq", "all"] {
+                        for selected in 0..3 {
+                            for expression in failures {
+                                let case =
+                                    pipeline::<P>(kind, selected, expression, ScalarValue::None);
+                                let outcome = run::<P>(&case, 1_000_000);
+                                assert!(!outcome.complete, "{expression}");
+                                assert!(outcome.remaining > 0, "dynamic failure, not exhaustion");
+                                assert_eq!(outcome.invoked, case.inputs.len() - 1, "{expression}");
+                            }
+                        }
+                    }
+                }
+                check::<Counter>(&failures);
+                check::<Panel>(&failures);
+            }
+
+            #[test]
+            fn scalar_lazy_and_recovery_paths_survive_capture_without_hiding_cold_errors() {
+                let probes = [
+                    (
+                        "and(left: false, right: parse_boolean(value: text))",
+                        ScalarValue::Boolean(false),
+                    ),
+                    (
+                        "or(left: true, right: parse_boolean(value: text))",
+                        ScalarValue::Boolean(true),
+                    ),
+                    (
+                        "value_or(left: optional_string(value: text), right: to_string(value: div(left: 1, right: 0)))",
+                        ScalarValue::String("7".into()),
+                    ),
+                    (
+                        "recover(value: div(left: 1, right: 0), fallback: parse_integer(value: text))",
+                        ScalarValue::Integer(7),
+                    ),
+                    (
+                        "recover(value: parse_integer(value: text), fallback: div(left: 1, right: 0))",
+                        ScalarValue::Integer(7),
+                    ),
+                ];
+                fn check<P: Profile>(probes: &[(&str, ScalarValue)]) {
+                    for kind in ["seq", "all"] {
+                        for selected in 0..3 {
+                            for (expression, expected) in probes {
+                                let case =
+                                    pipeline::<P>(kind, selected, expression, expected.clone());
+                                assert!(run::<P>(&case, 10_000).complete, "{expression}");
+                                let invalid = case.source.replace(
+                                    "fn main() =",
+                                    "fn unused() = and(left: false, right: missing)\nfn main() =",
+                                );
+                                fixture::<P>(|host, _| {
+                                    assert!(compile(&invalid, &host).is_err());
+                                    assert!(host.invoked.borrow().is_empty());
+                                    assert_eq!(host.serial.get(), 0);
+                                });
+                            }
+                        }
+                    }
+                }
+                check::<Counter>(&probes);
+                check::<Panel>(&probes);
+            }
         }
 
         #[test]

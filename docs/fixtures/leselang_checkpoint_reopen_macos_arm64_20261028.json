@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-host-disk-reopen-acceptance",
+  "validated_at": "2026-10-28",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.2",
+  "baseline_commit": "e2688d54546f75ed641bac011f430c74fd0293a3",
+  "native_embedding_contract": "0.172.0",
+  "hir_contract": "0.194.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "production_journal_added": false,
+  "process_restart_tested": false,
+  "power_loss_tested": false,
+  "storage_authentication_provided": false,
+  "external_effect_crash_atomicity": false,
+  "group_graph_recovery_complete": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "disk_reopen_paths": 8,
+  "fuel_boundary_paths": 24,
+  "candidate_refusals": 96,
+  "authority_refusals": 16,
+  "hosts": [
+    "stateful scalar counter",
+    "structured headless panel reply"
+  ],
+  "checkpoint_scope": "Two source-compiled programs, two pending atomic calls, before and after recorded dispatch. Old VM, IR, catalog and owning scope are dropped; only a closed weak lease survives for stale-owner rejection. New hosts rebuild original return-site paths, captures and prepared operands with the exact remaining fuel.",
+  "receipt_scope": "A trusted host ledger deduplicates recorded settled calls and caches terminal outcomes. Reopening the same completed checkpoint leaves ledger bytes unchanged. No claim covers a crash after an external effect but before its receipt write.",
+  "correspondence_scope": "Candidate bytes must match the trusted committed fixture image before decoding or reconstruction. Each of eight paths rejects ten altered top-level fields, truncated JSON and an oversized candidate. This is correspondence, not authentication of storage, nor validation of arbitrary malicious committed records.",
+  "authority_scope": "Eight paths reject each of entry-admission denial and revocation after VM restoration but before prepared-call restoration/cached receipt use. Original closed-scope replies preserve their input and remaining fuel when refused.",
+  "ownership_scope": "Storage format, host-native value codecs, state loading, receipt settlement and deduplication are fixture adapter policy. Original LocalVm, PreparedCall, return stack, evaluator and fuel implementation are reused. Serde dependencies are dev-only on the VM.",
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "crate_count": 5,
+    "path": "/private/tmp/leselang-checkpoint-reopen-export-20261028",
+    "file_count": 308,
+    "total_bytes": 7344833,
+    "manifest_sha256": "d5033a815814a7c3c20a72770a814887fd43b9ddd669432c54a9d26a1be312dc",
+    "copied_source_entries": 297,
+    "copied_sources_match": true,
+    "checkpoint_acceptance_test_runs": 8,
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-76757-1793171378617237000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2805,
+    "log": "/private/tmp/leselang-checkpoint-reopen-export-20261028.log",
+    "log_sha256": "c8bee480db2f6d8b9197fdeb762418f0b098d937fb687c59561d975fd77eeb59"
+  },
+  "verification_scope": "Local macOS same-process disk reopen. Four Rust tests contain the matrix iterations; package and consumer runs overlap and are not unique-test totals. No Linux, real GUI, subprocess restart, production journal, storage authenticity or power-loss acceptance.",
+  "remaining_boundaries": [
+    "General composed helper/group checkpoint ownership and acceptance.",
+    "Process restart and external-effect crash consistency under an explicit host storage contract.",
+    "Final independent repository and distribution acceptance."
+  ],
+  "checks": [
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --no-default-features --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-checkpoint-reopen-native-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "d44419d173d45a7047cd210ef330efa41307bdf214c028d3de22d88f46b3447a",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "log": "/private/tmp/leselang-checkpoint-reopen-exporter-tests-20261028.log",
+      "exit_code": 0,
+      "sha256": "f2c7958beafd8c02e4d303b5d2056aeddfab3f6c7a3e9fc796c05848fd3bb69f",
+      "tests_passed": 26
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --no-default-features",
+      "log": "/private/tmp/leselang-checkpoint-reopen-native-20261028.log",
+      "exit_code": 0,
+      "sha256": "f0d17347f60878893878efc024f4f292fb8b06ce4c006d873f8ac10a02ccb426",
+      "tests_passed": 104
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions",
+      "log": "/private/tmp/leselang-checkpoint-reopen-compatibility-20261028.log",
+      "exit_code": 0,
+      "sha256": "1aae9670b75d99ac9e23a15f570b22c98be1651d49ae4fc153651e99a71afec1",
+      "tests_passed": 121
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions -- -D warnings",
+      "log": "/private/tmp/leselang-checkpoint-reopen-compatibility-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "4599135fd7ea15ddd850ec0ca6832cefde2353ce3ff3d7147fed233e8adaed7d",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-checkpoint-reopen-root-20261028.log",
+      "exit_code": 0,
+      "sha256": "537c8170c248e32ab88ddc492570ab84788a2853aa13027ca5159b836e3cfe5e",
+      "tests_passed": 375
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd -- -D warnings",
+      "log": "/private/tmp/leselang-checkpoint-reopen-root-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "cf81bdb4a2a4d9ec541d6c09bc3f546c367a671e4788272b795dac92ec022dc5",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "log": "/private/tmp/leselang-checkpoint-reopen-format-20261028.log",
+      "exit_code": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0
+    },
+    {
+      "command": "target/lean/gewyvern_status validate --json",
+      "log": "/private/tmp/leselang-checkpoint-reopen-status-20261028.log",
+      "exit_code": 0,
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern-dev --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-checkpoint-reopen-exporter-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "3ea79a0f1c370ddec9ed2a4145477913a0b80cafffa3c0aa20ac6a4e6cf7a230",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-checkpoint-reopen-export-20261028 --verify",
+      "log": "/private/tmp/leselang-checkpoint-reopen-export-20261028.log",
+      "exit_code": 0,
+      "sha256": "c8bee480db2f6d8b9197fdeb762418f0b098d937fb687c59561d975fd77eeb59",
+      "tests_passed": 2805
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-checkpoint-reopen-final-root-20261028.log",
+      "sha256": "f1ad9f4edcb9b5a9e63c8009e1cd4cd901f3b1a191e3c48e791771051ce0eff1",
+      "tests_passed": 670,
+      "exit_code": 0
+    }
+  ],
+  "source_hashes": {
+    "crates/leselang-vm/Cargo.toml": "46ee7ca558e80f8ca6b0b61b5e89f913d9ef9434893e9fe8daf1882ce16e3776",
+    "crates/leselang-vm/tests/native_host_pipeline.rs": "5aaef31616388c8797ab2ae9de63dde590dc545218429642dcbc77b9cc433f2c",
+    "crates/leselang-vm/tests/support/native_checkpoint.rs": "f66e22be01900e2b080055b6af7adb203cece2f664b35b0b49a7327ac703c591",
+    "crates/leselang-hir-core/src/local_effect_session.rs": "1adbe8dc93ffd47988e021e5c641fe56c808aa1932489f72eae70c0271e71ced",
+    "crates/leselang-hir-core/src/call_evaluation.rs": "255f19be9024e561ad2f0587c9651ff4828be651f0b2b95f748fbe0103c2cbe8",
+    "crates/leselang-hir-core/src/effect_stack.rs": "7efa5c4fb8a998b68d5c4bd6d313b9bd8dbd94edef9523eb1adce68b801b0011",
+    "crates/gewyvern-dev/src/leselang.rs": "ed727d7df57306b7d7d958559b8324369efae5ab990c96ebfe095c486d6c1f9a",
+    "tests/language_independence_tdd.rs": "75bfed876375e491f56347dcf81ea6b61a2d13b7529b27d2cb23082a5fe1b45d",
+    "tests/project_status_tdd.rs": "14af891f7113a637d0a55ef5d853f45fc1e5e659e7afdd23fd7ede2e223a076c",
+    "docs/leselang-embedding.md": "09a81e2c68921b3af53c69447a11d3106b6ec6142de038c4f58a163f51d53f3c",
+    "project/status/catalog.json": "1d85f4be6b3c40f051bac887b58643fe12084a898f096bc256bb19cbf17d6a8b"
+  },
+  "root_gate_tests": 670
+}

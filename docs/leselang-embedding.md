@@ -5846,6 +5846,300 @@ The full `tests/host_embedding.rs` acceptance proof remains planned and absent;
 the four-crate source checkpoint now exports this native VM facade unchanged.
 Complete independent VM and repository extraction gates remain open.
 
+### Native Sequential Disk Reopen
+
+The shared `native_group_checkpoint.rs` disk fixture now also exercises a
+three-member `seq`, nested parent return frames and an atomic successor. Its
+test-only format 2 distinguishes published from prepared members. Production
+wire/journal schemas and language contracts are unchanged. Source compilation,
+the disk/operand codecs, original parent restoration, host ledger and terminal
+handling are shared with the parallel fixture rather than copied into a new VM.
+
+Each host has ten cuts: zero/one/two accepted members followed by either a ready
+queue, an externally unsettled awaiting request, or a settled awaiting receipt;
+the tenth cut is the fully accepted prefix before parent re-entry. Twenty reopen
+paths and sixty completion-budget boundaries use `PreparedSequenceSession`'s
+original saved-prefix and restoration entries under the same owner as the parent.
+Awaiting polls release no request and run no publication hook. The host recovers
+that outstanding operation from its recorded operands/receipt; only unpublished
+suffix members can leave the queue, each after fresh native publication admission.
+Acceptance does not publish the next member. Stale, wrong-member and duplicate
+receipts retain their input and do not advance the publication frontier.
+
+Eighty parent/child refusal, revocation and cancellation cases prevent further
+work. A fully accepted collector keeps its sticky Completed state while owner
+cancellation still prevents its retained prefix from entering the parent. Twenty-
+four refusals cover every queued suffix position after restoration; the ledger
+contains only effects before the refused member, with no atomic successor.
+Six deliberately malformed **host-written** frontiers bypass candidate byte
+comparison but fail with the core's Frontier error before whole-batch admission:
+an awaiting row after a prepared row, two awaiting rows, or an accepted row after
+a prepared gap. Decode-time native value validation is still allowed. Another
+160 changed/truncated/oversized candidates fail committed-record correspondence.
+
+These are same-process disk-reopen tests, not a production journal. Host receipts
+own deduplication and terminal replay; external dispatch/cancellation delivery and
+durable cancellation settlement remain host responsibilities. Reopening revoked
+or cancelled work is not authorized by this fixture. Captured predecessor graphs,
+arbitrary graph composition, process restart, power loss, storage authentication
+and effect-to-receipt crash atomicity remain outside this acceptance slice.
+Evidence: `docs/fixtures/leselang_sequence_reopen_macos_arm64_20261028.json`.
+
+### Native Parallel Group Disk Reopen
+
+`tests/support/native_group_checkpoint.rs` extends disk acceptance to one
+source-compiled three-member `all`, nested helper return frames, group result
+projection and an atomic successor. The scalar counter and structured panel
+hosts use the original compiler, `Vm::restore_pending_in_scope`,
+`PreparedParallelSession::restore_in_scope`, reply validation and evaluator.
+The parent and child borrow one uniquely owned scope; stored operands use the
+same test-only `Call::restore` codec as the atomic disk fixture.
+
+For each host, the dispatched prefix ranges from zero to three members, with
+every accepted subset of that prefix: 15 distinct frontiers. Six receipt orders
+give 180 successful reopen paths, including a fully accepted but unpublished
+barrier. The old VM, collector, IR, catalog and host are dropped before loading
+the disk image. Accepted rows are revalidated; settled-but-unaccepted rows use
+recorded replies; only unsettled external work dispatches. Parent/child restoration
+does not prepare expressions, allocate new correlation identities or refill fuel.
+Old-owner and duplicate receipts retain their buffers. Results publish once in
+original order, then resume the original parent frames and successor.
+
+Ninety minus-one/exact/plus-one completion-budget cases match uninterrupted
+execution. Another 120 cases deny parent admission, deny/revoke child admission
+or cancel the restored shared owner, without changing the host ledger or starting
+the successor. Two hundred forty altered/truncated/oversized candidates fail
+correspondence before reconstruction. Terminal replay leaves the ledger unchanged.
+
+This is bounded **same-process disk reopen**, not a general graph journal.
+Captured locals at this checkpoint are scalar: prior completed captured graphs,
+sequential collectors and arbitrary graph combinations are not covered here.
+The fixture trusts committed disk bytes and ledger state; equality is not storage
+authentication. It does not test process restart, power loss, external-effect
+crash atomicity, rollback or cancellation delivery to external systems. Production
+runtime/contracts and full durable recovery/extraction gates remain unchanged.
+Evidence: `docs/fixtures/leselang_group_reopen_macos_arm64_20261028.json`.
+
+### Native Disk Reopen Acceptance
+
+`tests/support/native_checkpoint.rs` exercises the original `LocalVm` after the
+old VM, IR, catalog and owning scope have been dropped. A host-owned disk image
+stores the original return-site paths, captured scalar/native values, prepared
+operands and remaining fuel. Fresh compilation must match the saved IR before
+original return frames and `PreparedCall` are restored. Serde is a test-only VM
+dependency; the native facade does not acquire a persistence format or backend.
+
+Two hosts (scalar counter and structured panel reply), two pending calls and
+before/after recorded dispatch give eight reopen paths. Host ledger receipts
+prevent re-dispatch of already recorded effects; terminal replay leaves the
+ledger unchanged. Old-scope receipts retain their input and cannot be relabelled
+as the new owner. Twenty-four completion-budget cases preserve the original
+minus-one/exact/plus-one outcome without refilling saved frames. Ninety-six
+altered/truncated/oversized candidates fail correspondence with the trusted
+committed fixture bytes before reconstruction. Sixteen authority refusals cover
+entry admission and revocation between VM restoration and prepared-call admission,
+including cached replies. Both package and external consumer run the same file.
+
+This is **same-process disk reopen**, not process restart or power-loss testing.
+Fixture byte equality is not storage authentication; the committed image and
+ledger are trusted host inputs. Writes are not a crash-atomic journal. A crash
+between an external effect and its receipt write is outside this proof, as are
+generic group-graph recovery, rollback and a portable production codec. Production
+runtime/contracts and complete VM/durable recovery/extraction gates are unchanged.
+Evidence: `docs/fixtures/leselang_checkpoint_reopen_macos_arm64_20261028.json`.
+
+### Native Program Budget Acceptance
+
+The `program_boundary_acceptance` matrix drives the original native compiler and
+VM through two scalar hosts, `seq`/`all`, a nested scalar helper, a group-returning
+helper, a captured projection and a dependent successor. The four programs have
+at most 11 source nodes/depth 3 per body and 23 expanded IR nodes/depth 7.
+Compilation costs 60 source occurrences/wrappers: standalone helper checks cost
+1 + 5 + 23 and entry expansion costs 31. No second compiler or evaluator is used.
+
+Thirteen independent compiler dimensions cover source nodes/depth/arguments,
+expanded nodes/depth, cumulative compilation work, expansion nesting, lexical
+bindings, group sites, cold calls, functions, parameters and branches. Each of
+52 cases rejects the required budget minus one and executes at the exact budget
+and one above it, preserving results, invocation order and execution fuel.
+Six separate VM dimensions cover physical nodes/depth, active locals, return
+frames, operation arguments and group branches in 24 corresponding cases.
+VM refusal closes the scope before correlation or invocation. Host preparation
+still owns its explicit operand budget: this program needs three compiler-visible
+locals, but only two VM-owned active locals. The VM limit is not a global cap on
+arbitrary work performed inside native preparation callbacks.
+
+Unused-body checks cover an unevaluated division fault, a balanced 1,024-node
+body at the fixture ceiling and the parser's 16-call nesting ceiling. Twelve
+accepted programs consume exact nonrefunding compilation work without changing
+runtime fuel or invoking the unused body. Thirty-six refusals cover insufficient
+work/physical budgets, 1,025 source nodes and a 17th nested call (`LSE1110`).
+The parser ceiling is distinct from the IR's depth-64 safety ceiling.
+
+Every compiler/VM configuration dimension also executes a small valid program at
+its public safety ceiling, then rejects ceiling-plus-one and `usize::MAX`: 76
+legal controls and 152 refusals. This does not exercise every program shape at
+every maximum; the 1,024-node source fixture is below the generic 16,384-node cap.
+
+Evidence: `docs/fixtures/leselang_program_boundaries_macos_arm64_20261026.json`.
+The same source tests run in the independent package and external consumer.
+Production implementations, limits and contract versions are unchanged. Remaining
+declared-language combinations, durable ownership and final repository/release
+acceptance remain separate gates.
+
+### Native Branch Ceiling Acceptance
+
+The `branch_ceiling_acceptance` matrix reaches the public 64-member ceiling in
+`seq`, flat `all`, atomic `repeat`, and nested sequences. Two hosts and both
+conditional helper alternatives cover 32 complete paths: a 64-member group,
+or a 63-member group whose captured projection feeds one successor. The original
+compiler, preparation, collectors, receipt validation and VM are reused; this
+does not add a second evaluator. Parallel receipts still arrive in reverse order.
+
+The fixture now uses the existing 64-member/source-argument ceilings. Its native
+`max_calls` policy is 128 because both cold alternatives count, even though each
+selected path invokes only 64 effects. This is not the product's 64 selected-effect
+slot policy. Runtime operation arguments remain schema-checked and capped at
+eight. Production limits and runtime implementations have not changed.
+
+Sixty-four cold cases refuse 65 members (including an unselected group), a
+stricter 63-member host policy, or a 127-cold-call policy. Valid cold-branch controls
+use matching scalar result types. Forty dynamic preparation failures cover the
+first, middle and final source members without issuing any root/member identity
+or invocation. Identical repeated leaves fail on the first copy, not a separately
+chosen late iteration. Every successful path checks completion cost minus one,
+exact cost and cost plus one, and a budget just below first-request publication.
+The latter may consume identities during correlation after preparation, but
+never dispatches: failure closes the scope and later polls do no additional work.
+Identity allocation and external effects are not rolled back.
+
+Evidence: `docs/fixtures/leselang_branch_ceiling_macos_arm64_20261026.json`.
+The unchanged tests also run in the isolated package and separate consumer.
+This closes the tested branch-ceiling slice, not all whole-program limits,
+durable recovery, actual GUI integration or final repository extraction.
+
+### Native Prepared Group Acceptance
+
+The `prepared_acceptance` matrix composes conditional, locally prepared helpers
+inside `seq`, flat `all`, atomic `repeat`, and a sequence containing a repeated
+sequence. Two hosts, both helper alternatives, reversed named arguments and six
+scalar returns cover 192 complete source/reply/capture/successor paths. Named
+projections retain flattened order, including `tail__iteration_3__right`.
+Unselected arithmetic faults stay unevaluated. Each path checks the exact
+completion budget and its immediate neighbours, not every smaller fuel budget.
+
+At eight distinct source-member sites, five dynamic faults cover arithmetic,
+parsing, iteration limits, helper-local computation and integer/string operand
+overflow. All 320 cases compile, then fail preparation before publishing a group
+request: no invocation, root identity or member identity exists. The VM closes
+its scope, retains spent fuel and remains failed on later polls. Faults include
+later source members, not just the first member. A repeated source leaf
+fails on its first evaluated copy; the matrix does not claim independently
+injectable faults in arbitrary later copies of the same pure repeated body.
+
+Forty cold cases reject data-only members, group-returning helpers, multi-effect
+helpers, captured caller locals and an unselected data-return branch before host
+work. The original compiler, prepared collectors and native VM are reused; no
+second evaluator or product dependency is introduced.
+
+Evidence: `docs/fixtures/leselang_prepared_pipeline_macos_arm64_20261026.json`.
+The unchanged test runs in the isolated package and separate consumer. This is
+bounded preparation-before-publication acceptance with at most seven expanded
+members, not the full branch ceiling, external-effect rollback, crash settlement
+or complete language/repository extraction. Runtime, production limits and
+contract versions remain unchanged.
+
+### Native Declaration Acceptance
+
+The `declaration_acceptance` matrix in the native host pipeline composes all six
+scalar types in an eight-parameter helper. Two hosts, `seq`/`all`, three return
+routes, three written argument orders and forward/backward helper placement
+produce 432 successful paths with identical values, invocation prefixes and
+fuel. Every path also checks the exact completion threshold and its neighbours.
+Parameter/local hygiene survives the caller's existing captured names.
+
+Another 576 paths distinguish declaration order from written argument order:
+two unused parameters respectively fail with recoverable arithmetic and a
+nonrecoverable loop limit. Only a first arithmetic failure permits the enclosing
+recovery; an unselected call skips both parameters. Across selected and unselected
+calls, the order combinations produce 432 completions and 144 terminal refusals.
+This is behavioural evidence, not inspection of compiler binding order.
+
+The test host now admits the existing syntax ceilings of 32 declarations and
+8 parameters rather than its former eight-declaration subset; production limits
+are unchanged. Seventy-two complete 32-declaration programs leave unused faulting
+helpers unevaluated. In 936 cold cases, excess declarations/parameters, invalid
+named arguments, duplicate parameters, free caller locals, direct/mutual/cold
+recursion, calls to the entry and builtin shadowing fail before host work or
+identity allocation. The root gate ties the fixture to the public ceilings.
+
+The unchanged tests run in the isolated package and separate consumer. Evidence:
+`docs/fixtures/leselang_declaration_pipeline_macos_arm64_20261026.json`.
+This is the declaration/argument slice of in-memory acceptance, not whole-language
+or durable recovery completion. No runtime, grammar, wire, journal or contract
+version change is introduced.
+
+### Native Typed Control Acceptance
+
+The `control_acceptance` matrix in the existing native host pipeline extends
+reply-driven computation to all six scalar helper-parameter and iteration-state
+types. Eight forms cover a hygienic typed helper, `loop`, zero-iteration `loop`,
+`fold`, empty `fold`, nested fold/loop, and arithmetic recovery around each loop
+form. Both host schemas, `seq`/`all` and atomic/group/pure return routes execute
+576 paths before a typed successor and final captured return. Fixed expectations
+come from the existing selected-data fixture, not a second evaluator.
+
+Zero/empty iterations skip faulting next expressions while retaining cold type
+checks. Fold labels deliberately disagree with source order; helper-local names
+collide with the caller's local without capturing it. `none` has only one value,
+so its successful conditional loop exits immediately; an always-true bounded
+loop separately exercises its update and limit failure. Each successful path
+checks observed completion cost minus one, exact cost and cost plus one, not
+every smaller fuel budget.
+
+Another 288 paths reject loop/fold limit exhaustion with or without `recover`,
+preserving spent fuel and preventing the caller's successor. In 648 cold cases,
+wrong condition/state/item types, effectful next expressions, escaped locals and
+mistyped helper parameters fail before host invocation or identity allocation.
+The root inventory gate checks all six production scalar variants are included.
+Evidence: `docs/fixtures/leselang_control_pipeline_macos_arm64_20261026.json`.
+The source test runs unchanged in the isolated package and external consumer.
+This closes a typed-control acceptance gap, not whole-language, arbitrary durable
+recovery or complete repository extraction; runtime and contract versions stay
+unchanged.
+
+### Native Scalar Signature Acceptance
+
+The `scalar_acceptance` tests in
+`crates/leselang-vm/tests/native_host_pipeline.rs` exercise all current 23 binary
+and 7 unary operators, including their 44 legal scalar type signatures. The
+existing native compiler, prepared collectors, evaluator and `LocalVm` execute
+528 paths: two host reply types, `seq`/`all`, and atomic/group/pure helper return
+routes. Each calculated value survives another captured effect before the final
+return. Expected values are fixed acceptance data, not computed using the
+operator implementation being tested.
+
+For every path, the observed completion budget minus one fails; the exact budget
+and one extra unit finish with zero and one remaining. This new matrix checks
+those threshold neighbours, not every smaller fuel budget. Another 1,440 cases
+reject missing/duplicate/extra arguments and invalid scalar types before host
+invocation or identity allocation. Their call-shape probes use valid operands,
+with 360 successful compilation controls so type errors cannot mask a missing
+shape check. In 108 dynamic-fault cases, arithmetic,
+conversion or size failure prevents the successor effect and keeps the terminal
+meter unchanged on later polls.
+Sixty lazy/recovery cases preserve short-circuit behaviour across capture, while
+60 unused-helper checks still reject unknown names before any effect.
+
+The unchanged test file also runs in the independent source export and its
+separate consumer. The root inventory gate compares the tested operator lists
+with both production enums, preventing a new operator from silently escaping
+this matrix. Evidence:
+`docs/fixtures/leselang_scalar_pipeline_macos_arm64_20261026.json`.
+These are bounded scalar-language paths, not a claim of whole-language, arbitrary
+durable recovery, GUI adapter or complete repository extraction coverage. No
+runtime API, grammar, wire or journal contract changes in this acceptance step.
+
 ### Native Host Pipeline Matrix
 
 `crates/leselang-vm/tests/native_host_pipeline.rs` supplies continuous atomic and
