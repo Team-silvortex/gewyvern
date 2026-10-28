@@ -1,0 +1,188 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-product-audit-test-ownership",
+  "validated_at": "2026-10-28",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.3",
+  "baseline_commit": "4e46bfcc4db8e9431edb3e8f33b4141cc601d9db",
+  "reference_vm_contract": "1.173.0",
+  "native_embedding_contract": "0.172.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "wire_or_journal_schema_changed": false,
+  "compatibility_defaults_changed": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "production_oracle_unchanged": true,
+  "durable_test_bodies_unchanged": true,
+  "shared_oracle_sha256": "366b049f9b1283ac38a6fc8e1b69af217f236376ea78f4a284dee5c18147579e",
+  "durable_body_sha256": "99c1f74ec4226cb28d0debb1f038e914f79eeb31faeae23ee7e32e46e046f514",
+  "baseline_test_runs": 24,
+  "product_test_runs": 24,
+  "product_unique_test_names": 15,
+  "compatibility_test_runs": 18,
+  "product_memory_only_tests": 9,
+  "compatibility_memory_only_tests": 9,
+  "moved_storage_and_race_tests": 6,
+  "product_tests_match_original_inventory": true,
+  "product_memory_test_closure_excludes_language_facades_and_sqlite": true,
+  "ownership_scope": "Product-owned debugger_audit_memory and debugger_audit_durable integration targets use the original product audit oracle directly, without either language facade. Nine memory and fifteen SQLite tests run under leserpent-vm. The six SQLite-specific corruption, peer-cache/replay and race bodies move unchanged out of the compatibility facade. Shared oracle code is unchanged. Product default-disabled tests need neither SQLite nor language compatibility crates.",
+  "compatibility_scope": "The released leselang-vm HIR/VM paths retain nine memory and nine SQLite wrappers using that same product-owned oracle. Storage mutation and thread-race bodies no longer live in those wrappers. CI explicitly runs direct product acceptance and legacy compatibility; SQLite integration requires the sqlite-journal feature. No library API, default feature, type identity, journal format or runtime behavior changes.",
+  "verification_scope": "Before migration the original suites passed 24 tests. Direct product suites pass the identical test-name multiset, plus 18 retained compatibility runs and both nine-case memory-only configurations. Execution totals overlap and are not new language features. Local macOS verification only; CI YAML and both target commands were checked, not run on a remote worker. Native checkpoint contents remain identical and do not include any product audit suite.",
+  "remaining_boundaries": [
+    "Complete declared-language and reference compatibility acceptance.",
+    "Independent host-neutral production durability, real GUI/FFI integrations and physical repository extraction."
+  ],
+  "source_hashes": {
+    ".github/workflows/ci.yml": "4f102381d88ff36e1f147a8f03a369ea6731079e327a028c0fa0abaeb836242e",
+    "crates/gewyvern-dev/src/leselang.rs": "d09ed5154a19b9d6647d38f58df15b96daa2f29d702d3c9c8a7c2832e11e0299",
+    "crates/leserpent-vm/Cargo.toml": "2e63d87b587af8087dc27ff94f7627f874d8d43459f8bb57bee65e43f58325c9",
+    "crates/leselang-vm/Cargo.toml": "8c7d4724f5af832aa5c6d6b1dc35ef496d3f22a2946a7f26c016dd5c219c86e0",
+    "crates/leserpent-vm/tests/debugger_audit_memory.rs": "912f1fb64ebd90b37b818e3a831684805bb73f386a36f8a62e9c1e6b34920dfe",
+    "crates/leserpent-vm/tests/debugger_audit_durable.rs": "b2c9097a45071e4cd48e1d69073968c1f6c44ed30185a301b22d37974711daa6",
+    "crates/leselang-vm/tests/debugger_audit_memory.rs": "3b0beb0696084eddcdc7742bd969e523418c2ece301916e4dffeedb31a81cbb5",
+    "crates/leselang-vm/tests/debugger_audit_durable.rs": "ffe12a17e6370c5826688be44f1e1c6f2f085a3ae553cbf2e446a4bde334ff91",
+    "crates/leserpent-vm/src/debugger_audit_contract_tests.rs": "366b049f9b1283ac38a6fc8e1b69af217f236376ea78f4a284dee5c18147579e",
+    "tests/leselang_vm_profile_tdd.rs": "ccc1d90d0851113d9c1a6bfa852dfe7306871d8234ecfa55a91df90cebd95df4",
+    "tests/project_status_tdd.rs": "dee5a5ea0856d7b27a8fa8d2c58d56761a3ae8d735da6d77f18cccb60298a9a8",
+    "docs/leselang-embedding.md": "4df744894037229c5a4a7d2675b3b3443e056af0705b56019505ecce7a43a65a",
+    "crates/leselang-vm/README.md": "66eaa7db29aeb4454ca38012da28cc34546dda986c2b59eecc3b75b81840fee4",
+    "project/status/catalog.json": "3df4f14d1404b72e331f642edd5ac6af03b6d0f6a868f592b4d4503b2bd2548e"
+  },
+  "checks": [
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test debugger_audit_durable --test debugger_audit_memory",
+      "log": "/private/tmp/leselang-audit-ownership-baseline-20261028.log",
+      "exit_code": 0,
+      "sha256": "8bed4d24480b48a6c0c81e02b6d552ac070b5ef7352047893273c2adceffcaec",
+      "tests_passed": 24
+    },
+    {
+      "command": "cargo +1.98.0 test -p leserpent-vm --locked --offline --profile lean --test debugger_audit_durable --test debugger_audit_memory",
+      "log": "/private/tmp/leselang-audit-ownership-product-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "d9095c136efa59d5c83820b56b4686102849eeb5504958137e767484e1e83cf2",
+      "tests_passed": 24
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test debugger_audit_durable --test debugger_audit_memory",
+      "log": "/private/tmp/leselang-audit-ownership-compatibility-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "7edec4da08255ea6b6042dbf7370ff53163bfc60e8718e1d0c9ba058ce1ea3e1",
+      "tests_passed": 18
+    },
+    {
+      "command": "cargo +1.98.0 test -p leserpent-vm --no-default-features --locked --offline --profile lean --test debugger_audit_memory",
+      "log": "/private/tmp/leselang-audit-ownership-product-memory-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "6ea234b765459e52ef85cea25acdf276fe76e9266903adeb47e16a4ab18e2bf9",
+      "tests_passed": 9
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --no-default-features --features leserpent-profile --locked --offline --profile lean --test debugger_audit_memory",
+      "log": "/private/tmp/leselang-audit-ownership-compatibility-memory-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "540f829f2b9b61bdbbf0f08ad328327c568a2e551e480c8ca7ae6f61dccbc2c1",
+      "tests_passed": 9
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leserpent-vm --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-audit-ownership-product-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "a342403b9cedb3c7483095c933e5b2ad1702d29ec255a26761d8ea930a3edb1c",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leserpent-vm --no-default-features --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-audit-ownership-product-memory-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "723514b6419ff1bef6ea4ad8472e04d56564f06664e0dbc66bd0fc9079048436",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 tree -p leserpent-vm --no-default-features --locked --offline --edges normal,build,dev --prefix none",
+      "log": "/private/tmp/leselang-audit-ownership-product-tree-20261028.log",
+      "exit_code": 0,
+      "sha256": "942c8c67b0611491edf8f29910a59a999fdebab442387a2c9f68eddf8c01d579",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "log": "/private/tmp/leselang-audit-ownership-exporter-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "932ad85fa47b09d9c2adb214a5f5efbc19f2422cc9d8174e97804b40ca0a3fcc",
+      "tests_passed": 27
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern-dev --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-audit-ownership-exporter-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "73e024ad257b5e1928fc7547438034910225b2108f32f22688b1607e0d41ab74",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "log": "/private/tmp/leselang-audit-ownership-format-20261028.log",
+      "exit_code": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test leselang_vm_profile_tdd audit_storage_tests_belong_to_product_while_released_api_oracles_remain",
+      "log": "/private/tmp/leselang-audit-ownership-boundary-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "d081d8f73fb794a162726c81542b5285e2f75654965cf712ae297802f192b558",
+      "tests_passed": 1
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-product-audit-export-20261028 --verify",
+      "log": "/private/tmp/leselang-audit-ownership-export-20261028.log",
+      "exit_code": 0,
+      "sha256": "32e177131129e13fa02181ae24a2001598ab9785d26b38e4be97a9b58c56704d",
+      "tests_passed": 2891
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test native_validation_harness_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-audit-ownership-root-20261028.log",
+      "exit_code": 0,
+      "sha256": "be038bf54203fab02b73ccbaa18ef268f0f41db97c0f486b1a48d14034efc7dd",
+      "tests_passed": 719
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test leselang_vm_profile_tdd --test project_status_tdd -- -D warnings",
+      "log": "/private/tmp/leselang-audit-ownership-root-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "d4c5ec038a41542d4fc3e718b3d3143387c9b05ce75f369081603a6ccc099662",
+      "tests_passed": 0
+    },
+    {
+      "command": "target/lean/gewyvern_status validate --json",
+      "log": "/private/tmp/leselang-audit-ownership-status-20261028.log",
+      "exit_code": 0,
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0
+    }
+  ],
+  "native_export": {
+    "verified": true,
+    "product_audit_tests_excluded": true,
+    "path": "/private/tmp/leselang-product-audit-export-20261028",
+    "file_count": 312,
+    "total_bytes": 7697177,
+    "copied_source_entries": 301,
+    "copied_sources_match": true,
+    "manifest_sha256": "0f687696b9cbdbc6a262ded2cd066d0fa79e1932e347ac269095419dc5bdb987",
+    "identical_to_previous_checkpoint": true,
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-47615-1793186265052074000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2891,
+    "log": "/private/tmp/leselang-audit-ownership-export-20261028.log",
+    "log_sha256": "32e177131129e13fa02181ae24a2001598ab9785d26b38e4be97a9b58c56704d"
+  },
+  "root_gate_tests": 719
+}

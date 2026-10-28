@@ -138,6 +138,9 @@ jobs:
       - name: Test product-owned evaluator without SQLite
         run: cargo +1.98.0 test -p leserpent-vm --locked --no-default-features
 
+      - name: Test product benchmark workload without SQLite
+        run: cargo +1.98.0 test -p leserpent-vm --locked --no-default-features --example language_benchmark
+
       - name: Lint product-owned evaluator without SQLite
         run: cargo +1.98.0 clippy -p leserpent-vm --locked --no-default-features --all-targets -- -D warnings
 
@@ -242,6 +245,7 @@ jobs:
         run: |
           cargo +1.98.0 test -p leselang-command --locked --test reference_audit_recovery
           cargo +1.98.0 test -p leserpent-vm --locked --lib audit_recovery_contract_tests
+          cargo +1.98.0 test -p leserpent-vm --locked --test debugger_audit_durable --test debugger_audit_memory
           cargo +1.98.0 test -p leselang-vm --locked --test debugger_audit_durable --test debugger_audit_memory
 
       - name: Test audited cancellation policy and native commit parity

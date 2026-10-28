@@ -20,6 +20,7 @@ adapter or generated framework binding against the Leselang UI protocol. The
 5. [Gate-based delivery roadmap](../leserpent-2-roadmap.md)
 6. [Computation, pure recovery, bounded loops, atomic chains and named group results](../leselang-control-flow.md)
 7. [Independent embedding architecture and extraction gates](../leselang-embedding.md)
+8. [Runnable product-free Rust host and bounded two-instance event loop](../../crates/leselang-vm/README.md#runnable-native-host)
 
 ## Contracts
 

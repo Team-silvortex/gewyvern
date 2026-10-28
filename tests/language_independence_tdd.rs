@@ -2,6 +2,235 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::process::Command;
 
 #[test]
+fn queued_native_example_uses_separate_owners_and_original_reply_boundaries() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let text = std::fs::read_to_string(root.join("crates/leselang-vm/examples/native_counter.rs"))
+        .unwrap();
+    for marker in [
+        "Execution::new(catalog, &node, budgets[0])",
+        "Execution::new(catalog, &node, budgets[1])",
+        "VecDeque::with_capacity(2)",
+        "for tick in 0..64",
+        "queue.len() == 2",
+        "Event::Dispatch",
+        "Event::Reply",
+        "task.accept(receipt)",
+        "HostWorkOutcome::Failed",
+        "exhausted_instance_does_not_stop_or_borrow_fuel_from_its_sibling",
+        "delayed_foreign_and_wrong_typed_receipts_keep_the_original_handoff",
+        "queued_work_and_late_receipts_never_reopen_cancelled_or_dropped_owners",
+    ] {
+        assert!(text.contains(marker), "{marker}");
+    }
+    for forbidden in ["tokio", "async fn", "std::thread", "Mutex", "Arc<"] {
+        assert!(!text.contains(forbidden), "{forbidden}");
+    }
+    let exporter =
+        std::fs::read_to_string(root.join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    for mode in [
+        "--queued",
+        "--queued-cancel-pending",
+        "--queued-cancel-reply",
+    ] {
+        assert!(exporter.contains(&format!("\"{mode}\"")), "{mode}");
+        assert_eq!(
+            exporter.matches(&format!("lean -- {mode}\\n")).count(),
+            2,
+            "{mode}"
+        );
+    }
+}
+
+#[test]
+fn runnable_native_example_uses_public_facade_without_including_test_adapters() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let text = std::fs::read_to_string(root.join("crates/leselang-vm/examples/native_counter.rs"))
+        .unwrap();
+    for marker in [
+        "leselang_vm::native",
+        "compile_catalog_program",
+        "LocalVm::new",
+        ".with_host_outcome(",
+        ".try_accept(",
+        "vm.cancel()",
+        "prior effects are not rolled back",
+    ] {
+        assert!(text.contains(marker), "{marker}");
+    }
+    for forbidden in [
+        "include!",
+        "#[path",
+        "leserpent",
+        "rusqlite",
+        "std::process::Command",
+        "serde",
+    ] {
+        assert!(!text.contains(forbidden), "{forbidden}");
+    }
+    let adapter = text.split("#[cfg(test)]").next().unwrap();
+    for forbidden in [".unwrap()", ".expect(", "panic!", "unsafe {"] {
+        assert!(!adapter.contains(forbidden), "{forbidden}");
+    }
+    let exporter =
+        std::fs::read_to_string(root.join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    assert!(exporter.contains("consumer/examples/native_counter.rs"));
+    assert!(exporter.contains("untracked VM example asset"));
+}
+
+#[test]
+fn native_forced_publication_tests_keep_orphan_resolution_outside_the_vm() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let fixture = std::fs::read_to_string(
+        root.join("crates/leselang-vm/tests/support/native_group_checkpoint.rs"),
+    )
+    .unwrap();
+    for marker in [
+        "child.0.kill().unwrap()",
+        "let status = child.0.wait().unwrap()",
+        "assert_eq!(status.signal(), Some(9))",
+        "killed writer cannot acknowledge cancellation",
+        "Only this parent owns the directory and has reaped its sole writer",
+        "Discard, never publish, the orphan",
+        "assert_eq!(cases, 24)",
+        "recovery never removes unresolved publication",
+    ] {
+        assert!(fixture.contains(marker), "{marker}");
+    }
+    assert_eq!(
+        fixture
+            .matches(".require_published(\"group-ledger.json\")")
+            .count(),
+        2
+    );
+    let store =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/support/native_checkpoint.rs"))
+            .unwrap();
+    for marker in [
+        "hook(PublicationPoint::PartialWrite)",
+        "hook(PublicationPoint::FileSynced)",
+        "hook(PublicationPoint::Renamed)",
+        "fs::symlink_metadata(self.path.join(format!(\"{name}.pending\")))",
+        "unresolved fixture publication",
+    ] {
+        assert!(store.contains(marker), "{marker}");
+    }
+}
+
+#[test]
+fn native_process_reopen_uses_the_original_test_binary_and_bounded_owned_children() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let fixture = std::fs::read_to_string(
+        root.join("crates/leselang-vm/tests/support/native_group_checkpoint.rs"),
+    )
+    .unwrap();
+    for marker in [
+        "Command::new(std::env::current_exe().unwrap())",
+        "[\"--exact\", WORKER, \"--nocapture\", \"--test-threads=1\"]",
+        "struct ChildGuard(Child)",
+        "self.0.kill()",
+        "self.0.wait()",
+        "Duration::from_secs(30)",
+        "assert_eq!(report.pid, pid)",
+        "no cancellation acknowledgement before process exit",
+        "std::process::exit(73)",
+        "assert_eq!(cases.len(), 14)",
+        "no process-local lease crosses the wire",
+    ] {
+        assert!(fixture.contains(marker), "{marker}");
+    }
+    let store =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/support/native_checkpoint.rs"))
+            .unwrap();
+    assert!(store.contains("cleanup: false"));
+    assert!(store.contains("if self.cleanup"));
+}
+
+#[test]
+fn native_cancellation_persistence_stays_host_owned_and_never_acknowledges_failed_writes() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let fixture = std::fs::read_to_string(
+        root.join("crates/leselang-vm/tests/support/native_group_checkpoint.rs"),
+    )
+    .unwrap();
+    for marker in [
+        "revoke before writing cancellation intent",
+        "fn recorded_terminal(",
+        "if ledger.cancellation_requested",
+        "current.cancellation_requested || current.terminal.is_some()",
+        "fault.persists_cancellation() && cancelled",
+        "self.cancel_observed = true",
+        "FinishKind::Cancelled",
+        "Fault::CancelIntentWriteFailed",
+        "Fault::CancelTerminalWriteFailed",
+        "stale adapter must consult the persisted fence",
+        "assert_eq!(cases.len(), 150)",
+    ] {
+        assert!(fixture.contains(marker), "{marker}");
+    }
+    let store =
+        std::fs::read_to_string(root.join("crates/leselang-vm/tests/support/native_checkpoint.rs"))
+            .unwrap();
+    for marker in [
+        "create_new(true)",
+        "file.sync_all()?",
+        "fs::rename(&pending",
+        "if fail_before_publish",
+        "fs::remove_file(pending)",
+    ] {
+        assert!(store.contains(marker), "{marker}");
+    }
+}
+
+#[test]
+fn native_mixed_disk_reopen_keeps_graph_provenance_separate_from_shared_schema() {
+    let fixture = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("crates/leselang-vm/tests/support/native_group_checkpoint.rs"),
+    )
+    .unwrap();
+    for marker in [
+        "struct GroupOrigin",
+        "struct CaptureOrigin",
+        "ledger.captures != capture_origins(&image.frames, &image.completed)?",
+        "original.site != saved.site",
+        "original.serial != saved.serial",
+        "Rc::ptr_eq(other, other_alias)",
+        "Rc::ptr_eq(prior, other)",
+        "Fault::CaptureDeniedAt(group_index)",
+        "Fault::CaptureRevokedAt(group_index)",
+        "[[Seq, Seq], [Seq, All], [All, Seq], [All, All]]",
+        "assert_eq!(cases, 400)",
+        "same operation is still not this member",
+    ] {
+        assert!(fixture.contains(marker), "{marker}");
+    }
+}
+
+#[test]
+fn native_captured_group_disk_reopen_reuses_original_assembly_and_shared_alias_owners() {
+    let fixture = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("crates/leselang-vm/tests/support/native_group_checkpoint.rs"),
+    )
+    .unwrap();
+    for marker in [
+        "restore_group_reply(plan.node, rows, BATCH",
+        "aliases share one original group",
+        "one restored owner for every group alias",
+        "completed group never publishes",
+        "Rc::ptr_eq(prior, alias)",
+        "Captured::Member { serial, reply }",
+        "Fault::CaptureDenied",
+        "Fault::CaptureRevoked",
+        "assert_eq!(cuts.len(), 25)",
+        "assert_eq!(cases, 100)",
+        "for corruption in 0..12",
+    ] {
+        assert!(fixture.contains(marker), "{marker}");
+    }
+}
+
+#[test]
 fn native_sequence_disk_reopen_keeps_publication_separate_from_restoration_and_acceptance() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let fixture = std::fs::read_to_string(
@@ -49,12 +278,19 @@ fn native_group_disk_reopen_restores_parent_and_collector_under_one_owner() {
         "Fault::Cancelled",
         "old.same_scope(&scope.lease())",
         "const ORDERS: [[usize; 3]; 6]",
-        "this cut has only pure captured locals",
+        "Captured::Scalar(value)",
     ] {
         assert!(fixture.contains(marker), "{marker}");
     }
+    let signal_assertion = r#"#[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            assert_eq!(status.signal(), Some(9));
+        }"#;
+    assert_eq!(fixture.matches(signal_assertion).count(), 1);
+    let portable = fixture.replacen(signal_assertion, "", 1);
     for forbidden in ["leserpent", "rusqlite", "unsafe {", "#[cfg("] {
-        assert!(!fixture.contains(forbidden), "{forbidden}");
+        assert!(!portable.contains(forbidden), "{forbidden}");
     }
     let export = std::fs::read_to_string(root.join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
     assert!(export.contains("consumer/tests/support/native_group_checkpoint.rs"));

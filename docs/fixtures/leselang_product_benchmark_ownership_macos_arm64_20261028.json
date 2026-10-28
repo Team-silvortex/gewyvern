@@ -1,0 +1,175 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-product-benchmark-ownership",
+  "validated_at": "2026-10-28",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.3",
+  "baseline_commit": "4e46bfcc4db8e9431edb3e8f33b4141cc601d9db",
+  "verification_status": "passed",
+  "native_embedding_contract": "0.172.0",
+  "hir_contract": "0.194.0",
+  "runtime_implementation_changed": false,
+  "production_workload_unchanged": true,
+  "native_export_requires_product_benchmark": false,
+  "product_benchmark_requires_language_facades": false,
+  "product_benchmark_requires_sqlite": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "performance_comparison_performed": false,
+  "full_product_benchmark_suite_run": false,
+  "previous_path": "crates/leselang-vm/examples/language_benchmark.rs",
+  "current_path": "crates/leserpent-vm/examples/language_benchmark.rs",
+  "baseline_source_sha256": "18750b4846ff6f4ce8a9f4ba44636aba3c0969980af37c0c462c15ed29e93de5",
+  "normalized_workload_body_sha256": "cbcf5724b6f2c64552a24fc5eb87e32bd00ed07adc4e32085846da1a557e51c7",
+  "benchmark_unit_tests": 2,
+  "workload": {
+    "branch_count": 64,
+    "iterations": 500,
+    "source_bytes": 5371,
+    "token_count": 1674,
+    "effect_request_count": 64,
+    "report_schema_version": 1
+  },
+  "report": {
+    "path": "/private/tmp/leselang-product-benchmark-run-20261028.json",
+    "sha256": "3675e5d3cfea99715db6e9bf3f14a840021a6ee8c31d35b53bd4e1f4ce7fb210",
+    "profile": "lean",
+    "scope": "Smoke execution and exact report/workload shape only, not a release-mode performance baseline or before/after speed comparison."
+  },
+  "ownership_scope": "The product language benchmark is physically owned by leserpent-vm and directly imports leserpent_hir and leserpent_vm. The legacy native facade no longer declares or contains it. The existing gewyvern_validate benchmark entry selects the memory product target without SQLite. Library APIs, versions, report schema and performance budgets are unchanged.",
+  "export_scope": "The closed language example inventory now admits only native_counter.rs. The exporter succeeds without a product example directory and refuses product files reintroduced into the language directory. Closed VM manifest projection rejects new explicit example sections instead of silently dropping a product target. The complete verified native source checkpoint has the same manifest hash and all 312 file contents as the previous queued-example checkpoint.",
+  "verification_scope": "Two workload tests pass with both default and disabled-default product features. The lean benchmark emits the original 64-effect report; normal/build dependencies exclude both language facades and SQLite. Four existing benchmark-validator tests, exporter tests, strict lint and full isolated export pass locally. CI source was parsed and the new product example test target checked, not run on a remote CI service. Historical proofs retain their checkpoint paths/hashes.",
+  "remaining_boundaries": [
+    "Complete declared-language/reference compatibility acceptance.",
+    "Production host-neutral durable recovery and real GUI/FFI integration.",
+    "Registry publication and physical repository extraction."
+  ],
+  "source_hashes": {
+    ".github/workflows/ci.yml": "645084a789f95d0a05bc5a2580a2269cd0fc7d14b12a6a2e8a6fd1b6ff1589f8",
+    "crates/gewyvern-dev/src/leselang.rs": "2e01de49f1c4f43847f34f778ff2585a79be21a222ff663867d80c907fb84c8c",
+    "crates/leselang-vm/Cargo.toml": "8c7d4724f5af832aa5c6d6b1dc35ef496d3f22a2946a7f26c016dd5c219c86e0",
+    "crates/leselang-vm/README.md": "aea3128066d443548c3f0812065627a22df20936a8ea4c40b3fdd69618108ca3",
+    "crates/leserpent-vm/Cargo.toml": "81274c186af77a23073de5da99cf1ecb5c750d580c1e9e9ab91f82a4fea20dbe",
+    "crates/leserpent-vm/examples/language_benchmark.rs": "e9d060b508f9f29a2c316811cfe4ecb4a9691e4206eb25a9f936626c9d2b4ba8",
+    "src/validation_harness/leserpent_benchmark.rs": "40b0c184470a76cb4533b1082db8a2feba94fb6161d4bfa99f4680fd0204b98d",
+    "tests/leselang_vm_profile_tdd.rs": "8833bd1daa31b0ff6598f7eb5fe0021408be5c7f581b7557611d1d792bced838",
+    "tests/native_validation_harness_tdd.rs": "013375935ccf4da5a033e31904c38b314a6e39ac0a1a6c64cb51e1cc45dd2acf",
+    "tests/project_status_tdd.rs": "d1561d5e345021265f8adc9539b8e9da8a1c72ecf8a4871b8502cb3ba9c57fb9",
+    "docs/leselang-embedding.md": "ce4e688f8dc65929dd22657dd1825c52a4ee35d5daf9b3a63de87b725bc301d4",
+    "project/status/catalog.json": "f044524f406a3cf50f5c4ab9605c456f46d7a602d35543907ba65a1bd2b09049"
+  },
+  "checks": [
+    {
+      "command": "cargo +1.98.0 test -p leserpent-vm --no-default-features --locked --offline --profile lean --example language_benchmark",
+      "log": "/private/tmp/leselang-product-benchmark-native-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "d917c99b041f45c66db8e3b4980897a35dde81c5d4a8e3fd3a5a1ffa1ac47266",
+      "tests_passed": 2
+    },
+    {
+      "command": "cargo +1.98.0 test -p leserpent-vm --locked --offline --profile lean --example language_benchmark",
+      "log": "/private/tmp/leselang-product-benchmark-reference-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "ac386bb80f6f4b4e819fdfef07728c2631a4f1e318a29597cd9cf3667d44e016",
+      "tests_passed": 2
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "log": "/private/tmp/leselang-product-benchmark-exporter-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "10e51fc673e2dabde6188ec9782d9986e55944245ef339e48790da87704906b7",
+      "tests_passed": 27
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leserpent-vm --no-default-features --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-product-benchmark-product-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "ee0380e203f1801bb8f7e1f4e4a71952b0a85e4a36cda0b9e4c5dde8cf11e5bf",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern-dev --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-product-benchmark-exporter-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "eb9fa3b8b0e70cb961809bee4a7580ffd9c2a8d6fc4023e3a072a40102fe4404",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --lib validation_harness::leserpent_benchmark::tests",
+      "log": "/private/tmp/leselang-product-benchmark-harness-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "7a77e477db842fd7c0af8f44846a32a0f49188d7fbd0a1b43ecf1fd2b7884754",
+      "tests_passed": 4
+    },
+    {
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "log": "/private/tmp/leselang-product-benchmark-format-20261028.log",
+      "exit_code": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p leserpent-vm --no-default-features --locked --offline --profile lean --example language_benchmark",
+      "log": "/private/tmp/leselang-product-benchmark-run-20261028.log",
+      "exit_code": 0,
+      "sha256": "58eb454fe4f0a4366208d56d6e8860334a0279a1bb7e18982a4985f4b91d70e5",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 tree -p leserpent-vm --no-default-features --locked --offline --edges normal,build --prefix none",
+      "log": "/private/tmp/leselang-product-benchmark-tree-20261028.log",
+      "exit_code": 0,
+      "sha256": "942c8c67b0611491edf8f29910a59a999fdebab442387a2c9f68eddf8c01d579",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-product-benchmark-export-20261028 --verify",
+      "log": "/private/tmp/leselang-product-benchmark-export-20261028.log",
+      "exit_code": 0,
+      "sha256": "6562aea63ea9a51d7f1449b6614fddcc750011e7b2ff1d83c97961599659ed55",
+      "tests_passed": 2891
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test native_validation_harness_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-product-benchmark-root-20261028.log",
+      "exit_code": 0,
+      "sha256": "1b7d3b37c0eefa13cd61cb119f022784a7ab6206389d15aa45a3867773bfc015",
+      "tests_passed": 718
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test leselang_vm_profile_tdd --test native_validation_harness_tdd --test project_status_tdd -- -D warnings",
+      "log": "/private/tmp/leselang-product-benchmark-root-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "bf86953955f2f09a7392afc0b90282a65933a445d4e345038454b5b4bbc972e0",
+      "tests_passed": 0
+    },
+    {
+      "command": "target/lean/gewyvern_status validate --json",
+      "log": "/private/tmp/leselang-product-benchmark-status-20261028.log",
+      "exit_code": 0,
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0
+    }
+  ],
+  "native_export": {
+    "verified": true,
+    "file_count": 312,
+    "total_bytes": 7697177,
+    "copied_source_entries": 301,
+    "copied_sources_match": true,
+    "manifest_sha256": "0f687696b9cbdbc6a262ded2cd066d0fa79e1932e347ac269095419dc5bdb987",
+    "identical_to_queued_checkpoint": true,
+    "path": "/private/tmp/leselang-product-benchmark-export-20261028",
+    "tests_passed": 2891,
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-35849-1793185151862489000-2"
+    ],
+    "temporary_targets_removed": true,
+    "log": "/private/tmp/leselang-product-benchmark-export-20261028.log",
+    "log_sha256": "6562aea63ea9a51d7f1449b6614fddcc750011e7b2ff1d83c97961599659ed55"
+  },
+  "root_gate_tests": 718
+}

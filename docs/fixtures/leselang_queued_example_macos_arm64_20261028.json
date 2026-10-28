@@ -1,0 +1,309 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-queued-native-host-example",
+  "validated_at": "2026-10-28",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.3",
+  "baseline_commit": "4e46bfcc4db8e9431edb3e8f33b4141cc601d9db",
+  "native_embedding_contract": "0.172.0",
+  "hir_contract": "0.194.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "async_language_semantics_added": false,
+  "thread_safety_claimed": false,
+  "real_gui_loop_tested": false,
+  "production_journal_added": false,
+  "complete_language_coverage": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "example_path": "crates/leselang-vm/examples/native_counter.rs",
+  "example_tests": 12,
+  "queued_tests_added": 6,
+  "max_queued_events": 2,
+  "max_host_ticks": 64,
+  "native_dependencies_added": [],
+  "example_scope": "The existing public-facade/std Rust example now separates polling, dispatch and receipt acceptance across bounded host-owned turns. Two LocalVm instances borrow one immutable compiled IR but create distinct local owners, native state and original fuel meters. Original catalog compilation, capture, evaluation and reply-gated continuation remain unchanged. The queue is a headless single-threaded adapter, not a language scheduler or GUI toolkit integration.",
+  "authority_scope": "Pending cancellation revokes before guarded native dispatch and commits nothing. Cancellation after mutation rejects the delayed receipt while preserving the already-applied effect. Revocation before acceptance follows the example host policy of failing only that instance, with no tail dispatch or rollback. A sibling finishes independently. Local owner/serial correlation is not an authenticated external transport or durable replay protocol.",
+  "test_scope": "Six new test functions cover interleaving and exact immediate/queued fuel parity; both cancellation windows; live revocation; every insufficient fuel grant while a sibling runs at its exact completion grant; idle Awaiting polls and foreign/wrong-typed receipt ownership; and cancelled/dropped owners. All twelve tests run under native and reference features locally and unchanged in both exported package and independent consumer. Totals overlap; they are execution counts, not distinct features.",
+  "queued_outputs": {
+    "normal": {
+      "exit_code": 0,
+      "ends": [
+        "Completed",
+        "Completed"
+      ],
+      "totals": [
+        42,
+        42
+      ],
+      "calls": [
+        2,
+        2
+      ],
+      "remaining": [
+        979,
+        979
+      ],
+      "ticks": 8,
+      "peak_events": 2,
+      "discarded_events": 0,
+      "dispatch_order": [
+        1,
+        0,
+        1,
+        0
+      ]
+    },
+    "cancel_pending": {
+      "exit_code": 0,
+      "ends": [
+        "Cancelled",
+        "Completed"
+      ],
+      "totals": [
+        0,
+        42
+      ],
+      "calls": [
+        0,
+        2
+      ],
+      "remaining": [
+        993,
+        979
+      ],
+      "ticks": 5,
+      "peak_events": 2,
+      "discarded_events": 1,
+      "dispatch_order": [
+        1,
+        1
+      ]
+    },
+    "cancel_reply": {
+      "exit_code": 0,
+      "ends": [
+        "Cancelled",
+        "Completed"
+      ],
+      "totals": [
+        19,
+        42
+      ],
+      "calls": [
+        1,
+        2
+      ],
+      "remaining": [
+        993,
+        979
+      ],
+      "ticks": 6,
+      "peak_events": 2,
+      "discarded_events": 1,
+      "dispatch_order": [
+        1,
+        0,
+        1
+      ]
+    },
+    "revoke": {
+      "exit_code": 1,
+      "ends": [
+        "Failed",
+        "Completed"
+      ],
+      "totals": [
+        19,
+        42
+      ],
+      "calls": [
+        1,
+        2
+      ],
+      "remaining": [
+        993,
+        979
+      ],
+      "ticks": 6,
+      "peak_events": 2,
+      "discarded_events": 1,
+      "dispatch_order": [
+        1,
+        0,
+        1
+      ]
+    }
+  },
+  "export_scope": "Closed inventory and byte-identical example copying remain unchanged. Verifier and generated CI explicitly run all twelve tests and immediate/queued successful cancellation demos in package and consumer. Expected revocation failure is tested in unit tests and the local CLI, not misclassified as a successful export command. The source checkpoint remains product-free; registry publication and physical repository extraction are not performed.",
+  "remaining_boundaries": [
+    "Complete declared-language and reference wire/authority/GUI/CLI parity.",
+    "Production host-neutral durable recovery, authenticated external receipts and external-effect settlement.",
+    "Real GUI event-loop/FFI integrations, thread-safety proof, registry publication and physical repository extraction."
+  ],
+  "verification_scope": "Local macOS arm64 and isolated source verification. Generated CI was parsed and its twelve example steps checked, not executed on a remote CI worker. Production runtime APIs, language contracts and extraction gates are unchanged. Previous evidence snapshots retain their original hashes.",
+  "source_hashes": {
+    "crates/leselang-vm/tests/native_host_pipeline.rs": "a2d2fe421293cb215766c9d06e3b6c9a1e00df4d9e05f434f5eb836760d88506",
+    "crates/leselang-vm/tests/support/native_checkpoint.rs": "2bc59a5254558159172ede9fead81e262dc09cdf13a2135362926416e4c3d236",
+    "crates/leselang-vm/tests/support/native_group_checkpoint.rs": "cd44bd40cde9350fb8ed321c5b0514e82da4ba530b289d3d05be4391396a7312",
+    "crates/leselang-hir-core/src/effect_stack_session.rs": "8fd169c0d0b4d2cb363667c45963ce3cd677ee7f011ba0ca73cb712eed77bcd2",
+    "crates/leselang-hir-core/src/prepared_sequence.rs": "6f0c4e9acc0d13727d1f5b9eb45ac19db1c976e780e4ad8a28fe50f05ea21cde",
+    "crates/leselang-hir-core/src/sequence_evaluation.rs": "646136c2f18b3dd8542c2d696817c26ef8cdc35411bd3345e415e1c6c8c2fbb4",
+    "crates/leselang-hir-core/src/prepared_parallel.rs": "76fc750046ec65f99151aaa145bea3491dc920a6ab2824b1ab52a6c1a37524bd",
+    "crates/leselang-hir-core/src/call_evaluation.rs": "255f19be9024e561ad2f0587c9651ff4828be651f0b2b95f748fbe0103c2cbe8",
+    "crates/leselang-runtime-core/src/local_execution.rs": "5b87372ca61605b4452c69c0541604fdfd4371a64ad4f24c8afc83b09b70508a",
+    "crates/leselang-runtime-core/src/reply.rs": "a876ee1347215b4d75d5c4f943a67684e3c1b7ceca26c6386f4e6afb8df2d0b9",
+    "crates/gewyvern-dev/src/leselang.rs": "44d70e48ddfce57dfaa60c909f9fbb5a1cdb6a9df0e991b88fd51c19f5583224",
+    "tests/language_independence_tdd.rs": "132bd4a88fea4423f115132a99760c7ac406089b792eaf104392226cd20038d2",
+    "tests/project_status_tdd.rs": "72945fbbe0cb56f89dcab7e05a53c7c4241fc3d047b52d5dcd90d76417e11c32",
+    "docs/leselang-embedding.md": "b2a566339b65ff4ff7526fbd2e022e4c40c82d52f5778dde33538649e1cb37f9",
+    "project/status/catalog.json": "2a28e63f5d7ea9d3dd8f08eb74cfe30b950478f3a88af6b4abfd7f75de7ac1c1",
+    "crates/leselang-hir-core/src/group_reply.rs": "1339fd31a9e699185de3cd93c3c2dd5a8f1dd53b4602ec1f41063dc1f531a7fa",
+    "crates/leselang-vm/examples/native_counter.rs": "7cd3426dc70c686577550a88084ae756c4d1fd1bc4d2d9bd31ba52c1d069b949",
+    "crates/leselang-vm/README.md": "c8be1906d08d8f6ca6d6bfbf743f0d02ebe010eebbba5ec48aef59405aaafdfb",
+    "docs/modules/leselang.md": "c2c8c01ae5ff070420ad01afcbdb10c9e45386adebb1fbb4d61cbc79eaf1b06a"
+  },
+  "checks": [
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --no-default-features --locked --offline --profile lean --example native_counter",
+      "log": "/private/tmp/leselang-queued-native-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "2896d0b794434661520ec608cd83e3f615d0269c0751461a97c2fa0c0500e365",
+      "tests_passed": 12
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --example native_counter",
+      "log": "/private/tmp/leselang-queued-reference-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "f4401d05bddfc9a634442f901c1bc0ee4ccddc5ee21134d6cd63202ffc498f62",
+      "tests_passed": 12
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --no-default-features --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-queued-native-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "9ba12159f4739dfefef0ece0508b3fb81d4186fcb7d1274c36d70efbb554ed9b",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "log": "/private/tmp/leselang-queued-exporter-test-20261028.log",
+      "exit_code": 0,
+      "sha256": "d05e2014607c4d7b32f28b7954025e525be1bc2613f3703633c9a6efb8244d1b",
+      "tests_passed": 27
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern-dev --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-queued-exporter-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "41fdfa23b3ebbb57e0d9faca85cce96a557501c85af793073a3cdddd21ffd185",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "log": "/private/tmp/leselang-queued-format-20261028.log",
+      "exit_code": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p leselang-vm --no-default-features --locked --offline --profile lean --example native_counter -- --queued",
+      "log": "/private/tmp/leselang-queued-cli-normal-20261028.log",
+      "exit_code": 0,
+      "sha256": "7af0d0a20a6444ab36aae4b32cb5086d4f185bc2fef2ef949b38c682c4b07a07",
+      "tests_passed": 0
+    },
+    {
+      "command": "target/lean/examples/native_counter --queued-cancel-pending",
+      "log": "/private/tmp/leselang-queued-cli-cancel-pending-20261028.log",
+      "exit_code": 0,
+      "sha256": "0fb2e835b4e3eab890694cfc2628f5acf452bd2cf3a26b866a7eca8d84548e50",
+      "tests_passed": 0
+    },
+    {
+      "command": "target/lean/examples/native_counter --queued-cancel-reply",
+      "log": "/private/tmp/leselang-queued-cli-cancel-reply-20261028.log",
+      "exit_code": 0,
+      "sha256": "4fb192fa3ba003485c1661f07e9e3378b090efc1a463a95b970531ca36fdd72b",
+      "tests_passed": 0
+    },
+    {
+      "command": "target/lean/examples/native_counter --queued-revoke",
+      "log": "/private/tmp/leselang-queued-cli-revoke-20261028.log",
+      "exit_code": 1,
+      "expected_refusal": true,
+      "sha256": "9f2c040b086b01c71ccefffbecf67c9d08c510efe80faa1bbd9f98826d7529c9",
+      "tests_passed": 0
+    },
+    {
+      "command": "target/lean/examples/native_counter --unknown",
+      "log": "/private/tmp/leselang-queued-cli-invalid-20261028.log",
+      "exit_code": 2,
+      "expected_refusal": true,
+      "sha256": "f4cde741cc07e729755a3f58a0049ad078918cca168cbeb33d8621ada2b7e206",
+      "tests_passed": 0
+    },
+    {
+      "command": "target/lean/examples/native_counter --queued --cancel",
+      "log": "/private/tmp/leselang-queued-cli-extra-20261028.log",
+      "exit_code": 2,
+      "expected_refusal": true,
+      "sha256": "083cd4afe248674bc09f72f2fefd3d9d50bcb916d76260f0071d949f56401be4",
+      "tests_passed": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-queued-example-export-20261028 --verify",
+      "log": "/private/tmp/leselang-queued-export-20261028.log",
+      "exit_code": 0,
+      "sha256": "fe0f886f23000aaccc059c7ee2ea4956fbe017905c462030b3a0e652bcff1a12",
+      "tests_passed": 2891
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-queued-root-20261028.log",
+      "exit_code": 0,
+      "sha256": "4466df69f90fef38ee2009617834598c604921e4ebcb79ded7ed44f8b4076f07",
+      "tests_passed": 688
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd -- -D warnings",
+      "log": "/private/tmp/leselang-queued-root-clippy-20261028.log",
+      "exit_code": 0,
+      "sha256": "aac4ed31ec9b6a7fb867b00db105796a714eaa96cc9a82ae1b0cb96883b7d513",
+      "tests_passed": 0
+    },
+    {
+      "command": "target/lean/gewyvern_status validate --json",
+      "log": "/private/tmp/leselang-queued-status-20261028.log",
+      "exit_code": 0,
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0
+    }
+  ],
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "crate_count": 5,
+    "path": "/private/tmp/leselang-queued-example-export-20261028",
+    "file_count": 312,
+    "total_bytes": 7697177,
+    "manifest_sha256": "0f687696b9cbdbc6a262ded2cd066d0fa79e1932e347ac269095419dc5bdb987",
+    "copied_source_entries": 301,
+    "copied_sources_match": true,
+    "example_test_runs": 24,
+    "example_program_runs": 10,
+    "queued_program_runs": 6,
+    "ci_example_steps": 12,
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-9908-1793183399371118000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2891,
+    "log": "/private/tmp/leselang-queued-export-20261028.log",
+    "log_sha256": "fe0f886f23000aaccc059c7ee2ea4956fbe017905c462030b3a0e652bcff1a12"
+  },
+  "root_gate_tests": 688
+}

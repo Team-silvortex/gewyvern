@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-forced-publication-termination",
+  "validated_at": "2026-10-28",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.3",
+  "baseline_commit": "4e46bfcc4db8e9431edb3e8f33b4141cc601d9db",
+  "native_embedding_contract": "0.172.0",
+  "hir_contract": "0.194.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "production_journal_added": false,
+  "host_fixture_behavior_changed": true,
+  "process_restart_tested": true,
+  "forced_os_kill_tested": true,
+  "forced_os_kill_signal": 9,
+  "automatic_orphan_cleanup": false,
+  "power_loss_tested": false,
+  "storage_authentication_provided": false,
+  "external_effect_crash_atomicity": false,
+  "external_cancellation_delivered": false,
+  "concurrent_writer_safety": false,
+  "durable_cancellation_settlement": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "private_fixture_format": 5,
+  "hosts": [
+    "stateful scalar counter",
+    "structured headless panel reply"
+  ],
+  "publication_points": [
+    "partial candidate write",
+    "complete candidate file sync",
+    "candidate rename over committed ledger"
+  ],
+  "publication_targets": [
+    "cancellation intent",
+    "cancelled terminal"
+  ],
+  "kill_chains": 24,
+  "unpublished_candidates": 16,
+  "truncated_candidates": 8,
+  "complete_uncommitted_candidates": 8,
+  "post_intent_rename_cases": 4,
+  "post_terminal_rename_cases": 4,
+  "fresh_refusal_and_stale_dispatch_probes": 36,
+  "malformed_file_or_directory_cases": 8,
+  "kill_matrix_subprocesses": 112,
+  "subprocesses_per_pipeline_run": 576,
+  "program_scope": "Two native hosts and pending three-member Seq/All groups, each following a completed Seq then All, cover both cancellation-intent and terminal publication at three deterministic writer boundaries. Original compilation, native VM/collectors, codecs and serialized fixture writer are reused. This matrix is not exhaustive arbitrary-graph or instruction-level crash coverage.",
+  "termination_scope": "The writer pauses in the original write/sync/rename path after atomically publishing a bounded PID/target/point marker. The parent verifies that marker against its own Child handle, kills and waits for only that child, and requires signal 9 on this Unix run. No cancellation report may exist. All process identities within each chain differ; the existing timeout/owned-handle cleanup pattern remains in use.",
+  "orphan_scope": "Both normal recovery and cancellation retry refuse any unresolved pending path before native reentry. Dispatch also checks that path before consulting cached receipts or invoking a host effect. Sixteen orphan records remain byte-identical and are never promoted, even when complete valid JSON. Only the parent, after reaping its sole writer in the privately owned test directory, explicitly discards the orphan. Another fresh process retries cancellation with current authority and original saved fuel; a final process replays the unchanged committed outcome.",
+  "commit_scope": "Four kills after intent rename preserve the committed cancellation fence, refusing ordinary recovery until explicit cancellation retry. Four kills after terminal rename leave an already committed Cancelled outcome even though the writer did not acknowledge it. Terminal replay and late cancellation preserve that outcome and ledger bytes. Existing receipts and host state are unchanged throughout the kill/recovery chain.",
+  "collision_scope": "Eight additional same-process cases place either malformed JSON or a directory at the pending path. Normal recovery, cancellation and denied authority all refuse without cleanup; stale dispatch also refuses. A colliding create_new writer cannot delete the unresolved path or change committed bytes. Only explicit fixture-owner removal permits cancellation retry.",
+  "writer_scope": "Hooks divide the original candidate write in half and observe file-sync/rename boundaries. The metadata existence fence is serialized host-fixture policy, not an atomic transaction or ownership proof. No stale PID scan, age-based deletion, candidate promotion or new production storage API is introduced.",
+  "remaining_boundaries": [
+    "Power loss, directory synchronization, machine reboot, arbitrary unsynchronized crash points and durable filesystem consistency.",
+    "Concurrent writers, authenticated host storage and atomic external-effect/receipt/cancellation settlement.",
+    "External cancellation delivery and final independent repository/distribution acceptance."
+  ],
+  "verification_scope": "Local macOS forced-child-termination acceptance, not Linux/Windows execution or remote CI. Top-level test totals exclude worker invocations and overlap across local, exported package and separate consumer runs. Historical evidence retains its original scopes and source hashes.",
+  "source_hashes": {
+    "crates/leselang-vm/tests/native_host_pipeline.rs": "a2d2fe421293cb215766c9d06e3b6c9a1e00df4d9e05f434f5eb836760d88506",
+    "crates/leselang-vm/tests/support/native_checkpoint.rs": "2bc59a5254558159172ede9fead81e262dc09cdf13a2135362926416e4c3d236",
+    "crates/leselang-vm/tests/support/native_group_checkpoint.rs": "cd44bd40cde9350fb8ed321c5b0514e82da4ba530b289d3d05be4391396a7312",
+    "crates/leselang-hir-core/src/effect_stack_session.rs": "8fd169c0d0b4d2cb363667c45963ce3cd677ee7f011ba0ca73cb712eed77bcd2",
+    "crates/leselang-hir-core/src/prepared_sequence.rs": "6f0c4e9acc0d13727d1f5b9eb45ac19db1c976e780e4ad8a28fe50f05ea21cde",
+    "crates/leselang-hir-core/src/sequence_evaluation.rs": "646136c2f18b3dd8542c2d696817c26ef8cdc35411bd3345e415e1c6c8c2fbb4",
+    "crates/leselang-hir-core/src/prepared_parallel.rs": "76fc750046ec65f99151aaa145bea3491dc920a6ab2824b1ab52a6c1a37524bd",
+    "crates/leselang-hir-core/src/call_evaluation.rs": "255f19be9024e561ad2f0587c9651ff4828be651f0b2b95f748fbe0103c2cbe8",
+    "crates/leselang-runtime-core/src/local_execution.rs": "5b87372ca61605b4452c69c0541604fdfd4371a64ad4f24c8afc83b09b70508a",
+    "crates/leselang-runtime-core/src/reply.rs": "a876ee1347215b4d75d5c4f943a67684e3c1b7ceca26c6386f4e6afb8df2d0b9",
+    "crates/gewyvern-dev/src/leselang.rs": "518574b787ddae51a4bba210ee6c4ab98370b8a3ab610d8ea3ecb8d7e557ed5d",
+    "tests/language_independence_tdd.rs": "810732a9836d961bd65bb6a8440e559772761c2ef2f2e3566400945afa71d548",
+    "tests/project_status_tdd.rs": "c03a6adab36ffeb32a62209c80a5d954ddf129880d374e0731336dac38219b3a",
+    "docs/leselang-embedding.md": "11be6a869e35568be54ab0eb3c9b60d2482d11147a52e4ff4ba52afcc430e0ab",
+    "project/status/catalog.json": "4badc7a3eabfb3007d2976a4675acc1fec742cfb69309957530d2b369da88247",
+    "crates/leselang-hir-core/src/group_reply.rs": "1339fd31a9e699185de3cd93c3c2dd5a8f1dd53b4602ec1f41063dc1f531a7fa"
+  },
+  "checks": [
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-publication-kill-root-20261028.log",
+      "sha256": "5404d5580229c8aa1fcf7ba221109d1dbe025ffd86d5371ab94cd2a472c34da3",
+      "tests_passed": 684,
+      "exit_code": 0
+    },
+    {
+      "command": "rustfmt +1.98.0 --edition 2024 --check crates/leselang-vm/tests/support/native_checkpoint.rs crates/leselang-vm/tests/support/native_group_checkpoint.rs",
+      "log": "/private/tmp/leselang-publication-kill-fixture-format-20261028.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --no-default-features --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-publication-kill-native-clippy-20261028.log",
+      "sha256": "3d963c4807720362081bead8e9629bbb9b6b06b44f9ad08cff696933c051a876",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions",
+      "log": "/private/tmp/leselang-publication-kill-compatibility-20261028.log",
+      "sha256": "f6c7021d94fafd485fcc035eca24680bb4ae1bd9f5051dc4a1951f268e8472fd",
+      "tests_passed": 152,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "log": "/private/tmp/leselang-publication-kill-format-20261028.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern-dev --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-publication-kill-exporter-clippy-20261028.log",
+      "sha256": "8c43c3693982ef1b452a715117da6019b0cb0f9aa1ef9d073407dea1a267c350",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions -- -D warnings",
+      "log": "/private/tmp/leselang-publication-kill-compatibility-clippy-20261028.log",
+      "sha256": "48fa5a189ab93ab3ecd108ec164ca1dfb5470081b9610c5ee58ff8b7896df326",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd -- -D warnings",
+      "log": "/private/tmp/leselang-publication-kill-root-clippy-20261028.log",
+      "sha256": "91d023ec4ff5a81e36a292c4421fbf43829e707dd4fb7f651720ace3c87ded73",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --no-default-features",
+      "log": "/private/tmp/leselang-publication-kill-native-20261028.log",
+      "sha256": "834b1529ae17295e3b48cdda69b2c74900f9bcfa2ae27e5578caa82b4a091310",
+      "tests_passed": 135,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-publication-kill-export-20261028 --verify",
+      "log": "/private/tmp/leselang-publication-kill-export-20261028.log",
+      "sha256": "f33c5a1057b3724ea0fceddca1cf3869257b6b8b1d8113376d34be56db965905",
+      "tests_passed": 2867,
+      "exit_code": 0
+    },
+    {
+      "command": "target/lean/gewyvern_status validate --json",
+      "log": "/private/tmp/leselang-publication-kill-status-20261028.log",
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "log": "/private/tmp/leselang-publication-kill-exporter-tests-20261028.log",
+      "sha256": "6cdbe675e62e554f7ca3c8403351e10dc1bb901c6ca5816ec1401fdeab95acce",
+      "tests_passed": 26,
+      "exit_code": 0
+    }
+  ],
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "crate_count": 5,
+    "path": "/private/tmp/leselang-publication-kill-export-20261028",
+    "file_count": 310,
+    "total_bytes": 7626096,
+    "manifest_sha256": "09a0984b0a7e9fcddcfe00852721dc8ac48d0b919023f0cc01f1819752540d29",
+    "copied_source_entries": 299,
+    "copied_sources_match": true,
+    "publication_kill_test_runs": 2,
+    "unpublished_node_test_runs": 2,
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-80759-1793181176839915000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2867,
+    "log": "/private/tmp/leselang-publication-kill-export-20261028.log",
+    "log_sha256": "f33c5a1057b3724ea0fceddca1cf3869257b6b8b1d8113376d34be56db965905"
+  },
+  "red_green_regression": {
+    "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --no-default-features --test native_host_pipeline disk_process_killed_publication",
+    "log": "/private/tmp/leselang-publication-kill-red-20261028.log",
+    "sha256": "99aac34e2cec9153b21c3b1e8cb8baa3f89940e88c302b3d11b5b981194b7449",
+    "exit_code": 101,
+    "expected_failure": true,
+    "failure": "After a partial cancellation-intent write and SIGKILL, the old fixture ignored the unpublished candidate and resumed, violating the fresh reader refusal assertion."
+  },
+  "root_gate_tests": 684
+}

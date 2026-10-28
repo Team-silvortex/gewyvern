@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-cross-process-reopen",
+  "validated_at": "2026-10-28",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.3",
+  "baseline_commit": "4e46bfcc4db8e9431edb3e8f33b4141cc601d9db",
+  "native_embedding_contract": "0.172.0",
+  "hir_contract": "0.194.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "production_journal_added": false,
+  "process_restart_tested": true,
+  "controlled_process_exit_tested": true,
+  "forced_os_kill_tested": false,
+  "power_loss_tested": false,
+  "storage_authentication_provided": false,
+  "external_effect_crash_atomicity": false,
+  "external_cancellation_delivered": false,
+  "concurrent_writer_safety": false,
+  "durable_cancellation_settlement": false,
+  "cancellation_intent_fence": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "private_fixture_format": 5,
+  "private_process_job_format": 1,
+  "hosts": [
+    "stateful scalar counter",
+    "structured headless panel reply"
+  ],
+  "host_frontier_cases": 28,
+  "resume_budget_chains": 84,
+  "confirmed_cancellation_chains": 28,
+  "intent_exit_chains": 28,
+  "fresh_reader_refusal_chains": 8,
+  "process_chains_per_pipeline_run": 148,
+  "subprocesses_per_pipeline_run": 464,
+  "program_scope": "Two native hosts, two mixed predecessor-kind pairs (Seq/All and All/Seq) and seven representative pending Seq/All cuts yield 28 host/frontier cases. The original compiler, VM, collectors, host codecs and private checkpoint format are reused. This is not exhaustive coverage of arbitrary dependency graphs.",
+  "process_scope": "The current Rust test executable is invoked directly through std::process::Command with --exact and a single worker. Each chain creates the original checkpoint in a writer process, reopens it in a fresh reader and, where applicable, replays the terminal in another fresh process. Real Child.id values and report PID/parent/phase must match; all chain PIDs differ. No shell or replacement evaluator is used. Job metadata and a parent-owned directory cross the boundary, not native owners or leases. A synthetic closed local lease in each reader is used only for stale-reply probes.",
+  "resume_scope": "Eighty-four writer/reader/replay chains compare uninterrupted cost minus one, exact cost and plus one against original execution result and remaining fuel. The host receipt ledger has only the original effect identities. A late cancellation in a third process cannot overwrite a committed Completed or Failed outcome and leaves ledger bytes unchanged.",
+  "cancellation_scope": "Twenty-eight writer/reader/replay chains preserve confirmed cancellation and byte-identical ledger contents across two fresh readers. Another 28 four-process chains exit the writer with code 73 immediately after cancellation-intent publication, before terminal publication or acknowledgement, skipping stack cleanup while native owners are still live. A fresh reader refuses ordinary recovery without mutating the ledger; an explicit authorized retry in another process commits cancellation without further effects; a fourth process replays the terminal unchanged.",
+  "refusal_scope": "Eight independent writer/reader chains reject changed candidate bytes, relabeled pending members, exchanged completed captured graphs or denied current authority before dispatch, preserving ledger bytes. These checks trust the host ledger; they do not authenticate storage.",
+  "resource_scope": "Each child has a 30-second deadline, a periodically checked local log-size limit and bounded report/log reads. An owned ChildGuard kills and waits on timeout or unwind. Children open the parent's directory without cleanup ownership; only the parent removes it. Missing worker selection or reports cannot produce a passing acknowledgement. Output-size checks are polling-based, not an OS-level write quota.",
+  "remaining_boundaries": [
+    "Forced OS termination, mid-write interruption, directory synchronization, machine reboot, power loss and durable filesystem consistency.",
+    "Concurrent writer coordination and atomic external-effect/receipt/cancellation settlement.",
+    "External cancellation delivery, authenticated host storage and final independent repository/distribution acceptance."
+  ],
+  "verification_scope": "Local macOS cross-process acceptance, including controlled process exit at an already-published intent boundary. Top-level Rust test totals exclude the 464 worker invocations per pipeline run; package and consumer run the same matrix and their totals overlap with local native/compatibility tests. No Linux, physical GUI, remote CI, production journal or complete durable recovery claim.",
+  "source_hashes": {
+    "crates/leselang-vm/tests/native_host_pipeline.rs": "a2d2fe421293cb215766c9d06e3b6c9a1e00df4d9e05f434f5eb836760d88506",
+    "crates/leselang-vm/tests/support/native_checkpoint.rs": "fbafb8920d2c49f85cc11d14a55d814ab0aa7aa5fa2f4b918b2dc4d7890b1017",
+    "crates/leselang-vm/tests/support/native_group_checkpoint.rs": "0d412a0355135ceb65dca651ab0ac4825ef44b004a74c1cb3deb80eadff45978",
+    "crates/leselang-hir-core/src/effect_stack_session.rs": "8fd169c0d0b4d2cb363667c45963ce3cd677ee7f011ba0ca73cb712eed77bcd2",
+    "crates/leselang-hir-core/src/prepared_sequence.rs": "6f0c4e9acc0d13727d1f5b9eb45ac19db1c976e780e4ad8a28fe50f05ea21cde",
+    "crates/leselang-hir-core/src/sequence_evaluation.rs": "646136c2f18b3dd8542c2d696817c26ef8cdc35411bd3345e415e1c6c8c2fbb4",
+    "crates/leselang-hir-core/src/prepared_parallel.rs": "76fc750046ec65f99151aaa145bea3491dc920a6ab2824b1ab52a6c1a37524bd",
+    "crates/leselang-hir-core/src/call_evaluation.rs": "255f19be9024e561ad2f0587c9651ff4828be651f0b2b95f748fbe0103c2cbe8",
+    "crates/leselang-runtime-core/src/local_execution.rs": "5b87372ca61605b4452c69c0541604fdfd4371a64ad4f24c8afc83b09b70508a",
+    "crates/leselang-runtime-core/src/reply.rs": "a876ee1347215b4d75d5c4f943a67684e3c1b7ceca26c6386f4e6afb8df2d0b9",
+    "crates/gewyvern-dev/src/leselang.rs": "54bcb64393926c2bdc84281ac34edab87313ccad401c387399d4af21ff0690b6",
+    "tests/language_independence_tdd.rs": "18d00235f61574a33b679b26dd68232570ea703b6da1a6e7fe056f0c8d5d3c66",
+    "tests/project_status_tdd.rs": "f3d1ed8dabe1c1e28b3bbc2d7f2f3798a55ae50ac045d5c25a00b5a77a9a3859",
+    "docs/leselang-embedding.md": "267132d6a32b83414058808b16599abbf918d4368269979d516ec66d7035a787",
+    "project/status/catalog.json": "e4dc19ee5db03e249867901b3ef76fbf9dfe3ee6926beb2e902c75ce2ceb437f",
+    "crates/leselang-hir-core/src/group_reply.rs": "1339fd31a9e699185de3cd93c3c2dd5a8f1dd53b4602ec1f41063dc1f531a7fa"
+  },
+  "checks": [
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --no-default-features",
+      "log": "/private/tmp/leselang-process-reopen-native-20261028.log",
+      "sha256": "0839bb8f882ef1523d32a995eee90a3c60f17421f9d3b5609fa51f4f34324843",
+      "tests_passed": 133,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions",
+      "log": "/private/tmp/leselang-process-reopen-compatibility-20261028.log",
+      "sha256": "e812efea71119cec2d0637eabb47895e18cf8cf9b81d153aee8e46c6a055b65e",
+      "tests_passed": 150,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --no-default-features --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-process-reopen-native-clippy-20261028.log",
+      "sha256": "26a28d81a15283933f5c07b560381ade3ce0954d955d6c0b8ba799261f7c524f",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions -- -D warnings",
+      "log": "/private/tmp/leselang-process-reopen-compatibility-clippy-20261028.log",
+      "sha256": "5c6c21c7058a0cd7c21b7a388d9651498bf22d4b3d3257c4d7b5863b2c845453",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "log": "/private/tmp/leselang-process-reopen-exporter-tests-20261028.log",
+      "sha256": "1efbdb39d014b40b910877310a6ab7d35b7e1051a9eeffc380d688a12b312a4f",
+      "tests_passed": 26,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern-dev --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-process-reopen-exporter-clippy-20261028.log",
+      "sha256": "a49bb1d5e1230ef82d28eb456c6321cfad8759abc1836f43614b46cfa36c3195",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "log": "/private/tmp/leselang-process-reopen-format-20261028.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "rustfmt +1.98.0 --edition 2024 --check crates/leselang-vm/tests/support/native_checkpoint.rs crates/leselang-vm/tests/support/native_group_checkpoint.rs",
+      "log": "/private/tmp/leselang-process-reopen-fixture-format-20261028.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-process-reopen-export-20261028 --verify",
+      "log": "/private/tmp/leselang-process-reopen-export-20261028.log",
+      "sha256": "7daff56e421636e64eb8210fedf2db8da62669d340bfe25d9aac8087c47589c6",
+      "tests_passed": 2863,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd -- -D warnings",
+      "log": "/private/tmp/leselang-process-reopen-root-clippy-20261028.log",
+      "sha256": "dc345ddf1ae8f88bb3a3f5fa371d28ac3934038c93ce705b9525ac407a4357c7",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-process-reopen-root-20261028.log",
+      "sha256": "ade9f96bd18f1e255a860b11035c58e36f8d43c146cfd23adfdcb7b82365bdd2",
+      "tests_passed": 682,
+      "exit_code": 0
+    },
+    {
+      "command": "target/lean/gewyvern_status validate --json",
+      "log": "/private/tmp/leselang-process-reopen-status-20261028.log",
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0,
+      "exit_code": 0
+    }
+  ],
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "crate_count": 5,
+    "path": "/private/tmp/leselang-process-reopen-export-20261028",
+    "file_count": 310,
+    "total_bytes": 7601152,
+    "manifest_sha256": "8428ebcf3c1ae8d071b31ff0202b1a0b45f5c6c96a2a83e169001d024fcfe96d",
+    "copied_source_entries": 299,
+    "copied_sources_match": true,
+    "process_reopen_test_runs": 10,
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-64469-1793179832672871000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2863,
+    "log": "/private/tmp/leselang-process-reopen-export-20261028.log",
+    "log_sha256": "7daff56e421636e64eb8210fedf2db8da62669d340bfe25d9aac8087c47589c6"
+  },
+  "root_gate_tests": 682
+}

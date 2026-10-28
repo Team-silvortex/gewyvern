@@ -14,6 +14,327 @@ fn repository_root() -> PathBuf {
 }
 
 #[test]
+fn queued_native_example_does_not_promote_async_gui_or_extraction_readiness() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.completion, 10);
+    let path = "docs/fixtures/leselang_queued_example_macos_arm64_20261028.json";
+    assert!(native.evidence.iter().any(|e| e.path == path
+        && e.kind == EvidenceKind::Test
+        && e.state == EvidenceState::Present));
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["example_tests"], 12);
+    assert_eq!(proof["queued_tests_added"], 6);
+    assert_eq!(proof["max_queued_events"], 2);
+    assert_eq!(proof["max_host_ticks"], 64);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["copied_sources_match"], true);
+    assert_eq!(proof["native_export"]["example_test_runs"], 24);
+    assert_eq!(proof["native_export"]["queued_program_runs"], 6);
+    for flag in [
+        "runtime_implementation_changed",
+        "async_language_semantics_added",
+        "thread_safety_claimed",
+        "real_gui_loop_tested",
+        "production_journal_added",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+}
+
+#[test]
+fn runnable_native_example_is_evidence_not_complete_language_or_release_promotion() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.completion, 10);
+    let path = "docs/fixtures/leselang_native_example_macos_arm64_20261028.json";
+    assert!(native.evidence.iter().any(|e| e.path == path
+        && e.kind == EvidenceKind::Test
+        && e.state == EvidenceState::Present));
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["example_tests"], 6);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["copied_sources_match"], true);
+    assert_eq!(proof["native_export"]["example_test_runs"], 12);
+    assert_eq!(proof["native_export"]["example_program_runs"], 4);
+    for flag in [
+        "runtime_implementation_changed",
+        "production_journal_added",
+        "complete_language_coverage",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+}
+
+#[test]
+fn forced_publication_kill_evidence_does_not_claim_power_loss_or_production_storage() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.completion, 10);
+    let path = "docs/fixtures/leselang_publication_kill_macos_arm64_20261028.json";
+    assert!(native.evidence.iter().any(|e| e.path == path
+        && e.kind == EvidenceKind::Test
+        && e.state == EvidenceState::Present));
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["forced_os_kill_tested"], true);
+    assert_eq!(proof["host_fixture_behavior_changed"], true);
+    assert_eq!(proof["kill_chains"], 24);
+    assert_eq!(proof["unpublished_candidates"], 16);
+    assert_eq!(proof["fresh_refusal_and_stale_dispatch_probes"], 36);
+    assert_eq!(proof["malformed_file_or_directory_cases"], 8);
+    assert_eq!(proof["kill_matrix_subprocesses"], 112);
+    assert_eq!(proof["subprocesses_per_pipeline_run"], 576);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["copied_sources_match"], true);
+    assert_eq!(proof["native_export"]["publication_kill_test_runs"], 2);
+    for flag in [
+        "runtime_implementation_changed",
+        "production_journal_added",
+        "automatic_orphan_cleanup",
+        "power_loss_tested",
+        "storage_authentication_provided",
+        "external_effect_crash_atomicity",
+        "external_cancellation_delivered",
+        "concurrent_writer_safety",
+        "durable_cancellation_settlement",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+}
+
+#[test]
+fn native_process_restart_evidence_keeps_power_loss_and_production_recovery_unclaimed() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.completion, 10);
+    let path = "docs/fixtures/leselang_process_reopen_macos_arm64_20261028.json";
+    assert!(native.evidence.iter().any(|e| e.path == path
+        && e.kind == EvidenceKind::Test
+        && e.state == EvidenceState::Present));
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["process_restart_tested"], true);
+    assert_eq!(proof["controlled_process_exit_tested"], true);
+    assert_eq!(proof["resume_budget_chains"], 84);
+    assert_eq!(proof["confirmed_cancellation_chains"], 28);
+    assert_eq!(proof["intent_exit_chains"], 28);
+    assert_eq!(proof["fresh_reader_refusal_chains"], 8);
+    assert_eq!(proof["subprocesses_per_pipeline_run"], 464);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["copied_sources_match"], true);
+    assert_eq!(proof["native_export"]["process_reopen_test_runs"], 10);
+    for flag in [
+        "runtime_implementation_changed",
+        "production_journal_added",
+        "forced_os_kill_tested",
+        "power_loss_tested",
+        "storage_authentication_provided",
+        "external_effect_crash_atomicity",
+        "external_cancellation_delivered",
+        "concurrent_writer_safety",
+        "durable_cancellation_settlement",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+}
+
+#[test]
+fn persisted_cancellation_fixture_does_not_claim_crash_safe_or_concurrent_settlement() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.completion, 10);
+    let path = "docs/fixtures/leselang_cancellation_reopen_macos_arm64_20261028.json";
+    assert!(native.evidence.iter().any(|e| e.path == path
+        && e.kind == EvidenceKind::Test
+        && e.state == EvidenceState::Present));
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["host_frontier_cases"], 300);
+    assert_eq!(proof["acknowledged_cancellation_paths"], 300);
+    assert_eq!(proof["interrupted_terminal_paths"], 300);
+    assert_eq!(proof["pre_intent_refusal_paths"], 600);
+    assert_eq!(proof["existing_terminal_winner_paths"], 600);
+    assert_eq!(proof["stale_adapter_refusals"], 600);
+    assert_eq!(proof["inconsistent_terminal_records"], 24);
+    assert_eq!(proof["failed_restore_not_cancellation_paths"], 4);
+    assert_eq!(proof["same_process_cancel_settlement"], true);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["copied_sources_match"], true);
+    assert_eq!(proof["native_export"]["cancellation_reopen_test_runs"], 12);
+    for flag in [
+        "runtime_implementation_changed",
+        "production_journal_added",
+        "process_restart_tested",
+        "power_loss_tested",
+        "storage_authentication_provided",
+        "external_effect_crash_atomicity",
+        "external_cancellation_delivered",
+        "concurrent_writer_safety",
+        "durable_cancellation_settlement",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+}
+
+#[test]
+fn mixed_predecessor_disk_reopen_does_not_promote_arbitrary_graph_or_crash_recovery() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.completion, 10);
+    let path = "docs/fixtures/leselang_mixed_reopen_macos_arm64_20261028.json";
+    assert!(native.evidence.iter().any(|e| e.path == path
+        && e.kind == EvidenceKind::Test
+        && e.state == EvidenceState::Present));
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["group_kind_combinations"], 8);
+    assert_eq!(proof["successful_reopen_paths"], 800);
+    assert_eq!(proof["fuel_boundary_paths"], 600);
+    assert_eq!(proof["owner_refusal_and_cancellation_paths"], 1600);
+    assert_eq!(proof["corrupt_host_graph_refusals"], 192);
+    assert_eq!(proof["multiple_predecessors_restored"], true);
+    assert_eq!(proof["bounded_mixed_graphs_restored"], true);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["copied_sources_match"], true);
+    assert_eq!(proof["native_export"]["mixed_reopen_test_runs"], 8);
+    for flag in [
+        "runtime_implementation_changed",
+        "production_journal_added",
+        "process_restart_tested",
+        "power_loss_tested",
+        "storage_authentication_provided",
+        "external_effect_crash_atomicity",
+        "durable_cancellation_settlement",
+        "arbitrary_mixed_graphs_restored",
+        "group_graph_recovery_complete",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+}
+
+#[test]
+fn captured_predecessor_disk_reopen_is_bounded_evidence_not_complete_durable_recovery() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let native = catalog
+        .cells
+        .iter()
+        .find(|c| c.id == "leselang/language-vm/host-neutral-embedding")
+        .unwrap();
+    assert_eq!(native.contract.version, "0.172.0");
+    assert_eq!(native.contract.stability, ContractStability::Draft);
+    assert_eq!(native.maturity, Maturity::Developing);
+    assert_eq!(native.completion, 10);
+    let path = "docs/fixtures/leselang_captured_reopen_macos_arm64_20261028.json";
+    assert!(native.evidence.iter().any(|e| e.path == path
+        && e.kind == EvidenceKind::Test
+        && e.state == EvidenceState::Present));
+    let proof: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repository_root().join(path)).unwrap())
+            .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["frontiers_per_host"], 25);
+    assert_eq!(proof["successful_reopen_paths"], 200);
+    assert_eq!(proof["fuel_boundary_paths"], 150);
+    assert_eq!(proof["owner_refusal_and_cancellation_paths"], 300);
+    assert_eq!(proof["corrupt_host_graph_refusals"], 48);
+    assert_eq!(proof["captured_predecessor_graphs_restored"], true);
+    assert_eq!(proof["native_export"]["verified"], true);
+    assert_eq!(proof["native_export"]["copied_sources_match"], true);
+    assert_eq!(proof["native_export"]["captured_reopen_test_runs"], 8);
+    for flag in [
+        "runtime_implementation_changed",
+        "production_journal_added",
+        "process_restart_tested",
+        "power_loss_tested",
+        "storage_authentication_provided",
+        "external_effect_crash_atomicity",
+        "durable_cancellation_settlement",
+        "arbitrary_mixed_graphs_restored",
+        "group_graph_recovery_complete",
+        "complete_vm",
+        "full_extraction_gate",
+        "native_durable_recovery_complete",
+    ] {
+        assert_eq!(proof[flag], false, "{flag}");
+    }
+}
+
+#[test]
 fn native_sequence_disk_reopen_is_not_a_durable_cancellation_or_complete_graph_journal() {
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     let native = catalog
@@ -8659,6 +8980,9 @@ fn debugger_audit_parity_is_reference_evidence_without_native_promotion() {
         "crates/leserpent-vm/src/debugger_audit_contract_tests.rs",
         "crates/leselang-vm/tests/debugger_audit_memory.rs",
         "crates/leselang-vm/tests/debugger_audit_durable.rs",
+        "crates/leserpent-vm/tests/debugger_audit_memory.rs",
+        "crates/leserpent-vm/tests/debugger_audit_durable.rs",
+        "docs/fixtures/leselang_product_audit_ownership_macos_arm64_20261028.json",
         "crates/leselang-observe/src/lib.rs",
         fixture,
     ] {
@@ -19994,7 +20318,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }
     for cell in [syntax, hir, vm] {
         assert!(cell.evidence.iter().any(|evidence| {
-            evidence.path == "crates/leselang-vm/examples/language_benchmark.rs"
+            evidence.path == "crates/leserpent-vm/examples/language_benchmark.rs"
                 && evidence.state == EvidenceState::Present
         }));
     }

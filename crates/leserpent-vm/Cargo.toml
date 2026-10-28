@@ -20,3 +20,7 @@ leserpent-domain = { path = "../leserpent-domain" }
 rusqlite = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
+
+[[test]]
+name = "debugger_audit_durable"
+required-features = ["sqlite-journal"]

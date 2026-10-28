@@ -11,6 +11,51 @@ Product versions in the dated proofs and incremental sections below describe
 their original checkpoints, not the current package version. Release alignment
 does not relabel those records or promote extraction readiness.
 
+## Runnable Native Host
+
+The `leselang-vm` example `native_counter` is a direct embedding entry rather than
+a test-harness include. It imports only the public native facade and `std`, using
+the original catalog compiler and `LocalVm`. A helper returns a typed counter
+receipt, which becomes a computed argument to the next call; the same meter spans
+both effects and captured re-entry. The adapter implements catalog/signature,
+authority, scalar capture policy and the actual native mutation, not evaluation.
+See [commands and adapter source](../crates/leselang-vm/README.md#runnable-native-host).
+
+The normal program produces 42 from two calls. Cancellation after the first call
+leaves 19 without executing the second; late revocation fails with one completed
+effect. Current authority and original schema identity are checked immediately
+before mutation. Bounds and checked arithmetic precede state updates. Failure
+reports retain partial state, completed-call count and available remaining fuel;
+they do not imply rollback. The initial six example tests cover source/capture/re-entry,
+cancellation, initial/late refusal, native failure, all smaller fuel grants and
+cold invalid input. Source byte and compiler limits precede execution.
+
+The exporter uses a closed example inventory: `native_counter.rs` is copied
+byte-for-byte to package and consumer. The product benchmark belongs to
+`leserpent-vm` and is neither inspected nor required by native example export;
+unexpected example assets in the language crate still refuse export. Verification and generated
+CI explicitly run example tests and normal/cancel modes in both workspaces,
+rather than relying on Cargo's default compile-only treatment of examples.
+This improves independent onboarding without changing runtime APIs, language
+coverage claims, storage protocols, publication settings or extraction gates.
+Evidence: `docs/fixtures/leselang_native_example_macos_arm64_20261028.json`.
+
+The queued extension separates polling, native dispatch and receipt acceptance
+across host-loop turns. Two independent `LocalVm` owners share one immutable IR;
+each keeps its own state and original meter. A two-event queue and 64-turn limit
+bound the demonstration. Cancelling queued work commits nothing, while cancelling
+after dispatch rejects a late receipt without rolling back the effect. Live
+revocation fails that instance; its sibling still completes. Idle polls do not
+recharge or spend fuel, and foreign/wrong-typed receipt tests preserve retryable
+ownership. Six additional tests bring this example to twelve, repeated unchanged
+in the isolated package and separate consumer. Verification and generated CI run
+normal, pre-dispatch and pre-reply queued modes in both workspaces. The revoked
+mode deliberately exits with failure and is covered by tests and local CLI checks.
+This is a host-owned, single-threaded loop, not an async runtime, thread-safety
+claim, actual GUI toolkit binding or production recovery backend. No runtime API,
+contract version or extraction gate is promoted by this adapter demonstration.
+Evidence: `docs/fixtures/leselang_queued_example_macos_arm64_20261028.json`.
+
 ## Product Executor Ownership
 
 As of the 2.5.0 extraction work, `crates/leserpent-vm` owns the product
@@ -35,6 +80,30 @@ ownership, then validate the final repository/dependency split with external
 consumers. Source ownership alone does not promote `complete_vm` or
 `full_extraction_gate`. Historical evidence retains its original paths/hashes;
 the status catalog points to the new current owners.
+
+The product `language_benchmark` now lives under `leserpent-vm/examples` and
+imports `leserpent_hir` and `leserpent_vm` directly. The native language crate
+contains only its product-free `native_counter` example; its exporter no longer
+needs a product benchmark file to be present. The performance harness selects
+`leserpent-vm --no-default-features` because this workload uses the memory VM,
+not SQLite. Its 64 branches, 500 iterations, 5,371 source bytes, 1,674 tokens and
+version-1 JSON report remain unchanged; two direct-product tests freeze the source
+shape and emitted branch inventory. This is source/dependency ownership cleanup,
+not a performance improvement claim or promotion of the independent-VM gate.
+Evidence: `docs/fixtures/leselang_product_benchmark_ownership_macos_arm64_20261028.json`.
+
+Debugger audit acceptance now has direct product targets as well: nine memory
+and fifteen SQLite tests run under `leserpent-vm` without the language facades.
+The nine shared rules use the unchanged product-owned audit oracle. Six extra
+SQLite corruption, peer-cache/replay and concurrent-attribution tests have moved
+out of the language facade, retaining their original bodies. `leselang-vm` keeps
+nine memory and nine SQLite oracle wrappers through the released HIR/VM paths,
+so product ownership does not remove legacy API coverage. SQLite tests require
+the product storage feature; direct memory tests also run with defaults disabled.
+CI runs both owners. This changes test ownership, not runtime code, journal/wire
+formats or the independent durable-VM gate. These suites are excluded from the
+native source export, and old evidence retains its original checkpoint counts.
+Evidence: `docs/fixtures/leselang_product_audit_ownership_macos_arm64_20261028.json`.
 
 ## HIR Policy Boundary
 
@@ -5846,11 +5915,215 @@ The full `tests/host_embedding.rs` acceptance proof remains planned and absent;
 the four-crate source checkpoint now exports this native VM facade unchanged.
 Complete independent VM and repository extraction gates remain open.
 
+### Forced Publication Termination
+
+The native disk fixture now pauses the original serialized writer at three exact
+publication points: after writing half the candidate, after syncing the complete
+candidate, and after renaming it over the committed ledger. The pause publishes
+an atomic PID/phase marker. Only then does the parent kill and reap its owned
+child; Unix runs require exit signal 9. No shell, global process search or second
+writer implementation is involved. This is actual forced process termination,
+not a simulated return error or `process::exit`.
+
+Two hosts, pending Seq/All groups and both cancellation-intent and terminal writes
+give **24 kill chains**. Sixteen leave an unpublished candidate, including eight
+truncated JSON files and eight complete but uncommitted records. Recovery and
+explicit cancellation retry both refuse while any pending path exists; even a
+stale adapter with an old in-memory ledger cannot dispatch or return a receipt.
+Neither malformed nor valid candidate bytes are promoted to committed state.
+The four post-intent-rename cases remain fenced by the committed intent. The four
+post-terminal-rename cases replay the committed cancellation despite the lost
+writer acknowledgement.
+
+The parent may discard an orphan only after reaping its sole writer while owning
+the private test directory. It does not publish candidate bytes. A fresh process
+then performs an explicit authorized cancellation retry and another replays the
+same result, with no new effects or fuel changes. The new matrix launches
+**112 children**, including 36 fresh-reader refusal/stale-adapter probes. Combined
+with the earlier cross-process slice, a full pipeline run launches 576 children.
+Eight same-process cases additionally exercise malformed files and directory
+collisions: normal recovery, cancellation and denied authority preserve both the
+committed ledger and unresolved path; a colliding writer cannot delete them.
+
+A red/green regression demonstrates why this matters: previously, recovery
+ignored a partial intent candidate and resumed the old committed image. The
+fixture now checks unresolved publication at both recovery and dispatch. This
+is **host-owned fixture behavior**, not a new production VM storage policy.
+Production Rust implementation, public contracts and checkpoint format 5 remain
+unchanged. No automatic orphan deletion, storage authentication, concurrent-writer
+ownership proof, directory-sync/power-loss guarantee or external-effect rollback
+is implied. Forced termination at these deterministic write boundaries does not
+cover arbitrary instruction-level crashes or finish independent release gates.
+Evidence: `docs/fixtures/leselang_publication_kill_macos_arm64_20261028.json`.
+
+### Native Cross-Process Reopen
+
+The native fixture now invokes its **current Rust test executable** directly via
+`std::process::Command`, selecting exactly one worker test. A writer creates the
+original checkpoint, exits, and a different reader process uses the same compiler,
+VM, collectors and host codecs to reopen it. A third process verifies terminal
+replay, including late cancellation against Completed/Failed results. No shell,
+second evaluator, database dependency or product adapter is introduced. The same
+worker runs unchanged inside the exported package and separate consumer workspace.
+
+Two hosts, two mixed predecessor-kind pairs and seven representative pending cuts
+give 28 host/frontier cases. At uninterrupted completion cost minus one, exact
+cost and plus one, **84 three-process chains** preserve result and remaining fuel.
+The effect ledger contains only original member/successor identities, not replayed
+predecessor effects. Another **28 three-process chains** preserve acknowledged
+cancellation and byte-identical ledger contents across two fresh readers.
+
+In **28 four-process chains**, the writer publishes a cancellation intent and then
+calls `process::exit(73)` before terminal publication or acknowledgement. This
+deliberately skips stack cleanup while the restored VM is still on the stack.
+A fresh reader refuses ordinary recovery without changing the ledger; a new
+authorized cancellation process completes the terminal; a fourth process replays
+it unchanged. This tests a controlled process-exit boundary, **not** SIGKILL,
+mid-write interruption, machine reboot or loss of power. Eight additional
+two-process chains refuse changed candidate bytes, relabeled pending members,
+exchanged captured graphs and denied current authority before dispatch.
+
+This initial cross-process slice launches **464 bounded child processes** across these
+148 chains. Reports must name the actual child PID, parent PID and phase, and
+each chain checks distinct process identities. A missing worker/report cannot
+silently pass. Children receive only bounded job metadata and the parent-owned
+directory, never live owners or leases; a synthetic closed local lease is used
+only for stale-reply probes. Child handles are killed/reaped on timeout or unwind,
+output goes to bounded-read local logs, and the parent alone owns directory cleanup.
+
+Private checkpoint format 5 and production contracts are unchanged; the driver
+job/report format is test-only. The host ledger still supplies trusted provenance,
+serialized publication and receipt deduplication. Cross-process acceptance does
+not authenticate storage, coordinate concurrent writers, cancel external effects,
+prove effect/receipt crash atomicity or finish the independent release gate.
+Historical same-process proofs below retain their original scope and hashes.
+Evidence: `docs/fixtures/leselang_process_reopen_macos_arm64_20261028.json`.
+
+### Persisted Cancellation Acceptance
+
+Private fixture format 5 distinguishes Completed, Failed and Cancelled outcomes
+and adds a host-owned cancellation-intent flag. Cancellation first revokes the
+original shared scope and seals the restored parent/collector, then publishes an
+intent record, then a Cancelled terminal record. Only the last successful write
+acknowledges cancellation. A temporary file is exclusively created, bounded,
+written and file-synced before rename; pre-publication failure removes it without
+replacing the prior ledger. This is a **serialized test writer**, not a production
+transaction, concurrent-writer protocol or power-loss guarantee.
+
+Reopening a committed intent without a terminal refuses ordinary recovery; an
+explicit authorized cancellation retry can finish the terminal without restoring
+the VM or dispatching. Reopening a confirmed cancellation returns its original
+reason and saved budget with unchanged ledger bytes, still after fresh authority
+checks. Dispatch also re-reads the persisted fence, so an old in-memory adapter
+ledger cannot bypass it. This check is not atomic with dispatch under concurrent
+writers. Already committed success/failure wins over a late cancellation request;
+contradictory reason/value/intent/fuel records refuse instead of being reinterpreted.
+A collector restore error is not a confirmed cancellation observation.
+
+The two hosts cover **300 frontier/topology cases**: zero/one predecessor and all
+four two-predecessor kind pairs over the existing 25 Seq/All cuts. Tests include
+300 acknowledged cancellations, 300 interrupted terminal publications followed
+by fenced reopen/retry, 600 permission or intent-publication refusals, 600 existing
+success/failure winners and 600 stale-adapter dispatch refusals. Twenty-four bad
+terminal records and four malformed-collector restores also fail closed. Recorded
+effects/captures remain unchanged; cancellation neither refills fuel nor releases
+unpublished work. Failure before the intent commits returns no acknowledgement
+and provides **no persisted restart fence**; the live owner is closed, but a host
+must resolve that uncertainty rather than claim durable cancellation.
+
+These are same-process disk-reopen tests with deterministic publication-failure
+injection. They do not restart a process, interrupt power, authenticate storage,
+serialize multiple writers or cancel/roll back external effects already running.
+The adapter-owned intent/terminal codec is not a new VM protocol or journal API.
+Production runtime code, public contracts and production wire/journal schemas
+remain unchanged; complete durable cancellation/recovery and extraction gates
+remain open. Historical evidence files keep their original hashes and scope.
+Evidence: `docs/fixtures/leselang_cancellation_reopen_macos_arm64_20261028.json`.
+
+### Two-Predecessor Mixed Disk Reopen
+
+The shared native disk fixture extends the single-predecessor slice below to
+two completed three-member groups, one pending three-member group and an atomic
+successor. Each group independently selects Seq or All: all **eight combinations**
+run on both native hosts, including mixed-kind chains and same-kind groups with
+identical operation schemas and member names. Each predecessor has its own alias
+and selected member carried through the original parent frames.
+
+The format-4 acceptance slice records ordered group origins (original IR path, root
+identity and kind) and captured binding origins (frame/name, owning group and
+optional member identity) in the host-owned ledger. Reopening checks those trusted
+records before restoring frames; schema equality or valid payloads do not prove
+graph provenance. Original collectors and `restore_group_reply` rebuild each
+completed group once. Aliases share within their group, never across groups.
+The original pending collectors also refuse predecessor identities while retaining
+the caller's reply buffer and publication frontier. These records are fixture
+policy, not a language serialization API or authenticated storage protocol.
+
+Four predecessor-kind pairs, 25 pending frontiers, six All receipt orders and one
+Seq order yield **800 successful reopens** across the two hosts, each with terminal
+replay that leaves ledger bytes unchanged. **600 completion-budget paths** compare
+uninterrupted execution at completion cost minus one, exact cost and plus one;
+neither completed assembly is charged or executed again. **1600 refusal/cancellation
+paths** check parent/child fences and denial/revocation at each predecessor's
+admission, including failure after the first group has been rebuilt.
+
+**192 corrupt host-written records** cover twelve mutations for each of eight
+group-kind combinations and two hosts. They swap group order/sites, duplicate
+roots, exchange same-schema row identities/payloads, substitute valid aliases or
+selected members from the other group, relabel pending members, remove a group
+or change its kind. Every case refuses before pending dispatch without changing
+the effects ledger. The unchanged-byte candidate gate is separate from these
+semantic writer-corruption checks; the host ledger itself remains trusted.
+
+This bounded three-group topology does not prove arbitrary graphs, nested groups,
+cross-host graphs, process restart, power-loss consistency or durable cancellation
+settlement. Product runtime code, public contracts and production wire/journal
+schemas are unchanged. Full extraction and native durable recovery remain open.
+Evidence: `docs/fixtures/leselang_mixed_reopen_macos_arm64_20261028.json`.
+
+### Captured Predecessor Disk Reopen
+
+The same native disk fixture now carries one **already assembled** predecessor
+group into a later pending group and atomic successor. Two source-compiled host
+programs retain the predecessor, a second alias and a selected member across
+nested helper return frames. It covers `seq -> seq` and `all -> all`, not arbitrary
+mixed or nested group graphs. This slice initially used private test format 3; language contracts
+and production wire/journal formats have not changed.
+
+After dropping the old VM, owner, catalog, host and IR, the fixture resolves each
+saved path in freshly compiled, exactly matching original IR. It revalidates the
+completed group's ordered member identities, names, native payloads and recorded
+receipts through the original collectors and `restore_group_reply`. The completed
+assembly is not evaluated or charged again. Both group aliases share one rebuilt
+`Rc` owner; the selected member must belong to that group and match its receipt.
+The existing pending-group restoration, publication rules, parent reentry and
+successor handling are reused. No second evaluator or product policy is added.
+
+The two hosts cover 25 pending frontiers each: 15 All prefix/subset cuts and ten
+Seq cuts. Six All arrival orders and one Seq order give **200 successful reopen
+paths**, each with unchanged-ledger terminal replay. **150 completion-budget
+paths** preserve the uninterrupted result and remaining fuel at exact completion
+cost and its adjacent budgets. **300 refusal/cancellation paths** include denial
+or revocation during completed-group admission as well as parent/child failures.
+They leave the stored effects unchanged and never execute later work. **48 corrupt
+host-written records** exercise foreign roots/sites, bad member identity/name/
+payload/count/kind, missing groups, foreign aliases, mismatched selected members
+and missing aliases before pending dispatch. Candidate correspondence is still
+checked separately against trusted committed fixture bytes.
+
+This is a same-process, host-owned disk-reopen acceptance slice, not a production
+journal, storage authentication, arbitrary graph recovery, crash atomicity or
+durable cancellation settlement. External effects and receipts are not committed
+atomically by the fixture. Full extraction and native durable recovery remain
+open. Historical proof files below retain their original source hashes and counts.
+Evidence: `docs/fixtures/leselang_captured_reopen_macos_arm64_20261028.json`.
+
 ### Native Sequential Disk Reopen
 
 The shared `native_group_checkpoint.rs` disk fixture now also exercises a
 three-member `seq`, nested parent return frames and an atomic successor. Its
-test-only format 2 distinguishes published from prepared members. Production
+initial test-only format 2 distinguished published from prepared members; the
+current shared format 5 also carries captured results, origins and cancellation state. Production
 wire/journal schemas and language contracts are unchanged. Source compilation,
 the disk/operand codecs, original parent restoration, host ledger and terminal
 handling are shared with the parallel fixture rather than copied into a new VM.

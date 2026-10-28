@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-mixed-predecessor-disk-reopen",
+  "validated_at": "2026-10-28",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.3",
+  "baseline_commit": "4e46bfcc4db8e9431edb3e8f33b4141cc601d9db",
+  "native_embedding_contract": "0.172.0",
+  "hir_contract": "0.194.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "production_journal_added": false,
+  "process_restart_tested": false,
+  "power_loss_tested": false,
+  "storage_authentication_provided": false,
+  "external_effect_crash_atomicity": false,
+  "durable_cancellation_settlement": false,
+  "captured_predecessor_graphs_restored": true,
+  "multiple_predecessors_restored": true,
+  "bounded_mixed_graphs_restored": true,
+  "arbitrary_mixed_graphs_restored": false,
+  "group_graph_recovery_complete": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "private_fixture_format": 4,
+  "hosts": [
+    "stateful scalar counter",
+    "structured headless panel reply"
+  ],
+  "completed_predecessor_groups": 2,
+  "pending_groups": 1,
+  "members_per_group": 3,
+  "predecessor_kind_pairs": 4,
+  "group_kind_combinations": 8,
+  "pending_frontiers_per_predecessor_pair_per_host": 25,
+  "successful_reopen_paths": 800,
+  "fuel_boundary_paths": 600,
+  "owner_refusal_and_cancellation_paths": 1600,
+  "corrupt_host_graph_refusals": 192,
+  "program_scope": "Two already assembled three-member predecessors, each with its own alias and selected member, survive source-compiled parent captures into a pending three-member group and atomic successor. All eight Seq/All kind combinations use the original two native hosts. Old runtime, scope owner, IR, catalog and host drop before same-process disk reopen.",
+  "provenance_scope": "Trusted host ledger metadata records ordered original IR path/root identity/group kind and frame/name/group/member capture origins. The fixture checks these against saved graph and capture records before restoration; valid payloads, common schemas and member names are not graph identity. This test-only metadata is host policy, not an exported language codec or storage authentication.",
+  "restoration_scope": "The existing VM/collector pipeline and restore_group_reply rebind each original completed group once without evaluation, effect dispatch, new correlation serial allocation or completed-assembly fuel charges. Aliases share within their own Rc group and remain distinct across groups. Existing scoped pending collectors reject predecessor identities while returning the original reply buffer and preserving the publication frontier.",
+  "matrix_scope": "Four predecessor-kind pairs times 25 pending frontiers per host, with six All arrival orders and one Seq order, give 400 paths per host and 800 total. Terminal replay leaves the host ledger unchanged. Effect serials are 2,3,4,6,7,8,10,11,12,13; group roots 1,5,9 are not external effects.",
+  "budget_scope": "Two hosts times four predecessor pairs times 25 pending frontiers times completion-cost minus one/exact/plus one: 600 paths preserve uninterrupted result and remaining fuel through both captured groups, pending group assembly, projection and successor work.",
+  "ownership_scope": "Eight faults over 200 host/pair/frontier combinations: parent denial, child denial/revocation, explicit owner cancellation and completed-group admission denial/revocation at each of the two predecessor indexes. All 1600 paths leave stored effects unchanged, including refusal after one captured group has been rebuilt. This does not persist cancellation settlement or reauthorize cancelled work.",
+  "corruption_scope": "Twelve host-writer mutations for each of eight group-kind combinations and two hosts: swapped group order, swapped IR sites, duplicate root, foreign member identity plus matching payload, foreign member payload, valid foreign alias, valid foreign selected member in either direction, foreign pending member, missing group, foreign original capture and changed group kind. All 192 refuse before pending dispatch and preserve ledger bytes. The image is deliberately recommitted so candidate byte equality does not cause these refusals; authoritative host ledger metadata remains trusted.",
+  "remaining_boundaries": [
+    "More general topologies, arbitrary/nested/cross-host graph restoration and independent release/distribution acceptance.",
+    "Durable cancellation/settlement and authenticated host storage contracts.",
+    "Process restart, power loss and external-effect/receipt crash atomicity."
+  ],
+  "verification_scope": "Local macOS same-process disk reopen. Matrix counts are iterations within four new Rust tests; local/package/consumer totals overlap and are test runs, not unique tests. No Linux, physical GUI, remote CI, production journal or independent-repository completion claim.",
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "crate_count": 5,
+    "path": "/private/tmp/leselang-mixed-reopen-export-20261028",
+    "file_count": 310,
+    "total_bytes": 7535181,
+    "manifest_sha256": "68f739c91a20ee03a0532c67789996791747f94c851dbcff3be581571fc545c3",
+    "copied_source_entries": 299,
+    "copied_sources_match": true,
+    "mixed_reopen_test_runs": 8,
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-38899-1793177195311573000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2841,
+    "log": "/private/tmp/leselang-mixed-reopen-export-20261028.log",
+    "log_sha256": "e508dcafac648c1b35fd413fdc06ef74ea0648e5c5df48a094a8e213b52148f7"
+  },
+  "source_hashes": {
+    "crates/leselang-vm/tests/native_host_pipeline.rs": "a2d2fe421293cb215766c9d06e3b6c9a1e00df4d9e05f434f5eb836760d88506",
+    "crates/leselang-vm/tests/support/native_checkpoint.rs": "6f8c8a36f97a5084e062212209e48498c41a5672511b0aae2639bf0ed6e5c0bf",
+    "crates/leselang-vm/tests/support/native_group_checkpoint.rs": "b975891b87fcb153bce0485b459a6ca6438500f906ec26e5406cd354f44e2178",
+    "crates/leselang-hir-core/src/effect_stack_session.rs": "8fd169c0d0b4d2cb363667c45963ce3cd677ee7f011ba0ca73cb712eed77bcd2",
+    "crates/leselang-hir-core/src/prepared_sequence.rs": "6f0c4e9acc0d13727d1f5b9eb45ac19db1c976e780e4ad8a28fe50f05ea21cde",
+    "crates/leselang-hir-core/src/sequence_evaluation.rs": "646136c2f18b3dd8542c2d696817c26ef8cdc35411bd3345e415e1c6c8c2fbb4",
+    "crates/leselang-hir-core/src/prepared_parallel.rs": "76fc750046ec65f99151aaa145bea3491dc920a6ab2824b1ab52a6c1a37524bd",
+    "crates/leselang-hir-core/src/call_evaluation.rs": "255f19be9024e561ad2f0587c9651ff4828be651f0b2b95f748fbe0103c2cbe8",
+    "crates/leselang-runtime-core/src/local_execution.rs": "5b87372ca61605b4452c69c0541604fdfd4371a64ad4f24c8afc83b09b70508a",
+    "crates/leselang-runtime-core/src/reply.rs": "a876ee1347215b4d75d5c4f943a67684e3c1b7ceca26c6386f4e6afb8df2d0b9",
+    "crates/gewyvern-dev/src/leselang.rs": "4ed68b1a1a8bbfc3a5f2f760b8e155e3c9441ee3b0aea60d4d0f814bf57449ca",
+    "tests/language_independence_tdd.rs": "995041f2c30f04049b70061fd5827f9bce2c1e637721c7ff7a3a4f4ae53d2deb",
+    "tests/project_status_tdd.rs": "25f44458e5d61bf0cf6023e59b61754e47a921250ab71a9dac7c8511b180a4f7",
+    "docs/leselang-embedding.md": "2206628aba830efc242c38f8657f16c0dd29e3c2a4cc843b66f1b03e816c9930",
+    "project/status/catalog.json": "d4398c1c316ea5d353ce55e7acd9e8517ae8b9f71e250ba8675a3a6cb3a9d6e5",
+    "crates/leselang-hir-core/src/group_reply.rs": "1339fd31a9e699185de3cd93c3c2dd5a8f1dd53b4602ec1f41063dc1f531a7fa"
+  },
+  "checks": [
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern-dev --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-mixed-reopen-exporter-clippy-20261028.log",
+      "sha256": "33929bcdd327f20f28183f225166eb9ec2de500efe5785c70f9ab93148806c7b",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "rustfmt +1.98.0 --edition 2024 --check crates/leselang-vm/tests/support/native_group_checkpoint.rs",
+      "log": "/private/tmp/leselang-mixed-reopen-fixture-format-20261028.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --no-default-features",
+      "log": "/private/tmp/leselang-mixed-reopen-native-20261028.log",
+      "sha256": "dc75d30233407548873b1fcd6b4190d4098bb3bcdbf6e486bc9fe9b6e22b6ae3",
+      "tests_passed": 122,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-mixed-reopen-export-20261028 --verify",
+      "log": "/private/tmp/leselang-mixed-reopen-export-20261028.log",
+      "sha256": "e508dcafac648c1b35fd413fdc06ef74ea0648e5c5df48a094a8e213b52148f7",
+      "tests_passed": 2841,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions",
+      "log": "/private/tmp/leselang-mixed-reopen-compatibility-20261028.log",
+      "sha256": "b0f3296bbeed844bdfc5b6d74c84ba489d0cd0bd7d103bcea43487d905c8ab71",
+      "tests_passed": 139,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions -- -D warnings",
+      "log": "/private/tmp/leselang-mixed-reopen-compatibility-clippy-20261028.log",
+      "sha256": "56a62c745c01e78b4b6294a5a92dc860d4ea2df488c312d94cca3805f426d801",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "log": "/private/tmp/leselang-mixed-reopen-exporter-tests-20261028.log",
+      "sha256": "e9d5e08c556f10cadddbaf32a03783486a0af919a4efaf6e1802b3d6d8926028",
+      "tests_passed": 26,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --no-default-features --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-mixed-reopen-native-clippy-20261028.log",
+      "sha256": "ee4f2942d8632ce4a5741e0bd4fb11b2b928783e189201c1ee56228e54da128b",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-mixed-reopen-root-20261028.log",
+      "sha256": "410e639ced3cbbf7423eae38ebb2cbcfb803edd88eedee262f970f74bfa5b586",
+      "tests_passed": 678,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd -- -D warnings",
+      "log": "/private/tmp/leselang-mixed-reopen-root-clippy-20261028.log",
+      "sha256": "3496d6adbb61a2af640e57d95000c891dc7655444b032d037cacf27aa4bae7ff",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "target/lean/gewyvern_status validate --json",
+      "log": "/private/tmp/leselang-mixed-reopen-status-20261028.log",
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "log": "/private/tmp/leselang-mixed-reopen-format-20261028.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0,
+      "exit_code": 0
+    }
+  ],
+  "root_gate_tests": 678
+}

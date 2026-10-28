@@ -324,7 +324,7 @@ fn leserpent_benchmark_proof_has_bounded_native_workloads() {
     let command_harness = read_repo_file("src/validation_harness/command.rs");
     let bounded_process = read_repo_file("src/bounded_process.rs");
     let runtime = read_repo_file("crates/leserpent-runtime/examples/runtime_benchmark.rs");
-    let language = read_repo_file("crates/leselang-vm/examples/language_benchmark.rs");
+    let language = read_repo_file("crates/leserpent-vm/examples/language_benchmark.rs");
     let ui = read_repo_file("crates/leselang-ui/examples/ui_benchmark.rs");
     let remote =
         read_repo_file("apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Program.cs");
@@ -341,6 +341,16 @@ fn leserpent_benchmark_proof_has_bounded_native_workloads() {
     assert!(harness.contains("REMOTE_INCREMENTAL_RATIO_MAX"));
     assert!(harness.contains("REMOTE_INCREMENTAL_ALLOCATION_RATIO_MAX"));
     assert!(harness.contains("language-benchmark.json"));
+    let language_command = harness
+        .split("let language = run_cargo_json(")
+        .nth(1)
+        .unwrap()
+        .split("validate_language_benchmark")
+        .next()
+        .unwrap();
+    assert!(language_command.contains("\"leserpent-vm\".into()"));
+    assert!(language_command.contains("\"--no-default-features\".into()"));
+    assert!(!language_command.contains("\"leselang-vm\".into()"));
     assert!(harness.contains("remote-workspace-log-benchmark.json"));
     assert!(harness.contains("run_dotnet_json"));
     assert!(harness.contains("--artifacts-path"));

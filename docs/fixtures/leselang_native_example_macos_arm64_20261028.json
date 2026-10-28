@@ -1,0 +1,218 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-runnable-native-host-example",
+  "validated_at": "2026-10-28",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.3",
+  "baseline_commit": "4e46bfcc4db8e9431edb3e8f33b4141cc601d9db",
+  "native_embedding_contract": "0.172.0",
+  "hir_contract": "0.194.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "production_journal_added": false,
+  "complete_language_coverage": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "example_path": "crates/leselang-vm/examples/native_counter.rs",
+  "example_tests": 6,
+  "native_dependencies_added": [],
+  "example_scope": "A directly runnable scalar/atomic Rust host imports only std and the public leselang_vm::native facade. Original parsing, catalog compilation, pure computation, helper expansion, capture and LocalVm reentry execute the program; adapter trait implementations own native metadata, policy and effects, not a replacement evaluator. No test source is included and no product service, account, SQLite, GUI toolkit, worker or storage backend is needed.",
+  "authority_scope": "Compilation validates current catalog capabilities and cold source. Dispatch checks the live local lease, exact identity serial, current capability, original schema pointer and next unsettled call before bounded checked native mutation. Cancellation stops before a second dispatch; late authority revocation fails after the first completed effect. These private in-process identities are not an external receipt authentication or durable replay protocol.",
+  "failure_scope": "The example classifies native failure through with_host_outcome, explicitly accepts successful replies and polls for continuation. Failure output preserves partial counter state, successful call count and available remaining fuel, never claiming rollback. Six example tests cover normal source/capture/reentry, cancellation, initial/late authority refusal, native failure without committing the rejected call, all smaller completion budgets and cold invalid/oversized sources.",
+  "example_outputs": {
+    "normal": {
+      "exit_code": 0,
+      "end": "Completed",
+      "value": 42,
+      "total": 42,
+      "calls": 2,
+      "remaining": 979
+    },
+    "cancel": {
+      "exit_code": 0,
+      "end": "Cancelled",
+      "value": null,
+      "total": 19,
+      "calls": 1,
+      "remaining": 982
+    },
+    "deny": {
+      "exit_code": 1,
+      "total": 0,
+      "calls": 0,
+      "remaining": null
+    },
+    "revoke": {
+      "exit_code": 1,
+      "total": 19,
+      "calls": 1,
+      "remaining": 982
+    },
+    "invalid_mode": {
+      "exit_code": 2
+    }
+  },
+  "export_scope": "A closed inventory admits the unchanged native_counter.rs into both the exported VM package and the separate consumer. The product language_benchmark source is checked but not copied; missing, unknown or non-regular example assets refuse export. Both verifier and generated CI explicitly test and run the example in each workspace, including normal and cancellation modes, instead of treating compilation alone as execution evidence.",
+  "remaining_boundaries": [
+    "Complete declared-language coverage and reference wire/authority/GUI/CLI parity.",
+    "Production host-neutral durable recovery, external-effect settlement and authenticated receipts.",
+    "Registry publication, physical repository extraction, FFI and real GUI integration."
+  ],
+  "verification_scope": "Local macOS execution and isolated-source verification only. Native and reference-feature example runs use the same source; exported package and consumer repeat the same six tests. Totals overlap and do not represent distinct features, full language acceptance or remote CI execution.",
+  "source_hashes": {
+    "crates/leselang-vm/tests/native_host_pipeline.rs": "a2d2fe421293cb215766c9d06e3b6c9a1e00df4d9e05f434f5eb836760d88506",
+    "crates/leselang-vm/tests/support/native_checkpoint.rs": "2bc59a5254558159172ede9fead81e262dc09cdf13a2135362926416e4c3d236",
+    "crates/leselang-vm/tests/support/native_group_checkpoint.rs": "cd44bd40cde9350fb8ed321c5b0514e82da4ba530b289d3d05be4391396a7312",
+    "crates/leselang-hir-core/src/effect_stack_session.rs": "8fd169c0d0b4d2cb363667c45963ce3cd677ee7f011ba0ca73cb712eed77bcd2",
+    "crates/leselang-hir-core/src/prepared_sequence.rs": "6f0c4e9acc0d13727d1f5b9eb45ac19db1c976e780e4ad8a28fe50f05ea21cde",
+    "crates/leselang-hir-core/src/sequence_evaluation.rs": "646136c2f18b3dd8542c2d696817c26ef8cdc35411bd3345e415e1c6c8c2fbb4",
+    "crates/leselang-hir-core/src/prepared_parallel.rs": "76fc750046ec65f99151aaa145bea3491dc920a6ab2824b1ab52a6c1a37524bd",
+    "crates/leselang-hir-core/src/call_evaluation.rs": "255f19be9024e561ad2f0587c9651ff4828be651f0b2b95f748fbe0103c2cbe8",
+    "crates/leselang-runtime-core/src/local_execution.rs": "5b87372ca61605b4452c69c0541604fdfd4371a64ad4f24c8afc83b09b70508a",
+    "crates/leselang-runtime-core/src/reply.rs": "a876ee1347215b4d75d5c4f943a67684e3c1b7ceca26c6386f4e6afb8df2d0b9",
+    "crates/gewyvern-dev/src/leselang.rs": "df607d3c1014e60ce4440f5cc87d39bedc13910fe504390cabba00f0e64f366e",
+    "tests/language_independence_tdd.rs": "00670049eebfe986c35c3c8d319b5ba0551fd4aeddd1a7b93fb0c5401456e5c9",
+    "tests/project_status_tdd.rs": "a89cbadb722ff9d483a9fd60224bf164909ba4a67b80fb2fc40770942182dab4",
+    "docs/leselang-embedding.md": "61dcdead63125da58cc40f424f80ce61521a7ca94f2531ea7b1bb2942c6b61a0",
+    "project/status/catalog.json": "d96e4d2be8910cf696b973a7a6694803ebfd8ad3699e622dc94c0da99d9680a3",
+    "crates/leselang-hir-core/src/group_reply.rs": "1339fd31a9e699185de3cd93c3c2dd5a8f1dd53b4602ec1f41063dc1f531a7fa",
+    "crates/leselang-vm/examples/native_counter.rs": "1b5fe3a09d4de1c91f057a55f86a19de21faf74c40ba39acbdf1a3671c9f9821",
+    "crates/leselang-vm/README.md": "ddb6dfaf56f8a9f0ad317aea38d5658647b0e203c6dc950ddd3b3bc5b32d7fcd",
+    "docs/modules/leselang.md": "84b57b30aaabae7d865a8512ecc6290812281fa3614f3e245be299eb8b037469"
+  },
+  "checks": [
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --example native_counter",
+      "log": "/private/tmp/leselang-native-example-example-reference-20261028.log",
+      "sha256": "3a3a70aff1dd462df13660fb30da83cb67f27c70bc02ac642b68300bfae0f5bb",
+      "tests_passed": 6,
+      "exit_code": 0
+    },
+    {
+      "command": "target/lean/examples/native_counter --revoke",
+      "log": "/private/tmp/leselang-native-example-cli-revoke-20261028.log",
+      "sha256": "dbb1321a479fb5910588fc255d4f25b3dd005c83d7f80ee1a344bfe8e41367d6",
+      "tests_passed": 0,
+      "exit_code": 1,
+      "expected_refusal": true
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-native-example-export-20261028 --verify",
+      "log": "/private/tmp/leselang-native-example-export-20261028.log",
+      "sha256": "c7a6cd442141708edbf189ef92fcbec88227443b8c34da23537eac1ad664a01b",
+      "tests_passed": 2879,
+      "exit_code": 0
+    },
+    {
+      "command": "target/lean/examples/native_counter --deny",
+      "log": "/private/tmp/leselang-native-example-cli-deny-20261028.log",
+      "sha256": "a89b088162009a4b64c83c64be167782336680dbb4709b24e7db810413127ad0",
+      "tests_passed": 0,
+      "exit_code": 1,
+      "expected_refusal": true
+    },
+    {
+      "command": "cargo +1.98.0 run -p leselang-vm --no-default-features --locked --offline --profile lean --example native_counter -- --cancel",
+      "log": "/private/tmp/leselang-native-example-example-cancel-20261028.log",
+      "sha256": "be4edc4601e30ee98825bf8bc3eec1cfec6deaa2139da457833c192b222dd04b",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --no-default-features --locked --offline --profile lean --example native_counter",
+      "log": "/private/tmp/leselang-native-example-example-20261028.log",
+      "sha256": "b8e9fd61a854263c85b919fa52aa40064602a0ecaebdbccae686ea534759a3c2",
+      "tests_passed": 6,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern-dev --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-native-example-exporter-clippy-20261028.log",
+      "sha256": "99b83997e1b93bef1e8fcd4d39eb9dfd8f9d34b5b1540504412e261bcbfce37f",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --no-default-features --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-native-example-example-clippy-20261028.log",
+      "sha256": "240703d95844748b34465a3fa2db83e9fcf3a668501958bc26aa9a112fc4e4ed",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "log": "/private/tmp/leselang-native-example-format-20261028.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "target/lean/examples/native_counter --unknown",
+      "log": "/private/tmp/leselang-native-example-cli-invalid-20261028.log",
+      "sha256": "c227d835114d21291661054f80f9ff48d9c40eda60970ce5d97b7a6070f9030d",
+      "tests_passed": 0,
+      "exit_code": 2,
+      "expected_refusal": true
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "log": "/private/tmp/leselang-native-example-exporter-tests-20261028.log",
+      "sha256": "c51d538b6bf722eefb5b3723702d18f469b3c302ea8c5f0d58c4df96c27ea329",
+      "tests_passed": 27,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p leselang-vm --no-default-features --locked --offline --profile lean --example native_counter",
+      "log": "/private/tmp/leselang-native-example-example-run-20261028.log",
+      "sha256": "5694c3f2799669bb65397c825155c2ce1301916811ba036247f2f27d6648ea29",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-native-example-root-20261028.log",
+      "sha256": "29c13dbc346632a3bec71384110299479f2e020c416faf38a48ee4901a165b18",
+      "tests_passed": 686,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd -- -D warnings",
+      "log": "/private/tmp/leselang-native-example-root-clippy-20261028.log",
+      "sha256": "91d023ec4ff5a81e36a292c4421fbf43829e707dd4fb7f651720ace3c87ded73",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "target/lean/gewyvern_status validate --json",
+      "log": "/private/tmp/leselang-native-example-status-20261028.log",
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0,
+      "exit_code": 0
+    }
+  ],
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "crate_count": 5,
+    "path": "/private/tmp/leselang-native-example-export-20261028",
+    "file_count": 312,
+    "total_bytes": 7664515,
+    "manifest_sha256": "664dec9fd072076f10eb8ba5b77e4bcd2fa0b2752b9d92721c88ea5a83eff647",
+    "copied_source_entries": 301,
+    "copied_sources_match": true,
+    "example_test_runs": 12,
+    "example_program_runs": 4,
+    "ci_example_steps": 6,
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-89690-1793182284187170000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2879,
+    "log": "/private/tmp/leselang-native-example-export-20261028.log",
+    "log_sha256": "c7a6cd442141708edbf189ef92fcbec88227443b8c34da23537eac1ad664a01b"
+  },
+  "root_gate_tests": 686
+}

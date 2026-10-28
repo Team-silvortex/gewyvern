@@ -35,10 +35,6 @@ serde_json = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 
-[[example]]
-name = "language_benchmark"
-required-features = ["leserpent-profile"]
-
 # These suites exercise durable recovery or compare both backends.
 # Memory reference suites use the explicit leserpent-profile without SQLite.
 [[test]]

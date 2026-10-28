@@ -70,7 +70,16 @@ impl DiskProfile for Panel {
     }
 }
 
-pub(super) struct Store(PathBuf);
+pub(super) struct Store {
+    path: PathBuf,
+    cleanup: bool,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub(super) enum PublicationPoint {
+    PartialWrite,
+    FileSynced,
+    Renamed,
+}
 impl Store {
     pub(super) fn new() -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -84,16 +93,85 @@ impl Store {
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&path).unwrap();
-        Self(path)
+        Self {
+            path,
+            cleanup: true,
+        }
+    }
+    pub(super) fn open_existing(path: &std::path::Path) -> Self {
+        assert!(path.is_absolute());
+        assert!(fs::symlink_metadata(path).unwrap().file_type().is_dir());
+        Self {
+            path: path.into(),
+            cleanup: false,
+        }
+    }
+    pub(super) fn path(&self) -> &std::path::Path {
+        &self.path
+    }
+    pub(super) fn require_published(&self, name: &str) -> std::io::Result<()> {
+        match fs::symlink_metadata(self.path.join(format!("{name}.pending"))) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error),
+            Ok(_) => Err(std::io::Error::other("unresolved fixture publication")),
+        }
     }
     pub(super) fn write<T: Serialize>(&self, name: &str, value: &T) {
         let bytes = serde_json::to_vec(value).unwrap();
         assert!(bytes.len() <= MAX_IMAGE_BYTES);
-        fs::write(self.0.join(name), bytes).unwrap();
+        fs::write(self.path.join(name), bytes).unwrap();
+    }
+    // Serialized fixture writer only; rename is not a cross-writer transaction or power-loss proof.
+    pub(super) fn replace<T: Serialize>(
+        &self,
+        name: &str,
+        value: &T,
+        fail_before_publish: bool,
+    ) -> std::io::Result<()> {
+        self.replace_with_hook(name, value, fail_before_publish, |_| {})
+    }
+    pub(super) fn replace_with_hook<T: Serialize>(
+        &self,
+        name: &str,
+        value: &T,
+        fail_before_publish: bool,
+        mut hook: impl FnMut(PublicationPoint),
+    ) -> std::io::Result<()> {
+        use std::io::Write;
+        let bytes = serde_json::to_vec(value).map_err(std::io::Error::other)?;
+        if bytes.len() > MAX_IMAGE_BYTES {
+            return Err(std::io::Error::other("fixture image limit"));
+        }
+        let pending = self.path.join(format!("{name}.pending"));
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&pending)?;
+        let result = (|| {
+            let split = bytes.len() / 2;
+            file.write_all(&bytes[..split])?;
+            hook(PublicationPoint::PartialWrite);
+            file.write_all(&bytes[split..])?;
+            file.sync_all()?;
+            hook(PublicationPoint::FileSynced);
+            drop(file);
+            if fail_before_publish {
+                return Err(std::io::Error::other(
+                    "injected fixture publication refusal",
+                ));
+            }
+            fs::rename(&pending, self.path.join(name))?;
+            hook(PublicationPoint::Renamed);
+            Ok(())
+        })();
+        if result.is_err() {
+            let _ = fs::remove_file(pending);
+        }
+        result
     }
     pub(super) fn read(&self, name: &str) -> Vec<u8> {
         let mut bytes = Vec::new();
-        fs::File::open(self.0.join(name))
+        fs::File::open(self.path.join(name))
             .unwrap()
             .take(MAX_IMAGE_BYTES as u64 + 1)
             .read_to_end(&mut bytes)
@@ -107,7 +185,9 @@ impl Store {
 }
 impl Drop for Store {
     fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
+        if self.cleanup {
+            let _ = fs::remove_dir_all(&self.path);
+        }
     }
 }
 

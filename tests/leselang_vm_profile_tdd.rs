@@ -1,6 +1,96 @@
 use std::{fs, path::Path, process::Command};
 
 #[test]
+fn audit_storage_tests_belong_to_product_while_released_api_oracles_remain() {
+    let read = |p: &str| fs::read_to_string(root().join(p)).unwrap();
+    for (name, macro_name) in [
+        ("debugger_audit_memory", "memory_case!("),
+        ("debugger_audit_durable", "durable_case!("),
+    ] {
+        let legacy = read(&format!("crates/leselang-vm/tests/{name}.rs"));
+        let product = read(&format!("crates/leserpent-vm/tests/{name}.rs"));
+        let cases = |s: &str| {
+            s.split(macro_name)
+                .nth(1)
+                .unwrap()
+                .split(");")
+                .next()
+                .unwrap()
+                .split(',')
+                .map(str::trim)
+                .filter(|n| !n.is_empty())
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(cases(&legacy).len(), 9);
+        assert_eq!(cases(&legacy), cases(&product));
+        assert!(legacy.contains("extern crate leselang_hir as leserpent_hir"));
+        assert!(legacy.contains("leselang_vm::"));
+        assert!(!product.contains("leselang_hir"));
+        assert!(!product.contains("leselang_vm"));
+        assert!(product.contains("../src/debugger_audit_contract_tests.rs"));
+        for implementation_detail in ["rusqlite::", "std::thread::", "SELECT ", "UPDATE "] {
+            assert!(
+                !legacy.contains(implementation_detail),
+                "{implementation_detail}"
+            );
+        }
+    }
+    let durable = read("crates/leserpent-vm/tests/debugger_audit_durable.rs");
+    assert_eq!(durable.matches("\n#[test]\n").count(), 6);
+    assert!(durable.contains("PRAGMA ignore_check_constraints = ON"));
+    assert!(durable.contains("std::thread::scope"));
+    let manifest = read("crates/leserpent-vm/Cargo.toml");
+    assert!(
+        manifest.contains(
+            "name = \"debugger_audit_durable\"\nrequired-features = [\"sqlite-journal\"]"
+        )
+    );
+    let ci = read(".github/workflows/ci.yml");
+    for owner in ["leserpent-vm", "leselang-vm"] {
+        assert!(ci.contains(&format!(
+            "test -p {owner} --locked --test debugger_audit_durable --test debugger_audit_memory"
+        )));
+    }
+}
+
+#[test]
+fn product_benchmark_is_not_owned_or_required_by_the_native_facade() {
+    let read = |p| fs::read_to_string(root().join(p)).unwrap();
+    let old = root().join("crates/leselang-vm/examples/language_benchmark.rs");
+    assert!(!old.exists());
+    assert!(!read("crates/leselang-vm/Cargo.toml").contains("language_benchmark"));
+    let benchmark = read("crates/leserpent-vm/examples/language_benchmark.rs");
+    assert!(benchmark.contains("use leserpent_hir::lower;"));
+    assert!(benchmark.contains("use leserpent_vm::{Step, Vm};"));
+    assert!(!benchmark.contains("leselang_hir::"));
+    assert!(!benchmark.contains("leselang_vm::"));
+    let exporter = read("crates/gewyvern-dev/src/leselang.rs");
+    let inventory = exporter
+        .split("fn copy_native_example(")
+        .nth(1)
+        .unwrap()
+        .split("struct RegistryLock")
+        .next()
+        .unwrap();
+    assert!(inventory.contains("native_counter.rs"));
+    assert!(!inventory.contains("language_benchmark"));
+    assert!(!inventory.contains("leserpent-vm"));
+    let ci = read(".github/workflows/ci.yml");
+    assert!(ci.contains(
+        "test -p leserpent-vm --locked --no-default-features --example language_benchmark"
+    ));
+    let proof: serde_json::Value = serde_json::from_str(&read(
+        "docs/fixtures/leselang_product_benchmark_ownership_macos_arm64_20261028.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["verification_status"], "passed");
+    assert_eq!(proof["production_workload_unchanged"], true);
+    assert_eq!(proof["native_export_requires_product_benchmark"], false);
+    assert_eq!(proof["full_extraction_gate"], false);
+}
+
+#[test]
 fn product_executor_is_owned_outside_the_native_language_crate() {
     let read = |p| fs::read_to_string(root().join(p)).unwrap();
     fn source_files(dir: &Path, files: &mut Vec<std::path::PathBuf>) {

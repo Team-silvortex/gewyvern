@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-native-persisted-cancellation-reopen",
+  "validated_at": "2026-10-28",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "cargo_package_version": "2.5.0",
+  "source_commit_label": "2.5.3",
+  "baseline_commit": "4e46bfcc4db8e9431edb3e8f33b4141cc601d9db",
+  "native_embedding_contract": "0.172.0",
+  "hir_contract": "0.194.0",
+  "verification_status": "passed",
+  "runtime_implementation_changed": false,
+  "production_journal_added": false,
+  "process_restart_tested": false,
+  "power_loss_tested": false,
+  "storage_authentication_provided": false,
+  "external_effect_crash_atomicity": false,
+  "external_cancellation_delivered": false,
+  "concurrent_writer_safety": false,
+  "durable_cancellation_settlement": false,
+  "same_process_cancel_settlement": true,
+  "cancellation_intent_fence": true,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "native_durable_recovery_complete": false,
+  "wire_format_changed": false,
+  "journal_schema_changed": false,
+  "private_fixture_format": 5,
+  "hosts": [
+    "stateful scalar counter",
+    "structured headless panel reply"
+  ],
+  "host_frontier_cases": 300,
+  "acknowledged_cancellation_paths": 300,
+  "interrupted_terminal_paths": 300,
+  "pre_intent_refusal_paths": 600,
+  "existing_terminal_winner_paths": 600,
+  "stale_adapter_refusals": 600,
+  "inconsistent_terminal_records": 24,
+  "failed_restore_not_cancellation_paths": 4,
+  "program_scope": "Two native hosts cover 150 cases each: the existing 25 Seq/All frontiers with zero predecessors, one same-kind predecessor or all four two-predecessor kind pairs. Source compilation, original parent/collector recovery and scope cancellation are reused. Original owners and host objects drop before same-process disk reopening.",
+  "settlement_scope": "The host fixture distinguishes Completed, Failed and Cancelled terminal outcomes. Explicit cancellation revokes the shared scope and observes parent/collector cancellation before publishing an intent and then a Cancelled terminal. Only successful terminal publication returns a cancellation acknowledgement. Completed and Failed records already committed take precedence over late cancellation without rewriting bytes.",
+  "intent_scope": "A committed intent without terminal refuses ordinary recovery before VM/capture restoration. An authorized cancellation retry may finish the terminal without work dispatch. Repeated terminal-publication failure and permission refusal leave the intent ledger byte-identical. Failure before the intent is published returns no acknowledgement and gives no persisted restart fence; the local owner is closed but host uncertainty remains unresolved.",
+  "writer_scope": "The test-only serialized writer bounds encoded bytes, exclusively creates a temporary file, writes and syncs that file, then renames it over the ledger. Deterministic faults after file sync and before rename exercise both intent and terminal publication failure; failed candidates are removed so explicit retries can succeed. Directory synchronization, subprocess kill, power loss, concurrent writers and transactional check-and-dispatch are not tested or promised.",
+  "dispatch_scope": "The existing host dispatch fixture re-reads the persisted cancellation/terminal fence before consulting a stale in-memory receipt ledger or invoking an effect. Six hundred independently fresh adapter attempts refuse after a confirmed cancellation or interrupted terminal publication. This is not atomic with concurrent cancellation, does not deliver external cancellation and does not roll back operations already executing elsewhere.",
+  "validation_scope": "Fresh authority still precedes terminal replay. Cancelled records require an intent, no value and the original saved remaining fuel; Completed/Failed records require the appropriate value shape, no cancellation intent and no budget increase. Twenty-four contradictory terminal records refuse ordinary replay and cancellation retry. Four malformed Seq/All collector restores cannot be mislabeled as confirmed cancellation; an explicit observed-cancellation flag separates that path from restore errors.",
+  "remaining_boundaries": [
+    "Actual subprocess restart/termination and durable filesystem/crash consistency.",
+    "Concurrent writer coordination and atomic external-effect/receipt/cancellation settlement.",
+    "External cancellation delivery, authenticated host storage and final independent repository/distribution acceptance."
+  ],
+  "verification_scope": "Local macOS serialized same-process disk-reopen acceptance. Matrix totals are scenarios inside six added Rust tests; local/package/consumer tests overlap. No Linux, physical GUI, remote CI, production journal or complete durable recovery claim.",
+  "native_export": {
+    "verified": true,
+    "product_free": true,
+    "crate_count": 5,
+    "path": "/private/tmp/leselang-cancellation-reopen-export-20261028",
+    "file_count": 310,
+    "total_bytes": 7568641,
+    "manifest_sha256": "9637605512802f0ab3a1bb5d7508be299fac20263021b9f52ae6719c8a49fa75",
+    "copied_source_entries": 299,
+    "copied_sources_match": true,
+    "cancellation_reopen_test_runs": 12,
+    "temporary_targets": [
+      "/var/folders/3l/55cf4yhs7xn8y8q2x8685dsr0000gn/T/leselang-source-build-50936-1793178518760022000-2"
+    ],
+    "temporary_targets_removed": true,
+    "tests_passed": 2853,
+    "log": "/private/tmp/leselang-cancellation-reopen-export-20261028.log",
+    "log_sha256": "8aa25c24f3a3c219e6dbb211bd72a1438180a4605920ff90e90aad311140af1b"
+  },
+  "source_hashes": {
+    "crates/leselang-vm/tests/native_host_pipeline.rs": "a2d2fe421293cb215766c9d06e3b6c9a1e00df4d9e05f434f5eb836760d88506",
+    "crates/leselang-vm/tests/support/native_checkpoint.rs": "f9e4d2451c26a085af71c8fdc9eba180e99a6eaffe58e60e2de51b361b74b760",
+    "crates/leselang-vm/tests/support/native_group_checkpoint.rs": "d693b362b7a3e6e07ad61053aa519d5d1a3f104823aecd5bc6aafa73a038fd6a",
+    "crates/leselang-hir-core/src/effect_stack_session.rs": "8fd169c0d0b4d2cb363667c45963ce3cd677ee7f011ba0ca73cb712eed77bcd2",
+    "crates/leselang-hir-core/src/prepared_sequence.rs": "6f0c4e9acc0d13727d1f5b9eb45ac19db1c976e780e4ad8a28fe50f05ea21cde",
+    "crates/leselang-hir-core/src/sequence_evaluation.rs": "646136c2f18b3dd8542c2d696817c26ef8cdc35411bd3345e415e1c6c8c2fbb4",
+    "crates/leselang-hir-core/src/prepared_parallel.rs": "76fc750046ec65f99151aaa145bea3491dc920a6ab2824b1ab52a6c1a37524bd",
+    "crates/leselang-hir-core/src/call_evaluation.rs": "255f19be9024e561ad2f0587c9651ff4828be651f0b2b95f748fbe0103c2cbe8",
+    "crates/leselang-runtime-core/src/local_execution.rs": "5b87372ca61605b4452c69c0541604fdfd4371a64ad4f24c8afc83b09b70508a",
+    "crates/leselang-runtime-core/src/reply.rs": "a876ee1347215b4d75d5c4f943a67684e3c1b7ceca26c6386f4e6afb8df2d0b9",
+    "crates/gewyvern-dev/src/leselang.rs": "544534c69a0afe0feef571f75c26099f6d682afc3f1b909d81ffb6c3c00a4869",
+    "tests/language_independence_tdd.rs": "ceb11a97ebe84d3235036be25cb94296ec3252e58f315ba4577cae8689bcc417",
+    "tests/project_status_tdd.rs": "ed825f83b9802114114573af34385535b98db66ff02fc728e67d86304d2e2df9",
+    "docs/leselang-embedding.md": "083793f82f93b4395c0206e89e58d9164c22acb8f405952eda11cd4f4c7d85df",
+    "project/status/catalog.json": "80f039b7566bf9d276c09983a27246de99ed1c33f716f9f4b2e6f55e21176762",
+    "crates/leselang-hir-core/src/group_reply.rs": "1339fd31a9e699185de3cd93c3c2dd5a8f1dd53b4602ec1f41063dc1f531a7fa"
+  },
+  "checks": [
+    {
+      "command": "cargo +1.98.0 test -p gewyvern-dev --locked --offline --profile lean leselang::tests",
+      "log": "/private/tmp/leselang-cancellation-reopen-exporter-tests-20261028.log",
+      "sha256": "67e382a5e561d704f2efc44a74fe579e90e890bfb5cda92c7dc15846bd3cc304",
+      "tests_passed": 26,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions -- -D warnings",
+      "log": "/private/tmp/leselang-cancellation-reopen-compatibility-clippy-20261028.log",
+      "sha256": "0da8a8c8337be00350fe24e20e3410d712ff2bbad9cb1487a139bd120a476735",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --no-default-features",
+      "log": "/private/tmp/leselang-cancellation-reopen-native-20261028.log",
+      "sha256": "eaa41dfae8a98df510f1f1c9257cfb7fecdd8c7e93b80e533005b631bf30544f",
+      "tests_passed": 128,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 run -p gewyvern-dev --locked --offline --profile lean -- package leselang --output /private/tmp/leselang-cancellation-reopen-export-20261028 --verify",
+      "log": "/private/tmp/leselang-cancellation-reopen-export-20261028.log",
+      "sha256": "8aa25c24f3a3c219e6dbb211bd72a1438180a4605920ff90e90aad311140af1b",
+      "tests_passed": 2853,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern-dev --locked --offline --profile lean --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-cancellation-reopen-exporter-clippy-20261028.log",
+      "sha256": "be6414483be546a22e5ee8ae76ab9a42686b84f96a1b5128cd0bc13a27d35649",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "rustfmt +1.98.0 --edition 2024 --check crates/leselang-vm/tests/support/native_checkpoint.rs crates/leselang-vm/tests/support/native_group_checkpoint.rs",
+      "log": "/private/tmp/leselang-cancellation-reopen-fixture-format-20261028.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p leselang-vm --locked --offline --profile lean --test native_host_pipeline --test prepared_groups --test prepared_bindings --test effectful_functions --test selected_functions",
+      "log": "/private/tmp/leselang-cancellation-reopen-compatibility-20261028.log",
+      "sha256": "137e44474332fe96bd25ed7903577a6ffd72b4ff124b48f5de60e57ea50743f6",
+      "tests_passed": 145,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p leselang-vm --locked --offline --profile lean --no-default-features --all-targets -- -D warnings",
+      "log": "/private/tmp/leselang-cancellation-reopen-native-clippy-20261028.log",
+      "sha256": "c1fc9ca4a6b404b764c9151394abe171e16f516721b53f45471e301cc48fb609",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 test -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test open_source_core_policy_tdd --test gui_function_chain_tdd --test reliability_gate_tdd --test documentation_system_tdd --test leselang_fuzz_tdd",
+      "log": "/private/tmp/leselang-cancellation-reopen-root-20261028.log",
+      "sha256": "2a159fd325d80796d7d4b23e4408470f9208997a67336e7d734059d2a166f964",
+      "tests_passed": 680,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 clippy -p gewyvern --locked --offline --profile lean --test language_independence_tdd --test project_status_tdd -- -D warnings",
+      "log": "/private/tmp/leselang-cancellation-reopen-root-clippy-20261028.log",
+      "sha256": "bbe19a554079035328426eda09c23eb583ef944f7fdf38a61bfc89c03db2754a",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "target/lean/gewyvern_status validate --json",
+      "log": "/private/tmp/leselang-cancellation-reopen-status-20261028.log",
+      "sha256": "07f6106d069105acefd731acb10ef4f19d9eb1b1947386d8bae82b5cb26420bd",
+      "tests_passed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo +1.98.0 fmt --all -- --check",
+      "log": "/private/tmp/leselang-cancellation-reopen-format-20261028.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tests_passed": 0,
+      "exit_code": 0
+    }
+  ],
+  "root_gate_tests": 680
+}

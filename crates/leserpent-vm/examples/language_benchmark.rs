@@ -1,10 +1,10 @@
 use std::hint::black_box;
 use std::time::Instant;
 
-use leselang_hir::lower;
 use leselang_syntax::parse;
-use leselang_vm::{Step, Vm};
 use leserpent_domain::{CAPABILITY_RUNTIME_READ, CapabilitySet, Principal};
+use leserpent_hir::lower;
+use leserpent_vm::{Step, Vm};
 use serde::Serialize;
 
 const BRANCH_COUNT: usize = 64;
@@ -106,7 +106,7 @@ fn benchmark_source() -> String {
     format!("fn main() = all({branches})")
 }
 
-fn start_program(program: &leselang_hir::HirProgram) -> Step {
+fn start_program(program: &leserpent_hir::HirProgram) -> Step {
     let mut vm = Vm::default();
     vm.start(
         program,
@@ -128,4 +128,40 @@ fn median_ms(mut operation: impl FnMut()) -> f64 {
     }
     samples.sort_unstable();
     samples[samples.len() / 2] as f64 / 1_000_000.0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn fixed_product_workload_keeps_the_existing_benchmark_contract() {
+        let source = benchmark_source();
+        let syntax = parse(&source);
+        assert!(syntax.diagnostics.is_empty());
+        assert_eq!(BRANCH_COUNT, 64);
+        assert_eq!(ITERATIONS, 500);
+        assert_eq!(source.len(), 5_371);
+        assert_eq!(syntax.tokens.len(), 1_674);
+    }
+
+    #[test]
+    fn direct_product_pipeline_emits_each_original_branch_once() {
+        let syntax = parse(&benchmark_source());
+        let program = lower(&syntax).unwrap();
+        let Step::Effects(batch) = start_program(&program) else {
+            panic!("benchmark must produce its complete product effect batch");
+        };
+        assert_eq!(batch.branches.len(), BRANCH_COUNT);
+        let actual = batch
+            .branches
+            .iter()
+            .map(|entry| entry.branch.as_str())
+            .collect::<BTreeSet<_>>();
+        let expected = (0..BRANCH_COUNT)
+            .map(|index| format!("branch_{index}"))
+            .collect::<BTreeSet<_>>();
+        assert_eq!(actual, expected.iter().map(String::as_str).collect());
+    }
 }

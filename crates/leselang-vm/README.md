@@ -4,6 +4,73 @@ One shared compiler/session implementation with an explicit optional Leserpent
 reference specialization. This crate remains in the product workspace while
 complete language, recovery and compatibility extraction gates are open.
 
+## Runnable Native Host
+
+Start with [native_counter.rs](examples/native_counter.rs), a standalone Rust
+embedding example using only `leselang_vm::native` and the standard library.
+It compiles source with a helper, suspends at two typed `counter.add` calls,
+accepts host replies and re-enters the original `LocalVm` with one fuel budget.
+
+```sh
+cargo +1.98.0 run -p leselang-vm --no-default-features --locked --offline --profile lean --example native_counter
+cargo +1.98.0 run -p leselang-vm --no-default-features --locked --offline --profile lean --example native_counter -- --cancel
+cargo +1.98.0 test -p leselang-vm --no-default-features --locked --offline --profile lean --example native_counter
+```
+
+Normal execution returns 42 after two native calls. `--cancel` stops before the
+second dispatch, preserving the first effect (19). `--deny` refuses during
+compilation; `--revoke` withdraws authority after the first effect and exits with
+failure rather than dispatching the second. Failure output preserves completed
+call count, counter state and remaining fuel; failure never implies rollback.
+Offline builds require cached locked dependencies.
+
+The adapter owns its catalog, scope-bound identities, current authority, bounded
+native mutation and capture-copy accounting. Shared library code owns parsing,
+compilation, expression evaluation and reply-gated continuation. No test fixture,
+product service, SQLite, runtime thread or second evaluator is embedded here.
+This is an atomic scalar example, not complete language coverage, an external
+receipt authentication protocol or a production recovery backend. The native
+source exporter copies it unchanged into both package and consumer, then runs
+its tests plus immediate and queued success/cancel modes in each workspace.
+
+### Queued Host Driving
+
+Append `-- --queued` to the run command above to drive two local instances from
+one compiled IR. The adapter owns a two-event queue and a 64-turn ceiling; each
+turn handles one dispatch or one receipt. Polling, native mutation and reply
+acceptance are separate operations, so awaiting a delayed receipt does not spend
+more fuel or dispatch again. Each instance keeps its own owner, counter and meter.
+
+`--queued-cancel-pending` cancels the first instance before dispatch (zero effects).
+`--queued-cancel-reply` cancels after native mutation but before receipt acceptance
+(one effect, total 19); the stale receipt is discarded, not treated as rollback.
+`--queued-revoke` withdraws authority before acceptance and exits with failure,
+also preserving 19. In all three cases the second instance still completes at 42.
+The example's live-receipt refusal policy is to fail that instance, not retry it.
+
+Twelve tests now include interleaving, independent fuel exhaustion, foreign and
+wrong-typed receipt retries, idle awaiting polls, cancellation and owner drop.
+The source is unchanged in the isolated package and independent consumer. This
+single-threaded headless loop demonstrates host integration, not a new VM
+scheduler, asynchronous language semantics, a real GUI loop or durable recovery.
+
+## Product Benchmark
+
+The reference `language_benchmark` belongs to `leserpent-vm`, not this native
+facade. It imports the product HIR and VM directly and needs no SQLite backend:
+
+```sh
+cargo +1.98.0 run -p leserpent-vm --no-default-features --release --locked --offline --example language_benchmark
+```
+
+`gewyvern_validate leserpent-benchmark` uses that same product target. Its fixed
+workload and JSON report are unchanged. Native source export neither reads nor
+requires the product benchmark, and rejects it if reintroduced into this crate's
+closed example inventory. This changes ownership, not language or performance
+semantics; historical benchmark evidence keeps its original checkpoint paths.
+
+## Acceptance History
+
 The native two-host pipeline tests also cover result-selected group helpers,
 group aliases and early versus captured returns under one fuel budget. Native
 catalog compilation supports a field directly over a bound member, including
@@ -223,6 +290,15 @@ A numeric plan is not execution authority, a reservation or durable settlement.
 The default profile is unchanged. Consumers of the previous database-free root
 API must explicitly enable `leserpent-profile`. `sqlite-journal` implies that
 profile; there is no silent fallback when a durable journal cannot open.
+
+Product debugger audit acceptance runs directly under `leserpent-vm` (nine
+memory cases and fifteen SQLite cases). This facade retains nine memory and
+nine durable wrappers over the same audit oracle to check released API paths.
+SQLite corruption, peer-cache reconciliation and race tests belong to the
+product target, not the native language export. Run direct product acceptance
+with `cargo test -p leserpent-vm --test debugger_audit_memory --test debugger_audit_durable`;
+use `--no-default-features --test debugger_audit_memory` for the memory-only target.
+No runtime, schema or compatibility-default change follows from this ownership split.
 Cargo features are additive, not a capability or security boundary.
 
 Both reference profiles reject fresh debugger audit attribution after completion
