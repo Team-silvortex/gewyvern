@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
-//! Product-independent values shared by Leselang and its host adapters.
+//! Leserpent reference-host wire values and capabilities used by its adapters.
+//! These product contracts are not required by the independent Leselang core.
 
 use std::collections::BTreeSet;
 use std::fmt;

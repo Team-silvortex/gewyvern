@@ -15,12 +15,12 @@ sqlite-journal = ["vm-bridge", "leserpent-vm/sqlite-journal"]
 leselang-command = { path = "../leselang-command" }
 leserpent-hir = { path = "../leserpent-hir" }
 leselang-host-contract = { path = "../leselang-host-contract" }
-leselang-runtime-core = { path = "../leselang-runtime-core" }
+leselang-runtime-core.workspace = true
 leselang-ui = { path = "../leselang-ui" }
 leserpent-vm = { path = "../leserpent-vm", optional = true, default-features = false }
 leserpent-domain = { path = "../leserpent-domain" }
 serde.workspace = true
 
 [dev-dependencies]
-leselang-syntax = { path = "../leselang-syntax" }
+leselang-syntax.workspace = true
 serde_json.workspace = true

@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-pinned-product-dependency-cutover",
+  "date": "2026-10-28",
+  "platform": "macos-arm64",
+  "rust_toolchain": "1.98.0",
+  "profile": "lean",
+  "source_repository": "https://github.com/Team-silvortex/leselang",
+  "pinned_revision": "5f86dfb8dd79a28986fe5eb4cbfe6b044796f935",
+  "native_package_version": "0.1.0",
+  "product_package_version": "2.5.0",
+  "core_packages": [
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir-core"
+  ],
+  "product_dependency_cutover": true,
+  "duplicate_core_identities": 0,
+  "sibling_checkout_required": false,
+  "frozen_source_test_files": {
+    "leselang-syntax": 4,
+    "leselang-runtime-core": 92,
+    "leselang-hir-core": 70
+  },
+  "frozen_source_test_comparison": "Exact path inventory and byte equality against Cargo-resolved Git packages, not the sibling checkout.",
+  "manifest_sha256": {
+    "Cargo.toml": "6da162f3486e6f222438353845a7ba5b7a8e94b2b788fae2cce45d2d0a756951",
+    "Cargo.lock": "db796fc1aca2f42e8f0e8bfbe31a483d044e89f2015c470c7f911c297c6d272b",
+    "tests/fixtures/leselang-product-hir-boundary/Cargo.toml": "7317d32b9eece5338c6749bb36dfe21053d70f91db4d2938c47a9f2075170819",
+    "tests/fixtures/leselang-product-hir-boundary/Cargo.lock": "5a0a6adf797ebfd130ce1c2664efbd746b30bbc592e5ecd51a9b2b7550214f2a"
+  },
+  "test_results": {
+    "product": {
+      "passed": 3757,
+      "failed": 0,
+      "suites": 302
+    },
+    "no-sqlite": {
+      "passed": 393,
+      "failed": 0,
+      "suites": 25
+    },
+    "native": {
+      "passed": 30,
+      "failed": 0,
+      "suites": 2
+    },
+    "exporter": {
+      "passed": 27,
+      "failed": 0,
+      "suites": 1
+    },
+    "tdd": {
+      "passed": 678,
+      "failed": 0,
+      "suites": 6
+    },
+    "fixture": {
+      "passed": 4,
+      "failed": 0,
+      "suites": 1
+    },
+    "cli": {
+      "passed": 7,
+      "failed": 0,
+      "suites": 1
+    },
+    "daemon": {
+      "passed": 1,
+      "failed": 0,
+      "suites": 1
+    }
+  },
+  "test_executions": 4897,
+  "test_count_scope": "Includes separate feature profiles, compatibility facades and doctests; not a count of unique test functions.",
+  "verification_commands": [
+    "cargo +1.98.0 test --locked --offline --profile lean -p leserpent-hir -p leserpent-vm -p leselang-command -p leselang-hir -p leselang-vm --all-features",
+    "cargo +1.98.0 test --locked --offline --profile lean -p leselang-vm -p leserpent-vm --no-default-features --features leselang-vm/leserpent-profile",
+    "cargo +1.98.0 test --locked --offline --profile lean -p leselang-vm --no-default-features --test native_embedding --example native_counter",
+    "cargo +1.98.0 test --locked --offline --profile lean -p gewyvern-dev leselang::tests",
+    "cargo +1.98.0 test --locked --offline --profile lean --no-fail-fast -p gewyvern --test language_independence_tdd --test leselang_repository_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd --test documentation_system_tdd --test project_status_tdd",
+    "cargo +1.98.0 test --locked --offline --profile lean --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml --target-dir target --test product",
+    "cargo +1.98.0 test --locked --offline --profile lean -p leserpent-cli --test leselang_parity",
+    "cargo +1.98.0 test --locked --offline --profile lean -p leserpentd --lib authenticated_leselang_export_uses_rust_canonical_source_over_real_tls",
+    "cargo +1.98.0 clippy --locked --offline --profile lean --workspace --all-targets -- -D warnings",
+    "cargo +1.98.0 clippy --locked --offline --profile lean --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml --target-dir target --lib --test product -- -D warnings",
+    "cargo +1.98.0 fmt --all -- --check",
+    "cargo +1.98.0 fmt --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml -- --check",
+    "git diff --check"
+  ],
+  "daemon_tls_scope": "Real loopback TLS, temporary self-signed certificate and SQLite database. Initial listener permission denial was environmental; the approved rerun passed.",
+  "legacy_export_scope": "Source projection plus locked/offline metadata resolution for exported workspace and consumer passed. Full isolated export test suite was not rerun in this cutover; it remains a main CI gate.",
+  "upstream_ci": {
+    "url": "https://github.com/Team-silvortex/leselang/actions/runs/40700007420",
+    "head_revision": "5f86dfb8dd79a28986fe5eb4cbfe6b044796f935",
+    "conclusion": "success",
+    "platforms": [
+      "ubuntu-latest",
+      "macos-latest"
+    ]
+  },
+  "main_remote_ci_after_cutover": "not-run-uncommitted",
+  "registry_published": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "non_claims": [
+    "No new live GUI acceptance",
+    "No new Linux product or eBPF run",
+    "No complete independent durable VM acceptance",
+    "Frozen source inspection snapshots are retained but excluded from product builds"
+  ]
+}

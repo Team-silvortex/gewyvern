@@ -12,10 +12,11 @@ Current implementation checkpoint: shared release `v2.5.0`. The
 per-feature maturity, evidence, dependencies, and next gates.
 
 The post-release [Leselang extraction readiness track](leselang-embedding.md#repository-extraction-readiness)
-continues in the 2.3.0-and-later development phase. Physical extraction is
-deferred with no replacement version/date; complete host verticals, durable
-recovery and reference-adapter parity decide when it can move. This remains an
-acceptance-gated refactoring track, not a claim of current full VM independence
+continues in the 2.3.0-and-later development phase. Repository bootstrap is separate
+from full runtime acceptance: the native foundation has a local MIT `leselang`
+repository, and the product now pins its published 0.1.0 Git revision.
+Complete host verticals, durable recovery and reference-adapter parity still gate
+full runtime acceptance, with no replacement version or date. This is not a claim of full VM independence
 or a rewrite of the completed 2.0 delivery record. The development phase does
 not change the package version inherited from root release metadata.
 

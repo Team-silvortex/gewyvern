@@ -13,7 +13,7 @@ native-ssh = ["leserpent-adapters/native-ssh"]
 leselang-command = { path = "../leselang-command" }
 leserpent-hir = { path = "../leserpent-hir" }
 leselang-observe = { path = "../leselang-observe" }
-leselang-syntax = { path = "../leselang-syntax" }
+leselang-syntax.workspace = true
 leselang-ui = { path = "../leselang-ui" }
 leserpent-vm = { path = "../leserpent-vm" }
 leserpent-adapters = { path = "../leserpent-adapters" }

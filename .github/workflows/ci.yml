@@ -19,7 +19,7 @@ env:
 
 jobs:
   leselang-core:
-    name: Standalone Leselang runtime foundation
+    name: Pinned Leselang product integration
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -29,23 +29,19 @@ jobs:
       - name: Install Rust toolchain
         run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt,clippy
 
-      - name: Package and verify isolated runtime core
-        run: cargo +1.98.0 package -p leselang-runtime-core --locked
+      # Native package tests/lints belong to the independent repository. Cargo
+      # cannot test dev-dependencies of a Git dependency as a workspace member.
+      - name: Fetch pinned native core and product dependencies
+        run: cargo +1.98.0 fetch --locked
 
-      # Package verification builds the library, not its dev-dependencies.
-      - name: Fetch normalized standalone test dependencies
-        run: cargo +1.98.0 fetch --manifest-path target/package/leselang-runtime-core-*/Cargo.toml --locked
+      - name: Verify immutable source identity and frozen acceptance snapshots
+        run: cargo +1.98.0 test -p gewyvern --locked --offline --test leselang_repository_tdd
 
-      - name: Test normalized standalone package
-        run: cargo +1.98.0 test --manifest-path target/package/leselang-runtime-core-*/Cargo.toml --locked --offline
+      - name: Verify product tutorials and fuzzing without legacy language facades
+        run: cargo +1.98.0 test -p gewyvern --locked --offline --test documentation_system_tdd --test leselang_fuzz_tdd
 
       - name: Test host-defined HIR without the Leserpent profile
         run: cargo +1.98.0 test -p leselang-hir --locked --no-default-features
-
-      - name: Test and lint the product-free HIR owner
-        run: |
-          cargo +1.98.0 test -p leselang-hir-core --locked
-          cargo +1.98.0 clippy -p leselang-hir-core --locked --all-targets -- -D warnings
 
       - name: Lint native-only HIR and its tests
         run: cargo +1.98.0 clippy -p leselang-hir --locked --no-default-features --all-targets -- -D warnings
@@ -70,12 +66,10 @@ jobs:
       - name: Verify public argument binding and frozen lowering compatibility
         run: |
           cargo +1.98.0 test -p leselang-hir --locked --no-default-features --test argument_binding
-          cargo +1.98.0 test -p leselang-hir-core --locked --lib argument_binding_contract_tests
 
       - name: Verify public native source plans and frozen preparation order
         run: |
           cargo +1.98.0 test -p leselang-hir --locked --no-default-features --test source_preparation
-          cargo +1.98.0 test -p leselang-hir-core --locked --lib source_preparation_contract_tests
 
       - name: Verify native source and separate consumer outside the monorepo
         run: >-
@@ -100,7 +94,7 @@ jobs:
       - name: Test reference protocol and capture execution without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test captured_execution --test capture_scope --test structured_value --test result_domain --test host_protocol --test result_binding --test merge_plan --test continuation_admission --test reference_continuation --test reference_value --test reference_merge --test reference_completion --test reference_dispatch --test reference_recovery --test reference_dispatch_recovery --test reference_group_recovery --test reference_merge_output --test reference_group_batch --test reference_group_reservations --test reference_bound_receipt --test reference_bound_records --test reference_group_binding --test reference_checkpoint --test reference_group_successor --test reference_group_execution
 
-      - name: Compile the real product HIR across the native-only crate boundary
+      - name: Compile product HIR with the published native HIR and VM facades
         run: |
           cargo +1.98.0 test -p leselang-hir --locked --no-default-features --test local_names
           cargo +1.98.0 test --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml --locked --target-dir target --test product
@@ -175,6 +169,11 @@ jobs:
         run: |
           cargo +1.98.0 test -p leserpent-vm --locked --test result_binding --test successor --test dataflow --test group_tail --test parallel_group_tail
           cargo +1.98.0 test -p leselang-vm --locked --test result_binding --test successor --test dataflow --test group_tail --test parallel_group_tail
+
+      - name: Test product control flow and selected group execution
+        run: |
+          cargo +1.98.0 test -p leserpent-vm --locked --test control_flow --test iteration --test conditional_exit --test computed_groups --test selected_groups
+          cargo +1.98.0 test -p leselang-vm --locked --test control_flow --test iteration --test conditional_exit --test computed_groups --test selected_groups
 
       - name: Test reply entry policy without linking the VM
         run: cargo +1.98.0 test -p leselang-command --locked --test reference_reply

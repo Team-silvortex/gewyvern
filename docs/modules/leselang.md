@@ -1,11 +1,10 @@
 # Leselang Documentation Module
 
-Owns the independent embeddable control language, its compiler boundary, effect model,
-capability checks, continuation format, and deterministic re-entry semantics.
+Documents Leserpent's Leselang integration, host contracts and compatibility evidence.
+Independent language development belongs in the separate Leselang repository.
 
 Leserpent is the first reference host, not the language's required runtime.
-The intended core is a hostable Rust crate plus a narrow protocol/FFI surface
-for other languages. GUI automation is one host profile; a shell for nuis OS
+The intended core is a hostable Rust crate plus a narrow protocol/FFI surface for other languages. GUI automation is one host profile; a shell for nuis OS
 and sirius kernel is a distant host profile, not an implemented capability.
 No GUI framework is automatically compatible; each one needs a developer-owned
 adapter or generated framework binding against the Leselang UI protocol. The
@@ -21,6 +20,7 @@ adapter or generated framework binding against the Leselang UI protocol. The
 6. [Computation, pure recovery, bounded loops, atomic chains and named group results](../leselang-control-flow.md)
 7. [Independent embedding architecture and extraction gates](../leselang-embedding.md)
 8. [Runnable product-free Rust host and bounded two-instance event loop](../../crates/leselang-vm/README.md#runnable-native-host)
+9. [Independent repository ownership and product handoff](../leselang-repository-handoff.md)
 
 ## Contracts
 
@@ -34,15 +34,17 @@ adapter or generated framework binding against the Leselang UI protocol. The
 Leselang and GewyLang are separate languages: GewyLang defines protocol behavior;
 Leselang controls explicitly adapted hosts, including Leserpent orchestration and UI.
 
-The 2.3.0-and-later phase closes complete host/recovery/compatibility gates;
-physical repository extraction is deferred with no replacement version or date.
-Native isolation is available, but full independent VM extraction is still open.
-The native source checkpoint exports unchanged code with independent metadata,
-tests and CI; it is not a complete durable VM or a release-publication gate.
+The 2.3.0-and-later phase separates repository bootstrap from full runtime
+acceptance. The native foundation now has a local MIT repository named `leselang`;
+the product now pins its published 0.1.0 Git revision across all native cores.
+Full independent VM acceptance remains open. The native source checkpoint retains
+its original metadata and flags; it is not a durable VM or release-publication gate.
+See the handoff document for frozen acceptance snapshots,
+compatibility facades and the single-source ownership rule.
 
-`leselang-hir` and `leselang-vm` offer native builds without the `leserpent-profile`.
-The reference profile preserves product compatibility; `sqlite-journal` selects
-its durable backend. Cargo feature unification is not an authority boundary.
+Local `leselang-hir`/`leselang-vm` retain `leserpent-profile`, unlike independent packages.
+Product code/tests use `leserpent-hir`/`leserpent-vm`; `sqlite-journal` selects
+the product durable backend. Cargo feature unification is not an authority boundary.
 Shared HIR owns compilation, evaluation and reply-gated sessions. Hosts retain
 live authority, authentic replies, native work bounds and external cancellation.
 

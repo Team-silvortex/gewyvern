@@ -849,10 +849,10 @@ dependencies = [
  "gewylang-syntax",
  "gewyvern-install-contract",
  "http",
- "leselang-hir",
  "leselang-syntax",
- "leselang-vm",
  "leserpent-domain",
+ "leserpent-hir",
+ "leserpent-vm",
  "rcgen",
  "ring",
  "rustls",
@@ -1116,12 +1116,12 @@ dependencies = [
 
 [[package]]
 name = "leselang-hir-core"
-version = "2.5.0"
+version = "0.1.0"
+source = "git+https://github.com/Team-silvortex/leselang?rev=5f86dfb8dd79a28986fe5eb4cbfe6b044796f935#5f86dfb8dd79a28986fe5eb4cbfe6b044796f935"
 dependencies = [
  "leselang-runtime-core",
  "leselang-syntax",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -1151,18 +1151,18 @@ dependencies = [
 
 [[package]]
 name = "leselang-runtime-core"
-version = "2.5.0"
+version = "0.1.0"
+source = "git+https://github.com/Team-silvortex/leselang?rev=5f86dfb8dd79a28986fe5eb4cbfe6b044796f935#5f86dfb8dd79a28986fe5eb4cbfe6b044796f935"
 dependencies = [
  "serde",
- "serde_json",
 ]
 
 [[package]]
 name = "leselang-syntax"
-version = "2.5.0"
+version = "0.1.0"
+source = "git+https://github.com/Team-silvortex/leselang?rev=5f86dfb8dd79a28986fe5eb4cbfe6b044796f935#5f86dfb8dd79a28986fe5eb4cbfe6b044796f935"
 dependencies = [
  "serde",
- "serde_json",
 ]
 
 [[package]]

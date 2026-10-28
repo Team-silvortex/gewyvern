@@ -4,6 +4,13 @@ One shared compiler/session implementation with an explicit optional Leserpent
 reference specialization. This crate remains in the product workspace while
 complete language, recovery and compatibility extraction gates are open.
 
+This is the legacy product-workspace package, not independent Leselang 0.1.0.
+Product code and root tests use `leserpent-vm` directly. New native integrations
+use [Team-silvortex/leselang](https://github.com/Team-silvortex/leselang); the
+separate product-HIR fixture consumes its real HIR and VM facades with normal
+defaults. This local facade remains only for its compatibility acceptance suites;
+new product dependencies on it are rejected by the repository gate.
+
 ## Runnable Native Host
 
 Start with [native_counter.rs](examples/native_counter.rs), a standalone Rust
@@ -342,6 +349,13 @@ Select `leselang-vm` for the same 81 released-API cases. Both routes require
 SQLite and preserve inherited authority, atomic successor creation, legacy
 journal migration, frame correspondence and protected whole-chain retention.
 Their canonical bodies and compatibility wrappers are excluded from native export.
+
+Product control-flow acceptance runs with
+`cargo test -p leserpent-vm --test control_flow --test iteration --test conditional_exit --test computed_groups --test selected_groups`.
+Use `leselang-vm` for the same 47 released-API cases. Both routes require SQLite;
+generic language/core tests remain separate. Lazy selection, shared fuel,
+transactional group preparation and exit/successor commit fences retain their
+original coverage, without adding these product targets to native export.
 
 Both reference profiles reject fresh debugger audit attribution after completion
 (`LSV4033`), including ordinary and propagated sibling cancellations. Only an

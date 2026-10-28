@@ -11,6 +11,15 @@ Product versions in the dated proofs and incremental sections below describe
 their original checkpoints, not the current package version. Release alignment
 does not relabel those records or promote extraction readiness.
 
+## Independent Repository Handoff
+
+The native foundation now has a separate local MIT repository named `leselang`.
+New native development belongs there; this monorepo retains a compatibility
+baseline until its shared cores can consume an actual immutable revision.
+Repository bootstrap is separate from complete language/durable-runtime acceptance.
+No Git commit, remote publication, product dependency switch or complete-VM
+promotion is implied. See [the ownership and cutover checklist](leselang-repository-handoff.md).
+
 ## Runnable Native Host
 
 The `leselang-vm` example `native_counter` is a direct embedding entry rather than
@@ -73,11 +82,11 @@ The optional legacy dependencies also support compatibility integration tests,
 not a second implementation. The HIR still has a separate optional product
 profile, so this is not a completed independent durable VM.
 
-The pre-2.6 priority is to close acceptance boundaries, not add syntax or move
-more isolated helpers indefinitely: finish the complete declared-language
-two-host execution matrix, decide and verify host-neutral durable checkpoint
-ownership, then validate the final repository/dependency split with external
-consumers. Source ownership alone does not promote `complete_vm` or
+The current priority is the independent repository and product dependency handoff,
+not adding syntax or moving more isolated helpers indefinitely. Complete the
+declared-language two-host execution matrix and host-neutral durable checkpoint
+acceptance in the new native repository; validate the product dependency switch
+against an actual immutable revision. Source ownership alone does not promote `complete_vm` or
 `full_extraction_gate`. Historical evidence retains its original paths/hashes;
 the status catalog points to the new current owners.
 
@@ -182,6 +191,19 @@ continue exercising compatibility. Native export excludes both target sets;
 its unchanged content reuses the prior verified checkpoint without a fresh
 isolated run (`verified=false`) or completion-gate promotion.
 Evidence: `docs/fixtures/leselang_product_result_chain_ownership_macos_arm64_20261028.json`.
+
+Product control-flow acceptance now owns sequential execution (11 cases),
+iteration (10), conditional exit (13), computed groups (7) and selected groups
+(6). The same 47 cases remain available through the released facade wrappers.
+All five targets require `sqlite-journal` because they exercise product HIR/VM
+execution and durable transitions as well as memory behavior. Lazy selection,
+one shared fuel budget, all-or-nothing group preparation, mutually exclusive
+exit/successor commits and legacy journal migration retain their original
+assertions. Generic language/core tests and the cross-API restart proof are
+unchanged. CI runs both owners, while native export excludes both target sets;
+content equivalence to the last verified export is not a fresh isolated run or
+native durability/extraction promotion (`verified=false`).
+Evidence: `docs/fixtures/leselang_product_control_ownership_macos_arm64_20261028.json`.
 
 ## HIR Policy Boundary
 
@@ -12169,11 +12191,13 @@ These are local macOS checks, not new Linux, remote CI, live GUI, performance,
 power-loss or complete exported-source execution evidence. Independent recovery
 and physical repository extraction remain open.
 
-**The current 2.3.0-and-later phase closes acceptance gates; physical extraction is deferred.**
-It is not an automatic version-triggered move. No replacement extraction version
-or date is assigned. Continue the shared implementation in this monorepo until
-complete vertical and compatibility proofs pass; do not trade reliability for a
-release label or duplicate the runtime to manufacture apparent independence.
+**The current 2.3.0-and-later phase separates repository bootstrap from full runtime acceptance.**
+The native foundation has a local MIT repository named `leselang`. The product
+dependency cutover pins the reviewed 0.1.0 Git revision for all three native cores;
+it is not an automatic version-triggered move. No replacement full-runtime
+release version or date is assigned. Native development belongs in the new
+repository; this monorepo retains frozen acceptance snapshots and product facades,
+not a second independently developed implementation. See the repository handoff checklist.
 The existing language and free Leserpent capability set remain the compatibility
 baseline; this track removes product coupling rather than adding an OS shell or
 another GUI framework. Prioritize complete vertical proofs over more isolated helpers.
@@ -12182,7 +12206,9 @@ another GUI framework. Prioritize complete vertical proofs over more isolated he
 | --- | --- |
 | 2.2.0 foundation | Host-defined catalogs feed generic typed IR, evaluation, values and suspension frames; one unrelated host compiles, runs, yields, resumes and cancels without product DTOs or mandatory SQLite |
 | 2.3.0 and later convergence | Two unrelated host schemas pass the same complete language pipeline; exact versions, unknown operations, wrong typed replies and denied capabilities fail before unsafe dispatch; optional durable storage proves restart, stale-reply rejection and no duplicate settled effects |
-| Repository move | Existing Leserpent wire/auth/GUI parity remains green; the complete core has product-free dependency closure, its own source manifests, CI, docs, MIT license and publish boundaries; a clean external consumer builds without monorepo metadata/assets |
+| Native repository bootstrap | Product-free dependency closure, source manifests, CI, docs, MIT license, publish boundaries and a separate consumer; complete durable-runtime acceptance is not a prerequisite to creating the repository |
+| Product dependency cutover | One immutable native source identity, preserved product compatibility facades, clean-checkout builds and product integration checks |
+| Full runtime acceptance | Complete two-host language coverage, host-neutral durable graph recovery and reference wire/authority/GUI/CLI parity |
 
 Catalog-only tests prove registration/selection/binding and generic node reuse.
 Additional parsed source/session verticals now prove native typed calls, scoped
@@ -12208,7 +12234,7 @@ public helpers as a progress proxy:
 3. Close host-neutral durable graph recovery and saved-frame compatibility,
    including stale receipts, settled-effect deduplication and original budgets.
 4. Re-run full reference-adapter wire/authority/GUI/CLI and journal migration
-   parity before moving the complete core and its consumer/CI into a new repository.
+   parity before declaring the independent runtime a complete replacement.
 
 `leselang/language-vm/host-neutral-embedding` remains developing. The isolated
 source checkpoint contains syntax, runtime foundations, native HIR and the native
@@ -12217,11 +12243,11 @@ complete reference VM; its `complete_vm` and `full_extraction_gate` flags remain
 false. The planned `crates/leselang-vm/tests/host_embedding.rs` proof is not yet
 present and must not be treated as passed evidence. The status tensor remains the
 single source of truth; this section defines exit proofs, not a second progress table.
-Retain the shared implementation and record missing evidence instead of shipping
-a misleading split. Reassess after complete host verticals or recovery/parity
-gates close, not whenever a version number changes.
-Physical extraction follows acceptance, not directory relocation alone. FFI
-packaging and the nuis OS / sirius kernel shell remain deferred.
+Record missing evidence rather than equating repository creation with complete
+runtime acceptance. Reassess runtime maturity after complete host verticals or
+recovery/parity gates close, not whenever a version number changes.
+Pinned dependency cutover does not close full runtime acceptance. FFI packaging and the
+nuis OS / sirius kernel shell remain deferred.
 
 ## Control Flow And The Future Shell
 

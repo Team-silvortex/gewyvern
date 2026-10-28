@@ -6,13 +6,13 @@ description = "Leserpent host protocol payloads and pure lowering from authorize
 license.workspace = true
 
 [dependencies]
-leselang-hir-core = { path = "../leselang-hir-core" }
+leselang-hir-core.workspace = true
 leserpent-hir = { path = "../leserpent-hir" }
 leselang-host-contract = { path = "../leselang-host-contract" }
-leselang-runtime-core = { path = "../leselang-runtime-core" }
+leselang-runtime-core.workspace = true
 leserpent-domain = { path = "../leserpent-domain" }
 serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
-leselang-syntax = { path = "../leselang-syntax" }
+leselang-syntax.workspace = true

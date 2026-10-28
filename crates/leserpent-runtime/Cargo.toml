@@ -15,4 +15,4 @@ time.workspace = true
 [dev-dependencies]
 leselang-command = { path = "../leselang-command" }
 leserpent-hir = { path = "../leserpent-hir" }
-leselang-syntax = { path = "../leselang-syntax" }
+leselang-syntax.workspace = true

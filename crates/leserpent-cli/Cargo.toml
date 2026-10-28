@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 leselang-command = { path = "../leselang-command" }
-leselang-syntax = { path = "../leselang-syntax" }
+leselang-syntax.workspace = true
 leserpent-domain = { path = "../leserpent-domain" }
 leserpent-adapters = { path = "../leserpent-adapters" }
 leserpent-protocol = { path = "../leserpent-protocol" }

@@ -1,0 +1,206 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-independent-repository-bootstrap",
+  "observed_on": "2026-10-28",
+  "platform": "macos-arm64",
+  "toolchain": "1.98.0",
+  "repository": "leselang",
+  "license": "MIT",
+  "source": {
+    "repository": "gewyvern",
+    "head": "784e4aac7ca622497de40333ab1d4ade5787f84d",
+    "worktree_clean": false,
+    "package_version": "2.5.0",
+    "export_manifest_sha256": "5d450bbbb0b9cb288d27a07e332a6d57c9e1cabcce2c6efc0142080a2064d1a8"
+  },
+  "repository_snapshot": {
+    "files": 324,
+    "sha256": "05fa53ae31a9d55e8843131db46b8c9d68ba1a79a0a79831b4a6963528a94a36",
+    "hash_algorithm": "SHA-256 of sorted UTF-8 lines: file_sha256 + two spaces + relative_path + LF",
+    "excluded": [
+      ".git/",
+      "target/",
+      "docs/provenance/bootstrap-verification.json"
+    ],
+    "license_sha256": "2b8d458c11298b97994297056d41b07644b5a17644c42387e9bea1d083e3360e"
+  },
+  "checks": [
+    {
+      "name": "native-workspace",
+      "passed": 2185,
+      "log_sha256": "338597f305203c011bccf4f2d2f6569c2d166ff839d79198a1135284f3d2890d"
+    },
+    {
+      "name": "independent-consumer",
+      "passed": 688,
+      "log_sha256": "cc3826f9b18618739487e47800a3406d84ef263c6c2589da309f620421c779b2"
+    },
+    {
+      "name": "native-example",
+      "passed": 12,
+      "log_sha256": "bbebb8ad5a4bb6e5d1fb189a77b7877c0a371d9bb7d0d48417d4ace806a935cf"
+    },
+    {
+      "name": "consumer-example",
+      "passed": 12,
+      "log_sha256": "86cfcaaf34f2483624f351e79ace9141f2849fb76a2cf2455eea4fbc404925c4"
+    },
+    {
+      "name": "product-handoff",
+      "passed": 1435,
+      "log_sha256": "7dff2a1b5d585f4ee1dcf150576c29b9a8c14022e148dda5298739995bdab857"
+    },
+    {
+      "name": "product-memory-handoff",
+      "passed": 167,
+      "log_sha256": "c7819e25e97fc612a16e5e1e8637d832b0b7ae30c6b2525e6336b4869395ecb5"
+    },
+    {
+      "name": "documentation-and-status",
+      "passed": 378,
+      "log_sha256": "2c4ab2651a94d2cbe67b424b248dfb0e88b738768812ad0e2072b5f677e1d283"
+    },
+    {
+      "name": "native-strict-clippy",
+      "passed": true,
+      "log_sha256": "1de25ba72a56098eac47d6a90254d155995dcc6d95df052edb79515a97217901"
+    },
+    {
+      "name": "consumer-strict-clippy",
+      "passed": true,
+      "log_sha256": "859edd11fc8e15355d97f0c0a33c4c73cb6347096d70d93bf832e7996a004a1c"
+    },
+    {
+      "name": "product-strict-clippy",
+      "passed": true,
+      "log_sha256": "59f606b5e89887eabbf6cb04193587b4fd456d9d900007ee36128fbf045a3f69"
+    },
+    {
+      "name": "monorepo-strict-clippy",
+      "passed": true,
+      "log_sha256": "a2d305359f2e14980d3688ea31cbbfd970f60f1957c29e7b06a68dcc6d4b6d68"
+    }
+  ],
+  "examples": [
+    {
+      "consumer": false,
+      "mode": "normal",
+      "expected_exit": 0,
+      "actual_exit": 0
+    },
+    {
+      "consumer": false,
+      "mode": "--cancel",
+      "expected_exit": 0,
+      "actual_exit": 0
+    },
+    {
+      "consumer": false,
+      "mode": "--queued",
+      "expected_exit": 0,
+      "actual_exit": 0
+    },
+    {
+      "consumer": false,
+      "mode": "--queued-cancel-pending",
+      "expected_exit": 0,
+      "actual_exit": 0
+    },
+    {
+      "consumer": false,
+      "mode": "--queued-cancel-reply",
+      "expected_exit": 0,
+      "actual_exit": 0
+    },
+    {
+      "consumer": false,
+      "mode": "--deny",
+      "expected_exit": 1,
+      "actual_exit": 1
+    },
+    {
+      "consumer": false,
+      "mode": "--revoke",
+      "expected_exit": 1,
+      "actual_exit": 1
+    },
+    {
+      "consumer": false,
+      "mode": "--queued-revoke",
+      "expected_exit": 1,
+      "actual_exit": 1
+    },
+    {
+      "consumer": true,
+      "mode": "normal",
+      "expected_exit": 0,
+      "actual_exit": 0
+    },
+    {
+      "consumer": true,
+      "mode": "--cancel",
+      "expected_exit": 0,
+      "actual_exit": 0
+    },
+    {
+      "consumer": true,
+      "mode": "--queued",
+      "expected_exit": 0,
+      "actual_exit": 0
+    },
+    {
+      "consumer": true,
+      "mode": "--queued-cancel-pending",
+      "expected_exit": 0,
+      "actual_exit": 0
+    },
+    {
+      "consumer": true,
+      "mode": "--queued-cancel-reply",
+      "expected_exit": 0,
+      "actual_exit": 0
+    },
+    {
+      "consumer": true,
+      "mode": "--deny",
+      "expected_exit": 1,
+      "actual_exit": 1
+    },
+    {
+      "consumer": true,
+      "mode": "--revoke",
+      "expected_exit": 1,
+      "actual_exit": 1
+    },
+    {
+      "consumer": true,
+      "mode": "--queued-revoke",
+      "expected_exit": 1,
+      "actual_exit": 1
+    }
+  ],
+  "boundaries": {
+    "native_test_executions": 2897,
+    "product_test_executions": 1602,
+    "documentation_and_status_test_executions": 378,
+    "source_copy_verified": true,
+    "repository_local_dependencies_verified": true,
+    "shared_core_identity_count": 3,
+    "duplicate_shared_core_identities": 0,
+    "product_probe": "Unmodified Rust sources from six product crates; only their manifests redirect three shared cores to the independent source.",
+    "product_facade_cli_daemon_gui_cutover_verified": false,
+    "local_git_initialized": true,
+    "committed": false,
+    "pushed": false,
+    "remote_created": false,
+    "registry_published": false,
+    "product_dependency_cutover": false,
+    "complete_vm": false,
+    "full_extraction_gate": false,
+    "remote_ci_run": false,
+    "ci_configured_platforms": [
+      "linux",
+      "macos"
+    ]
+  }
+}

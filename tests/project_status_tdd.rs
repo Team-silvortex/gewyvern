@@ -9052,6 +9052,8 @@ fn product_acceptance_ownership_is_reference_evidence_without_native_promotion()
         "docs/fixtures/leselang_product_group_flow_ownership_macos_arm64_20261028.json";
     let result_chain_fixture =
         "docs/fixtures/leselang_product_result_chain_ownership_macos_arm64_20261028.json";
+    let control_fixture =
+        "docs/fixtures/leselang_product_control_ownership_macos_arm64_20261028.json";
     for path in [
         "crates/leserpent-vm/tests/backpressure.rs",
         "crates/leserpent-vm/tests/clock_boundaries.rs",
@@ -9094,12 +9096,23 @@ fn product_acceptance_ownership_is_reference_evidence_without_native_promotion()
         "crates/leselang-vm/tests/dataflow.rs",
         "crates/leselang-vm/tests/group_tail.rs",
         "crates/leselang-vm/tests/parallel_group_tail.rs",
+        "crates/leserpent-vm/tests/control_flow.rs",
+        "crates/leserpent-vm/tests/iteration.rs",
+        "crates/leserpent-vm/tests/conditional_exit.rs",
+        "crates/leserpent-vm/tests/computed_groups.rs",
+        "crates/leserpent-vm/tests/selected_groups.rs",
+        "crates/leselang-vm/tests/control_flow.rs",
+        "crates/leselang-vm/tests/iteration.rs",
+        "crates/leselang-vm/tests/conditional_exit.rs",
+        "crates/leselang-vm/tests/computed_groups.rs",
+        "crates/leselang-vm/tests/selected_groups.rs",
         fixture,
         dispatch_fixture,
         admission_fixture,
         group_fixture,
         group_flow_fixture,
         result_chain_fixture,
+        control_fixture,
     ] {
         assert!(reference.evidence.iter().any(|entry| entry.path == path
             && entry.kind == EvidenceKind::Test
@@ -9120,6 +9133,7 @@ fn product_acceptance_ownership_is_reference_evidence_without_native_promotion()
         (group_fixture, 23, 23, 23),
         (group_flow_fixture, 68, 68, 68),
         (result_chain_fixture, 81, 81, 81),
+        (control_fixture, 47, 47, 47),
     ] {
         let proof: serde_json::Value =
             serde_json::from_slice(&std::fs::read(repository_root().join(fixture)).unwrap())
@@ -9139,6 +9153,7 @@ fn product_acceptance_ownership_is_reference_evidence_without_native_promotion()
             group_fixture,
             group_flow_fixture,
             result_chain_fixture,
+            control_fixture,
         ]
         .contains(&fixture)
         {
@@ -9167,6 +9182,11 @@ fn product_acceptance_ownership_is_reference_evidence_without_native_promotion()
             "dataflow",
             "group_tail",
             "parallel_group_tail",
+            "control_flow",
+            "iteration",
+            "conditional_exit",
+            "computed_groups",
+            "selected_groups",
         ] {
             let legacy = format!("crates/leselang-vm/tests/{name}.rs");
             if cell.evidence.iter().any(|entry| entry.path == legacy) {
@@ -26660,7 +26680,47 @@ fn shared_recovery_fence_status_does_not_promote_allocator_receipt_or_complete_v
 }
 
 #[test]
-fn physical_extraction_deferral_keeps_independence_active_and_missing_evidence_unpromoted() {
+fn repository_handoff_keeps_runtime_acceptance_and_missing_evidence_unpromoted() {
+    let handoff: serde_json::Value =
+        serde_json::from_str(include_str!("../project/leselang-repository.json")).unwrap();
+    assert_eq!(handoff["repository"], "leselang");
+    assert_eq!(handoff["package_version"], "0.1.0");
+    assert_eq!(handoff["source_package_version"], "2.5.0");
+    assert_eq!(handoff["license"], "MIT");
+    assert_eq!(handoff["local_repository_created"], true);
+    assert_eq!(handoff["native_development_owner"], "leselang");
+    assert_eq!(
+        handoff["product_source_state"],
+        "frozen-acceptance-snapshots"
+    );
+    assert_eq!(
+        handoff["remote_url"],
+        "https://github.com/Team-silvortex/leselang"
+    );
+    assert_eq!(handoff["remote_created"], true);
+    assert_eq!(handoff["remote_visibility"], "public");
+    assert_eq!(handoff["remote_repository_id"], 1437125421_u64);
+    assert_eq!(
+        handoff["pinned_revision"],
+        "5f86dfb8dd79a28986fe5eb4cbfe6b044796f935"
+    );
+    assert_eq!(handoff["product_dependency_cutover"], true);
+    for field in ["registry_published", "complete_vm", "full_extraction_gate"] {
+        assert_eq!(
+            handoff[field], false,
+            "premature handoff promotion: {field}"
+        );
+    }
+    assert_eq!(
+        handoff["crates"],
+        serde_json::json!([
+            "leselang-syntax",
+            "leselang-runtime-core",
+            "leselang-hir-core",
+            "leselang-hir",
+            "leselang-vm",
+        ])
+    );
     let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
     let cell = catalog
         .cells
@@ -26674,9 +26734,10 @@ fn physical_extraction_deferral_keeps_independence_active_and_missing_evidence_u
     assert_eq!(cell.priority, Priority::Active);
     for boundary in [
         "Current 2.3.0-and-later convergence",
-        "physical repository extraction is deferred until complete acceptance",
+        "local MIT repository named leselang",
+        "product dependency cutover pins the reviewed 0.1.0 Git revision",
         "no replacement version or date assigned",
-        "Keep independence work active in the shared monorepo",
+        "Native foundation development belongs in the new repository",
         "complete two-host source-to-effect/reply/capture/cancel verticals",
         "native VM product-DTO separation",
         "host-neutral durable graph recovery",

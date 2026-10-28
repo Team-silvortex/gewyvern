@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "repository": "leselang",
+  "license": "MIT",
+  "local_layout": "../leselang",
+  "source_head": "784e4aac7ca622497de40333ab1d4ade5787f84d",
+  "source_worktree_clean": false,
+  "source_package_version": "2.5.0",
+  "package_version": "0.1.0",
+  "crates": [
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir-core",
+    "leselang-hir",
+    "leselang-vm"
+  ],
+  "native_development_owner": "leselang",
+  "product_source_state": "frozen-acceptance-snapshots",
+  "local_repository_created": true,
+  "remote_url": "https://github.com/Team-silvortex/leselang",
+  "remote_created": true,
+  "remote_visibility": "public",
+  "remote_repository_id": 1437125421,
+  "pinned_revision": "5f86dfb8dd79a28986fe5eb4cbfe6b044796f935",
+  "product_dependency_cutover": true,
+  "compatibility_cleanup": {
+    "root_tests_use_product_owners": true,
+    "foreign_consumer_uses_published_facades": true,
+    "allowed_local_facade_edge": "leselang-vm -> leselang-hir",
+    "local_facades_retired": false,
+    "frozen_snapshots_retired": false,
+    "source_exporter_retired": false
+  },
+  "registry_published": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "next_gate": "Native development continues in Leselang; retire frozen source-inspection snapshots only after migrating their acceptance evidence. Complete host-neutral durable recovery and full product parity remain separate gates.",
+  "handoff": "docs/leselang-repository-handoff.md",
+  "dependency_verification": "docs/fixtures/leselang_product_compatibility_cleanup_macos_arm64_20261028.json",
+  "initial_dependency_verification": "docs/fixtures/leselang_product_cutover_macos_arm64_20261028.json",
+  "verification": "docs/fixtures/leselang_repository_bootstrap_macos_arm64_20261028.json"
+}

@@ -614,7 +614,7 @@ fn product_hir_owner_is_one_way_and_the_compatibility_facade_contains_no_impleme
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let read = |p: &str| std::fs::read_to_string(root.join(p)).unwrap();
     let manifest = read("crates/leserpent-hir/Cargo.toml");
-    assert!(manifest.contains("leselang-hir-core = { path = \"../leselang-hir-core\" }"));
+    assert!(manifest.contains("leselang-hir-core.workspace = true"));
     assert!(!manifest.contains("leselang-hir ="));
     assert!(!manifest.contains("[features]"));
     let product = read("crates/leserpent-hir/src/lib.rs");
@@ -705,7 +705,7 @@ fn native_hir_owner_is_physical_product_free_and_reexported_without_a_second_tre
         read("crates/gewyvern-dev/src/leselang.rs").contains("\"consumer/tests/core_identity.rs\"")
     );
     let ci = read(".github/workflows/ci.yml");
-    assert!(ci.contains("cargo +1.98.0 test -p leselang-hir-core --locked"));
+    assert!(ci.contains("--test leselang_repository_tdd"));
     let install = ci
         .split("      - name: Install Rust toolchain\n")
         .nth(1)
@@ -723,9 +723,12 @@ fn product_hir_is_compiled_as_a_foreign_crate_without_reference_feature_unificat
     let path = "tests/fixtures/leselang-product-hir-boundary/";
     let manifest = read(&format!("{path}Cargo.toml"));
     assert!(manifest.contains("[workspace]"));
-    assert!(manifest.contains(
-        "leselang-hir = { path = \"../../../crates/leselang-hir\", default-features = false }"
-    ));
+    for facade in ["leselang-hir", "leselang-vm"] {
+        assert!(manifest.contains(&format!(
+            "{facade} = {{ git = \"https://github.com/Team-silvortex/leselang\""
+        )));
+        assert!(!manifest.contains(&format!("path = \"../../../crates/{facade}\"")));
+    }
     assert!(!manifest.contains("features = [\"leserpent-profile\"]"));
     assert!(manifest.contains("publish = false"));
     let source = read(&format!("{path}src/lib.rs"));
@@ -1000,7 +1003,7 @@ fn public_native_source_plans_keep_original_borrows_and_do_not_replace_strict_in
     );
     let ci = read(".github/workflows/ci.yml");
     assert!(ci.contains("--no-default-features --test source_preparation"));
-    assert!(ci.contains("--lib source_preparation_contract_tests"));
+    assert!(ci.contains("--test leselang_repository_tdd"));
 }
 
 #[test]
@@ -1067,7 +1070,7 @@ fn public_argument_stages_are_bounded_named_alignments_not_source_or_authority_r
     );
     let ci = read(".github/workflows/ci.yml");
     assert!(ci.contains("--no-default-features --test argument_binding"));
-    assert!(ci.contains("--lib argument_binding_contract_tests"));
+    assert!(ci.contains("--test leselang_repository_tdd"));
 }
 
 #[test]
@@ -1899,7 +1902,7 @@ fn real_shared_control_entries_retain_owned_outputs_through_prefix_and_native_ow
 
 fn workspace_metadata() -> serde_json::Value {
     let output = Command::new(env!("CARGO"))
-        .args(["metadata", "--format-version", "1", "--no-deps"])
+        .args(["metadata", "--format-version", "1", "--locked", "--offline"])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .output()
         .expect("cargo metadata should start");
@@ -1919,7 +1922,13 @@ fn workspace_dependency_graph() -> BTreeMap<String, BTreeSet<String>> {
         .expect("metadata should contain packages");
     let workspace_names = packages
         .iter()
-        .filter(|package| package["source"].is_null())
+        .filter(|package| {
+            package["source"].is_null()
+                || matches!(
+                    package["name"].as_str(),
+                    Some("leselang-syntax" | "leselang-runtime-core" | "leselang-hir-core")
+                )
+        })
         .filter_map(|package| package["name"].as_str())
         .collect::<BTreeSet<_>>();
 
@@ -2508,18 +2517,15 @@ fn leselang_runtime_core_has_no_workspace_or_build_dependency_even_in_its_tests(
         .split_once("  rust:\n")
         .unwrap()
         .0;
-    let package = standalone_job
-        .find("cargo +1.98.0 package -p leselang-runtime-core --locked")
-        .expect("standalone package verification must remain locked");
     let fetch = standalone_job
-        .find("cargo +1.98.0 fetch --manifest-path target/package/leselang-runtime-core-*/Cargo.toml --locked")
-        .expect("normalized package dev-dependencies must be fetched before offline tests");
+        .find("cargo +1.98.0 fetch --locked")
+        .expect("pinned native dependencies must be fetched before offline verification");
     let test = standalone_job
-        .find("cargo +1.98.0 test --manifest-path target/package/leselang-runtime-core-*/Cargo.toml --locked --offline")
-        .expect("standalone tests must remain locked and offline");
+        .find("cargo +1.98.0 test -p gewyvern --locked --offline --test leselang_repository_tdd")
+        .expect("product source identity must remain locked and offline");
     assert!(
-        package < fetch && fetch < test,
-        "fetch must use the verified package's lockfile before offline tests"
+        fetch < test,
+        "fetch must use the product lockfile before offline source verification"
     );
     assert!(workflow.contains("needs: [rust, product-surfaces, leselang-core]"));
 }

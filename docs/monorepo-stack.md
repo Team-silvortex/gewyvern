@@ -22,9 +22,9 @@ changing a cross-project boundary.
 | [`crates/silvortex-identity/`](../crates/silvortex-identity) | product-neutral validated protocol identities | identifier grammar and scalar wire identity |
 | [`crates/gewyvern-install-contract/`](../crates/gewyvern-install-contract) | strict Gewyvern installation and retirement exchange | cross-plane lifecycle wire contract |
 | [`crates/leserpent-domain/`](../crates/leserpent-domain) | shared command/query/event model | control vocabulary |
-| [`crates/leselang-syntax/`](../crates/leselang-syntax) | lossless lexer, parser, spans and diagnostics | language syntax, no product runtime |
-| [`crates/leselang-runtime-core/`](../crates/leselang-runtime-core) | host-neutral values, fuel, lifecycle and re-entry foundations | shared execution primitives |
-| [`crates/leselang-hir-core/`](../crates/leselang-hir-core) | native host-defined IR, compilation and bounded sessions | physical product-free HIR owner; no reference feature |
+| [`crates/leselang-syntax/`](../crates/leselang-syntax) | frozen syntax acceptance snapshot, excluded from workspace | implementation comes from pinned independent Leselang |
+| [`crates/leselang-runtime-core/`](../crates/leselang-runtime-core) | frozen runtime-foundation acceptance snapshot, excluded from workspace | implementation comes from pinned independent Leselang |
+| [`crates/leselang-hir-core/`](../crates/leselang-hir-core) | frozen native HIR acceptance snapshot, excluded from workspace | physical product-free HIR owner is independent Leselang; no reference feature |
 | [`crates/leselang-hir/`](../crates/leselang-hir) | native-core and optional product re-exports | compatibility facade; no compiler implementation |
 | [`crates/leserpent-hir/`](../crates/leserpent-hir) | Leserpent effects, lowering and capability policy | product owner depending on native HIR core, never the facade |
 | [`crates/leselang-vm/`](../crates/leselang-vm) | native session facade and feature-gated legacy product API re-export | no product executor implementation; not yet a fully extracted durable VM |
@@ -155,6 +155,13 @@ Gewyvern adapter remains linked today; extracting it into a narrow crate is the
 remaining physical boundary.
 
 ## Leselang Extraction Boundary
+
+The native foundation has a separate local MIT repository named `leselang`.
+Gewyvern consumes its exact published 0.1.0 Git revision for the three native
+cores; ordinary builds do not require a sibling checkout. Retained source files
+are non-build acceptance snapshots checked against the resolved upstream bytes.
+See [repository ownership and cutover](leselang-repository-handoff.md). Repository
+bootstrap does not promote complete language or durable-runtime acceptance.
 
 Do not move all `leselang-*` crates into an independent repository as one unit.
 There are two distinct layers today:

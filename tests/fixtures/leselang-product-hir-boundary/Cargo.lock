@@ -10,7 +10,8 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "leselang-hir"
-version = "2.5.0"
+version = "0.1.0"
+source = "git+https://github.com/Team-silvortex/leselang?rev=5f86dfb8dd79a28986fe5eb4cbfe6b044796f935#5f86dfb8dd79a28986fe5eb4cbfe6b044796f935"
 dependencies = [
  "leselang-hir-core",
  "leselang-runtime-core",
@@ -20,7 +21,8 @@ dependencies = [
 
 [[package]]
 name = "leselang-hir-core"
-version = "2.5.0"
+version = "0.1.0"
+source = "git+https://github.com/Team-silvortex/leselang?rev=5f86dfb8dd79a28986fe5eb4cbfe6b044796f935#5f86dfb8dd79a28986fe5eb4cbfe6b044796f935"
 dependencies = [
  "leselang-runtime-core",
  "leselang-syntax",
@@ -43,22 +45,35 @@ dependencies = [
  "leselang-host-contract",
  "leselang-runtime-core",
  "leselang-syntax",
+ "leselang-vm",
  "leserpent-hir",
  "serde_json",
 ]
 
 [[package]]
 name = "leselang-runtime-core"
-version = "2.5.0"
+version = "0.1.0"
+source = "git+https://github.com/Team-silvortex/leselang?rev=5f86dfb8dd79a28986fe5eb4cbfe6b044796f935#5f86dfb8dd79a28986fe5eb4cbfe6b044796f935"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "leselang-syntax"
-version = "2.5.0"
+version = "0.1.0"
+source = "git+https://github.com/Team-silvortex/leselang?rev=5f86dfb8dd79a28986fe5eb4cbfe6b044796f935#5f86dfb8dd79a28986fe5eb4cbfe6b044796f935"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "leselang-vm"
+version = "0.1.0"
+source = "git+https://github.com/Team-silvortex/leselang?rev=5f86dfb8dd79a28986fe5eb4cbfe6b044796f935#5f86dfb8dd79a28986fe5eb4cbfe6b044796f935"
+dependencies = [
+ "leselang-hir",
+ "leselang-runtime-core",
+ "leselang-syntax",
 ]
 
 [[package]]

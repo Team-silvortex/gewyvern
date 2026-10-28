@@ -1418,7 +1418,10 @@ generic admission, **not** generic typed language-operation schemas.
 
 ## Standalone Package Check
 
-From the current monorepo:
+This directory is now a frozen acceptance snapshot, excluded from the product
+Cargo workspace. The product consumes the exact independent Leselang 0.1.0 Git
+revision; native development and native CI belong in that repository. From a
+checkout of [Team-silvortex/leselang](https://github.com/Team-silvortex/leselang):
 
 ```sh
 cargo +1.98.0 package -p leselang-runtime-core --allow-dirty --locked --offline
@@ -1428,11 +1431,12 @@ cargo +1.98.0 test --manifest-path target/package/leselang-runtime-core-*/Cargo.
 Cargo normalizes inherited workspace metadata and verifies the packaged crate
 in an isolated workspace. The second command tests that normalized package;
 neither needs product sources. This is a local package check, not a registry
-publication. A future independent source repository will supply its own manifest
-metadata and CI rather than copying the inherited manifest without its workspace.
+publication. The independent source repository supplies its own manifest
+metadata and CI; do not build this retained inherited manifest directly.
 The package-path wildcard assumes a clean `target/package` containing one version;
-select the exact version if old package directories are retained. The `leselang-core`
-CI job checks the packaged build and tests separately from product quality gates.
+select the exact version if old package directories are retained. Gewyvern's
+`leselang-core` CI job checks pinned dependency identity and verifies that retained
+source/test snapshots match the actual resolved upstream bytes before product gates.
 
 ## Remaining Extraction Work
 
@@ -1443,10 +1447,12 @@ separated. The existing VM, UI and observation crates still use product command
 and result types. FFI and the future operating-system shell are not implemented
 by this crate. The embedding status target remains developing, not released.
 The [extraction readiness track](../../docs/leselang-embedding.md#repository-extraction-readiness)
-continues after entering the 2.3.0 phase; physical extraction is deferred with no
-replacement version or date. Complete unrelated-host vertical proofs, optional
-durable recovery and preserved Leserpent compatibility precede the move. A source
-checkpoint or a collection of shared helpers does not close the complete VM gate.
+now separates repository bootstrap from full runtime acceptance. A local MIT
+`leselang` repository owns new native development; the product dependency cutover
+awaits an actual immutable revision. Complete unrelated-host vertical proofs,
+optional durable recovery and preserved Leserpent compatibility remain acceptance
+gates with no replacement version or date. A source checkpoint or repository
+creation does not close the complete VM gate.
 HIR's [shared pure executor](../../docs/leselang-embedding.md#shared-bounded-pure-execution)
 already reuses these scalar/control/scope/fuel primitives for both unrelated native
 hosts and the reference VM; it is not implemented in this dependency-free crate.

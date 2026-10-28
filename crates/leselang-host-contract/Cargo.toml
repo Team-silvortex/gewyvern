@@ -2,7 +2,7 @@
 name = "leselang-host-contract"
 version.workspace = true
 edition.workspace = true
-description = "Product-independent host ABI types for Leselang effects"
+description = "Leserpent reference-host ABI types for Leselang effects"
 license.workspace = true
 
 [dependencies]

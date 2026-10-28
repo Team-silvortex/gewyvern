@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-product-compatibility-consumer-cleanup",
+  "date": "2026-10-28",
+  "platform": "macos-arm64",
+  "rust_toolchain": "1.98.0",
+  "profile": "lean",
+  "pinned_revision": "5f86dfb8dd79a28986fe5eb4cbfe6b044796f935",
+  "native_package_version": "0.1.0",
+  "product_package_version": "2.5.0",
+  "root_test_owners": [
+    "leserpent-hir",
+    "leserpent-vm"
+  ],
+  "foreign_consumer_native_packages": [
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir-core",
+    "leselang-hir",
+    "leselang-vm"
+  ],
+  "foreign_consumer_uses_default_native_features": true,
+  "allowed_local_facade_edge": "leselang-vm -> leselang-hir (normal, required, unrenamed)",
+  "rejected_legacy_edge_kinds": [
+    "normal",
+    "dev",
+    "build",
+    "optional",
+    "renamed"
+  ],
+  "test_results": {
+    "root-tests": {
+      "passed": 682,
+      "suites": 7,
+      "failed": 0
+    },
+    "fixture-tests": {
+      "passed": 5,
+      "suites": 1,
+      "failed": 0
+    },
+    "legacy-hir": {
+      "passed": 8,
+      "suites": 2,
+      "failed": 0
+    },
+    "legacy-vm": {
+      "passed": 47,
+      "suites": 3,
+      "failed": 0
+    },
+    "memory-vm": {
+      "passed": 23,
+      "suites": 1,
+      "failed": 0
+    },
+    "exporter": {
+      "passed": 27,
+      "suites": 1,
+      "failed": 0
+    }
+  },
+  "test_executions": 792,
+  "test_count_scope": "Separate target/profile executions, not unique test-function or fuzz-input counts.",
+  "manifest_sha256": {
+    "Cargo.toml": "c14d2ed4e70f6aeff21644c0d3803fc0bb30087cc5cd7aa1c70196805743e71d",
+    "Cargo.lock": "7d2e9e9b3122f9dc0f1e0bd1a4a414b079fd5048e0c124dc8972cac5910a8e08",
+    "tests/fixtures/leselang-product-hir-boundary/Cargo.toml": "60bfba9b7527d56c01d4794b5136ce28ebaa5fe02d893347abd86e7e433e024d",
+    "tests/fixtures/leselang-product-hir-boundary/Cargo.lock": "59764b6d1497971ff6ba7912599631439b807670b5be5eeb5119c16c5d9a1d7b"
+  },
+  "verification_commands": [
+    "cargo +1.98.0 test --locked --offline --profile lean --no-fail-fast -p gewyvern --test language_independence_tdd --test leselang_repository_tdd --test documentation_system_tdd --test leselang_fuzz_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd",
+    "cargo +1.98.0 test --locked --offline --profile lean --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml --target-dir target --test product",
+    "cargo +1.98.0 test --locked --offline --profile lean -p leselang-hir --test product_identity --test core_identity",
+    "cargo +1.98.0 test --locked --offline --profile lean -p leselang-vm --test capture_contract --test recovery --test ephemeral_profile",
+    "cargo +1.98.0 test --locked --offline --profile lean -p leselang-vm --no-default-features --features leserpent-profile --test ephemeral_profile",
+    "cargo +1.98.0 test --locked --offline --profile lean -p gewyvern-dev leselang::tests",
+    "cargo +1.98.0 clippy --locked --offline --profile lean --workspace --all-targets -- -D warnings",
+    "cargo +1.98.0 clippy --locked --offline --profile lean --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml --target-dir target --all-targets -- -D warnings"
+  ],
+  "prior_cutover_checkpoint": "docs/fixtures/leselang_product_cutover_macos_arm64_20261028.json",
+  "historical_proof_policy": "Prior proof hashes and counts describe their original checkpoints and are not rewritten.",
+  "independent_repository_changed": false,
+  "local_facades_retired": false,
+  "frozen_snapshots_retired": false,
+  "source_exporter_retired": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "non_claims": [
+    "No new remote CI run",
+    "No new Linux product/eBPF or live GUI verification",
+    "No deletion of frozen source-inspection evidence or legacy facade conformance suites",
+    "No full independent durable-runtime replacement"
+  ]
+}

@@ -20,6 +20,11 @@ const PRODUCT_OWNED_DURABLE_SUITES: &[(&str, usize)] = &[
     ("dataflow", 16),
     ("group_tail", 19),
     ("parallel_group_tail", 22),
+    ("control_flow", 11),
+    ("iteration", 10),
+    ("conditional_exit", 13),
+    ("computed_groups", 7),
+    ("selected_groups", 6),
 ];
 
 #[test]
@@ -134,6 +139,9 @@ fn product_durable_suites_share_one_body_with_released_api_compatibility() {
         )));
         assert!(ci.contains(&format!(
             "test -p {owner} --locked --test result_binding --test successor --test dataflow --test group_tail --test parallel_group_tail"
+        )));
+        assert!(ci.contains(&format!(
+            "test -p {owner} --locked --test control_flow --test iteration --test conditional_exit --test computed_groups --test selected_groups"
         )));
     }
     let recovery = read("crates/leselang-vm/tests/recovery.rs");

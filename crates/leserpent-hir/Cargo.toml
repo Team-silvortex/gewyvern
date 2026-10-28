@@ -6,10 +6,10 @@ description = "Leserpent product profile and lowering over the native Leselang H
 license.workspace = true
 
 [dependencies]
-leselang-hir-core = { path = "../leselang-hir-core" }
+leselang-hir-core.workspace = true
 leselang-host-contract = { path = "../leselang-host-contract" }
-leselang-runtime-core = { path = "../leselang-runtime-core" }
-leselang-syntax = { path = "../leselang-syntax" }
+leselang-runtime-core.workspace = true
+leselang-syntax.workspace = true
 serde.workspace = true
 
 [dev-dependencies]

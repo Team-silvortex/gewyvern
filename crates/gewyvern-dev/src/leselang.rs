@@ -485,6 +485,15 @@ fn crate_manifest(
                 registry.serde
             ),
             "serde_json.workspace = true" => format!("serde_json = \"={}\"", registry.serde_json),
+            "leselang-hir-core.workspace = true" => {
+                "leselang-hir-core = { path = \"../leselang-hir-core\" }".into()
+            }
+            "leselang-runtime-core.workspace = true" => {
+                "leselang-runtime-core = { path = \"../leselang-runtime-core\" }".into()
+            }
+            "leselang-syntax.workspace = true" => {
+                "leselang-syntax = { path = \"../leselang-syntax\" }".into()
+            }
             _ => line.to_string(),
         };
         if mapped.contains(".workspace")
@@ -529,8 +538,8 @@ fn native_vm_manifest(source: &str) -> Result<(String, BTreeSet<String>), String
     ];
     const NATIVE: &[&str] = &[
         "leselang-hir = { path = \"../leselang-hir\", default-features = false }",
-        "leselang-runtime-core = { path = \"../leselang-runtime-core\" }",
-        "leselang-syntax = { path = \"../leselang-syntax\" }",
+        "leselang-runtime-core.workspace = true",
+        "leselang-syntax.workspace = true",
     ];
     let mut sections: Vec<Vec<&str>> = Vec::new();
     for line in source.lines() {
@@ -1549,6 +1558,15 @@ mod tests {
         assert!(manifest.contains("version = \"9.8.7\""));
         assert!(manifest.contains("publish = false"));
         assert!(manifest.contains("check-cfg = ['cfg(feature, values(\"leserpent-profile\"))']"));
+        for core in [
+            "leselang-hir-core",
+            "leselang-runtime-core",
+            "leselang-syntax",
+        ] {
+            assert!(source.contains(&format!("{core}.workspace = true")));
+            assert!(manifest.contains(&format!("{core} = {{ path = \"../{core}\" }}")));
+        }
+        assert!(crate_manifest("unreviewed.workspace = true", false, "9.8.7", &registry).is_err());
         let changed = source.replace("[features]", "[features]\nnew-language-feature = []");
         assert!(crate_manifest(&changed, true, "9.8.7", &registry).is_err());
         let product_dependency = "leserpent-hir = { path = \"../leserpent-hir\", optional = true }";
@@ -1942,6 +1960,16 @@ mod tests {
             "crates/leserpent-vm/tests/dataflow.rs",
             "crates/leserpent-vm/tests/group_tail.rs",
             "crates/leserpent-vm/tests/parallel_group_tail.rs",
+            "crates/leselang-vm/tests/control_flow.rs",
+            "crates/leselang-vm/tests/iteration.rs",
+            "crates/leselang-vm/tests/conditional_exit.rs",
+            "crates/leselang-vm/tests/computed_groups.rs",
+            "crates/leselang-vm/tests/selected_groups.rs",
+            "crates/leserpent-vm/tests/control_flow.rs",
+            "crates/leserpent-vm/tests/iteration.rs",
+            "crates/leserpent-vm/tests/conditional_exit.rs",
+            "crates/leserpent-vm/tests/computed_groups.rs",
+            "crates/leserpent-vm/tests/selected_groups.rs",
             "crates/leselang-vm/tests/debugger_audit_memory.rs",
             "crates/leselang-vm/tests/debugger_audit_durable.rs",
             "crates/leserpent-vm/tests/debugger_audit_memory.rs",

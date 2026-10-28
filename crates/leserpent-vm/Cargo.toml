@@ -10,12 +10,12 @@ default = ["sqlite-journal"]
 sqlite-journal = ["dep:rusqlite"]
 
 [dependencies]
-leselang-hir-core = { path = "../leselang-hir-core" }
+leselang-hir-core.workspace = true
 leselang-command = { path = "../leselang-command" }
 leserpent-hir = { path = "../leserpent-hir" }
 leselang-host-contract = { path = "../leselang-host-contract" }
-leselang-runtime-core = { path = "../leselang-runtime-core" }
-leselang-syntax = { path = "../leselang-syntax" }
+leselang-runtime-core.workspace = true
+leselang-syntax.workspace = true
 leserpent-domain = { path = "../leserpent-domain" }
 rusqlite = { workspace = true, optional = true }
 serde.workspace = true
@@ -99,4 +99,24 @@ required-features = ["sqlite-journal"]
 
 [[test]]
 name = "parallel_group_tail"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "control_flow"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "iteration"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "conditional_exit"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "computed_groups"
+required-features = ["sqlite-journal"]
+
+[[test]]
+name = "selected_groups"
 required-features = ["sqlite-journal"]

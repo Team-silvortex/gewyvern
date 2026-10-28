@@ -174,7 +174,7 @@ fn optional_leserpent_profile_docs_preserve_default_api_and_native_vm_boundaries
     }
     let module = fs::read_to_string(repository_root().join("docs/modules/leselang.md")).unwrap();
     assert!(module.contains("leserpent-profile"));
-    assert!(module.contains("full independent VM extraction is still open"));
+    assert!(module.contains("Full independent VM acceptance remains open"));
 }
 
 #[test]
@@ -213,8 +213,8 @@ fn leselang_boolean_projection_contract_keeps_acknowledgements_and_upgrade_fence
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
-    assert_eq!(program.function.result_type, leselang_hir::Type::UiFocus);
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(program.function.result_type, leserpent_hir::Type::UiFocus);
     assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
 }
 
@@ -268,10 +268,10 @@ fn leselang_text_projection_contract_matches_typed_hir_and_legacy_budget_fences(
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
         program.function.result_type,
-        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+        leserpent_hir::Type::Scalar(leserpent_hir::computation::ScalarType::Boolean)
     );
     assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
 }
@@ -324,8 +324,8 @@ fn leselang_kind_projection_contract_keeps_token_domains_legacy_and_authority_fe
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
-    assert_eq!(program.function.result_type, leselang_hir::Type::UiFocus);
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(program.function.result_type, leserpent_hir::Type::UiFocus);
     assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
 }
 
@@ -376,10 +376,10 @@ fn leselang_optional_projection_contract_distinguishes_missing_empty_and_cold_de
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
         program.function.result_type,
-        leselang_hir::Type::UiSetFormValue
+        leserpent_hir::Type::UiSetFormValue
     );
     assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
 }
@@ -422,10 +422,10 @@ fn leselang_pure_function_contract_keeps_types_hygiene_and_durable_bounds_explic
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
         program.function.result_type,
-        leselang_hir::Type::UiSetFormValue
+        leserpent_hir::Type::UiSetFormValue
     );
     assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
     let reference =
@@ -476,15 +476,15 @@ fn leselang_effectful_function_contract_preserves_existing_flow_and_wire_boundar
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
         program.function.result_type,
-        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+        leserpent_hir::Type::Scalar(leserpent_hir::computation::ScalarType::Boolean)
     );
     assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
-    let canonical = leselang_hir::canonical_source(&program.function.effect).unwrap();
+    let canonical = leserpent_hir::canonical_source(&program.function.effect).unwrap();
     assert_eq!(
-        leselang_hir::lower(&leselang_syntax::parse(&canonical)).unwrap(),
+        leserpent_hir::lower(&leselang_syntax::parse(&canonical)).unwrap(),
         program
     );
     for path in ["docs/leselang-language.md", "docs/leselang-embedding.md"] {
@@ -538,12 +538,15 @@ fn leselang_prepared_group_members_keep_precomputation_and_dispatch_boundaries_e
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
-    assert_eq!(program.function.result_type, leselang_hir::Type::Structured);
-    assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
-    let canonical = leselang_hir::canonical_source(&program.function.effect).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
-        leselang_hir::lower(&leselang_syntax::parse(&canonical)).unwrap(),
+        program.function.result_type,
+        leserpent_hir::Type::Structured
+    );
+    assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
+    let canonical = leserpent_hir::canonical_source(&program.function.effect).unwrap();
+    assert_eq!(
+        leserpent_hir::lower(&leselang_syntax::parse(&canonical)).unwrap(),
         program
     );
     for path in ["docs/leselang-language.md", "docs/leselang-embedding.md"] {
@@ -591,14 +594,14 @@ fn leselang_selected_group_contract_keeps_closed_exports_and_one_time_selection(
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
         program.function.result_type,
-        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::String)
+        leserpent_hir::Type::Scalar(leserpent_hir::computation::ScalarType::String)
     );
-    let canonical = leselang_hir::canonical_source(&program.function.effect).unwrap();
+    let canonical = leserpent_hir::canonical_source(&program.function.effect).unwrap();
     assert_eq!(
-        leselang_hir::lower(&leselang_syntax::parse(&canonical)).unwrap(),
+        leserpent_hir::lower(&leselang_syntax::parse(&canonical)).unwrap(),
         program
     );
     for path in ["docs/leselang-language.md", "docs/leselang-embedding.md"] {
@@ -645,14 +648,14 @@ fn leselang_prepared_result_binding_contract_keeps_capture_and_recovery_fences()
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
         program.function.result_type,
-        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+        leserpent_hir::Type::Scalar(leserpent_hir::computation::ScalarType::Boolean)
     );
-    let canonical = leselang_hir::canonical_source(&program.function.effect).unwrap();
+    let canonical = leserpent_hir::canonical_source(&program.function.effect).unwrap();
     assert_eq!(
-        leselang_hir::lower(&leselang_syntax::parse(&canonical)).unwrap(),
+        leserpent_hir::lower(&leselang_syntax::parse(&canonical)).unwrap(),
         program
     );
     for path in ["docs/leselang-language.md", "docs/leselang-embedding.md"] {
@@ -698,14 +701,14 @@ fn leselang_selected_function_contract_keeps_typed_joins_and_recovery_boundaries
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
         program.function.result_type,
-        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+        leserpent_hir::Type::Scalar(leserpent_hir::computation::ScalarType::Boolean)
     );
-    let canonical = leselang_hir::canonical_source(&program.function.effect).unwrap();
+    let canonical = leserpent_hir::canonical_source(&program.function.effect).unwrap();
     assert_eq!(
-        leselang_hir::lower(&leselang_syntax::parse(&canonical)).unwrap(),
+        leserpent_hir::lower(&leselang_syntax::parse(&canonical)).unwrap(),
         program
     );
     for path in ["docs/leselang-language.md", "docs/leselang-embedding.md"] {
@@ -792,7 +795,7 @@ fn leselang_successor_documentation_preserves_atomicity_and_authority_boundaries
     }
     let mut examples = 0;
     for block in source.split("```leselang\n").skip(1) {
-        leselang_hir::lower(&leselang_syntax::parse(block.split("```").next().unwrap())).unwrap();
+        leserpent_hir::lower(&leselang_syntax::parse(block.split("```").next().unwrap())).unwrap();
         examples += 1;
     }
     assert!(examples >= 8);
@@ -828,10 +831,10 @@ fn leselang_dataflow_documentation_keeps_typed_frames_and_finite_boundaries_expl
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
         program.function.result_type,
-        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+        leserpent_hir::Type::Scalar(leserpent_hir::computation::ScalarType::Boolean)
     );
 }
 
@@ -868,10 +871,10 @@ fn leselang_conditional_exit_contract_keeps_recovery_and_budget_boundaries_expli
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
         program.function.result_type,
-        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+        leserpent_hir::Type::Scalar(leserpent_hir::computation::ScalarType::Boolean)
     );
 }
 
@@ -913,10 +916,10 @@ fn named_group_result_contract_keeps_static_members_and_whole_journal_recovery_e
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
         program.function.result_type,
-        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+        leserpent_hir::Type::Scalar(leserpent_hir::computation::ScalarType::Boolean)
     );
     assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
 }
@@ -962,8 +965,8 @@ fn sequential_group_tail_contract_matches_typed_hir_and_transactional_limits() {
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
-    assert_eq!(program.function.result_type, leselang_hir::Type::UiFocus);
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    assert_eq!(program.function.result_type, leserpent_hir::Type::UiFocus);
     assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
 }
 
@@ -1012,10 +1015,10 @@ fn captured_sequential_successor_contract_preserves_raw_receipts_and_closed_memb
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
         program.function.result_type,
-        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+        leserpent_hir::Type::Scalar(leserpent_hir::computation::ScalarType::Boolean)
     );
     assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
 }
@@ -1076,10 +1079,10 @@ fn parallel_group_successor_contract_keeps_barrier_budget_and_native_batch_bound
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
         program.function.result_type,
-        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Integer)
+        leserpent_hir::Type::Scalar(leserpent_hir::computation::ScalarType::Integer)
     );
     assert_eq!(
         program.function.required_capabilities,
@@ -1144,10 +1147,10 @@ fn group_result_chain_contract_matches_typed_hir_and_owned_transaction_boundarie
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
         program.function.result_type,
-        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+        leserpent_hir::Type::Scalar(leserpent_hir::computation::ScalarType::Boolean)
     );
     assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
 }
@@ -1211,16 +1214,16 @@ fn group_conditional_exit_contract_keeps_cold_paths_and_atomic_replay_explicit()
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
         program.function.result_type,
-        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Boolean)
+        leserpent_hir::Type::Scalar(leserpent_hir::computation::ScalarType::Boolean)
     );
     assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
-    let leselang_hir::Effect::Compute { expression } = program.function.effect else {
+    let leserpent_hir::Effect::Compute { expression } = program.function.effect else {
         panic!()
     };
-    let leselang_hir::computation::Computation::Bind { body, .. } = *expression else {
+    let leserpent_hir::computation::Computation::Bind { body, .. } = *expression else {
         panic!()
     };
     assert!(body.is_result_flow());
@@ -1267,10 +1270,10 @@ fn leselang_conversion_contract_connects_computation_to_validated_host_text() {
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
         program.function.result_type,
-        leselang_hir::Type::UiSetFormValue
+        leserpent_hir::Type::UiSetFormValue
     );
     assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
 }
@@ -1310,19 +1313,19 @@ fn leselang_recovery_documentation_keeps_data_errors_separate_from_host_failures
         .split("```leselang\n")
         .skip(1)
         .map(|block| {
-            leselang_hir::lower(&leselang_syntax::parse(block.split("```").next().unwrap()))
+            leserpent_hir::lower(&leselang_syntax::parse(block.split("```").next().unwrap()))
                 .unwrap()
         })
         .collect::<Vec<_>>();
     assert_eq!(examples.len(), 2);
     assert_eq!(
         examples[0].function.result_type,
-        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::Integer)
+        leserpent_hir::Type::Scalar(leserpent_hir::computation::ScalarType::Integer)
     );
     assert!(examples[0].function.required_capabilities.is_empty());
     assert_eq!(
         examples[1].function.result_type,
-        leselang_hir::Type::UiSetFormValue
+        leserpent_hir::Type::UiSetFormValue
     );
     assert_eq!(
         examples[1].function.required_capabilities,
@@ -1352,7 +1355,7 @@ fn leselang_loop_documentation_is_executable_and_keeps_the_pure_boundary_explici
     for block in source.split("```leselang\n").skip(1) {
         let program = block.split("```").next().unwrap();
         if program.contains("loop(") {
-            leselang_hir::lower(&leselang_syntax::parse(program)).unwrap();
+            leserpent_hir::lower(&leselang_syntax::parse(program)).unwrap();
             examples += 1;
         }
     }
@@ -2010,7 +2013,7 @@ fn leselang_embedding_separates_language_hosts_and_future_shell() {
         "static-call/received-value proofs, not complete\nindependent source-to-effect or suspension pipelines",
         "## Repository Extraction Readiness",
         "not an automatic version-triggered move",
-        "Physical extraction follows acceptance",
+        "Pinned dependency cutover does not close full runtime acceptance",
         "mandatory VM SQLite linkage",
         "explicit closed scalar-type alternatives",
         "borrowed type-before-bounds preflight",
@@ -2509,10 +2512,10 @@ fn leselang_text_inspection_contract_preserves_unicode_fuel_and_durable_boundari
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
         program.function.result_type,
-        leselang_hir::Type::UiSetFormValue
+        leserpent_hir::Type::UiSetFormValue
     );
     assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
 }
@@ -2567,10 +2570,10 @@ fn leselang_collection_contract_has_compilable_examples_and_closed_resource_sema
         .split("```")
         .next()
         .unwrap();
-    let program = leselang_hir::lower(&leselang_syntax::parse(example)).unwrap();
+    let program = leserpent_hir::lower(&leselang_syntax::parse(example)).unwrap();
     assert_eq!(
         program.function.result_type,
-        leselang_hir::Type::Scalar(leselang_hir::computation::ScalarType::StringList)
+        leserpent_hir::Type::Scalar(leserpent_hir::computation::ScalarType::StringList)
     );
     assert_eq!(program.function.required_capabilities, ["ui.presentation"]);
 }
@@ -3585,7 +3588,7 @@ fn native_vm_build_profiles_are_explicit_without_claiming_complete_extraction() 
 }
 
 #[test]
-fn leselang_extraction_readiness_is_acceptance_gated_without_a_replacement_release_deadline() {
+fn leselang_repository_bootstrap_is_distinct_from_complete_runtime_acceptance() {
     let embedding = include_str!("../docs/leselang-embedding.md");
     assert!(embedding.contains("<a id=\"230-repository-extraction-target\"></a>"));
     let readiness = embedding
@@ -3600,8 +3603,9 @@ fn leselang_extraction_readiness_is_acceptance_gated_without_a_replacement_relea
         .join(" ");
     for boundary in [
         "current 2.3.0-and-later phase",
-        "physical extraction is deferred",
-        "No replacement extraction version or date is assigned",
+        "separates repository bootstrap from full runtime acceptance",
+        "product dependency cutover pins the reviewed 0.1.0 Git revision",
+        "No replacement full-runtime release version or date is assigned",
         "Prioritize complete vertical proofs over more isolated helpers",
         "not increasing the number of public helpers as a progress proxy",
         "two unrelated hosts",
@@ -3614,7 +3618,7 @@ fn leselang_extraction_readiness_is_acceptance_gated_without_a_replacement_relea
         "host_embedding.rs",
         "must not be treated as passed evidence",
         "not a second progress table",
-        "Physical extraction follows acceptance",
+        "Pinned dependency cutover does not close full runtime acceptance",
     ] {
         assert!(
             readiness.contains(boundary),
@@ -3630,8 +3634,8 @@ fn leselang_extraction_readiness_is_acceptance_gated_without_a_replacement_relea
         assert!(source.contains("#repository-extraction-readiness"));
         let text = source.split_whitespace().collect::<Vec<_>>().join(" ");
         assert!(
-            text.contains("physical extraction is deferred")
-                || text.contains("Physical extraction is deferred")
+            text.contains("repository bootstrap from full runtime acceptance")
+                || text.contains("Repository bootstrap is separate from full runtime acceptance")
         );
         assert!(
             text.contains("replacement version or date")
@@ -3643,7 +3647,21 @@ fn leselang_extraction_readiness_is_acceptance_gated_without_a_replacement_relea
         .collect::<Vec<_>>()
         .join(" ");
     assert!(module.contains("2.3.0-and-later phase"));
-    assert!(module.contains("physical repository extraction is deferred"));
+    assert!(module.contains("local MIT repository named `leselang`"));
+    assert!(module.contains("product now pins its published 0.1.0 Git revision"));
+    let handoff = include_str!("../docs/leselang-repository-handoff.md");
+    for boundary in [
+        "Git commits and pushes remain user-managed",
+        "frozen acceptance snapshots",
+        "one immutable source identity",
+        "complete_vm",
+        "full_extraction_gate",
+    ] {
+        assert!(
+            handoff.contains(boundary),
+            "repository handoff lost {boundary}"
+        );
+    }
 }
 
 #[test]

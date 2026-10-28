@@ -1,10 +1,13 @@
-use leselang_hir::lower;
+//! Product-language and saved-continuation fuzzing through the actual Leserpent
+//! owners, with syntax supplied by the independent Leselang package.
+
 use leselang_syntax::{MAX_SOURCE_BYTES, SyntaxTree, TokenKind, format as format_source, parse};
-use leselang_vm::{Step, Vm, decode_continuation, encode_continuation};
 use leserpent_domain::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH,
     CapabilitySet, Principal,
 };
+use leserpent_hir::lower;
+use leserpent_vm::{Step, Vm, decode_continuation, encode_continuation};
 
 const FUZZ_SEED: u64 = 0x6c65_7365_6c61_6e67;
 const SOURCE_CASES: usize = 2_048;
@@ -136,7 +139,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     let dataflow_seed = encode_continuation(&first.continuation).unwrap();
     let Step::Effect(second) = vm.resume(
         &first.continuation,
-        leselang_vm::EffectResult::Query(leserpent_domain::QueryResult::RuntimeList {
+        leserpent_vm::EffectResult::Query(leserpent_domain::QueryResult::RuntimeList {
             revision: leserpent_domain::Revision(7),
             runtimes: vec![],
         }),
@@ -163,7 +166,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     let conditional_seed = encode_continuation(&first.continuation).unwrap();
     let Step::Effect(second) = vm.resume(
         &first.continuation,
-        leselang_vm::EffectResult::Query(leserpent_domain::QueryResult::RuntimeList {
+        leserpent_vm::EffectResult::Query(leserpent_domain::QueryResult::RuntimeList {
             revision: leserpent_domain::Revision(7),
             runtimes: vec![],
         }),
@@ -236,16 +239,16 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     let Step::Effect(first) = vm.start(
         &program,
         Principal::new("fuzz-operator").unwrap(),
-        CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+        CapabilitySet::new([leserpent_hir::CAPABILITY_UI_PRESENTATION]),
         None,
     ) else {
         panic!("boolean projection seed must suspend")
     };
     let Step::Effect(second) = vm.resume(
         &first.continuation,
-        leselang_vm::EffectResult::Presentation(leselang_vm::PresentationResult::SetSelection {
+        leserpent_vm::EffectResult::Presentation(leserpent_vm::PresentationResult::SetSelection {
             node_id: "toggle".into(),
-            state: leselang_hir::UiSelectionState::Selected,
+            state: leserpent_hir::UiSelectionState::Selected,
         }),
     ) else {
         panic!("boolean projection seed must capture a versioned frame")
@@ -266,7 +269,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     let group_tail_seed = encode_continuation(&first.continuation).unwrap();
     let Step::Effect(tail) = vm.resume(
         &first.continuation,
-        leselang_vm::EffectResult::Query(leserpent_domain::QueryResult::RuntimeList {
+        leserpent_vm::EffectResult::Query(leserpent_domain::QueryResult::RuntimeList {
             revision: leserpent_domain::Revision(7),
             runtimes: vec![],
         }),
@@ -289,7 +292,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     let group_capture_prefix_seed = encode_continuation(&first.continuation).unwrap();
     let Step::Effect(tail) = vm.resume(
         &first.continuation,
-        leselang_vm::EffectResult::Query(leserpent_domain::QueryResult::RuntimeList {
+        leserpent_vm::EffectResult::Query(leserpent_domain::QueryResult::RuntimeList {
             revision: leserpent_domain::Revision(7),
             runtimes: vec![],
         }),
@@ -319,7 +322,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
         };
         parallel_seeds.push(encode_continuation(&batch.branches[0].request.continuation).unwrap());
         let empty = || {
-            leselang_vm::EffectResult::Query(leserpent_domain::QueryResult::RuntimeList {
+            leserpent_vm::EffectResult::Query(leserpent_domain::QueryResult::RuntimeList {
                 revision: leserpent_domain::Revision(7),
                 runtimes: vec![],
             })
@@ -354,7 +357,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
                 None,
             );
             let empty = || {
-                leselang_vm::EffectResult::Query(leserpent_domain::QueryResult::RuntimeList {
+                leserpent_vm::EffectResult::Query(leserpent_domain::QueryResult::RuntimeList {
                     revision: leserpent_domain::Revision(7),
                     runtimes: vec![],
                 })
@@ -397,14 +400,14 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     let Step::Effect(first) = vm.start(
         &program,
         Principal::new("fuzz-operator").unwrap(),
-        CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+        CapabilitySet::new([leserpent_hir::CAPABILITY_UI_PRESENTATION]),
         None,
     ) else {
         panic!("text seed must suspend")
     };
     let Step::Effect(second) = vm.resume(
         &first.continuation,
-        leselang_vm::EffectResult::Presentation(leselang_vm::PresentationResult::AssertText {
+        leserpent_vm::EffectResult::Presentation(leserpent_vm::PresentationResult::AssertText {
             node_id: "a".into(),
             expected: "written".into(),
         }),
@@ -413,7 +416,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     };
     let Step::Effect(third) = vm.resume(
         &second.continuation,
-        leselang_vm::EffectResult::Presentation(leselang_vm::PresentationResult::SetFormValue {
+        leserpent_vm::EffectResult::Presentation(leserpent_vm::PresentationResult::SetFormValue {
             node_id: "form".into(),
             field: "name".into(),
             value: "written".into(),
@@ -428,7 +431,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     let Step::Effects(batch) = vm.start(
         &program,
         Principal::new("fuzz-operator").unwrap(),
-        CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+        CapabilitySet::new([leserpent_hir::CAPABILITY_UI_PRESENTATION]),
         None,
     ) else {
         panic!("text group seed must suspend")
@@ -436,16 +439,18 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     assert!(matches!(
         vm.resume(
             &batch.branches[1].request.continuation,
-            leselang_vm::EffectResult::Presentation(leselang_vm::PresentationResult::AssertText {
-                node_id: "a".into(),
-                expected: "ready".into()
-            })
+            leserpent_vm::EffectResult::Presentation(
+                leserpent_vm::PresentationResult::AssertText {
+                    node_id: "a".into(),
+                    expected: "ready".into()
+                }
+            )
         ),
         Step::Waiting(_)
     ));
     let Step::Effect(capture) = vm.resume(
         &batch.branches[0].request.continuation,
-        leselang_vm::EffectResult::Presentation(leselang_vm::PresentationResult::SetFormValue {
+        leserpent_vm::EffectResult::Presentation(leserpent_vm::PresentationResult::SetFormValue {
             node_id: "form".into(),
             field: "name".into(),
             value: "written".into(),
@@ -454,11 +459,11 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
         panic!("text group frames must suspend")
     };
     text_seeds.push(encode_continuation(&capture.continuation).unwrap());
-    let acknowledge_kind = |request: &leselang_vm::EffectRequest| {
-        let leselang_vm::EffectOperation::Presentation(envelope) = &request.operation else {
+    let acknowledge_kind = |request: &leserpent_vm::EffectRequest| {
+        let leserpent_vm::EffectOperation::Presentation(envelope) = &request.operation else {
             panic!("kind seed must be a presentation")
         };
-        leselang_vm::EffectResult::Presentation(
+        leserpent_vm::EffectResult::Presentation(
             serde_json::from_value(serde_json::to_value(&envelope.operation).unwrap()).unwrap(),
         )
     };
@@ -468,7 +473,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     let Step::Effect(first) = vm.start(
         &program,
         Principal::new("fuzz-operator").unwrap(),
-        CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+        CapabilitySet::new([leserpent_hir::CAPABILITY_UI_PRESENTATION]),
         None,
     ) else {
         panic!("kind alias seed must suspend")
@@ -481,7 +486,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     let Step::Effects(batch) = vm.start(
         &program,
         Principal::new("fuzz-operator").unwrap(),
-        CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+        CapabilitySet::new([leserpent_hir::CAPABILITY_UI_PRESENTATION]),
         None,
     ) else {
         panic!("kind group seed must suspend")
@@ -506,7 +511,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     let Step::Effect(first) = vm.start(
         &program,
         Principal::new("fuzz-operator").unwrap(),
-        CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+        CapabilitySet::new([leserpent_hir::CAPABILITY_UI_PRESENTATION]),
         None,
     ) else {
         panic!("optional seed must suspend")
@@ -519,7 +524,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     let Step::Effect(first) = vm.start(
         &program,
         Principal::new("fuzz-operator").unwrap(),
-        CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+        CapabilitySet::new([leserpent_hir::CAPABILITY_UI_PRESENTATION]),
         None,
     ) else {
         panic!("optional scalar local must suspend")
@@ -529,7 +534,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
     let Step::Effects(batch) = vm.start(
         &program,
         Principal::new("fuzz-operator").unwrap(),
-        CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+        CapabilitySet::new([leserpent_hir::CAPABILITY_UI_PRESENTATION]),
         None,
     ) else {
         panic!("optional group must suspend")
@@ -558,7 +563,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
         let Step::Effect(first) = vm.start(
             &program,
             Principal::new("fuzz-operator").unwrap(),
-            CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+            CapabilitySet::new([leserpent_hir::CAPABILITY_UI_PRESENTATION]),
             None,
         ) else {
             panic!("text inspection seed must suspend")
@@ -575,7 +580,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
         let Step::Effect(first) = vm.start(
             &program,
             Principal::new("fuzz-operator").unwrap(),
-            CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+            CapabilitySet::new([leserpent_hir::CAPABILITY_UI_PRESENTATION]),
             None,
         ) else {
             panic!("collection seed must suspend")
@@ -594,7 +599,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
         let mut step = vm.start(
             &program,
             Principal::new("fuzz-operator").unwrap(),
-            CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+            CapabilitySet::new([leserpent_hir::CAPABILITY_UI_PRESENTATION]),
             None,
         );
         for _ in 0..3 {
@@ -618,7 +623,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
         let step = vm.start(
             &lower(&parse(&source)).unwrap(),
             Principal::new("fuzz-operator").unwrap(),
-            CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+            CapabilitySet::new([leserpent_hir::CAPABILITY_UI_PRESENTATION]),
             None,
         );
         let requests = match step {
@@ -655,7 +660,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
             let mut step = vm.start(
                 &lower(&parse(&source)).unwrap(),
                 Principal::new("fuzz-operator").unwrap(),
-                CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+                CapabilitySet::new([leserpent_hir::CAPABILITY_UI_PRESENTATION]),
                 None,
             );
             for _ in 0..3 {
@@ -710,7 +715,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
         let mut step = vm.start(
             &lower(&parse(&source)).unwrap(),
             Principal::new("fuzz-operator").unwrap(),
-            CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+            CapabilitySet::new([leserpent_hir::CAPABILITY_UI_PRESENTATION]),
             None,
         );
         for _ in 0..4 {
@@ -754,7 +759,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
         let mut step = vm.start(
             &lower(&parse(&source)).unwrap(),
             Principal::new("fuzz-operator").unwrap(),
-            CapabilitySet::new([leselang_hir::CAPABILITY_UI_PRESENTATION]),
+            CapabilitySet::new([leserpent_hir::CAPABILITY_UI_PRESENTATION]),
             None,
         );
         for _ in 0..4 {
@@ -889,7 +894,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
                 if binding
                     .locals
                     .iter()
-                    .any(|local| matches!(local.value, leselang_vm::ScalarValue::StringList(_)))
+                    .any(|local| matches!(local.value, leserpent_vm::ScalarValue::StringList(_)))
                 {
                     collection_local_accepted += 1;
                 }
@@ -903,14 +908,12 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
                 text_inspection_accepted += 1;
             }
             if image.result_binding.as_ref().is_some_and(|binding| {
-                binding
-                    .locals
+                binding.locals.iter().any(|local| {
+                    matches!(local.value, leserpent_vm::ScalarValue::OptionalString(_))
+                }) || binding
+                    .results
                     .iter()
-                    .any(|local| matches!(local.value, leselang_vm::ScalarValue::OptionalString(_)))
-                    || binding
-                        .results
-                        .iter()
-                        .any(|saved| saved.result.projection_version == 5)
+                    .any(|saved| saved.result.projection_version == 5)
                     || binding
                         .groups
                         .iter()
@@ -945,7 +948,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
             }) {
                 text_projection_accepted += 1;
             }
-            if image.schema_version == leselang_vm::GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION {
+            if image.schema_version == leserpent_vm::GROUP_CONDITIONAL_CONTINUATION_SCHEMA_VERSION {
                 group_conditional_accepted += 1;
                 assert!(Vm::default().restore(image.clone()).is_err());
                 if let Some(binding) = image.result_binding.as_ref() {
@@ -958,7 +961,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
                     }
                 }
             }
-            if image.schema_version == leselang_vm::GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION {
+            if image.schema_version == leserpent_vm::GROUP_DATAFLOW_CONTINUATION_SCHEMA_VERSION {
                 group_dataflow_accepted += 1;
                 assert!(Vm::default().restore(image.clone()).is_err());
                 if image
@@ -969,7 +972,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
                     group_dataflow_frames_accepted += 1;
                 }
             }
-            if image.schema_version == leselang_vm::PARALLEL_GROUP_CONTINUATION_SCHEMA_VERSION {
+            if image.schema_version == leserpent_vm::PARALLEL_GROUP_CONTINUATION_SCHEMA_VERSION {
                 parallel_group_accepted += 1;
                 assert!(Vm::default().restore(image.clone()).is_err());
                 if image
@@ -980,7 +983,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
                     parallel_frames_accepted += 1;
                 }
             }
-            if image.schema_version == leselang_vm::GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION {
+            if image.schema_version == leserpent_vm::GROUP_CAPTURE_CONTINUATION_SCHEMA_VERSION {
                 group_capture_accepted += 1;
                 assert!(Vm::default().restore(image.clone()).is_err());
                 if image
@@ -991,19 +994,19 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
                     group_frames_accepted += 1;
                 }
             }
-            if image.schema_version == leselang_vm::GROUP_TAIL_CONTINUATION_SCHEMA_VERSION {
+            if image.schema_version == leserpent_vm::GROUP_TAIL_CONTINUATION_SCHEMA_VERSION {
                 group_tail_accepted += 1;
                 assert!(Vm::default().restore(image.clone()).is_err());
             }
-            if image.schema_version == leselang_vm::GROUP_RESULT_CONTINUATION_SCHEMA_VERSION {
+            if image.schema_version == leserpent_vm::GROUP_RESULT_CONTINUATION_SCHEMA_VERSION {
                 group_accepted += 1;
                 assert!(Vm::default().restore(image.clone()).is_err());
             }
-            if image.schema_version == leselang_vm::SUCCESSOR_CONTINUATION_SCHEMA_VERSION {
+            if image.schema_version == leserpent_vm::SUCCESSOR_CONTINUATION_SCHEMA_VERSION {
                 successor_accepted += 1;
                 assert!(Vm::default().restore(image.clone()).is_err());
             }
-            if image.schema_version == leselang_vm::DATAFLOW_CONTINUATION_SCHEMA_VERSION {
+            if image.schema_version == leserpent_vm::DATAFLOW_CONTINUATION_SCHEMA_VERSION {
                 assert!(Vm::default().restore(image.clone()).is_err());
                 if image
                     .result_binding
@@ -1013,7 +1016,7 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
                     projection_accepted += 1;
                 }
             }
-            if image.schema_version == leselang_vm::CONDITIONAL_CONTINUATION_SCHEMA_VERSION {
+            if image.schema_version == leserpent_vm::CONDITIONAL_CONTINUATION_SCHEMA_VERSION {
                 assert!(Vm::default().restore(image.clone()).is_err());
                 conditional_accepted += 1;
             }
@@ -1031,21 +1034,21 @@ fn deterministic_continuation_decoder_fuzz_shelf() {
             if image.result_binding.as_ref().is_some_and(|binding| {
                 matches!(
                     binding.body,
-                    leselang_hir::computation::Computation::Loop { .. }
+                    leserpent_hir::computation::Computation::Loop { .. }
                 )
             }) {
                 loop_accepted += 1;
             }
             let canonical = encode_continuation(&image).unwrap();
             if image.result_binding.as_ref().is_some_and(|binding| {
-                matches!(&binding.body, leselang_hir::computation::Computation::Bind { name, .. } if name.starts_with("_lf"))
+                matches!(&binding.body, leserpent_hir::computation::Computation::Bind { name, .. } if name.starts_with("_lf"))
             }) {
                 helper_accepted += 1;
             }
             if image.result_binding.as_ref().is_some_and(|binding| {
                 matches!(
                     binding.body,
-                    leselang_hir::computation::Computation::Recover { .. }
+                    leserpent_hir::computation::Computation::Recover { .. }
                 )
             }) {
                 recovery_accepted += 1;
