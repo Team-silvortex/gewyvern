@@ -25,8 +25,9 @@ architecture x module x feature -> status cell
 Only meaningful intersections become cells. Empty combinations are not
 implicitly planned work.
 
-Schema v3 carries a `coverage_requirements` manifest and a dated `calibration`
-record. Coverage maps authoritative architecture ownership boundaries, roadmap
+Schema v4 retains the `coverage_requirements` manifest and dated `calibration`
+record, and adds pinned external source inventories for evidence. Older catalog
+versions must be migrated explicitly, not interpreted as v4. Coverage maps authoritative architecture ownership boundaries, roadmap
 gates, and continuous proof shelves onto concrete cells. The manifest covers
 Gewyvern Core, GewyLang, Leselang, the shared native foundation, the Leserpent 1.x
 bridge, Leserpent 2, the Etragon sidecar, and status governance itself.
@@ -93,7 +94,7 @@ The Rust status engine computes each cell's strength from:
 55% maturity + 45% completion - confidence penalty - blocker penalty
 ```
 
-The score ranks attention; it does not replace the underlying fields. Schema v3
+The score ranks attention; it does not replace the underlying fields. Schema v4
 then derives two project views:
 
 - **Delivery:** priority-weighted strength and completion, using critical = 4,
@@ -118,8 +119,52 @@ A `mature` cell is rejected unless:
 - it has no blockers
 - present test evidence exists
 
-Present evidence paths must exist in the repository. Planned evidence may
-point to the intended future location.
+Without an `inventory` field, present evidence paths must exist in the repository.
+Planned local evidence may point to the intended future location. Existing local
+evidence still serializes as `kind`, `path`, and `state`, with no added null field.
+
+### External Source Evidence
+
+An optional `inventory` names a local, protocolized source inventory. In that case
+`path` belongs to the inventory's upstream repository, not this checkout:
+
+```json
+{
+  "kind": "source",
+  "path": "crates/leselang-hir-core/src/lib.rs",
+  "state": "present",
+  "inventory": "project/status/leselang-source-inventory.json"
+}
+```
+
+[Source inventory v1](../project/status/source-inventory.schema.json) records a
+credential-free HTTPS repository URL, a full lowercase Git revision, and sorted,
+unique file paths with exact byte lengths and SHA-256 digests. The Leselang
+[inventory](../project/status/leselang-source-inventory.json) covers 166 pinned
+core source/test files. It replaces local source-path existence as evidence for
+303 existing file references without changing their paths or kinds. One old
+syntax-directory reference now names its exact upstream `src/lib.rs` entry, for
+304 total inventory references. Cell maturity scores are unchanged.
+
+Status validation checks the bounded local inventory and exact entry. It never
+runs Cargo, fetches upstream source or requires a sibling checkout. `present`
+here means the source identity is recorded, **not** that an upstream file was just
+downloaded or a test passed. `tests/leselang_repository_tdd.rs` separately compares
+every recorded path, length and digest against the actual Cargo-resolved pin;
+upstream execution and product compatibility remain their existing CI gates.
+
+Inventory evidence must be present, not planned. Invalid/missing inventories,
+absent entries, malformed or symbolic revisions, duplicate paths, unsafe paths,
+unknown fields and symlink inventory paths reject; an existing local source file
+is never a fallback. Catalog validation caches each inventory once and allows at
+most 32 distinct inventories. Each is limited to 1 MiB, 4,096 files and 4 MiB per
+recorded file. Repository-relative paths use canonical `/` components, no parent
+traversal, backslashes, drive prefixes or control characters, and at most 1,024
+UTF-8 bytes. Components cannot end in dots or spaces, avoiding platform-dependent
+path aliases. Recorded source hashes are reviewed data, not auto-refreshed results.
+
+This management-schema change does not change the product version, runtime wire
+formats, maturity calibration or the ownership of legacy compatibility suites.
 
 ## Independence
 

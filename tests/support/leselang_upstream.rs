@@ -13,6 +13,12 @@ pub const NATIVE_CRATES: &[&str] = &[
     "leselang-vm",
 ];
 
+pub const NATIVE_CORES: &[&str] = &[
+    "leselang-syntax",
+    "leselang-runtime-core",
+    "leselang-hir-core",
+];
+
 pub const CONSUMER_TESTS: &[(&str, &str)] = &[
     (
         "core_identity",
@@ -192,22 +198,168 @@ pub fn product_metadata() -> &'static Value {
 pub fn checkout() -> &'static Path {
     static CHECKOUT: OnceLock<PathBuf> = OnceLock::new();
     CHECKOUT.get_or_init(|| {
-        let packages = product_metadata()["packages"].as_array().unwrap();
-        let mut matches = packages.iter().filter(|p| p["name"] == "leselang-hir-core");
-        let package = matches.next().unwrap();
-        assert!(matches.next().is_none());
         let state: Value =
             serde_json::from_str(include_str!("../../project/leselang-repository.json")).unwrap();
-        let revision = state["pinned_revision"].as_str().unwrap();
-        assert_eq!(
-            package["source"],
-            format!("git+https://github.com/Team-silvortex/leselang?rev={revision}#{revision}")
+        resolve_checkout(product_metadata(), &state, product_root()).unwrap()
+    })
+}
+
+pub fn resolve_checkout(
+    metadata: &Value,
+    state: &Value,
+    product: &Path,
+) -> Result<PathBuf, String> {
+    let packages = metadata["packages"].as_array().ok_or("missing packages")?;
+    let members = metadata["workspace_members"]
+        .as_array()
+        .ok_or("missing members")?;
+    let repository = state["remote_url"].as_str().ok_or("missing repository")?;
+    let revision = state["pinned_revision"]
+        .as_str()
+        .ok_or("missing revision")?;
+    let version = state["package_version"].as_str().ok_or("missing version")?;
+    let source = format!("git+{repository}?rev={revision}#{revision}");
+    let mut shared = None;
+    for name in NATIVE_CORES {
+        let mut matches = packages.iter().filter(|p| p["name"] == *name);
+        let package = matches
+            .next()
+            .ok_or_else(|| format!("missing core {name}"))?;
+        if matches.next().is_some()
+            || package["source"] != source
+            || package["version"] != version
+            || members.contains(&package["id"])
+        {
+            return Err(format!(
+                "{name} must have one pinned, external package identity"
+            ));
+        }
+        let manifest = Path::new(
+            package["manifest_path"]
+                .as_str()
+                .ok_or("missing manifest")?,
         );
-        assert_eq!(package["version"], state["package_version"]);
-        let manifest = Path::new(package["manifest_path"].as_str().unwrap());
-        let checkout = manifest.ancestors().nth(3).unwrap();
-        assert!(!checkout.starts_with(product_root()));
-        checkout.to_path_buf()
+        let checkout = manifest.ancestors().nth(3).ok_or("missing checkout")?;
+        if !manifest.is_absolute()
+            || manifest
+                .components()
+                .any(|part| matches!(part, Component::ParentDir))
+            || manifest.starts_with(product)
+            || manifest != checkout.join("crates").join(name).join("Cargo.toml")
+            || shared.as_deref().is_some_and(|path| path != checkout)
+        {
+            return Err(format!("{name} does not share the pinned native checkout"));
+        }
+        shared = Some(checkout.to_path_buf());
+    }
+    shared.ok_or_else(|| "no native cores".into())
+}
+
+fn source_relative<'a>(path: &'a Path, product: &Path) -> std::io::Result<&'a Path> {
+    let relative = path.strip_prefix(product).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "source must be rooted in the product checkout",
+        )
+    })?;
+    if relative.as_os_str().is_empty()
+        || !relative
+            .components()
+            .all(|part| matches!(part, Component::Normal(_)))
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "invalid source path",
+        ));
+    }
+    Ok(relative)
+}
+
+fn is_core_source(relative: &Path) -> bool {
+    NATIVE_CORES
+        .iter()
+        .any(|name| relative.starts_with(Path::new("crates").join(name)))
+}
+
+pub fn resolve_source_path(path: &Path, product: &Path, native: &Path) -> std::io::Result<PathBuf> {
+    let relative = source_relative(path, product)?;
+    // Product adapters/facades remain local; core inspection must follow Cargo,
+    // never a sibling checkout or the frozen historical source snapshots.
+    Ok(if is_core_source(relative) {
+        native.join(relative)
+    } else {
+        product.join(relative)
+    })
+}
+
+pub fn source_path(path: impl AsRef<Path>) -> std::io::Result<PathBuf> {
+    resolve_source_path(path.as_ref(), product_root(), checkout())
+}
+
+pub fn read_source(path: impl AsRef<Path>) -> std::io::Result<String> {
+    fs::read_to_string(source_path(path)?)
+}
+
+pub const RUNTIME_BASELINE_PATH: &str = "docs/provenance/runtime-core-baseline.md";
+
+pub fn read_runtime_baseline(native: &Path, state: &Value) -> Result<String, String> {
+    let inspection = &state["documentation_inspection"];
+    let evidence = &inspection["runtime_baseline"];
+    let revision = state["pinned_revision"].as_str().ok_or("missing pin")?;
+    if inspection["owner"] != "cargo-resolved-pinned-upstream"
+        || inspection["snapshot_fallback"] != false
+        || evidence["revision"] != revision
+        || evidence["path"] != RUNTIME_BASELINE_PATH
+    {
+        return Err("runtime documentation must use the reviewed upstream provenance".into());
+    }
+    let expected = evidence["sha256"].as_str().ok_or("missing document hash")?;
+    if expected.len() != 64
+        || !expected
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err("invalid runtime documentation hash".into());
+    }
+    let source = silvortex_bounded_io::read_bounded_utf8_regular_file(
+        &native.join(RUNTIME_BASELINE_PATH),
+        256 * 1024,
+    )
+    .map_err(|error| format!("pinned runtime documentation is unavailable: {error}"))?;
+    let digest = ring::digest::digest(&ring::digest::SHA256, source.as_bytes());
+    let actual: String = digest
+        .as_ref()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    if actual != expected {
+        return Err("pinned runtime documentation SHA-256 mismatch".into());
+    }
+    Ok(source)
+}
+
+pub fn runtime_baseline_document() -> &'static str {
+    static DOCUMENT: OnceLock<String> = OnceLock::new();
+    DOCUMENT.get_or_init(|| {
+        let state: Value =
+            serde_json::from_str(include_str!("../../project/leselang-repository.json")).unwrap();
+        read_runtime_baseline(checkout(), &state).unwrap()
+    })
+}
+
+pub fn source_inventory() -> &'static gewyvern::project_status::SourceInventory {
+    static INVENTORY: OnceLock<gewyvern::project_status::SourceInventory> = OnceLock::new();
+    INVENTORY.get_or_init(|| {
+        let state: Value =
+            serde_json::from_str(include_str!("../../project/leselang-repository.json")).unwrap();
+        let inventory = gewyvern::project_status::SourceInventory::load_from_repository(
+            product_root(),
+            state["source_inventory"].as_str().unwrap(),
+        )
+        .unwrap();
+        assert_eq!(inventory.repository, state["remote_url"]);
+        assert_eq!(inventory.revision, state["pinned_revision"]);
+        inventory
     })
 }
 
@@ -235,19 +387,45 @@ pub fn read(path: &str) -> String {
     fs::read_to_string(checkout().join(relative(path))).unwrap()
 }
 
-pub fn assert_same_source(path: &str) {
-    let path = relative(path);
-    assert!(
-        fs::read(product_root().join(path)).unwrap() == fs::read(checkout().join(path)).unwrap(),
-        "upstream source differs: {}",
-        path.display()
-    );
+pub fn acceptance_source(
+    original: &str,
+    product: &Path,
+    native: &Path,
+    recorded: &gewyvern::project_status::SourceInventory,
+) -> Result<Vec<u8>, String> {
+    let path = product.join(original);
+    let relative = source_relative(&path, product).map_err(|error| error.to_string())?;
+    let actual = resolve_source_path(&path, product, native).map_err(|error| error.to_string())?;
+    if is_core_source(relative) {
+        let key = relative
+            .to_str()
+            .ok_or("non-UTF8 source path")?
+            .replace('\\', "/");
+        let file = recorded
+            .file(&key)
+            .ok_or_else(|| format!("unrecorded core source: {key}"))?;
+        let bytes = silvortex_bounded_io::read_bounded_utf8_regular_file(&actual, file.bytes)
+            .map_err(|error| format!("pinned acceptance source is unavailable: {error}"))?
+            .into_bytes();
+        recorded.verify_file(&key, &bytes)?;
+        Ok(bytes)
+    } else {
+        // Legacy facade/product acceptance still belongs here, not upstream.
+        fs::read(actual).map_err(|error| error.to_string())
+    }
 }
 
-pub fn assert_consumer_file(local: &str, path: &str, kind: Option<&str>) {
+pub fn assert_recorded_source(path: &str) {
+    assert!(is_core_source(relative(path)));
+    acceptance_source(path, product_root(), checkout(), source_inventory()).unwrap();
+}
+
+pub fn assert_consumer_file(original: &str, path: &str, kind: Option<&str>) {
     let actual = checkout().join("consumer").join(relative(path));
+    let expected =
+        acceptance_source(original, product_root(), checkout(), source_inventory()).unwrap();
     assert!(
-        fs::read(product_root().join(relative(local))).unwrap() == fs::read(&actual).unwrap(),
+        expected == fs::read(&actual).unwrap(),
         "upstream acceptance differs: {path}"
     );
     if let Some(kind) = kind {

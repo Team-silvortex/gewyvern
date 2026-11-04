@@ -1,6 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[path = "support/leselang_upstream.rs"]
+pub mod upstream;
+
 const MODULES: &[&str] = &[
     "runtime.md",
     "gewylang.md",
@@ -1481,7 +1484,10 @@ fn leselang_embedding_separates_language_hosts_and_future_shell() {
         "leselang/language-vm/host-neutral-embedding",
         "leselang-runtime-core",
         "AdmissionAdapter<Input>",
-        "standalone package",
+        "independent repository has its own manifests, version and CI",
+        "core directory has no Cargo manifest and is not a package entry point",
+        "facades, not the independent repository's 0.1.0 packages",
+        "remain product adapters despite their historical names",
         "not a second scheduler implementation",
         "typed language-operation schema or complete evaluator acceptance gate",
         "### Shared Bounded Pure Execution",
@@ -3081,8 +3087,7 @@ fn collect_markdown(directory: &Path, output: &mut Vec<PathBuf>) {
 #[test]
 fn shared_capture_docs_distinguish_owned_data_from_validated_durable_execution() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let core =
-        std::fs::read_to_string(root.join("crates/leselang-runtime-core/README.md")).unwrap();
+    let core = upstream::runtime_baseline_document();
     let section = core
         .split("## Owned Capture Data")
         .nth(1)
@@ -3128,20 +3133,20 @@ fn shared_capture_docs_distinguish_owned_data_from_validated_durable_execution()
 #[test]
 fn structural_capture_docs_keep_callback_order_native_ownership_and_authority_boundaries_explicit()
 {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    for (path, header, end) in [
+    for (path, text, header, end) in [
         (
-            "crates/leselang-runtime-core/README.md",
+            upstream::RUNTIME_BASELINE_PATH,
+            upstream::runtime_baseline_document(),
             "## Borrowed Capture Validation",
             "## Typed Calculation Recovery",
         ),
         (
             "docs/leselang-embedding.md",
+            include_str!("../docs/leselang-embedding.md"),
             "### Shared Structural Capture Validation",
             "### Remaining Product Boundaries",
         ),
     ] {
-        let text = std::fs::read_to_string(root.join(path)).unwrap();
         let section = text
             .split(header)
             .nth(1)
@@ -3176,20 +3181,20 @@ fn structural_capture_docs_keep_callback_order_native_ownership_and_authority_bo
 #[test]
 fn captured_scope_docs_distinguish_temporary_entry_from_saved_authority_and_keep_cleanup_handoff_explicit()
  {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    for (path, header, end) in [
+    for (path, source, header, end) in [
         (
-            "crates/leselang-runtime-core/README.md",
+            upstream::RUNTIME_BASELINE_PATH,
+            upstream::runtime_baseline_document(),
             "## Captured Scope Entry",
             "## Typed Calculation Recovery",
         ),
         (
             "docs/leselang-embedding.md",
+            include_str!("../docs/leselang-embedding.md"),
             "### Shared Captured Scope Entry",
             "### Remaining Product Boundaries",
         ),
     ] {
-        let source = std::fs::read_to_string(root.join(path)).unwrap();
         let section = source
             .split(header)
             .nth(1)
@@ -3268,7 +3273,7 @@ fn shared_projection_access_docs_keep_preflight_native_policy_and_authority_boun
 
 #[test]
 fn stateful_capture_docs_separate_original_context_accounting_cleanup_and_execution_authority() {
-    let core = include_str!("../crates/leselang-runtime-core/README.md");
+    let core = upstream::runtime_baseline_document();
     let embedding = include_str!("../docs/leselang-embedding.md");
     let section = embedding
         .split("### Shared Stateful Capture Re-entry")
@@ -3361,10 +3366,7 @@ fn capture_snapshot_docs_keep_native_preparation_accounting_and_authority_explic
         .split("### Remaining Product Boundaries")
         .next()
         .unwrap();
-    for text in [
-        include_str!("../crates/leselang-runtime-core/README.md"),
-        section,
-    ] {
+    for text in [upstream::runtime_baseline_document(), section] {
         let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
         for boundary in [
             "snapshot_captured_scope_state()",
@@ -3401,10 +3403,7 @@ fn owned_prefix_cleanup_docs_preserve_native_callback_and_terminal_authority_bou
         .split("### Remaining Product Boundaries")
         .next()
         .unwrap();
-    for text in [
-        include_str!("../crates/leselang-runtime-core/README.md"),
-        section,
-    ] {
+    for text in [upstream::runtime_baseline_document(), section] {
         let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
         for boundary in [
             "with_owned_scope_state()",
@@ -3470,10 +3469,7 @@ fn committed_checkpoint_docs_keep_storage_proof_distinct_from_durable_execution_
         .split("### Native Source Checkpoint")
         .next()
         .unwrap();
-    for source in [
-        section,
-        include_str!("../crates/leselang-runtime-core/README.md"),
-    ] {
+    for source in [section, upstream::runtime_baseline_document()] {
         let normalized = source.split_whitespace().collect::<Vec<_>>().join(" ");
         for boundary in [
             "without exposing partial maps",
@@ -3508,10 +3504,7 @@ fn shared_group_graph_docs_do_not_promote_structural_inspection_to_durable_autho
         .split("### Native Source Checkpoint")
         .next()
         .unwrap();
-    for source in [
-        section,
-        include_str!("../crates/leselang-runtime-core/README.md"),
-    ] {
+    for source in [section, upstream::runtime_baseline_document()] {
         let normalized = source.split_whitespace().collect::<Vec<_>>().join(" ");
         for boundary in [
             "validate_group_graph()",
@@ -3651,7 +3644,7 @@ fn leselang_repository_bootstrap_is_distinct_from_complete_runtime_acceptance() 
 fn watermark_planning_docs_distinguish_requirements_from_allocation_and_commit_authority() {
     for source in [
         include_str!("../docs/leselang-embedding.md"),
-        include_str!("../crates/leselang-runtime-core/README.md"),
+        upstream::runtime_baseline_document(),
     ] {
         let text = source
             .split("Shared Sequence Watermark Planning")
@@ -3691,7 +3684,7 @@ fn watermark_planning_docs_distinguish_requirements_from_allocation_and_commit_a
 fn inherited_context_docs_separate_agreement_from_authenticity_and_fuel_policy() {
     for source in [
         include_str!("../docs/leselang-embedding.md"),
-        include_str!("../crates/leselang-runtime-core/README.md"),
+        upstream::runtime_baseline_document(),
     ] {
         let text = source
             .split("Shared Inherited Continuation Context")
@@ -3731,7 +3724,7 @@ fn inherited_context_docs_separate_agreement_from_authenticity_and_fuel_policy()
 fn capture_extension_docs_keep_aliases_separate_from_binding_retention_or_authority() {
     for source in [
         include_str!("../docs/leselang-embedding.md"),
-        include_str!("../crates/leselang-runtime-core/README.md"),
+        upstream::runtime_baseline_document(),
     ] {
         let text = source
             .split("Shared Capture Extension")
@@ -3769,7 +3762,7 @@ fn capture_extension_docs_keep_aliases_separate_from_binding_retention_or_author
 fn capture_correspondence_docs_preserve_native_policy_and_late_error_observation() {
     for source in [
         include_str!("../docs/leselang-embedding.md"),
-        include_str!("../crates/leselang-runtime-core/README.md"),
+        upstream::runtime_baseline_document(),
     ] {
         let text = source
             .split("Shared Capture Correspondence")
@@ -3807,7 +3800,7 @@ fn capture_correspondence_docs_preserve_native_policy_and_late_error_observation
 fn ordered_outcome_docs_keep_observations_separate_from_settlement_or_execution() {
     for source in [
         include_str!("../docs/leselang-embedding.md"),
-        include_str!("../crates/leselang-runtime-core/README.md"),
+        upstream::runtime_baseline_document(),
     ] {
         let text = source
             .split("Shared Ordered Outcome Summaries")
@@ -3846,7 +3839,7 @@ fn ordered_outcome_docs_keep_observations_separate_from_settlement_or_execution(
 fn sequential_frontier_docs_keep_native_dispatch_and_recovery_authority_separate() {
     for source in [
         include_str!("../docs/leselang-embedding.md"),
-        include_str!("../crates/leselang-runtime-core/README.md"),
+        upstream::runtime_baseline_document(),
     ] {
         let text = source
             .split("Shared Sequential Frontier Inspection")
@@ -3883,7 +3876,7 @@ fn sequential_frontier_docs_keep_native_dispatch_and_recovery_authority_separate
 fn successor_chain_docs_distinguish_ordered_inspection_from_native_recovery_authority() {
     for source in [
         include_str!("../docs/leselang-embedding.md"),
-        include_str!("../crates/leselang-runtime-core/README.md"),
+        upstream::runtime_baseline_document(),
     ] {
         let text = source
             .split("Shared Successor Chain Inspection")
@@ -3924,10 +3917,7 @@ fn recovery_fence_docs_keep_original_watermark_and_native_receipt_authority_sepa
         .split("### Native Source Checkpoint")
         .next()
         .unwrap();
-    for source in [
-        section,
-        include_str!("../crates/leselang-runtime-core/README.md"),
-    ] {
+    for source in [section, upstream::runtime_baseline_document()] {
         let source = source
             .split_whitespace()
             .collect::<Vec<_>>()
@@ -3960,7 +3950,7 @@ fn recovery_fence_docs_keep_original_watermark_and_native_receipt_authority_sepa
 fn receipt_correspondence_docs_distinguish_data_merge_from_execution_or_authenticity() {
     for source in [
         include_str!("../docs/leselang-embedding.md"),
-        include_str!("../crates/leselang-runtime-core/README.md"),
+        upstream::runtime_baseline_document(),
     ] {
         let text = source.split_whitespace().collect::<Vec<_>>().join(" ");
         for boundary in [

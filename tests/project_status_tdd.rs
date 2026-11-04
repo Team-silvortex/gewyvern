@@ -874,10 +874,11 @@ fn native_hir_ownership_records_real_movement_without_promoting_full_extraction(
     let path = "docs/fixtures/leselang_hir_core_ownership_macos_arm64_20261026.json";
     for source in [
         path,
-        "crates/leselang-hir-core/Cargo.toml",
+        "tests/leselang_source_ownership_tdd.rs",
         "crates/leselang-hir-core/src/lib.rs",
         "crates/leselang-hir/tests/core_identity.rs",
-        "crates/leselang-hir/tests/migration_oracles.rs",
+        "crates/leserpent-hir/src/migration_baseline.rs",
+        "crates/leserpent-hir/tests/fixtures/migration-boundaries/ownership.json",
     ] {
         assert!(
             hir.evidence
@@ -9355,7 +9356,7 @@ fn project_status_catalog_is_protocolized_and_valid() {
     );
     assert_eq!(
         schema["$id"],
-        "https://gewyvern.dev/schemas/project-status-tensor-v3.json"
+        "https://gewyvern.dev/schemas/project-status-tensor-v4.json"
     );
     assert_eq!(
         schema["properties"]["schema_version"]["const"],
@@ -11107,13 +11108,15 @@ fn project_status_calibration_separates_delivery_from_the_full_portfolio() {
         .iter()
         .find(|cell| cell.id == "project-governance/status-governance/status-tensor")
         .expect("status governance cell must exist");
-    assert_eq!(governance.contract.version, "3.0.0");
+    assert_eq!(governance.contract.version, "4.0.0");
     for surface in [
         "explicit-roadmap-priority",
         "priority-weighted-delivery-score",
         "equal-weight-portfolio-score",
         "deferred-attention-separation",
         "maturity-completion-coherence",
+        "pinned-source-inventories",
+        "offline-external-evidence-validation",
     ] {
         assert!(
             governance
@@ -26690,10 +26693,7 @@ fn repository_handoff_keeps_runtime_acceptance_and_missing_evidence_unpromoted()
     assert_eq!(handoff["license"], "MIT");
     assert_eq!(handoff["local_repository_created"], true);
     assert_eq!(handoff["native_development_owner"], "leselang");
-    assert_eq!(
-        handoff["product_source_state"],
-        "frozen-acceptance-snapshots"
-    );
+    assert_eq!(handoff["product_source_state"], "pinned-source-inventory");
     assert_eq!(
         handoff["remote_url"],
         "https://github.com/Team-silvortex/leselang"

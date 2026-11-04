@@ -235,7 +235,32 @@ fn metadata(root: &Path, manifest: &Path) -> Result<Value, String> {
 }
 
 fn specs(root: &Path, checkout: &Path, target: &Path) -> Vec<ProcessSpec> {
-    let mut stages = Vec::new();
+    // The former product migration harness also compiled private core tests.
+    // Execute their real owner, not another copied language implementation.
+    let mut arguments: Vec<OsString> = [
+        "test",
+        "-p",
+        "leselang-hir-core",
+        "--lib",
+        "--all-features",
+        "--locked",
+        "--offline",
+        "--profile",
+        "lean",
+        "--manifest-path",
+    ]
+    .into_iter()
+    .map(Into::into)
+    .collect();
+    arguments.push(checkout.join("Cargo.toml").into_os_string());
+    arguments.push("--target-dir".into());
+    arguments.push(target.as_os_str().into());
+    let mut stages = vec![ProcessSpec::new(
+        "pinned-native-hir-oracles",
+        cargo(),
+        arguments,
+        root,
+    )];
     for (label, manifest) in [
         (
             "pinned-native-consumer",
@@ -511,7 +536,17 @@ mod tests {
         let target = product().join("target");
         let existed = target.exists();
         let stages = specs(&product(), &checkout(), &target);
-        assert_eq!(stages.len(), 9);
+        assert_eq!(stages.len(), 10);
+        let native = &stages[0].arguments;
+        assert_eq!(
+            &native[..4],
+            ["test", "-p", "leselang-hir-core", "--lib"].map(OsString::from)
+        );
+        let manifest = native
+            .iter()
+            .position(|arg| arg == "--manifest-path")
+            .unwrap();
+        assert_eq!(native[manifest + 1], checkout().join("Cargo.toml"));
         for stage in &stages {
             assert_eq!(stage.current_dir, product());
             for required in ["--locked", "--offline", "--profile", "lean"] {

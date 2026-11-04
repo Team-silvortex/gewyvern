@@ -1861,6 +1861,22 @@ pub(super) fn source(expression: &Computation) -> String {
 mod profile_contract_tests;
 
 #[cfg(test)]
+#[path = "migration_baseline.rs"]
+mod migration_baseline;
+
+#[cfg(test)]
+#[path = "scalar_form_contract_tests.rs"]
+mod scalar_form_contract_tests;
+
+#[cfg(test)]
+#[path = "fold_preparation_contract_tests.rs"]
+mod fold_preparation_contract_tests;
+
+#[cfg(test)]
+#[path = "loop_preparation_contract_tests.rs"]
+mod loop_preparation_contract_tests;
+
+#[cfg(test)]
 mod scope_tests {
     use super::*;
 

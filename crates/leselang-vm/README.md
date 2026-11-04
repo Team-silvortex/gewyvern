@@ -1,8 +1,8 @@
-# Leselang VM
+# Legacy Leselang VM Compatibility Facade
 
-One shared compiler/session implementation with an explicit optional Leserpent
-reference specialization. This crate remains in the product workspace while
-complete language, recovery and compatibility extraction gates are open.
+This crate re-exports native HIR sessions and the optional `leserpent-vm` product
+implementation; it does not own another compiler or evaluator. It remains in the
+product workspace while its released-API acceptance obligations stay open.
 
 This is the legacy product-workspace package, not independent Leselang 0.1.0.
 Product code and root tests use `leserpent-vm` directly. New native integrations
@@ -10,6 +10,13 @@ use [Team-silvortex/leselang](https://github.com/Team-silvortex/leselang); the
 separate product-HIR fixture consumes its real HIR and VM facades with normal
 defaults. This local facade remains only for its compatibility acceptance suites;
 new product dependencies on it are rejected by the repository gate.
+
+Compatibility CI keeps three distinct configurations: native-only with
+`--no-default-features`, product memory execution with
+`--no-default-features --features leserpent-profile`, and default SQLite-backed
+execution. These are not interchangeable repeated runs. Even shared test bodies
+still verify the legacy import path and must not be removed solely because the
+independent native consumer or product owner also executes them.
 
 ## Runnable Native Host
 

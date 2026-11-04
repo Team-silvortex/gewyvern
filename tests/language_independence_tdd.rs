@@ -9,6 +9,119 @@ use upstream::{
     product_metadata as workspace_metadata,
 };
 
+const NATIVE_HIR_CI_COMMAND: &str =
+    "cargo +1.98.0 test -p leselang-hir --locked --no-default-features";
+const NATIVE_HIR_COVERED_TARGETS: &[&str] = &[
+    "computation_profile",
+    "declaration_source",
+    "argument_binding",
+    "source_preparation",
+    "loop_preparation",
+    "fold_preparation",
+    "scalar_form",
+    "local_names",
+    "core_identity",
+];
+
+fn validate_native_hir_ci_suite(workflow: &str) -> Result<(), &'static str> {
+    // These gates use one-line Cargo commands, not a general shell/YAML parser.
+    let commands = workflow
+        .lines()
+        .map(str::trim)
+        .map(|line| line.strip_prefix("run: ").unwrap_or(line))
+        .filter(|line| {
+            let words = line.split_whitespace().collect::<Vec<_>>();
+            words.first() == Some(&"cargo")
+                && words.contains(&"test")
+                && words.contains(&"leselang-hir")
+                && words.contains(&"--no-default-features")
+        })
+        .collect::<Vec<_>>();
+    if commands == [NATIVE_HIR_CI_COMMAND] {
+        Ok(())
+    } else {
+        Err(
+            "run the full native-only legacy HIR suite exactly once, without target or name filters",
+        )
+    }
+}
+
+fn assert_native_hir_ci_suite(workflow: &str) {
+    validate_native_hir_ci_suite(workflow).unwrap();
+}
+
+#[test]
+fn native_hir_ci_consolidates_execution_without_retiring_compatibility_targets() {
+    let workflow = include_str!("../.github/workflows/ci.yml");
+    assert_native_hir_ci_suite(workflow);
+    assert!(workflow.contains("--test language_independence_tdd native_hir_ci_"));
+    let metadata = workspace_metadata();
+    let package = metadata["packages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|package| package["name"] == "leselang-hir" && package["source"].is_null())
+        .unwrap();
+    let targets = package["targets"].as_array().unwrap();
+    for name in NATIVE_HIR_COVERED_TARGETS {
+        let target = targets
+            .iter()
+            .find(|target| target["name"] == *name)
+            .unwrap();
+        assert_eq!(target["kind"], serde_json::json!(["test"]));
+        assert_eq!(target["test"], true);
+        assert!(
+            target["required-features"]
+                .as_array()
+                .is_none_or(Vec::is_empty),
+            "{name} must remain runnable without the product profile"
+        );
+        let source = std::fs::read_to_string(target["src_path"].as_str().unwrap()).unwrap();
+        assert!(
+            !source.contains("#![cfg("),
+            "{name} must not silently disappear behind a crate-level feature gate"
+        );
+    }
+    let library = targets
+        .iter()
+        .find(|target| target["name"] == "leselang_hir")
+        .unwrap();
+    assert_eq!(library["doctest"], true);
+}
+
+#[test]
+fn native_hir_ci_guard_rejects_filtered_compilation_only_or_duplicate_commands() {
+    let command = NATIVE_HIR_CI_COMMAND;
+    for good in [format!("run: {command}"), format!("run: |\n  {command}")] {
+        assert_eq!(validate_native_hir_ci_suite(&good), Ok(()));
+    }
+    for suffix in [
+        "--test local_names",
+        "--lib",
+        "--doc",
+        "--no-run",
+        "local_names",
+        "-- --ignored",
+        "--all-features",
+    ] {
+        let filtered = format!("run: {command} {suffix}");
+        assert!(validate_native_hir_ci_suite(&filtered).is_err(), "{suffix}");
+        let duplicate = format!("run: |\n  {command}\n  {command} {suffix}");
+        assert!(
+            validate_native_hir_ci_suite(&duplicate).is_err(),
+            "{suffix}"
+        );
+    }
+    for missing in [
+        String::new(),
+        format!("# run: {command}"),
+        format!("run: echo {command}"),
+        format!("run: {command}\nrun: {command}"),
+    ] {
+        assert!(validate_native_hir_ci_suite(&missing).is_err());
+    }
+}
+
 #[test]
 fn queued_native_example_uses_separate_owners_and_original_reply_boundaries() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -401,7 +514,7 @@ fn native_branch_ceiling_acceptance_uses_public_limits_without_a_product_call_bu
         assert!(ceiling.contains(marker), "{marker}");
     }
     let typing =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/flow_typing.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/flow_typing.rs")).unwrap();
     assert!(typing.contains("max_calls includes all cold call sites"));
 }
 
@@ -437,7 +550,7 @@ fn native_prepared_pipeline_preserves_the_preparation_before_identity_boundary()
 #[test]
 fn native_declaration_pipeline_uses_the_public_declaration_and_parameter_ceilings() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let syntax = std::fs::read_to_string(root.join("crates/leselang-syntax/src/lib.rs")).unwrap();
+    let syntax = upstream::read_source(root.join("crates/leselang-syntax/src/lib.rs")).unwrap();
     let pipeline =
         std::fs::read_to_string(root.join("crates/leselang-vm/tests/native_host_pipeline.rs"))
             .unwrap();
@@ -470,7 +583,7 @@ fn native_declaration_pipeline_uses_the_public_declaration_and_parameter_ceiling
 fn native_control_pipeline_covers_the_closed_scalar_type_inventory() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let values =
-        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/value.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-runtime-core/src/value.rs")).unwrap();
     let pipeline =
         std::fs::read_to_string(root.join("crates/leselang-vm/tests/native_host_pipeline.rs"))
             .unwrap();
@@ -522,8 +635,7 @@ fn native_control_pipeline_covers_the_closed_scalar_type_inventory() {
 fn native_scalar_pipeline_acceptance_covers_the_current_closed_operator_inventory() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let operators =
-        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/scalar_ops.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-runtime-core/src/scalar_ops.rs")).unwrap();
     let pipeline =
         std::fs::read_to_string(root.join("crates/leselang-vm/tests/native_host_pipeline.rs"))
             .unwrap();
@@ -625,7 +737,7 @@ fn product_hir_consumers_do_not_depend_on_language_compatibility_facades() {
 #[test]
 fn product_hir_owner_is_one_way_and_the_compatibility_facade_contains_no_implementation() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let read = |p: &str| std::fs::read_to_string(root.join(p)).unwrap();
+    let read = |p: &str| upstream::read_source(root.join(p)).unwrap();
     let manifest = read("crates/leserpent-hir/Cargo.toml");
     assert!(manifest.contains("leselang-hir-core.workspace = true"));
     assert!(!manifest.contains("leselang-hir ="));
@@ -675,7 +787,7 @@ fn native_hir_owner_is_physical_product_free_and_reexported_without_a_second_tre
         &["leselang-runtime-core", "leselang-syntax"],
     );
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let read = |p: &str| std::fs::read_to_string(root.join(p)).unwrap();
+    let read = |p: &str| upstream::read_source(root.join(p)).unwrap();
     let manifest = read("crates/leselang-hir-core/Cargo.toml");
     for forbidden in [
         "[features]",
@@ -696,7 +808,8 @@ fn native_hir_owner_is_physical_product_free_and_reexported_without_a_second_tre
             continue;
         };
         assert!(
-            root.join(format!("crates/leselang-hir-core/src/{module}.rs"))
+            upstream::source_path(root.join(format!("crates/leselang-hir-core/src/{module}.rs")))
+                .unwrap()
                 .is_file()
         );
         assert!(
@@ -710,10 +823,18 @@ fn native_hir_owner_is_physical_product_free_and_reexported_without_a_second_tre
     assert!(!facade.contains("pub mod ir;"));
     assert!(facade.contains("pub use leserpent_hir::*;"));
     let product = read("crates/leserpent-hir/src/computation.rs");
-    assert!(!product.contains("mod scalar_form_contract_tests;"));
-    let harness = read("crates/leselang-hir/tests/support/migration_computation.rs");
-    assert!(harness.contains("include!(\"../../../leserpent-hir/src/computation.rs\");"));
-    assert!(harness.contains("mod scalar_form_contract_tests;"));
+    assert!(product.contains("mod scalar_form_contract_tests;"));
+    assert!(product.contains("mod migration_baseline;"));
+    assert!(
+        !root
+            .join("crates/leselang-hir/tests/support/migration_computation.rs")
+            .exists()
+    );
+    assert!(
+        !root
+            .join("crates/leselang-hir/tests/migration_oracles.rs")
+            .exists()
+    );
     assert_upstream_hir_test("core_identity");
     let ci = read(".github/workflows/ci.yml");
     assert!(ci.contains("--test leselang_repository_tdd"));
@@ -730,7 +851,7 @@ fn native_hir_owner_is_physical_product_free_and_reexported_without_a_second_tre
 #[test]
 fn product_hir_is_compiled_as_a_foreign_crate_without_reference_feature_unification() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let read = |p: &str| std::fs::read_to_string(root.join(p)).unwrap();
+    let read = |p: &str| upstream::read_source(root.join(p)).unwrap();
     let path = "tests/fixtures/leselang-product-hir-boundary/";
     let manifest = read(&format!("{path}Cargo.toml"));
     assert!(manifest.contains("[workspace]"));
@@ -763,7 +884,7 @@ fn product_hir_is_compiled_as_a_foreign_crate_without_reference_feature_unificat
     );
     assert_upstream_hir_test("local_names");
     let ci = read(".github/workflows/ci.yml");
-    assert!(ci.contains("--no-default-features --test local_names"));
+    assert_native_hir_ci_suite(&ci);
     assert!(ci.contains("test --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml --locked --target-dir target --test product"));
     assert!(ci.contains("clippy --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml --locked --target-dir target --lib --test product -- -D warnings"));
 }
@@ -772,7 +893,7 @@ fn product_hir_is_compiled_as_a_foreign_crate_without_reference_feature_unificat
 fn public_scalar_form_removes_product_private_scalar_kernel_access_without_weakening_strict_ingress()
  {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let read = |p| std::fs::read_to_string(root.join(p)).unwrap();
+    let read = |p| upstream::read_source(root.join(p)).unwrap();
     let source = read("crates/leselang-hir-core/src/scalar_form.rs");
     for marker in [
         "pub struct BoundScalarForm",
@@ -811,22 +932,24 @@ fn public_scalar_form_removes_product_private_scalar_kernel_access_without_weake
     assert!(kernel.contains("preflight(expression, limits)"));
     assert!(kernel.contains("preflight_names(expression)"));
     let frozen = read("crates/leserpent-hir/src/scalar_form_contract_tests.rs");
-    let oracle = frozen.split_once("#[test]").unwrap().0;
-    assert!(oracle.contains("crate::scalar_source::lower_form"));
-    assert!(!oracle.contains("bind_scalar_form"));
+    assert!(!frozen.contains("crate::scalar_source::lower_form"));
+    assert!(frozen.contains("migration_baseline::Baseline::load"));
+    assert!(frozen.contains("baseline.assert_case"));
     assert!(frozen.contains("assert_eq!(cases, 3840)"));
     let consumer = read("crates/leselang-hir/tests/scalar_form.rs");
     assert!(consumer.contains("assert_eq!(cases, 870)"));
     assert_upstream_hir_test("scalar_form");
     let ci = read(".github/workflows/ci.yml");
-    assert!(ci.contains("--no-default-features --test scalar_form"));
-    assert!(ci.contains("--test migration_oracles computation::scalar_form_contract_tests"));
+    assert_native_hir_ci_suite(&ci);
+    assert!(
+        ci.contains("test -p leserpent-hir --locked --lib computation::scalar_form_contract_tests")
+    );
 }
 
 #[test]
 fn public_fold_stages_keep_collection_first_and_next_admission_after_scope_cleanup() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let read = |p| std::fs::read_to_string(root.join(p)).unwrap();
+    let read = |p| upstream::read_source(root.join(p)).unwrap();
     let source = read("crates/leselang-hir-core/src/fold_source.rs");
     for marker in [
         "pub struct BoundFoldSource",
@@ -886,20 +1009,22 @@ fn public_fold_stages_keep_collection_first_and_next_admission_after_scope_clean
     assert!(lower.contains(".check_scope(scope, None)"));
     assert!(lower.find(".prepare_items(").unwrap() < lower.find(".prepare_initial(").unwrap());
     let frozen = read("crates/leserpent-hir/src/fold_preparation_contract_tests.rs");
-    let oracle = frozen.split_once("#[test]").unwrap().0;
-    assert!(oracle.contains("crate::scalar_source::fold_source"));
-    assert!(!oracle.contains("bind_fold_source"));
+    assert!(!frozen.contains("crate::scalar_source::fold_source"));
+    assert!(frozen.contains("migration_baseline::Baseline::load"));
+    assert!(frozen.contains("baseline.assert_case"));
     assert!(frozen.contains("assert_eq!(cases, 1920)"));
     assert_upstream_hir_test("fold_preparation");
     let ci = read(".github/workflows/ci.yml");
-    assert!(ci.contains("--no-default-features --test fold_preparation"));
-    assert!(ci.contains("--test migration_oracles computation::fold_preparation_contract_tests"));
+    assert_native_hir_ci_suite(&ci);
+    assert!(ci.contains(
+        "test -p leserpent-hir --locked --lib computation::fold_preparation_contract_tests"
+    ));
 }
 
 #[test]
 fn public_loop_stages_replace_private_product_gates_without_exposing_unchecked_purity() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let read = |p| std::fs::read_to_string(root.join(p)).unwrap();
+    let read = |p| upstream::read_source(root.join(p)).unwrap();
     let source = read("crates/leselang-hir-core/src/loop_source.rs");
     for marker in [
         "pub struct BoundLoopSource",
@@ -944,20 +1069,22 @@ fn public_loop_stages_replace_private_product_gates_without_exposing_unchecked_p
     assert!(lower.contains("scope.nested()"));
     assert!(lower.contains("Ok(lowered.finish())"));
     let frozen = read("crates/leserpent-hir/src/loop_preparation_contract_tests.rs");
-    let oracle = frozen.split_once("#[test]").unwrap().0;
-    assert!(oracle.contains("crate::scalar_source::loop_source"));
-    assert!(!oracle.contains("bind_loop_source"));
+    assert!(!frozen.contains("crate::scalar_source::loop_source"));
+    assert!(frozen.contains("migration_baseline::Baseline::load"));
+    assert!(frozen.contains("baseline.assert_case"));
     assert!(frozen.contains("assert_eq!(cases, 1152)"));
     assert_upstream_hir_test("loop_preparation");
     let ci = read(".github/workflows/ci.yml");
-    assert!(ci.contains("--no-default-features --test loop_preparation"));
-    assert!(ci.contains("--test migration_oracles computation::loop_preparation_contract_tests"));
+    assert_native_hir_ci_suite(&ci);
+    assert!(ci.contains(
+        "test -p leserpent-hir --locked --lib computation::loop_preparation_contract_tests"
+    ));
 }
 
 #[test]
 fn public_native_source_plans_keep_original_borrows_and_do_not_replace_strict_ingress() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let read = |p| std::fs::read_to_string(root.join(p)).unwrap();
+    let read = |p| upstream::read_source(root.join(p)).unwrap();
     let host = read("crates/leselang-hir-core/src/host_source.rs");
     assert!(host.contains("pub struct BoundHostSource<'source>"));
     assert!(host.contains("pub fn bind_host_source_root"));
@@ -1000,14 +1127,14 @@ fn public_native_source_plans_keep_original_borrows_and_do_not_replace_strict_in
     assert!(!oracle.contains("bind_host_source_root("));
     assert_upstream_hir_test("source_preparation");
     let ci = read(".github/workflows/ci.yml");
-    assert!(ci.contains("--no-default-features --test source_preparation"));
+    assert_native_hir_ci_suite(&ci);
     assert!(ci.contains("--test leselang_repository_tdd"));
 }
 
 #[test]
 fn public_argument_stages_are_bounded_named_alignments_not_source_or_authority_receipts() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let read = |p| std::fs::read_to_string(root.join(p)).unwrap();
+    let read = |p| upstream::read_source(root.join(p)).unwrap();
     for (path, name, binder, old) in [
         (
             "crates/leselang-hir-core/src/helper_source.rs",
@@ -1064,14 +1191,14 @@ fn public_argument_stages_are_bounded_named_alignments_not_source_or_authority_r
     assert!(!oracle.contains("bind_source_arguments("));
     assert_upstream_hir_test("argument_binding");
     let ci = read(".github/workflows/ci.yml");
-    assert!(ci.contains("--no-default-features --test argument_binding"));
+    assert_native_hir_ci_suite(&ci);
     assert!(ci.contains("--test leselang_repository_tdd"));
 }
 
 #[test]
 fn declaration_receipts_replace_private_compiler_bypasses_without_unchecked_source_constructors() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let read = |p| std::fs::read_to_string(root.join(p)).unwrap();
+    let read = |p| upstream::read_source(root.join(p)).unwrap();
     let declarations = read("crates/leselang-hir-core/src/helper_declarations.rs");
     for contract in [
         "pub struct DeclarationBody<'source>",
@@ -1121,16 +1248,13 @@ fn declaration_receipts_replace_private_compiler_bypasses_without_unchecked_sour
     assert!(!product.contains("lower_preflighted_helper_body"));
     assert!(!product.contains("assemble_preflighted_program"));
     assert_upstream_hir_test("declaration_source");
-    assert!(
-        read(".github/workflows/ci.yml")
-            .contains("--no-default-features --test declaration_source")
-    );
+    assert_native_hir_ci_suite(&read(".github/workflows/ci.yml"));
 }
 
 #[test]
 fn computation_policy_is_foreign_host_implementable_without_inherent_alias_methods() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let read = |p| std::fs::read_to_string(root.join(p)).unwrap();
+    let read = |p| upstream::read_source(root.join(p)).unwrap();
     let generic = read("crates/leselang-hir-core/src/computation_profile.rs");
     assert!(generic.contains("pub trait ComputationProfile<Field, Operation, ResultType>"));
     assert_eq!(generic.matches("pub fn ").count(), 12);
@@ -1175,7 +1299,7 @@ fn computation_policy_is_foreign_host_implementable_without_inherent_alias_metho
     assert!(!native.contains("leserpent"));
     assert_upstream_hir_test("computation_profile");
     let ci = read(".github/workflows/ci.yml");
-    assert!(ci.contains("--no-default-features --test computation_profile"));
+    assert_native_hir_ci_suite(&ci);
     assert!(ci.contains("--lib computation::profile_contract_tests"));
 }
 
@@ -1184,7 +1308,7 @@ fn owned_capture_data_lives_in_the_product_free_core_and_reference_types_are_exa
     assert_workspace_closure("leselang-runtime-core", &[]);
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let shared =
-        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/captured_bindings.rs"))
+        upstream::read_source(root.join("crates/leselang-runtime-core/src/captured_bindings.rs"))
             .unwrap();
     for declaration in [
         "pub struct ScalarBinding",
@@ -1275,7 +1399,7 @@ fn capture_data_extraction_keeps_native_ownership_and_real_memory_durable_compat
             ][..],
         ),
     ] {
-        let code = std::fs::read_to_string(root.join(path)).unwrap();
+        let code = upstream::read_source(root.join(path)).unwrap();
         for proof in proofs {
             assert!(code.contains(proof), "capture extraction lost {proof}");
         }
@@ -1286,10 +1410,9 @@ fn capture_data_extraction_keeps_native_ownership_and_real_memory_durable_compat
 fn real_reference_capture_validation_uses_product_free_helpers_without_moving_authority_policy() {
     assert_workspace_closure("leselang-runtime-core", &[]);
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let shared = std::fs::read_to_string(
-        root.join("crates/leselang-runtime-core/src/capture_validation.rs"),
-    )
-    .unwrap();
+    let shared =
+        upstream::read_source(root.join("crates/leselang-runtime-core/src/capture_validation.rs"))
+            .unwrap();
     for api in [
         "pub fn validate_captured_bindings",
         "pub fn validate_projected_group",
@@ -1360,7 +1483,7 @@ fn real_reference_capture_validation_uses_product_free_helpers_without_moving_au
 #[test]
 fn capture_validation_has_native_order_ownership_and_actual_reference_rejection_proofs() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let core = std::fs::read_to_string(
+    let core = upstream::read_source(
         root.join("crates/leselang-runtime-core/tests/capture_validation.rs"),
     )
     .unwrap();
@@ -1390,7 +1513,7 @@ fn reference_capture_scope_assembly_uses_shared_nested_entry_but_retains_native_
     assert_workspace_closure("leselang-runtime-core", &[]);
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let shared =
-        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/capture_scope.rs"))
+        upstream::read_source(root.join("crates/leselang-runtime-core/src/capture_scope.rs"))
             .unwrap();
     let code = shared
         .lines()
@@ -1458,7 +1581,7 @@ fn reference_capture_scope_assembly_uses_shared_nested_entry_but_retains_native_
 fn shared_capture_scope_has_native_nested_cleanup_and_real_group_successor_compatibility_proofs() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let proofs =
-        std::fs::read_to_string(root.join("crates/leselang-runtime-core/tests/capture_scope.rs"))
+        upstream::read_source(root.join("crates/leselang-runtime-core/tests/capture_scope.rs"))
             .unwrap();
     for proof in [
         "original_scalar_result_group_pending_order_and_once_only_body_share_the_parent_stack",
@@ -1488,7 +1611,7 @@ fn shared_capture_scope_has_native_nested_cleanup_and_real_group_successor_compa
 fn restored_projection_access_walk_is_shared_bounded_and_uses_explicit_native_policy() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let shared =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/projection_access.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/projection_access.rs"))
             .unwrap();
     let production = shared
         .lines()
@@ -1586,7 +1709,7 @@ fn restored_projection_access_walk_is_shared_bounded_and_uses_explicit_native_po
 fn real_execution_reentry_uses_shared_original_state_without_a_second_meter_or_product_core() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let shared =
-        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/capture_scope.rs"))
+        upstream::read_source(root.join("crates/leselang-runtime-core/src/capture_scope.rs"))
             .unwrap();
     let production = shared
         .lines()
@@ -1660,8 +1783,7 @@ fn real_execution_reentry_uses_shared_original_state_without_a_second_meter_or_p
         );
     }
     let reentry =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_reentry.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_reentry.rs")).unwrap();
     let saved = reentry
         .split("pub fn resume_captured_effects_in_scope")
         .nth(1)
@@ -1701,7 +1823,7 @@ fn real_execution_reentry_uses_shared_original_state_without_a_second_meter_or_p
         std::fs::read_to_string(root.join("crates/leselang-command/src/group_plan.rs")).unwrap();
     assert!(group_policy.contains("!self.binding.results.is_empty()"));
     assert!(group_policy.contains("!self.binding.groups.is_empty()"));
-    let shared_proofs = std::fs::read_to_string(
+    let shared_proofs = upstream::read_source(
         root.join("crates/leselang-runtime-core/tests/capture_scope_state.rs"),
     )
     .unwrap();
@@ -1734,7 +1856,7 @@ fn real_execution_reentry_uses_shared_original_state_without_a_second_meter_or_p
 fn real_capture_construction_uses_shared_bounded_snapshot_with_native_charge_policy() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/capture_snapshot.rs"))
+        upstream::read_source(root.join("crates/leselang-runtime-core/src/capture_snapshot.rs"))
             .unwrap();
     let production = source
         .lines()
@@ -1810,10 +1932,9 @@ fn real_capture_construction_uses_shared_bounded_snapshot_with_native_charge_pol
     ] {
         assert!(vm.contains(proof));
     }
-    let tests = std::fs::read_to_string(
-        root.join("crates/leselang-runtime-core/tests/capture_snapshot.rs"),
-    )
-    .unwrap();
+    let tests =
+        upstream::read_source(root.join("crates/leselang-runtime-core/tests/capture_snapshot.rs"))
+            .unwrap();
     for proof in [
         "ordered_native_preparation_uses_original_gui_local_context_and_moves_category_rows",
         "complete_count_and_utf8_name_preflight_precedes_every_native_hook",
@@ -1834,9 +1955,8 @@ fn real_capture_construction_uses_shared_bounded_snapshot_with_native_charge_pol
 #[test]
 fn real_shared_control_entries_retain_owned_outputs_through_prefix_and_native_owner_cleanup() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let core =
-        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/owned_scope.rs"))
-            .unwrap();
+    let core = upstream::read_source(root.join("crates/leselang-runtime-core/src/owned_scope.rs"))
+        .unwrap();
     let production = core
         .lines()
         .filter(|line| !line.trim_start().starts_with("//"))
@@ -1862,13 +1982,11 @@ fn real_shared_control_entries_retain_owned_outputs_through_prefix_and_native_ow
     assert!(output < core.find("drop(scope)").unwrap());
     assert!(core.find("drop(scope)").unwrap() < core.find("drop(bindings)").unwrap());
     let single =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_reentry.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_reentry.rs")).unwrap();
     let stacked =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_stack.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_stack.rs")).unwrap();
     let session =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_session.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_session.rs")).unwrap();
     for source in [&single, &stacked, &session] {
         assert!(source.contains("with_owned_scope_state("));
     }
@@ -2005,7 +2123,7 @@ fn leselang_frontend_core_and_reference_facade_have_explicit_dependency_boundari
 #[test]
 fn shared_control_ir_has_explicit_native_slots_and_reference_aliases_not_a_second_tree() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let ir = std::fs::read_to_string(root.join("crates/leselang-hir-core/src/ir.rs")).unwrap();
+    let ir = upstream::read_source(root.join("crates/leselang-hir-core/src/ir.rs")).unwrap();
     for product in [
         "HostOperation",
         "ResultField",
@@ -2039,7 +2157,7 @@ fn shared_control_ir_has_explicit_native_slots_and_reference_aliases_not_a_secon
 fn shared_argument_typing_uses_native_domains_and_the_reference_ir_bridge() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let checker =
-        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/argument_typing.rs"))
+        upstream::read_source(root.join("crates/leselang-runtime-core/src/argument_typing.rs"))
             .unwrap();
     for product in [
         "leselang_hir",
@@ -2060,7 +2178,7 @@ fn shared_argument_typing_uses_native_domains_and_the_reference_ir_bridge() {
     assert!(lower.contains("bind_source_arguments("));
     assert!(lower.contains("Type::Scalar(ty) => Some(ty)"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/source_call.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/source_call.rs")).unwrap();
     assert!(source.contains("check_argument_type(&parameter.domain, facts)"));
     assert!(source.contains("is_pure: true"));
     let domains =
@@ -2073,7 +2191,7 @@ fn shared_argument_typing_uses_native_domains_and_the_reference_ir_bridge() {
 fn native_source_call_bridge_uses_original_ast_catalog_and_shared_ir_without_product_types() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/source_call.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/source_call.rs")).unwrap();
     for product in [
         "HostOperation",
         "ResultField",
@@ -2117,7 +2235,7 @@ fn native_source_call_bridge_uses_original_ast_catalog_and_shared_ir_without_pro
 fn prepared_native_calls_delegate_owned_construction_and_require_fresh_whole_call_admission() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/source_call.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/source_call.rs")).unwrap();
     let finish = source
         .split_once("pub fn finish_call")
         .unwrap()
@@ -2195,7 +2313,7 @@ fn prepared_native_calls_delegate_owned_construction_and_require_fresh_whole_cal
 fn pure_type_inference_uses_shared_ir_and_native_queries_not_reference_product_types() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/pure_typing.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/pure_typing.rs")).unwrap();
     for product in [
         "crate::Type",
         "HostOperation",
@@ -2223,7 +2341,7 @@ fn pure_type_inference_uses_shared_ir_and_native_queries_not_reference_product_t
 fn atomic_call_inference_uses_native_catalogs_and_shared_types_not_product_commands() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/call_typing.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/call_typing.rs")).unwrap();
     for product in [
         "crate::Type",
         "HostOperation",
@@ -2254,7 +2372,7 @@ fn atomic_call_inference_uses_native_catalogs_and_shared_types_not_product_comma
 fn prepared_call_typing_keeps_one_ir_and_preflights_cold_schemas_before_type_metadata() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/prepared_typing.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/prepared_typing.rs"))
             .unwrap();
     for product in [
         "crate::Type",
@@ -2288,7 +2406,7 @@ fn prepared_call_typing_keeps_one_ir_and_preflights_cold_schemas_before_type_met
 fn call_result_dataflow_uses_explicit_native_mapping_after_all_cold_schemas() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/flow_typing.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/flow_typing.rs")).unwrap();
     for product in [
         "crate::Type",
         "HostOperation",
@@ -2322,7 +2440,7 @@ fn call_result_dataflow_uses_explicit_native_mapping_after_all_cold_schemas() {
 fn group_dataflow_keeps_one_engine_and_checks_cold_rows_before_native_exports() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/flow_typing.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/flow_typing.rs")).unwrap();
     for product in [
         "crate::Type",
         "HostOperation",
@@ -2359,7 +2477,7 @@ fn group_dataflow_keeps_one_engine_and_checks_cold_rows_before_native_exports() 
 fn opaque_host_dataflow_uses_the_same_engine_with_explicit_cold_admission_and_borrowed_types() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let flow =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/flow_typing.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/flow_typing.rs")).unwrap();
     for marker in [
         "pub trait HostFlowEnvironment<'expression",
         "pub struct HostFlowTypeLimits",
@@ -2510,7 +2628,7 @@ fn leselang_runtime_core_has_no_workspace_or_build_dependency_even_in_its_tests(
 fn mixed_host_groups_share_atomic_walk_typing_and_exact_native_declaration_admission() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let flow =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/flow_typing.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/flow_typing.rs")).unwrap();
     for marker in [
         "pub trait HostGroupFlowEnvironment",
         "pub struct HostGroupFlowTypeLimits",
@@ -2556,7 +2674,7 @@ fn mixed_host_groups_share_atomic_walk_typing_and_exact_native_declaration_admis
             < assembly.find("bindings.to_vec()").unwrap()
     );
     let prepared =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/prepared_typing.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/prepared_typing.rs"))
             .unwrap();
     assert!(prepared.contains(
         "preflight_atomic_leaves_with_budget(expression, depth, budget, max_arguments, false)"
@@ -2684,7 +2802,7 @@ fn flat_native_graph_types_reuse_shared_protocols_and_original_closed_member_obs
 fn actual_result_validation_is_product_free_and_shared_by_reference_raw_value_binding() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/host_result.rs"))
+        upstream::read_source(root.join("crates/leselang-runtime-core/src/host_result.rs"))
             .unwrap();
     for product in [
         "leselang_hir",
@@ -2736,7 +2854,7 @@ fn actual_result_validation_is_product_free_and_shared_by_reference_raw_value_bi
 fn pending_reply_ownership_is_product_free_and_closes_before_native_callbacks() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/reply.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-runtime-core/src/reply.rs")).unwrap();
     for product in [
         "leselang_hir",
         "ContinuationImage",
@@ -2788,7 +2906,7 @@ fn pending_reply_ownership_is_product_free_and_closes_before_native_callbacks() 
 fn shared_pure_execution_is_product_free_and_used_by_the_reference_vm() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/pure_evaluation.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/pure_evaluation.rs"))
             .unwrap();
     for product in [
         "crate::Type",
@@ -2814,7 +2932,7 @@ fn shared_pure_execution_is_product_free_and_used_by_the_reference_vm() {
     assert!(vm.contains("type LocalValue<'a> = PureValue<ResultView<'a>>"));
     assert!(vm.contains("evaluate_effects_in_scope("));
     let control =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_evaluation.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_evaluation.rs"))
             .unwrap();
     assert!(control.contains("evaluate_preflighted_in_scope("));
     assert!(vm.contains("PureEvaluationFault::Native(fault) => fault"));
@@ -2835,7 +2953,7 @@ fn shared_pure_execution_is_product_free_and_used_by_the_reference_vm() {
 #[test]
 fn atomic_call_execution_reuses_original_schema_control_and_argument_engines_without_a_new_meter() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let source = std::fs::read_to_string(
+    let source = upstream::read_source(
         root.join("crates/leselang-hir-core/src/prepared_call_evaluation.rs"),
     )
     .unwrap();
@@ -2938,7 +3056,7 @@ fn atomic_call_execution_reuses_original_schema_control_and_argument_engines_wit
 fn shared_call_preparation_connects_native_catalogs_and_values_to_the_reference_vm() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/call_evaluation.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/call_evaluation.rs"))
             .unwrap();
     for product in [
         "crate::Type",
@@ -2997,7 +3115,7 @@ fn shared_call_preparation_connects_native_catalogs_and_values_to_the_reference_
 fn atomic_group_preparation_shares_whole_cold_admission_and_original_execution_without_a_new_walker()
  {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let source = std::fs::read_to_string(
+    let source = upstream::read_source(
         root.join("crates/leselang-hir-core/src/prepared_call_evaluation.rs"),
     )
     .unwrap();
@@ -3077,7 +3195,7 @@ fn atomic_group_preparation_shares_whole_cold_admission_and_original_execution_w
 fn shared_effect_control_drives_reference_vm_with_explicit_non_dispatching_capture_hooks() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_evaluation.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_evaluation.rs"))
             .unwrap();
     for product in [
         "crate::Type",
@@ -3131,8 +3249,7 @@ fn shared_effect_control_drives_reference_vm_with_explicit_non_dispatching_captu
 fn shared_scalar_source_construction_is_product_free_and_delegated_by_reference_compiler() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/scalar_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/scalar_source.rs")).unwrap();
     for product in [
         "crate::Type",
         "HostOperation",
@@ -3198,8 +3315,7 @@ fn shared_scalar_source_construction_is_product_free_and_delegated_by_reference_
 fn shared_scalar_source_bindings_keep_explicit_policy_and_read_only_native_scope() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/scalar_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/scalar_source.rs")).unwrap();
     for boundary in [
         "pub struct ScalarSourceLimits",
         "pub max_bindings: usize",
@@ -3259,8 +3375,7 @@ fn shared_scalar_source_bindings_keep_explicit_policy_and_read_only_native_scope
 fn shared_native_binding_source_keeps_explicit_stages_bounds_and_product_policy() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/binding_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/binding_source.rs")).unwrap();
     for boundary in [
         "pub struct BindingSourceLimits",
         "pub enum BindingSourcePhase",
@@ -3357,8 +3472,7 @@ fn shared_native_binding_source_keeps_explicit_stages_bounds_and_product_policy(
 fn shared_native_choice_source_requires_explicit_queries_after_cold_bounds() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/choice_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/choice_source.rs")).unwrap();
     for forbidden in [
         "leselang_host_contract",
         "leserpent",
@@ -3417,7 +3531,7 @@ fn shared_native_choice_source_requires_explicit_queries_after_cold_bounds() {
 fn shared_flat_group_source_keeps_cold_output_before_explicit_native_admission() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/group_source.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/group_source.rs")).unwrap();
     for forbidden in [
         "leselang_host_contract",
         "leserpent",
@@ -3508,8 +3622,7 @@ fn shared_flat_group_source_keeps_cold_output_before_explicit_native_admission()
 fn shared_flat_repeat_source_reserves_complete_output_before_explicit_native_factories() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/repeat_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/repeat_source.rs")).unwrap();
     for forbidden in [
         "leselang_host_contract",
         "leserpent",
@@ -3604,7 +3717,7 @@ fn shared_flat_repeat_source_reserves_complete_output_before_explicit_native_fac
 fn shared_owned_sequence_source_moves_native_children_without_effect_round_trips() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/sequence_source.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/sequence_source.rs"))
             .unwrap();
     for forbidden in [
         "leselang_host_contract",
@@ -3693,10 +3806,9 @@ fn shared_owned_sequence_source_moves_native_children_without_effect_round_trips
 #[test]
 fn shared_repeat_sequence_source_reserves_whole_forests_before_native_factories_and_admission() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let source = std::fs::read_to_string(
-        root.join("crates/leselang-hir-core/src/repeat_sequence_source.rs"),
-    )
-    .unwrap();
+    let source =
+        upstream::read_source(root.join("crates/leselang-hir-core/src/repeat_sequence_source.rs"))
+            .unwrap();
     for forbidden in [
         "leselang_host_contract",
         "leserpent",
@@ -3782,7 +3894,7 @@ fn shared_sequence_sessions_gate_each_request_on_the_original_accepted_reply_wit
 {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/sequence_evaluation.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/sequence_evaluation.rs"))
             .unwrap();
     let production = source
         .lines()
@@ -3935,7 +4047,7 @@ fn shared_sequence_sessions_gate_each_request_on_the_original_accepted_reply_wit
 fn catalog_flat_group_compilation_reuses_shared_scopes_lowering_and_full_flow_admission() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/catalog_group_source.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/catalog_group_source.rs"))
             .unwrap();
     for forbidden in [
         "leselang_vm",
@@ -3993,13 +4105,11 @@ fn catalog_flat_group_compilation_reuses_shared_scopes_lowering_and_full_flow_ad
     let lower = entry.find("lower_preflighted_control_source(").unwrap();
     assert!(lexical < groups && groups < catalog && catalog < lower);
     let scalar =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/scalar_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/scalar_source.rs")).unwrap();
     assert!(scalar.contains("preflight_binding_scope(expression, scope, max_bindings, false)"));
     assert!(scalar.contains("preflight_binding_scope(expression, scope, max_bindings, true)"));
     let legacy =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/catalog_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/catalog_source.rs")).unwrap();
     assert!(legacy.contains("cold_catalog_profile(source, host, limits, false, local_call)"));
     let tests =
         std::fs::read_to_string(root.join("crates/leselang-hir/tests/catalog_group_source.rs"))
@@ -4033,7 +4143,7 @@ fn catalog_flat_group_compilation_reuses_shared_scopes_lowering_and_full_flow_ad
 fn complete_group_reply_assembly_is_native_free_and_keeps_cold_checks_before_owned_fuel() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/group_reply.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/group_reply.rs")).unwrap();
     let production = source
         .lines()
         .filter(|line| !line.trim_start().starts_with("//"))
@@ -4092,7 +4202,7 @@ fn complete_group_reply_assembly_is_native_free_and_keeps_cold_checks_before_own
     assert!(!check.contains("admit("));
     for path in ["sequence_evaluation", "parallel_evaluation"] {
         let session =
-            std::fs::read_to_string(root.join(format!("crates/leselang-hir-core/src/{path}.rs")))
+            upstream::read_source(root.join(format!("crates/leselang-hir-core/src/{path}.rs")))
                 .unwrap();
         assert!(session.contains("pub fn into_completed_fuel(self) -> Result<Fuel, Self>"));
         assert!(session.contains("Ok(self.fuel)"));
@@ -4128,7 +4238,7 @@ fn complete_group_reply_assembly_is_native_free_and_keeps_cold_checks_before_own
 fn native_parallel_sessions_share_atomic_adapters_and_close_the_complete_reply_barrier() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/parallel_evaluation.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/parallel_evaluation.rs"))
             .unwrap();
     let production = source
         .lines()
@@ -4235,8 +4345,7 @@ fn shared_accepted_binding_reentry_preserves_original_sites_and_validation_order
  {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_reentry.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_reentry.rs")).unwrap();
     let production = source
         .lines()
         .filter(|line| !line.trim_start().starts_with("//"))
@@ -4308,7 +4417,7 @@ fn shared_accepted_binding_reentry_preserves_original_sites_and_validation_order
     assert!(projection < resume.find("bind_effect_value(").unwrap());
     assert!(resume.find("bind_effect_value(").unwrap() < body);
     let walker =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_evaluation.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_evaluation.rs"))
             .unwrap();
     assert!(walker.contains("EffectContinuation::new(name, body, capture)"));
     assert!(walker.contains(".map(ResumableEffectOutcome::into_legacy)"));
@@ -4344,8 +4453,7 @@ fn shared_accepted_binding_reentry_preserves_original_sites_and_validation_order
 fn borrowed_control_session_keeps_reply_ready_and_owned_fuel_without_product_state() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_session.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_session.rs")).unwrap();
     let production = source
         .split("\n#[cfg(test)]\n")
         .next()
@@ -4477,8 +4585,7 @@ fn borrowed_control_session_keeps_reply_ready_and_owned_fuel_without_product_sta
 fn recursive_control_source_is_borrowed_once_admitted_and_product_free() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/control_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/control_source.rs")).unwrap();
     let production = source
         .lines()
         .filter(|line| !line.trim_start().starts_with("//"))
@@ -4566,10 +4673,9 @@ fn recursive_control_source_is_borrowed_once_admitted_and_product_free() {
 #[test]
 fn bound_native_projection_source_has_exact_borrowed_type_queries_without_product_frames() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let source = std::fs::read_to_string(
-        root.join("crates/leselang-hir-core/src/bound_projection_source.rs"),
-    )
-    .unwrap();
+    let source =
+        upstream::read_source(root.join("crates/leselang-hir-core/src/bound_projection_source.rs"))
+            .unwrap();
     let production = source
         .split("#[cfg(test)]")
         .next()
@@ -4677,8 +4783,7 @@ fn bound_native_projection_source_has_exact_borrowed_type_queries_without_produc
 fn shared_scalar_loop_source_reuses_original_ir_scope_limits_and_reference_gates() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/scalar_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/scalar_source.rs")).unwrap();
     for boundary in [
         "pub(crate) struct LoopSource",
         "pub(crate) fn loop_source",
@@ -4733,8 +4838,7 @@ fn shared_scalar_loop_source_reuses_original_ir_scope_limits_and_reference_gates
 fn shared_scalar_fold_source_keeps_two_local_policy_without_collection_execution() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/scalar_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/scalar_source.rs")).unwrap();
     for boundary in [
         "pub(crate) use fold::{FoldSource, fold_items, fold_next, fold_source}",
         "preflight_binding_scope(source.items, scope, max_bindings, closed)",
@@ -4749,7 +4853,7 @@ fn shared_scalar_fold_source_keeps_two_local_policy_without_collection_execution
         );
     }
     let fold =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/scalar_source/fold.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/scalar_source/fold.rs"))
             .unwrap();
     for boundary in [
         "pub(crate) struct FoldSource",
@@ -4823,7 +4927,7 @@ fn shared_scalar_fold_source_keeps_two_local_policy_without_collection_execution
 fn shared_projection_source_keeps_native_export_queries_bounded_and_reference_compatible() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/projection_source.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/projection_source.rs"))
             .unwrap();
     for boundary in [
         "pub trait ProjectionSourceEnvironment",
@@ -4916,7 +5020,7 @@ fn shared_projection_source_keeps_native_export_queries_bounded_and_reference_co
 fn reference_field_frontend_uses_shared_consuming_stages_without_changing_public_preflight() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/projection_source.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/projection_source.rs"))
             .unwrap();
     let production = source.split_once("#[cfg(test)]").unwrap().0;
     let staged = production
@@ -5033,7 +5137,7 @@ fn reference_field_frontend_uses_shared_consuming_stages_without_changing_public
 fn native_host_source_owns_once_preparation_admission_and_construction_without_product_policy() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/host_source.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/host_source.rs")).unwrap();
     let public = source
         .split_once("pub fn lower_host_source")
         .unwrap()
@@ -5205,8 +5309,7 @@ fn reference_member_frontend_uses_shared_bounds_and_exact_borrowed_native_group_
 fn shared_owned_helper_hygiene_preserves_native_slots_and_reference_expansion_policy() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/helper_hygiene.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_hygiene.rs")).unwrap();
     for boundary in [
         "pub struct HelperHygieneLimits",
         "pub enum HelperHygieneError",
@@ -5311,8 +5414,7 @@ fn shared_helper_signature_and_arguments_keep_source_borrows_native_slots_and_ex
 {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/helper_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_source.rs")).unwrap();
     for boundary in [
         "pub fn helper_parameters",
         "pub struct HelperSignature",
@@ -5384,7 +5486,7 @@ fn shared_helper_signature_and_arguments_keep_source_borrows_native_slots_and_ex
     let reference =
         std::fs::read_to_string(root.join("crates/leserpent-hir/src/functions.rs")).unwrap();
     let parameter_adapter =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/helper_body_source.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_body_source.rs"))
             .unwrap();
     assert!(
         parameter_adapter
@@ -5429,7 +5531,7 @@ fn shared_helper_signature_and_arguments_keep_source_borrows_native_slots_and_ex
 fn shared_helper_dependencies_keep_borrowed_bounded_lazy_planning_separate_from_execution() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/helper_dependencies.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_dependencies.rs"))
             .unwrap();
     for boundary in [
         "pub const MAX_DEPENDENCY_HELPERS: usize = 31",
@@ -5511,8 +5613,7 @@ fn shared_helper_dependencies_keep_borrowed_bounded_lazy_planning_separate_from_
             "unexpected dependency coupling {coupling}"
         );
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod helper_dependencies;"));
     let reference =
         std::fs::read_to_string(root.join("crates/leserpent-hir/src/functions.rs")).unwrap();
@@ -5545,11 +5646,10 @@ fn shared_helper_dependencies_keep_borrowed_bounded_lazy_planning_separate_from_
             < lowerer.find("lower_expression_with_functions(").unwrap()
     );
     let assembly =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/helper_registry.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_registry.rs"))
             .unwrap();
     let program =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/program_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/program_source.rs")).unwrap();
     assert!(program.contains(
         "assemble_helper_registry(declarations, limits.helpers, state, prepare, register)"
     ));
@@ -5597,7 +5697,7 @@ fn shared_helper_dependencies_keep_borrowed_bounded_lazy_planning_separate_from_
 fn shared_owned_helper_wrappers_keep_shifted_bounds_capture_fences_and_native_slot_ownership() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/helper_bindings.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_bindings.rs"))
             .unwrap();
     for boundary in [
         "pub struct HelperBinding<Node>",
@@ -5673,8 +5773,7 @@ fn shared_owned_helper_wrappers_keep_shifted_bounds_capture_fences_and_native_sl
             "unexpected wrapper coupling {coupling}"
         );
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod helper_bindings;"));
     let reference =
         std::fs::read_to_string(root.join("crates/leserpent-hir/src/functions.rs")).unwrap();
@@ -5725,7 +5824,7 @@ fn shared_owned_helper_wrappers_keep_shifted_bounds_capture_fences_and_native_sl
 fn shared_source_cost_walk_bounds_cold_trees_before_borrowed_native_observations() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/source_cost.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/source_cost.rs")).unwrap();
     for boundary in [
         "pub struct SourceCostLimits",
         "pub struct SourceCostExtra",
@@ -5794,8 +5893,7 @@ fn shared_source_cost_walk_bounds_cold_trees_before_borrowed_native_observations
             "unexpected source-cost coupling {coupling}"
         );
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod source_cost;"));
     let reference =
         std::fs::read_to_string(root.join("crates/leserpent-hir/src/functions.rs")).unwrap();
@@ -5855,8 +5953,7 @@ fn shared_source_cost_walk_bounds_cold_trees_before_borrowed_native_observations
 fn shared_helper_normal_returns_admit_all_cold_copies_without_native_clone_authority() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/helper_returns.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_returns.rs")).unwrap();
     for boundary in [
         "pub struct HelperReturnLimits",
         "pub struct HelperReturnShape",
@@ -5935,8 +6032,7 @@ fn shared_helper_normal_returns_admit_all_cold_copies_without_native_clone_autho
             "unexpected helper return coupling {coupling}"
         );
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod helper_returns;"));
     let adapter =
         std::fs::read_to_string(root.join("crates/leserpent-hir/src/function_flow.rs")).unwrap();
@@ -5985,7 +6081,7 @@ fn shared_helper_normal_returns_admit_all_cold_copies_without_native_clone_autho
 fn shared_bounded_helper_join_checks_cold_costs_before_native_copy_and_whole_admission() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/helper_join.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_join.rs")).unwrap();
     for boundary in [
         "pub struct HelperJoinLimits",
         "pub enum HelperJoinError<Error>",
@@ -6073,8 +6169,7 @@ fn shared_bounded_helper_join_checks_cold_costs_before_native_copy_and_whole_adm
             "unexpected helper join coupling {coupling}"
         );
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod helper_join;"));
     let adapter =
         std::fs::read_to_string(root.join("crates/leserpent-hir/src/function_flow.rs")).unwrap();
@@ -6122,7 +6217,7 @@ fn shared_bounded_helper_join_checks_cold_costs_before_native_copy_and_whole_adm
 fn shared_helper_expansion_reservation_preserves_source_costs_without_execution_authority() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/helper_expansion.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_expansion.rs"))
             .unwrap();
     for boundary in [
         "pub struct HelperExpansionCost",
@@ -6198,8 +6293,7 @@ fn shared_helper_expansion_reservation_preserves_source_costs_without_execution_
             "unexpected expansion coupling {coupling}"
         );
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod helper_expansion;"));
     let reference =
         std::fs::read_to_string(root.join("crates/leserpent-hir/src/functions.rs")).unwrap();
@@ -6264,8 +6358,7 @@ fn shared_helper_expansion_reservation_preserves_source_costs_without_execution_
 fn shared_closed_group_exports_preflight_cold_routes_before_explicit_native_identity_hooks() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/group_exports.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/group_exports.rs")).unwrap();
     for boundary in [
         "pub struct GroupExportLimits",
         "pub struct GroupExport<'name, Operation>",
@@ -6369,8 +6462,7 @@ fn shared_closed_group_exports_preflight_cold_routes_before_explicit_native_iden
     assert!(reference.contains("let group_member_count = members.as_ref().map(Vec::len);"));
     assert!(reference.contains("group_member_count.is_none_or(|count|"));
     assert_eq!(reference.matches("group_members(&value,").count(), 1);
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod group_exports;"));
     let proof =
         std::fs::read_to_string(root.join("crates/leselang-hir/tests/group_exports.rs")).unwrap();
@@ -6401,12 +6493,11 @@ fn shared_closed_group_exports_preflight_cold_routes_before_explicit_native_iden
 fn shared_selected_helper_instances_reserve_before_copy_and_admit_complete_hygienic_output() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/helper_instance.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_instance.rs"))
             .unwrap();
-    let finish = std::fs::read_to_string(
-        root.join("crates/leselang-hir-core/src/helper_instance_finish.rs"),
-    )
-    .unwrap();
+    let finish =
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_instance_finish.rs"))
+            .unwrap();
     for contract in [
         "pub fn lower_helper_instance",
         "pub trait HelperInstanceAdapter",
@@ -6457,8 +6548,7 @@ fn shared_selected_helper_instances_reserve_before_copy_and_admit_complete_hygie
         assert!(position >= previous, "out-of-order helper stage {stage}");
         previous = position;
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod helper_instance;"));
     let proof =
         std::fs::read_to_string(root.join("crates/leselang-hir/tests/helper_instance.rs")).unwrap();
@@ -6487,10 +6577,9 @@ fn shared_selected_helper_instances_reserve_before_copy_and_admit_complete_hygie
 #[test]
 fn staged_helper_completion_is_shared_and_the_reference_keeps_one_recursive_counter() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let source = std::fs::read_to_string(
-        root.join("crates/leselang-hir-core/src/helper_instance_finish.rs"),
-    )
-    .unwrap();
+    let source =
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_instance_finish.rs"))
+            .unwrap();
     for contract in [
         "pub struct HelperInstanceArgument<Node>",
         "pub trait HelperInstanceFinisher",
@@ -6553,7 +6642,7 @@ fn staged_helper_completion_is_shared_and_the_reference_keeps_one_recursive_coun
         );
     }
     let original =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/helper_instance.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_instance.rs"))
             .unwrap();
     assert!(original.contains("finish_preflighted_instance("));
     assert!(!original.contains("reserve_helper_expansion("));
@@ -6623,7 +6712,7 @@ fn staged_helper_completion_is_shared_and_the_reference_keeps_one_recursive_coun
 fn shared_helper_body_source_owns_closed_signature_and_original_counter_before_admission() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/helper_body_source.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_body_source.rs"))
             .unwrap();
     for boundary in [
         "pub struct HelperBodySourceLimits",
@@ -6710,8 +6799,7 @@ fn shared_helper_body_source_owns_closed_signature_and_original_counter_before_a
             "unexpected helper source coupling {coupling}"
         );
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod helper_body_source;"));
     let reference =
         std::fs::read_to_string(root.join("crates/leserpent-hir/src/functions.rs")).unwrap();
@@ -6771,7 +6859,7 @@ fn shared_helper_body_source_owns_closed_signature_and_original_counter_before_a
 fn shared_lowered_helper_body_admission_corroborates_cold_types_before_native_cost_and_storage() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/helper_body.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_body.rs")).unwrap();
     for boundary in [
         "pub struct LoweredHelperBody<Node, ResultType>",
         "pub struct HelperBody<Node, ResultType>",
@@ -6837,8 +6925,7 @@ fn shared_lowered_helper_body_admission_corroborates_cold_types_before_native_co
             "unexpected body admission coupling {coupling}"
         );
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod helper_body;"));
     let reference =
         std::fs::read_to_string(root.join("crates/leserpent-hir/src/functions.rs")).unwrap();
@@ -6882,7 +6969,7 @@ fn shared_lowered_helper_body_admission_corroborates_cold_types_before_native_co
 fn shared_owned_helper_templates_preflight_once_factories_without_native_copy_or_authority() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/helper_templates.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_templates.rs"))
             .unwrap();
     for boundary in [
         "pub struct HelperTemplate<Node, ResultType>",
@@ -6960,8 +7047,7 @@ fn shared_owned_helper_templates_preflight_once_factories_without_native_copy_or
             "unexpected template coupling {coupling}"
         );
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod helper_templates;"));
     let reference =
         std::fs::read_to_string(root.join("crates/leserpent-hir/src/functions.rs")).unwrap();
@@ -7037,7 +7123,7 @@ fn shared_owned_helper_templates_preflight_once_factories_without_native_copy_or
 fn shared_owned_helper_registry_keeps_lazy_preparation_and_complete_native_state_handoff() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/helper_registry.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_registry.rs"))
             .unwrap();
     for boundary in [
         "pub struct HelperRegistryLimits",
@@ -7133,8 +7219,7 @@ fn shared_owned_helper_registry_keeps_lazy_preparation_and_complete_native_state
             "unexpected registry coupling {coupling}"
         );
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod helper_registry;"));
     let reference =
         std::fs::read_to_string(root.join("crates/leserpent-hir/src/functions.rs")).unwrap();
@@ -7202,8 +7287,7 @@ fn shared_owned_helper_registry_keeps_lazy_preparation_and_complete_native_state
 fn shared_program_assembly_owns_complete_state_entry_and_mandatory_final_admission() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/program_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/program_source.rs")).unwrap();
     for boundary in [
         "pub struct ProgramSourceLimits",
         "pub enum ProgramSourceError<Lowering, Registration, Entry, Admission>",
@@ -7289,8 +7373,7 @@ fn shared_program_assembly_owns_complete_state_entry_and_mandatory_final_admissi
             "unexpected program assembly coupling {coupling}"
         );
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod program_source;"));
     let reference =
         std::fs::read_to_string(root.join("crates/leserpent-hir/src/functions.rs")).unwrap();
@@ -7365,7 +7448,7 @@ fn shared_program_assembly_owns_complete_state_entry_and_mandatory_final_admissi
 fn shared_helper_declaration_admission_borrows_complete_forests_without_product_policy() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/helper_declarations.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/helper_declarations.rs"))
             .unwrap();
     for boundary in [
         "pub struct HelperDeclarationLimits",
@@ -7453,8 +7536,7 @@ fn shared_helper_declaration_admission_borrows_complete_forests_without_product_
             "unexpected declaration coupling {coupling}"
         );
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod helper_declarations;"));
     let reference =
         std::fs::read_to_string(root.join("crates/leserpent-hir/src/functions.rs")).unwrap();
@@ -7512,7 +7594,7 @@ fn shared_helper_declaration_admission_borrows_complete_forests_without_product_
 fn native_graph_inspection_borrows_original_slots_and_stays_separate_from_native_typing() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/native_graph.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/native_graph.rs")).unwrap();
     let compact = source.split_whitespace().collect::<String>();
     for boundary in [
         "pub struct NativeGraphLimits",
@@ -7579,8 +7661,7 @@ fn native_graph_inspection_borrows_original_slots_and_stays_separate_from_native
             "unexpected graph coupling {coupling}"
         );
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod native_graph;"));
     let reference =
         std::fs::read_to_string(root.join("crates/leserpent-hir/src/leserpent_profile.rs"))
@@ -7655,7 +7736,7 @@ fn native_graph_inspection_borrows_original_slots_and_stays_separate_from_native
 fn closed_native_member_admission_is_borrowed_bounded_and_used_by_product_and_gui_adapters() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/native_group.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/native_group.rs")).unwrap();
     let compact = source.split_whitespace().collect::<String>();
     for marker in [
         "pub struct NativeGroupMembers<'group, Branch>",
@@ -7730,8 +7811,7 @@ fn closed_native_member_admission_is_borrowed_bounded_and_used_by_product_and_gu
             "unexpected native member coupling {coupling}"
         );
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod native_group;"));
     let adapter =
         std::fs::read_to_string(root.join("crates/leserpent-hir/src/pure_reference.rs")).unwrap();
@@ -7782,7 +7862,7 @@ fn closed_native_member_admission_is_borrowed_bounded_and_used_by_product_and_gu
 fn fresh_native_export_assembly_is_shared_bounded_and_requires_complete_final_native_admission() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/native_group_exports.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/native_group_exports.rs"))
             .unwrap();
     let compact = source.split_whitespace().collect::<String>();
     for marker in [
@@ -7846,8 +7926,7 @@ fn fresh_native_export_assembly_is_shared_bounded_and_requires_complete_final_na
             "unexpected native export coupling {coupling}"
         );
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod native_group_exports;"));
     let entry = compact
         .split_once("pubfnobserve_native_group_exports")
@@ -7948,10 +8027,9 @@ fn fresh_native_export_assembly_is_shared_bounded_and_requires_complete_final_na
 #[test]
 fn fresh_closed_signature_comparison_borrows_both_sides_before_explicit_native_identity_pairs() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let source = std::fs::read_to_string(
-        root.join("crates/leselang-hir-core/src/native_group_signature.rs"),
-    )
-    .unwrap();
+    let source =
+        upstream::read_source(root.join("crates/leselang-hir-core/src/native_group_signature.rs"))
+            .unwrap();
     let compact = source.split_whitespace().collect::<String>();
     for marker in [
         "pub enum NativeGroupSignatureSide",
@@ -8026,12 +8104,10 @@ fn fresh_closed_signature_comparison_borrows_both_sides_before_explicit_native_i
     for abrupt in ["panic!(", "expect(", "unwrap("] {
         assert!(!entry.contains(abrupt), "abrupt signature path {abrupt}");
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod native_group_signature;"));
     let exports =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/group_exports.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/group_exports.rs")).unwrap();
     assert!(exports.contains("crate::native_group_signature::compare_native_group_signatures("));
     let export_compact = exports
         .split_whitespace()
@@ -8102,7 +8178,7 @@ fn fresh_closed_signature_comparison_borrows_both_sides_before_explicit_native_i
 fn fresh_closed_member_lookup_preflights_whole_names_before_once_original_selection() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/native_group_lookup.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/native_group_lookup.rs"))
             .unwrap();
     let compact = source.split_whitespace().collect::<String>();
     for marker in [
@@ -8186,8 +8262,7 @@ fn fresh_closed_member_lookup_preflights_whole_names_before_once_original_select
             "abrupt member lookup path {abrupt}"
         );
     }
-    let modules =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
+    let modules = upstream::read_source(root.join("crates/leselang-hir-core/src/lib.rs")).unwrap();
     assert!(modules.contains("pub mod native_group_lookup;"));
     let adapter =
         std::fs::read_to_string(root.join("crates/leserpent-hir/src/pure_reference.rs")).unwrap();
@@ -8280,8 +8355,7 @@ fn fresh_closed_member_lookup_preflights_whole_names_before_once_original_select
 fn language_group_shape_preflight_reuses_native_names_without_new_admission_or_source_grammar() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let exports =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/group_exports.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/group_exports.rs")).unwrap();
     let shape = exports
         .split_once("fn member_shape")
         .unwrap()
@@ -8338,7 +8412,7 @@ fn language_group_shape_preflight_reuses_native_names_without_new_admission_or_s
     );
     assert!(compact.contains("member.name"));
     let flow =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/flow_typing.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/flow_typing.rs")).unwrap();
     let flow_preflight = flow
         .split_once("fn preflight")
         .unwrap()
@@ -8375,7 +8449,7 @@ fn language_group_shape_preflight_reuses_native_names_without_new_admission_or_s
         assert!(compact.find(pair[0]).unwrap() < compact.find(pair[1]).unwrap());
     }
     let effect =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_evaluation.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_evaluation.rs"))
             .unwrap();
     let effect_preflight = effect
         .split_once("pub(crate) fn preflight")
@@ -8424,7 +8498,7 @@ fn language_group_shape_preflight_reuses_native_names_without_new_admission_or_s
         }
     }
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/group_source.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/group_source.rs")).unwrap();
     let header = source
         .split_once("pub(crate) fn header")
         .unwrap()
@@ -8477,7 +8551,7 @@ fn language_group_shape_preflight_reuses_native_names_without_new_admission_or_s
             &["source_group_labels_keep_stricter_lexical_grammar_than_ir_member_names"][..],
         ),
     ] {
-        let proof = std::fs::read_to_string(root.join(path)).unwrap();
+        let proof = upstream::read_source(root.join(path)).unwrap();
         for marker in markers {
             assert!(
                 proof.contains(marker),
@@ -8491,7 +8565,7 @@ fn language_group_shape_preflight_reuses_native_names_without_new_admission_or_s
 fn fixed_source_signatures_share_allocation_free_original_borrows_without_native_policy() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/source_call.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/source_call.rs")).unwrap();
     let decoder = source
         .split_once("pub(crate) fn fixed_named_operands")
         .unwrap()
@@ -8551,7 +8625,7 @@ fn fixed_source_signatures_share_allocation_free_original_borrows_without_native
             "pub(crate) struct MemberSource",
         ),
     ] {
-        let caller = std::fs::read_to_string(root.join(path)).unwrap();
+        let caller = upstream::read_source(root.join(path)).unwrap();
         let fixed = caller
             .split_once(start)
             .unwrap()
@@ -8568,8 +8642,7 @@ fn fixed_source_signatures_share_allocation_free_original_borrows_without_native
         }
     }
     let scalar =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/scalar_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/scalar_source.rs")).unwrap();
     let cold = scalar
         .split_once("pub(crate) fn preflight_names")
         .unwrap()
@@ -8612,7 +8685,7 @@ fn fixed_source_signatures_share_allocation_free_original_borrows_without_native
             &["shared_fixed_projection_signature_keeps_exact_errors_before_native_queries"][..],
         ),
     ] {
-        let tests = std::fs::read_to_string(root.join(path)).unwrap();
+        let tests = upstream::read_source(root.join(path)).unwrap();
         for marker in markers {
             assert!(
                 tests.contains(marker),
@@ -8625,7 +8698,7 @@ fn fixed_source_signatures_share_allocation_free_original_borrows_without_native
 #[test]
 fn exact_ir_child_cursors_keep_compact_original_borrows_and_physical_budget_fences() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let ir = std::fs::read_to_string(root.join("crates/leselang-hir-core/src/ir.rs")).unwrap();
+    let ir = upstream::read_source(root.join("crates/leselang-hir-core/src/ir.rs")).unwrap();
     let cursor = ir
         .split_once("struct ChildNodes")
         .unwrap()
@@ -8680,8 +8753,7 @@ fn exact_ir_child_cursors_keep_compact_original_borrows_and_physical_budget_fenc
     assert!(!children.contains(".chain("));
     assert!(!children.contains(".flatten("));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/binding_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/binding_source.rs")).unwrap();
     let walk = source
         .split_once("pub(crate) fn physical")
         .unwrap()
@@ -8758,7 +8830,7 @@ fn exact_ir_child_cursors_keep_compact_original_borrows_and_physical_budget_fenc
 #[test]
 fn shared_purity_uses_compact_cold_child_cursors_without_native_bounds_or_hidden_authority() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let ir = std::fs::read_to_string(root.join("crates/leselang-hir-core/src/ir.rs")).unwrap();
+    let ir = upstream::read_source(root.join("crates/leselang-hir-core/src/ir.rs")).unwrap();
     let walk = ir.split_once("pub fn is_pure(&self) -> bool").unwrap().1;
     for required in [
         "let mut frames = Vec::new()",
@@ -8803,7 +8875,7 @@ fn shared_purity_uses_compact_cold_child_cursors_without_native_bounds_or_hidden
         "crates/leselang-hir-core/src/helper_body.rs",
         "crates/leselang-hir-core/src/group_exports.rs",
     ] {
-        let consumer = std::fs::read_to_string(root.join(path)).unwrap();
+        let consumer = upstream::read_source(root.join(path)).unwrap();
         assert!(consumer.contains(".is_pure()"));
         assert!(!consumer.contains("fn is_pure("));
     }
@@ -8838,8 +8910,7 @@ fn catalog_expression_pipeline_owns_source_orchestration_before_native_metadata_
  {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/catalog_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/catalog_source.rs")).unwrap();
     let entry = source
         .split_once("pub fn compile_catalog_source")
         .unwrap()
@@ -8937,7 +9008,7 @@ fn catalog_expression_pipeline_owns_source_orchestration_before_native_metadata_
 fn catalog_multifunction_entry_owns_helper_recursion_hygiene_and_nonrefunding_work_bounds() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let program =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/catalog_program.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/catalog_program.rs"))
             .unwrap();
     let entry = program
         .split_once("pub fn compile_catalog_program")
@@ -8992,8 +9063,7 @@ fn catalog_multifunction_entry_owns_helper_recursion_hygiene_and_nonrefunding_wo
         );
     }
     let compiler =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/catalog_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/catalog_source.rs")).unwrap();
     assert!(compiler.contains("program.lower_helper("));
     assert!(compiler.contains("let scalar_types: Vec<_> = local"));
     assert!(compiler.contains(".bindings()"));
@@ -9039,10 +9109,10 @@ fn group_entry_program_reuses_helper_preflight_hygiene_work_and_final_flow_witho
  {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let group =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/catalog_group_source.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/catalog_group_source.rs"))
             .unwrap();
     let program =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/catalog_program.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/catalog_program.rs"))
             .unwrap();
     let entry = group
         .split_once("pub fn compile_catalog_group_program")
@@ -9127,14 +9197,13 @@ fn group_entry_program_reuses_helper_preflight_hygiene_work_and_final_flow_witho
 fn group_helper_program_keeps_language_owned_lowering_and_original_native_reentry_protocol() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let group =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/catalog_group_source.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/catalog_group_source.rs"))
             .unwrap();
     let program =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/catalog_program.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/catalog_program.rs"))
             .unwrap();
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/catalog_source.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/catalog_source.rs")).unwrap();
     let entry = group
         .split_once("pub fn compile_catalog_group_helper_program")
         .unwrap()
@@ -9195,7 +9264,7 @@ fn group_helper_program_keeps_language_owned_lowering_and_original_native_reentr
 fn prepared_source_member_profile_reuses_cold_helper_facts_and_original_uniform_inference() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let group =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/catalog_group_source.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/catalog_group_source.rs"))
             .unwrap();
     let old = group
         .split_once("pub fn compile_catalog_group_helper_program")
@@ -9224,14 +9293,14 @@ fn prepared_source_member_profile_reuses_cold_helper_facts_and_original_uniform_
     );
     assert!(group.contains("!std::ptr::eq(result, &schema.result)"));
     let program =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/catalog_program.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/catalog_program.rs"))
             .unwrap();
     assert!(
         program.find("cold_prepared_members(").unwrap()
             < program.find("for function in order {").unwrap()
     );
     let facts =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/catalog_atomic_source.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/catalog_atomic_source.rs"))
             .unwrap();
     for required in [
         "binding_source::<()>",
@@ -9250,8 +9319,7 @@ fn prepared_source_member_profile_reuses_cold_helper_facts_and_original_uniform_
             < facts.find("Vec::with_capacity(width)").unwrap()
     );
     let exports =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/group_exports.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/group_exports.rs")).unwrap();
     let join = exports
         .split_once("fn joined_member_name_fits")
         .unwrap()
@@ -9290,7 +9358,7 @@ fn prepared_source_member_profile_reuses_cold_helper_facts_and_original_uniform_
         );
     }
     let typing =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/prepared_typing.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/prepared_typing.rs"))
             .unwrap();
     assert!(typing.contains(
         "infer_prepared_call_observation(expression, bindings, environment, schemas, limits)"
@@ -9323,7 +9391,7 @@ fn prepared_source_member_profile_reuses_cold_helper_facts_and_original_uniform_
 fn nested_return_frames_reuse_one_walker_and_original_reply_protocol_without_a_second_runtime() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_stack.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_stack.rs")).unwrap();
     let production = source
         .lines()
         .filter(|l| !l.trim_start().starts_with("//"))
@@ -9375,7 +9443,7 @@ fn nested_return_frames_reuse_one_walker_and_original_reply_protocol_without_a_s
     );
     assert_eq!(resume.matches(".bind_reply(").count(), 1);
     let walker =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_evaluation.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_evaluation.rs"))
             .unwrap();
     assert!(walker.contains("pub(crate) trait SuspensionProfile"));
     assert!(walker.contains("evaluate_with_profile::<_, _, _, _, _, SingleFrame>"));
@@ -9421,10 +9489,10 @@ fn prepared_sequence_reuses_original_reply_core_with_complete_correlation_and_fr
  {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/prepared_sequence.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/prepared_sequence.rs"))
             .unwrap();
     let shared =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/sequence_evaluation.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/sequence_evaluation.rs"))
             .unwrap();
     let compact = source.split_whitespace().collect::<String>();
     let production = source
@@ -9550,7 +9618,7 @@ fn stacked_control_sessions_delegate_owned_fuel_and_all_lifecycle_transitions_to
 {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_stack_session.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_stack_session.rs"))
             .unwrap();
     let production = source
         .lines()
@@ -9592,8 +9660,7 @@ fn stacked_control_sessions_delegate_owned_fuel_and_all_lifecycle_transitions_to
         assert!(source.contains(required), "stacked session lost {required}");
     }
     let shared =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_session.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_session.rs")).unwrap();
     assert_eq!(shared.matches("enum State<").count(), 1);
     assert_eq!(shared.matches("fn poll_with<").count(), 1);
     let active_core = shared
@@ -9648,7 +9715,7 @@ fn stacked_control_sessions_delegate_owned_fuel_and_all_lifecycle_transitions_to
 fn complete_native_group_preparation_reuses_cold_admission_and_one_caller_meter_without_partial_handoff()
  {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let source = std::fs::read_to_string(
+    let source = upstream::read_source(
         root.join("crates/leselang-hir-core/src/native_group_preparation.rs"),
     )
     .unwrap();
@@ -9742,7 +9809,7 @@ fn prepared_parallel_sessions_reuse_original_reply_core_without_argument_replay_
 {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/prepared_parallel.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/prepared_parallel.rs"))
             .unwrap();
     let production = source
         .lines()
@@ -9806,7 +9873,7 @@ fn prepared_parallel_sessions_reuse_original_reply_core_without_argument_replay_
             .contains(".publish_with(fuel,")
     );
     let shared =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/parallel_evaluation.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/parallel_evaluation.rs"))
             .unwrap();
     assert_eq!(shared.matches("enum State<").count(), 1);
     assert_eq!(shared.matches("enum Member<").count(), 1);
@@ -9854,7 +9921,7 @@ fn prepared_parallel_sessions_reuse_original_reply_core_without_argument_replay_
 fn prepared_host_expression_entry_reuses_program_gates_without_synthetic_helpers() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let source =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/catalog_group_source.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/catalog_group_source.rs"))
             .unwrap();
     let entry = source
         .split_once("pub fn compile_catalog_prepared_group_source")
@@ -9890,7 +9957,7 @@ fn prepared_host_expression_entry_reuses_program_gates_without_synthetic_helpers
     }
     assert!(entry.contains("PreparedExpression"));
     let cold =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/catalog_atomic_source.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/catalog_atomic_source.rs"))
             .unwrap();
     assert!(cold.contains("cold_members(&function.body, ordered_helpers, &facts, max_branches)"));
     assert!(cold.contains("cold_members(source, &[], &[], max_branches)"));
@@ -10009,7 +10076,7 @@ fn shared_gui_ir_proof_owns_execution_domains_instead_of_generation_only_receipt
 fn local_execution_ownership_is_shared_by_the_native_gui_without_a_second_session() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let core =
-        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/local_execution.rs"))
+        upstream::read_source(root.join("crates/leselang-runtime-core/src/local_execution.rs"))
             .unwrap();
     for required in [
         "pub struct LocalExecutionScope",
@@ -10064,7 +10131,7 @@ fn local_execution_ownership_is_shared_by_the_native_gui_without_a_second_sessio
 fn local_vm_terminal_liveness_delegates_to_the_original_session_without_error_inference() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let local =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/local_effect_session.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/local_effect_session.rs"))
             .unwrap();
     for required in [
         "LocalExecutionScope",
@@ -10076,7 +10143,7 @@ fn local_vm_terminal_liveness_delegates_to_the_original_session_without_error_in
         assert!(local.contains(required), "local entry lost {required}");
     }
     let shared =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_stack_session.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_stack_session.rs"))
             .unwrap();
     for required in [
         "session.poll_with_scope(environment, Some(scope))",
@@ -10132,8 +10199,8 @@ fn local_vm_terminal_liveness_delegates_to_the_original_session_without_error_in
 #[test]
 fn fenced_host_work_reuses_pending_state_and_exports_the_same_native_proofs() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let core = std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_session.rs"))
-        .unwrap();
+    let core =
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_session.rs")).unwrap();
     let start = core
         .find("pub(crate) fn with_host_work<Input, Output>")
         .unwrap();
@@ -10158,12 +10225,12 @@ fn fenced_host_work_reuses_pending_state_and_exports_the_same_native_proofs() {
         assert!(!body.contains(forbidden), "host boundary added {forbidden}");
     }
     let local =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/local_effect_session.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/local_effect_session.rs"))
             .unwrap();
     assert!(local.contains("pub fn with_host_work<Input, Output>"));
     assert!(local.contains(".with_host_work_in_scope(input, work, &self.scope)"));
     let shared =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_stack_session.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_stack_session.rs"))
             .unwrap();
     assert!(shared.contains("session.core.with_host_work(input, |input|"));
     assert!(
@@ -10201,7 +10268,7 @@ fn fenced_host_work_reuses_pending_state_and_exports_the_same_native_proofs() {
 fn local_poll_fences_retained_owners_through_shared_execution_without_catching_language_faults() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let fence =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/local_scope.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/local_scope.rs")).unwrap();
     for required in [
         "Option<&'scope LocalExecutionScope>",
         "impl Drop for CallFence",
@@ -10224,7 +10291,7 @@ fn local_poll_fences_retained_owners_through_shared_execution_without_catching_l
         );
     }
     let stack =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_stack.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_stack.rs")).unwrap();
     assert!(stack.contains(
         "resume_accepted_stacked_effects_with_scope(accepted, environment, fuel, policy, None)"
     ));
@@ -10268,7 +10335,7 @@ fn local_poll_fences_retained_owners_through_shared_execution_without_catching_l
 fn local_acceptance_fences_shared_native_cleanup_without_replacing_validation() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let reply =
-        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/reply.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-runtime-core/src/reply.rs")).unwrap();
     assert!(reply.contains("pub fn try_accept_in_scope<Reply, View: ?Sized, Authority>"));
     assert!(reply.contains("self.try_accept_with_scope(actual_identity, reply, authority, None)"));
     let body = reply.split_once("fn try_accept_with_scope").unwrap().1;
@@ -10288,8 +10355,7 @@ fn local_acceptance_fences_shared_native_cleanup_without_replacing_validation() 
         assert!(!reply.contains(forbidden), "acceptance added {forbidden}");
     }
     let session =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_session.rs"))
-            .unwrap();
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_session.rs")).unwrap();
     assert_eq!(
         session
             .matches("pending.try_accept_in_scope(identity, reply, authority, scope)")
@@ -10302,7 +10368,7 @@ fn local_acceptance_fences_shared_native_cleanup_without_replacing_validation() 
         "native_local_acceptance_revokes_before_pending_cleanup_but_not_normal_rejection"
     ));
     let tests =
-        std::fs::read_to_string(root.join("crates/leselang-runtime-core/tests/reply.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-runtime-core/tests/reply.rs")).unwrap();
     for proof in [
         "scoped_acceptance_unwind_revokes_before_owned_identity_frame_and_reply_cleanup",
         "scoped_normal_rejection_preserves_original_input_domain_and_live_retry",
@@ -10324,7 +10390,7 @@ fn local_acceptance_fences_shared_native_cleanup_without_replacing_validation() 
 fn scoped_reply_revocation_reuses_original_domain_validation_and_cannot_rearm_sessions() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let reply =
-        std::fs::read_to_string(root.join("crates/leselang-runtime-core/src/reply.rs")).unwrap();
+        upstream::read_source(root.join("crates/leselang-runtime-core/src/reply.rs")).unwrap();
     assert!(reply.contains("struct LiveResultDomain<'a, Domain: ?Sized>"));
     assert!(reply.contains(
         "self.domain.matches_type(view) && self.scope.is_none_or(LocalExecutionScope::is_open)"
@@ -10337,8 +10403,8 @@ fn scoped_reply_revocation_reuses_original_domain_validation_and_cannot_rearm_se
     assert!(close < body.find("drop(error)").unwrap());
     assert!(close < body.find("drop(waiting)").unwrap());
     assert_eq!(body.matches("validate_host_result(").count(), 1);
-    let core = std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_session.rs"))
-        .unwrap();
+    let core =
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_session.rs")).unwrap();
     let acceptance = core
         .split_once("pub(crate) fn try_accept_with_scope")
         .unwrap()
@@ -10373,7 +10439,7 @@ fn scoped_group_entries_reuse_original_reply_cores_without_storing_scope_or_refi
         "prepared_parallel",
     ] {
         let source =
-            std::fs::read_to_string(root.join(format!("crates/leselang-hir-core/src/{file}.rs")))
+            upstream::read_source(root.join(format!("crates/leselang-hir-core/src/{file}.rs")))
                 .unwrap();
         assert!(source.contains("pub fn try_accept_in_scope<"));
         assert!(source.contains("pub fn poll_in_scope"));
@@ -10459,8 +10525,8 @@ fn scoped_group_entries_reuse_original_reply_cores_without_storing_scope_or_refi
 #[test]
 fn classified_native_outcomes_reuse_core_terminal_states_without_error_string_inference() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let core = std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_session.rs"))
-        .unwrap();
+    let core =
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_session.rs")).unwrap();
     for required in [
         "pub enum HostWorkOutcome<Output>",
         "HostWorkOutcome::Pending(output)",
@@ -10476,12 +10542,12 @@ fn classified_native_outcomes_reuse_core_terminal_states_without_error_string_in
         );
     }
     let local =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/local_effect_session.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/local_effect_session.rs"))
             .unwrap();
     assert!(local.contains("pub fn with_host_outcome<Input, Output>"));
     assert!(local.contains(".with_host_outcome_in_scope(input, work, &self.scope)"));
     let shared =
-        std::fs::read_to_string(root.join("crates/leselang-hir-core/src/effect_stack_session.rs"))
+        upstream::read_source(root.join("crates/leselang-hir-core/src/effect_stack_session.rs"))
             .unwrap();
     let classified = shared
         .split_once("pub fn with_host_outcome_in_scope<Input, Output>")

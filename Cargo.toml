@@ -27,8 +27,8 @@ members = [
     "crates/silvortex-identity",
     "apps/etragon",
 ]
-# Frozen source/acceptance snapshots, not product build inputs. Their authoritative
-# implementations are the pinned independent Leselang packages below.
+# Navigation-only directories, not product build inputs. Core snapshots are retired;
+# authoritative implementations are the pinned independent Leselang packages below.
 exclude = [
     "crates/leselang-hir-core",
     "crates/leselang-runtime-core",

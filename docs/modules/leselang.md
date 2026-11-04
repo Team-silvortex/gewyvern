@@ -26,7 +26,7 @@ adapter or generated framework binding against the Leselang UI protocol. The
 
 - [Domain and protocol compatibility](../../crates/leserpent-protocol/COMPATIBILITY.md)
 - [Project status tensor](../project-status-system.md)
-- [Host-neutral runtime foundation and standalone package checks](../../crates/leselang-runtime-core/README.md)
+- [Runtime-core documentation owner and pinned historical provenance](../../crates/leselang-runtime-core/README.md)
 - [GewyLang module](gewylang.md)
 
 ## Current Boundary
@@ -39,7 +39,7 @@ acceptance. The native foundation now has a local MIT repository named `leselang
 the product now pins its published 0.1.0 Git revision across all native cores.
 Full independent VM acceptance remains open. The native source checkpoint retains
 its original metadata and flags; it is not a durable VM or release-publication gate.
-See the handoff document for retained snapshots, compatibility facades and the
+See the handoff document for recorded source inventories, compatibility facades and the
 single-source ownership rule. The source exporter is retired; use `cargo dev check leselang`.
 
 Local `leselang-hir`/`leselang-vm` retain `leserpent-profile`, unlike independent packages.

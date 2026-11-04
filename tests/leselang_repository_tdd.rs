@@ -5,6 +5,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::OnceLock;
 
+#[path = "support/leselang_upstream.rs"]
+pub mod upstream;
+
 const REVISION: &str = "5f86dfb8dd79a28986fe5eb4cbfe6b044796f935";
 const REPOSITORY: &str = "https://github.com/Team-silvortex/leselang";
 const CORES: [&str; 3] = [
@@ -292,33 +295,51 @@ fn identity_gate_rejects_duplicate_local_mutable_or_wrong_version_cores() {
 }
 
 #[test]
-fn frozen_acceptance_sources_match_the_actual_resolved_upstream_files() {
+fn source_inventory_covers_every_pinned_core_file_without_reading_local_snapshots() {
+    let recorded = upstream::source_inventory();
+    let mut actual = BTreeMap::new();
+    for name in CORES {
+        for (path, bytes) in inventory(&upstream::checkout().join("crates").join(name)) {
+            let relative = format!(
+                "crates/{name}/{}",
+                path.to_str().unwrap().replace('\\', "/")
+            );
+            recorded.verify_file(&relative, &bytes).unwrap();
+            assert!(actual.insert(relative, bytes.len() as u64).is_none());
+        }
+    }
+    assert_eq!(actual.len(), 166);
+    assert_eq!(
+        recorded
+            .files
+            .iter()
+            .map(|file| (file.path.clone(), file.bytes))
+            .collect::<BTreeMap<_, _>>(),
+        actual,
+        "native file additions/removals require an explicit evidence review"
+    );
+}
+
+#[test]
+fn retired_core_directories_are_navigation_only_not_hidden_source_copies() {
     validate_identity(product_metadata()).unwrap();
     for name in CORES {
-        let package = product_metadata()["packages"]
-            .as_array()
+        let directory = root().join("crates").join(name);
+        let entries: Vec<_> = fs::read_dir(&directory)
             .unwrap()
-            .iter()
-            .find(|p| p["name"] == name)
-            .unwrap();
-        let upstream = Path::new(package["manifest_path"].as_str().unwrap())
-            .parent()
-            .unwrap();
-        let expected = inventory(upstream);
-        let snapshot = inventory(&root().join(format!("crates/{name}")));
-        assert!(!expected.is_empty());
-        assert_eq!(
-            expected.keys().collect::<Vec<_>>(),
-            snapshot.keys().collect::<Vec<_>>(),
-            "{name}: inventory drift"
-        );
-        for (path, bytes) in expected {
-            assert!(
-                snapshot[&path] == bytes,
-                "{name}/{}: frozen source differs from upstream",
-                path.display()
-            );
-        }
+            .map(|entry| {
+                let entry = entry.unwrap();
+                assert!(
+                    entry.file_type().unwrap().is_file(),
+                    "no nested native source tree may return"
+                );
+                entry.file_name()
+            })
+            .collect();
+        assert_eq!(entries, [std::ffi::OsString::from("README.md")]);
+        let pointer = fs::read_to_string(directory.join("README.md")).unwrap();
+        assert!(pointer.lines().count() <= 40);
+        assert!(pointer.contains(&format!("{REPOSITORY}/tree/{REVISION}/crates/{name}")));
     }
 }
 
@@ -363,7 +384,7 @@ fn handoff_and_ci_track_the_verified_dependency_not_full_vm_acceptance() {
         serde_json::from_str(include_str!("../project/leselang-repository.json")).unwrap();
     assert_eq!(state["pinned_revision"], REVISION);
     assert_eq!(state["product_dependency_cutover"], true);
-    assert_eq!(state["product_source_state"], "frozen-acceptance-snapshots");
+    assert_eq!(state["product_source_state"], "pinned-source-inventory");
     let cleanup = &state["compatibility_cleanup"];
     assert_eq!(cleanup["root_tests_use_product_owners"], true);
     assert_eq!(cleanup["foreign_consumer_uses_published_facades"], true);
@@ -373,9 +394,8 @@ fn handoff_and_ci_track_the_verified_dependency_not_full_vm_acceptance() {
         "leselang-vm -> leselang-hir"
     );
     assert_eq!(cleanup["source_exporter_retired"], true);
-    for retained in ["local_facades_retired", "frozen_snapshots_retired"] {
-        assert_eq!(cleanup[retained], false);
-    }
+    assert_eq!(cleanup["local_facades_retired"], false);
+    assert_eq!(cleanup["frozen_snapshots_retired"], true);
     for flag in ["registry_published", "complete_vm", "full_extraction_gate"] {
         assert_eq!(state[flag], false);
     }

@@ -1,12 +1,15 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[path = "support/leselang_upstream.rs"]
+pub mod upstream;
+
 fn repository_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
 fn production_source(path: impl AsRef<Path>) -> String {
-    let source = fs::read_to_string(path).expect("source file must be readable");
+    let source = upstream::read_source(path).expect("source file must be readable");
     production_source_text(&source)
 }
 
@@ -123,7 +126,8 @@ fn language_crates_forbid_unsafe_code() {
         "crates/leselang-ui/src/lib.rs",
         "crates/leselang-observe/src/lib.rs",
     ] {
-        let source = fs::read_to_string(root.join(relative)).expect("source file must be readable");
+        let source =
+            upstream::read_source(root.join(relative)).expect("source file must be readable");
         assert!(
             source.starts_with("#![forbid(unsafe_code)]"),
             "{relative} must forbid unsafe code at the crate boundary"
@@ -184,6 +188,7 @@ fn continuous_integration_enforces_all_primary_product_gates() {
         .expect("CI workflow must exist");
     for required in [
         "cargo fmt --all -- --check",
+        "rustfmt +1.98.0 --edition 2024 --check crates/leserpent-hir/src/computation.rs",
         "cargo audit --no-yanked -D warnings",
         "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
         "cargo build --workspace --all-targets --all-features --locked",

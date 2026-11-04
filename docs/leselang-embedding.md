@@ -349,10 +349,10 @@ automatic retry, source-budget refund, wire or journal change is introduced.
 
 Eight separate-crate tests cover original buffers, metadata, limits, purity,
 fault order, scope cleanup, cancellation-by-discard and delayed native policy.
-They are copied unchanged to the isolated consumer. A frozen product loop
-coordinator compares 1,152 source/prefix/node-budget/depth cases, including exact
-diagnostics, counters and surviving scope. It shares scalar kernels and child
-lowering, not a second compiler. Remaining private references, physical HIR
+They run in the pinned upstream consumer. Recorded observations from the frozen
+product loop coordinator cover 1,152 source/prefix/node-budget/depth cases, including
+exact diagnostics, counters and surviving scope. The product tests use the real
+external core, not a copied compiler. Remaining private references, physical HIR
 package ownership and complete independent
 language/durable acceptance remain separate extraction gates.
 
@@ -382,10 +382,10 @@ format and journal schema remain unchanged.
 
 Ten separate-crate tests cover original ownership, shape/scope/limit priorities,
 deferred next admission, native refusal/unwind, discard and current policy. They
-are exported unchanged to the separate consumer. The frozen product coordinator
-compares 1,920 source/prefix/counter/depth cases with exact diagnostics, output,
-counters and remaining scope; shared kernels and child lowering are not a second
-compiler. Remaining private-reference audits, physical HIR ownership and
+run in the pinned upstream consumer. The product tests compare 1,920 recorded
+source/prefix/counter/depth cases with exact diagnostics, output, counters and
+remaining scope from the frozen coordinator, using the real external core.
+Remaining private-reference audits, physical HIR ownership and
 complete independent-language/durable acceptance remain open.
 
 ## Native Scalar Form Boundary
@@ -412,9 +412,9 @@ unchanged.
 
 Twelve separate-crate tests include all 870 scalar operator/type combinations,
 original ownership, bounds, callback fault/unwind, cold purity and delayed native
-policy. These tests are copied unchanged into the independent consumer. A frozen
-product scalar-root/counter block compares 3,840 source/prefix/budget/depth cases,
-sharing scalar kernels and child lowering rather than defining a second compiler.
+policy. These tests run in the pinned independent consumer. Recorded frozen
+scalar-root/counter observations cover 3,840 source/prefix/budget/depth cases,
+compared by the product library through the real core without a copied compiler.
 Zero private scalar-kernel dependencies in this product computation file did not
 by itself establish cross-crate compatibility. The following gate now compiles
 the full production profile through the native public boundary. Physical package
@@ -474,18 +474,20 @@ That step established `leselang-hir -> leselang-hir-core -> syntax / runtime-cor
 The product ownership step below completes the HIR graph. The adapter must not
 depend on the compatibility facade, which would create a re-export cycle.
 
-Core private declaration/preparation oracles run in the core crate. Three frozen
-product/scalar coordinators need both sides' private internals; they now run in
-the dedicated `migration_oracles` integration target, which includes the original
-source only for tests. This test crate is not an exported implementation or an
-independent compiler. Production library tests, the foreign-profile probe and
-explicit facade/core type-identity tests exercise the actual external-core path.
-No test-only private API or enableable testing feature was added to the core.
+Core private declaration/preparation oracles run in the actual pinned core crate.
+The old `migration_oracles` source-inclusion target is retired. Three product
+boundary matrices retain 6,912 recorded complete observations from their original
+frozen coordinators and now run as product library tests through the external core.
+Their original inputs, diagnostic order, counters and surviving scope remain
+checked. The 25 native checks formerly compiled by the harness run in their actual
+upstream library; its 93 other product checks were already owned here. See the
+[owner map and baseline rules](../crates/leserpent-hir/tests/fixtures/migration-boundaries/README.md).
+No private testing API, enableable testing feature or second compiler is retained.
 
-The native source export now has five crates, including both HIR owner and facade.
-It still copies production source byte-for-byte and verifies an isolated consumer;
-product code and the private migration harness are excluded. Historical four-crate
-proofs remain historical. Syntax, wire/journal formats, native embedding maturity,
+The historical native source export grew to five crates, including both HIR owner
+and facade. That exporter is now retired; current verification runs the pinned
+upstream consumer and native owner directly. Historical export proofs retain their
+original counts and hashes. Syntax, wire/journal formats, native embedding maturity,
 complete-VM and full-extraction gates are unchanged.
 
 ## Product HIR Ownership
@@ -8862,17 +8864,22 @@ retained compatibility assets.
 
 ### Remaining Product Boundaries
 
-`leselang-syntax`, `leselang-host-contract`, and `leselang-hir` have no Gewyvern
-or Leserpent product crates in their dependency closures. That is a dependency
-proof, not full semantic independence: the default `leserpent-profile` HIR still
-names concrete runtime and UI effects, though its computation nodes specialize
-shared host-parameterized IR. Disabling that optional profile removes its product
-DTOs/lowerer and host-contract dependency from the native build. The reference
-lowerer/type rules and host contract still contain runtime selectors and deployment
-validation when enabled. The `leselang-vm` reference profile, `leselang-ui`, and
-`leselang-observe` still consume Leserpent command/result types; the native VM
-facade and its source export omit that profile. `leselang-command` is intentionally the product
-adapter and should remain outside the standalone core.
+The independent repository owns syntax, runtime-core, HIR-core and native HIR/VM
+facades, with no product profile or SQLite feature. Gewyvern consumes one exact
+Git identity for the three shared cores. Product lowering and evaluation belong
+to `leserpent-hir` and `leserpent-vm`; they retain runtime selectors, deployment
+validation, command/result types and durable authority policy.
+A dependency cutover is not full semantic independence or complete durable-runtime
+acceptance; the separate host and product-parity gates still apply.
+
+The local legacy `leselang-hir` and `leselang-vm` packages are compatibility
+facades, not the independent repository's 0.1.0 packages. Their default product
+profiles still expose Leserpent behavior. Disabling `leserpent-profile` selects
+their native compatibility surface; it does not migrate product policy into the
+language. `leselang-host-contract`, `leselang-command`, `leselang-ui` and
+`leselang-observe` remain product adapters despite their historical names.
+The source exporter is retired; native development and release tooling belong
+upstream, while product compatibility acceptance remains here.
 
 The first extracted runtime component is `leselang-runtime-core`: admission
 ownership, finite backoff, fuel accounting, portable clock/deadline and retry-delay arithmetic
@@ -8887,11 +8894,13 @@ Counter and text hosts exercise two unrelated opaque admission schemas, includin
 non-cloneable inputs/outputs and separate worker ownership. This is **not** the
 typed language-operation schema or complete evaluator acceptance gate.
 
-[Runtime-core package instructions](../crates/leselang-runtime-core/README.md)
-cover Cargo's normalized standalone package and its isolated test build. The
-source manifest currently inherits monorepo version metadata; packaging removes
-that inheritance. Moving source to a new repository requires its own metadata
-and CI, not a blind directory copy. Native operation declarations/catalog preflight
+[Runtime-core documentation ownership](../crates/leselang-runtime-core/README.md)
+links the pinned native guide and original historical acceptance notes. The
+independent repository has its own manifests, version and CI; the retained local
+core directory has no Cargo manifest and is not a package entry point. Run native
+checks there and `cargo dev check leselang` here. Product documentation gates read
+the archived upstream boundaries with a recorded SHA-256, not a duplicated local
+manual. Native operation declarations/catalog preflight
 are shared, and the control IR supports native argument typing, bounded pure
 type inference, shared pure execution, atomic call value preparation and effect
 control with native capture hooks, an atomic source-call bridge, shared literal/operator

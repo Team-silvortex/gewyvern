@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://gewyvern.dev/schemas/project-status-tensor-v3.json",
+  "$id": "https://gewyvern.dev/schemas/project-status-tensor-v4.json",
   "title": "Gewyvern Project Status Tensor",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "project", "checkpoint", "calibration", "dimensions", "coverage_requirements", "cells"],
   "properties": {
-    "schema_version": { "const": 3 },
+    "schema_version": { "const": 4 },
     "project": { "type": "string", "minLength": 1 },
     "checkpoint": { "type": "string", "minLength": 1 },
     "calibration": { "$ref": "#/$defs/calibration" },
@@ -192,6 +192,17 @@
         "summary": { "type": "string", "minLength": 1 }
       }
     },
+    "repository_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "allOf": [
+        { "pattern": "^[^/]+(?:/[^/]+)*$" },
+        { "not": { "pattern": "(^|/)\\.{1,2}(/|$)" } },
+        { "not": { "pattern": "[ .](/|$)" } },
+        { "not": { "pattern": "[\\\\:\\u0000-\\u001f\\u007f-\\u009f]" } }
+      ]
+    },
     "evidence": {
       "type": "object",
       "additionalProperties": false,
@@ -200,9 +211,14 @@
         "kind": {
           "enum": ["source", "test", "documentation", "benchmark", "release"]
         },
-        "path": { "type": "string", "minLength": 1 },
+        "path": { "$ref": "#/$defs/repository_path" },
+        "inventory": { "$ref": "#/$defs/repository_path" },
         "state": { "enum": ["present", "planned"] }
-      }
+      },
+      "allOf": [{
+        "if": { "required": ["inventory"] },
+        "then": { "properties": { "state": { "const": "present" } } }
+      }]
     }
   }
 }

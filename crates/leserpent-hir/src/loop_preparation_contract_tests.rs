@@ -1,98 +1,5 @@
-//! Frozen product loop coordinator; scalar kernels and child lowering are shared.
-//! This checks the replaced boundary, not a second independent compiler.
+//! Product boundary parity against recorded pre-extraction observations.
 use super::*;
-
-fn frozen_lower_loop<'a>(
-    arguments: &'a [NamedArgument],
-    span: Span,
-    scope: &mut TypeScope<'_, 'a>,
-    visited: &mut usize,
-    depth: usize,
-    functions: &mut functions::FunctionTemplates,
-) -> Result<(Computation, Type), Vec<Diagnostic>> {
-    use crate::scalar_source::{Operand, ScalarSourceError};
-    let source =
-        crate::scalar_source::loop_source(arguments, span).map_err(|error| match error {
-            ScalarSourceError::LoopShape {
-                span,
-                missing_state: true,
-            } => invalid("LSH1410", "loop requires a named initial state", span),
-            ScalarSourceError::LoopShape {
-                span,
-                missing_state: false,
-            } => {
-                let name = arguments
-                    .iter()
-                    .find(|argument| !["while", "next", "limit"].contains(&argument.name.as_str()))
-                    .map(|argument| argument.name.as_str())
-                    .unwrap_or("");
-                invalid(
-                    "LSH1401",
-                    format!("expected exactly the named arguments: {name}, while, next, limit"),
-                    span,
-                )
-            }
-            ScalarSourceError::Bindings { span, .. } => invalid(
-                "LSH1403",
-                "loop state name must be bounded and cannot shadow an active binding",
-                span,
-            ),
-            _ => scalar_source_diagnostics(error, span),
-        })?;
-    let binding = source.binding;
-    if scope.get(&binding.name).is_some() {
-        return Err(invalid(
-            "LSH1403",
-            "loop state name must be bounded and cannot shadow an active binding",
-            binding.span,
-        ));
-    }
-    let limit = source
-        .limit()
-        .map_err(|error| scalar_source_diagnostics(error, span))?;
-    let (initial, state_type) =
-        lower_expression_with_functions(&binding.value, scope, visited, depth + 1, functions)?;
-    let (initial, scalar_type) = crate::scalar_source::scalar_operand(
-        Operand {
-            pure: initial.is_pure(),
-            value: initial,
-            scalar_type: match state_type {
-                Type::Scalar(ty) => Some(ty),
-                _ => None,
-            },
-        },
-        expression_span(&binding.value),
-    )
-    .map_err(|error| scalar_source_diagnostics(error, span))?;
-    let body = {
-        let mut local = scope.nested();
-        local.push(&binding.name, state_type.into()).map_err(|_| {
-            invalid(
-                "LSH1403",
-                "loop state name must be bounded and cannot shadow an active binding",
-                binding.span,
-            )
-        })?;
-        crate::scalar_source::lower_loop_body(&source, scalar_type, |child| {
-            let (value, ty) =
-                lower_expression_with_functions(child, &mut local, visited, depth + 1, functions)
-                    .map_err(|error| ScalarSourceError::Native {
-                    span: expression_span(child),
-                    error,
-                })?;
-            Ok(Operand {
-                pure: value.is_pure(),
-                value,
-                scalar_type: match ty {
-                    Type::Scalar(ty) => Some(ty),
-                    _ => None,
-                },
-            })
-        })
-        .map_err(|error| scalar_source_diagnostics(error, span))?
-    };
-    Ok((source.construct(initial, body, limit), state_type))
-}
 
 #[test]
 fn public_loop_stages_match_frozen_product_diagnostics_counters_and_scope_for_1152_cases() {
@@ -122,8 +29,14 @@ fn public_loop_stages_match_frozen_product_diagnostics_counters_and_scope_for_11
         "loop(state: 0, while: refresh(), next: state, limit: 1)",
         "loop(state: state, while: false, next: state, limit: 1)",
     ];
+    let mut baseline = migration_baseline::Baseline::load(
+        "loop",
+        include_str!("../tests/fixtures/migration-boundaries/loop.json"),
+        &forms,
+        1152,
+    );
     let mut cases = 0;
-    for text in forms {
+    for (form, text) in forms.into_iter().enumerate() {
         let parsed = parse(&format!("fn main() = {text}"));
         assert!(
             parsed.diagnostics.is_empty(),
@@ -144,7 +57,7 @@ fn public_loop_stages_match_frozen_product_diagnostics_counters_and_scope_for_11
                 MAX_COMPUTATION_NODES + 1,
             ] {
                 for depth in [0, MAX_EFFECT_NESTING_DEPTH - 1, MAX_EFFECT_NESTING_DEPTH] {
-                    let run = |frozen| {
+                    let run = || {
                         let mut bindings = match prefix {
                             0 => vec![],
                             1 => vec![("state", Type::Scalar(ScalarType::Integer).into())],
@@ -154,25 +67,14 @@ fn public_loop_stages_match_frozen_product_diagnostics_counters_and_scope_for_11
                         let mut scope = ScopeFrame::new(&mut bindings);
                         let mut visited = starting;
                         let mut functions = functions::FunctionTemplates::default();
-                        let result = if frozen {
-                            frozen_lower_loop(
-                                &arguments,
-                                span,
-                                &mut scope,
-                                &mut visited,
-                                depth,
-                                &mut functions,
-                            )
-                        } else {
-                            lower_loop(
-                                &arguments,
-                                span,
-                                &mut scope,
-                                &mut visited,
-                                depth,
-                                &mut functions,
-                            )
-                        };
+                        let result = lower_loop(
+                            &arguments,
+                            span,
+                            &mut scope,
+                            &mut visited,
+                            depth,
+                            &mut functions,
+                        );
                         let remaining = scope
                             .bindings()
                             .iter()
@@ -180,15 +82,12 @@ fn public_loop_stages_match_frozen_product_diagnostics_counters_and_scope_for_11
                             .collect::<Vec<_>>();
                         (result, visited, remaining)
                     };
-                    assert_eq!(
-                        run(false),
-                        run(true),
-                        "{text}, prefix={prefix}, visited={starting}, depth={depth}"
-                    );
+                    baseline.assert_case(form, prefix, starting, depth, &run());
                     cases += 1;
                 }
             }
         }
     }
     assert_eq!(cases, 1152);
+    baseline.finish();
 }

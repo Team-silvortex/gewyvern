@@ -22,9 +22,9 @@ changing a cross-project boundary.
 | [`crates/silvortex-identity/`](../crates/silvortex-identity) | product-neutral validated protocol identities | identifier grammar and scalar wire identity |
 | [`crates/gewyvern-install-contract/`](../crates/gewyvern-install-contract) | strict Gewyvern installation and retirement exchange | cross-plane lifecycle wire contract |
 | [`crates/leserpent-domain/`](../crates/leserpent-domain) | shared command/query/event model | control vocabulary |
-| [`crates/leselang-syntax/`](../crates/leselang-syntax) | frozen syntax acceptance snapshot, excluded from workspace | implementation comes from pinned independent Leselang |
-| [`crates/leselang-runtime-core/`](../crates/leselang-runtime-core) | frozen runtime-foundation acceptance snapshot, excluded from workspace | implementation comes from pinned independent Leselang |
-| [`crates/leselang-hir-core/`](../crates/leselang-hir-core) | frozen native HIR acceptance snapshot, excluded from workspace | physical product-free HIR owner is independent Leselang; no reference feature |
+| [`crates/leselang-syntax/`](../crates/leselang-syntax) | navigation only; source snapshot retired | implementation comes from pinned independent Leselang |
+| [`crates/leselang-runtime-core/`](../crates/leselang-runtime-core) | navigation only; source snapshot retired | implementation comes from pinned independent Leselang |
+| [`crates/leselang-hir-core/`](../crates/leselang-hir-core) | navigation only; source snapshot retired | physical product-free HIR owner is independent Leselang; no reference feature |
 | [`crates/leselang-hir/`](../crates/leselang-hir) | native-core and optional product re-exports | compatibility facade; no compiler implementation |
 | [`crates/leserpent-hir/`](../crates/leserpent-hir) | Leserpent effects, lowering and capability policy | product owner depending on native HIR core, never the facade |
 | [`crates/leselang-vm/`](../crates/leselang-vm) | native session facade and feature-gated legacy product API re-export | no product executor implementation; not yet a fully extracted durable VM |
@@ -158,8 +158,8 @@ remaining physical boundary.
 
 The native foundation has a separate local MIT repository named `leselang`.
 Gewyvern consumes its exact published 0.1.0 Git revision for the three native
-cores; ordinary builds do not require a sibling checkout. Retained source files
-are non-build acceptance snapshots checked against the resolved upstream bytes.
+cores; ordinary builds do not require a sibling checkout. Local core source/test
+snapshots are retired; a complete reviewed inventory checks resolved upstream bytes.
 See [repository ownership and cutover](leselang-repository-handoff.md). Repository
 bootstrap does not promote complete language or durable-runtime acceptance.
 
@@ -213,6 +213,22 @@ core merely by avoiding a VM dependency. Static validation is not live authority
 | Shared product dispatch/request-construction oracles | [`leserpent-vm/tests/support/`](../crates/leserpent-vm/tests/support) |
 | Released HIR/VM paths and type identity | [`leselang-hir/tests/`](../crates/leselang-hir/tests) and [`leselang-vm/tests/`](../crates/leselang-vm/tests) |
 | Cross-package ownership, feature and status gates | root [`tests/`](../tests) |
+
+Core source inspections in the architecture, native profile and safety gates follow
+the Cargo-resolved upstream checkout, not frozen source copies. The local core
+directories contain only navigation, not build manifests or source/test copies.
+Native source/consumer identity checks and status source evidence use the pinned
+file inventory with an actual-upstream hash gate. Compatibility and
+product-source inspections stay local.
+Runtime-core semantic documentation checks use the pinned upstream provenance
+archive and its recorded hash. The local README only links current owners;
+it is not a second native manual or a standalone package entry.
+The [source-owner gate](../tests/leselang_source_ownership_tdd.rs) rejects source
+substitution, path escape and snapshot fallback; earlier proof records stay intact.
+The retired migration harness's 121 checks are accounted for in the
+[boundary owner map](../crates/leserpent-hir/tests/fixtures/migration-boundaries/ownership.json):
+93 existing product tests, 25 upstream-native tests and three recorded product
+matrices covering 6,912 exact observations. No private core testing API is needed.
 
 Where a product acceptance body has moved, the legacy target includes that
 same body through explicit facade aliases. Remaining legacy suites still need

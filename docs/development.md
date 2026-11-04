@@ -105,7 +105,22 @@ second copy. Old export records remain historical evidence, not current commands
 
 Product execution acceptance belongs to `leserpent-vm`; legacy API checks remain
 in the facades. Shared product-side acceptance helpers resolve the pinned upstream
-consumer, compare retained Rust files byte-for-byte and check registered targets.
+consumer, verify recorded native hashes and local facade bytes, and check registered targets.
+Architecture/profile/safety inspections follow the pinned native core checkout;
+product adapters and compatibility APIs still resolve locally. Former core
+directories contain navigation only; source/test snapshots and manifests are retired.
+The file inventory preserves their exact provenance without retaining another
+implementation. The old HIR migration harness is retired: product
+boundaries use recorded complete outcomes, and the pinned check executes the
+native HIR library's own tests without copying its source into this workspace.
+Historical runtime documentation checks also read the pinned upstream archive,
+with a reviewed path/revision/SHA-256 in `project/leselang-repository.json`.
+The local runtime-core README is navigation only; missing or modified upstream
+documentation fails rather than falling back to an older manual.
+Status v4 source evidence references a pinned file inventory, not local core-file
+existence. The upstream identity gate checks all recorded hashes; status queries
+themselves need no Cargo cache or network. Native consumer comparisons use
+hash-checked upstream originals; remaining facade test bodies still belong here.
 See the [acceptance owner map](monorepo-stack.md#acceptance-owners) before choosing
 where a new test belongs, and the [repository handoff](leselang-repository-handoff.md)
 for current cleanup state.

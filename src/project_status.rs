@@ -5,7 +5,10 @@ use crate::machine_error::{ErrorCategory, MachineError};
 use serde::{Deserialize, Serialize};
 use silvortex_bounded_io::read_bounded_utf8_regular_file;
 
-pub const STATUS_SCHEMA_VERSION: u32 = 3;
+mod source_inventory;
+pub use source_inventory::{SourceInventory, SourceInventoryFile};
+
+pub const STATUS_SCHEMA_VERSION: u32 = 4;
 pub const STATUS_CALIBRATION_MODEL: &str = "priority-weighted-strength-v1";
 pub const MAX_STATUS_CATALOG_BYTES: u64 = 4 * 1024 * 1024;
 
@@ -155,10 +158,24 @@ pub struct StatusBlocker {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct StatusEvidence {
     pub kind: EvidenceKind,
     pub path: String,
     pub state: EvidenceState,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_inventory",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub inventory: Option<String>,
+}
+
+fn deserialize_inventory<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    String::deserialize(deserializer).map(Some)
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -339,6 +356,7 @@ impl StatusCatalog {
     pub fn validate(&self, repository_root: impl AsRef<Path>) -> Result<(), Vec<String>> {
         let root = repository_root.as_ref();
         let mut errors = Vec::new();
+        let mut inventories = BTreeMap::new();
         if self.schema_version != STATUS_SCHEMA_VERSION {
             errors.push(format!(
                 "unsupported schema_version {}, expected {STATUS_SCHEMA_VERSION}",
@@ -497,19 +515,44 @@ impl StatusCatalog {
                     &evidence.path,
                     &mut errors,
                 );
-                let evidence_path = Path::new(&evidence.path);
-                if evidence_path.is_absolute()
-                    || evidence_path
-                        .components()
-                        .any(|component| component == std::path::Component::ParentDir)
-                {
+                if !source_inventory::is_repository_path(&evidence.path) {
                     errors.push(format!(
                         "cell '{}' evidence must stay inside the repository: {}",
                         cell.id, evidence.path
                     ));
                     continue;
                 }
-                if evidence.state == EvidenceState::Present && !root.join(&evidence.path).exists() {
+                if let Some(path) = &evidence.inventory {
+                    if evidence.state != EvidenceState::Present {
+                        errors.push(format!(
+                            "cell '{}' inventory evidence must be present: {}",
+                            cell.id, evidence.path
+                        ));
+                        continue;
+                    }
+                    if inventories.len() >= 32 && !inventories.contains_key(path.as_str()) {
+                        errors.push(
+                            "catalog cannot reference more than 32 source inventories".into(),
+                        );
+                        continue;
+                    }
+                    let inventory = inventories
+                        .entry(path.as_str())
+                        .or_insert_with(|| SourceInventory::load_from_repository(root, path));
+                    match inventory {
+                        Ok(inventory) if inventory.file(&evidence.path).is_some() => {}
+                        Ok(_) => errors.push(format!(
+                            "cell '{}' evidence is not recorded in inventory '{}': {}",
+                            cell.id, path, evidence.path
+                        )),
+                        Err(error) => errors.push(format!(
+                            "cell '{}' invalid evidence inventory '{}': {error}",
+                            cell.id, path
+                        )),
+                    }
+                } else if evidence.state == EvidenceState::Present
+                    && !root.join(&evidence.path).exists()
+                {
                     errors.push(format!(
                         "cell '{}' present evidence does not exist: {}",
                         cell.id, evidence.path
@@ -1206,6 +1249,7 @@ mod tests {
             kind: EvidenceKind::Source,
             path: "../outside".to_string(),
             state: EvidenceState::Present,
+            inventory: None,
         });
 
         let errors = catalog

@@ -23,7 +23,11 @@ should cross only the protocol or narrow FFI boundary. Host event loops, async
 runtimes, threads, widget object models, and hand-written framework shortcuts
 stay outside the language contract.
 
-Part of the repository boundary is already executable. The
+The repository boundary is executable. The independent MIT repository owns
+the syntax, runtime-core, HIR-core and native HIR/VM packages. Gewyvern consumes
+one exact Git revision for the shared cores, without local source snapshots.
+The following feature/profile discussion refers to the retained local
+compatibility packages, not the upstream 0.1.0 native facades. The
 `leselang-syntax`, `leselang-host-contract`, `leselang-hir-core`, and native-only
 `leselang-hir` dependency closures contain no Leserpent or Gewyvern product crate.
 The default HIR facade deliberately includes the `leserpent-hir` product adapter.
@@ -1869,9 +1873,11 @@ For deterministic model or CLI integration:
 `Vm::resume` remains the direct embedded path for an effect that has not been
 leased. Once a request is leased, completion must use `acknowledge_effect`.
 
-The independent frontend implementation lives in `crates/leselang-syntax`,
-`crates/leselang-host-contract`, and `crates/leselang-hir`. Execution and
-product bindings currently live in `crates/leselang-vm`,
+The independent frontend implementation lives in the pinned Leselang repository;
+the former local core directories are navigation only. Product lowering and
+execution live in `crates/leserpent-hir` and `crates/leserpent-vm`; the local
+`crates/leselang-hir` and `crates/leselang-vm` are compatibility facades.
+Product bindings remain in `crates/leselang-host-contract`,
 `crates/leselang-command`, `crates/leselang-ui`, and
 `crates/leselang-observe`. Delivery progress is tracked by the
 [project status tensor](project-status-system.md), not inferred from future

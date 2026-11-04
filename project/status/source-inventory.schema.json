@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gewyvern.dev/schemas/source-inventory-v1.json",
+  "title": "Pinned External Source Inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "repository", "revision", "files"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "repository": {
+      "type": "string",
+      "maxLength": 512,
+      "format": "uri",
+      "pattern": "^https://[^/@?#%]+/[^?#%]+$"
+    },
+    "revision": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "description": "Unique paths in ascending byte order; byte/hash verification belongs to the resolved-source acceptance gate, not status lookup.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256", "bytes"],
+        "properties": {
+          "path": { "$ref": "#/$defs/repository_path" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "bytes": { "type": "integer", "minimum": 0, "maximum": 4194304 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "repository_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "allOf": [
+        { "pattern": "^[^/]+(?:/[^/]+)*$" },
+        { "not": { "pattern": "(^|/)\\.{1,2}(/|$)" } },
+        { "not": { "pattern": "[ .](/|$)" } },
+        { "not": { "pattern": "[\\\\:\\u0000-\\u001f\\u007f-\\u009f]" } }
+      ]
+    }
+  }
+}

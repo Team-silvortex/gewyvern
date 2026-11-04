@@ -32,7 +32,7 @@ const PRODUCT_OWNED_DURABLE_SUITES: &[(&str, usize)] = &[
 
 #[test]
 fn dispatch_authority_oracles_are_product_owned_without_a_native_export_prerequisite() {
-    let read = |p: &str| fs::read_to_string(root().join(p)).unwrap();
+    let read = |p: &str| upstream::read_source(root().join(p)).unwrap();
     let legacy = read("crates/leselang-vm/tests/ephemeral_profile.rs");
     let memory = read("crates/leserpent-vm/tests/dispatch_authority_memory.rs");
     for name in [
@@ -98,7 +98,7 @@ fn dispatch_authority_oracles_are_product_owned_without_a_native_export_prerequi
 
 #[test]
 fn product_durable_suites_share_one_body_with_released_api_compatibility() {
-    let read = |p: &str| fs::read_to_string(root().join(p)).unwrap();
+    let read = |p: &str| upstream::read_source(root().join(p)).unwrap();
     let ci = read(".github/workflows/ci.yml");
     for &(name, count) in PRODUCT_OWNED_DURABLE_SUITES {
         let legacy = read(&format!("crates/leselang-vm/tests/{name}.rs"));
@@ -162,7 +162,7 @@ fn product_durable_suites_share_one_body_with_released_api_compatibility() {
 
 #[test]
 fn audit_storage_tests_belong_to_product_while_released_api_oracles_remain() {
-    let read = |p: &str| fs::read_to_string(root().join(p)).unwrap();
+    let read = |p: &str| upstream::read_source(root().join(p)).unwrap();
     for (name, macro_name) in [
         ("debugger_audit_memory", "memory_case!("),
         ("debugger_audit_durable", "durable_case!("),
@@ -216,7 +216,7 @@ fn audit_storage_tests_belong_to_product_while_released_api_oracles_remain() {
 
 #[test]
 fn product_benchmark_is_not_owned_or_required_by_the_native_facade() {
-    let read = |p| fs::read_to_string(root().join(p)).unwrap();
+    let read = |p| upstream::read_source(root().join(p)).unwrap();
     let old = root().join("crates/leselang-vm/examples/language_benchmark.rs");
     assert!(!old.exists());
     assert!(!read("crates/leselang-vm/Cargo.toml").contains("language_benchmark"));
@@ -264,7 +264,7 @@ fn product_benchmark_is_not_owned_or_required_by_the_native_facade() {
 
 #[test]
 fn product_executor_is_owned_outside_the_native_language_crate() {
-    let read = |p| fs::read_to_string(root().join(p)).unwrap();
+    let read = |p| upstream::read_source(root().join(p)).unwrap();
     fn source_files(dir: &Path, files: &mut Vec<std::path::PathBuf>) {
         for entry in fs::read_dir(dir).unwrap() {
             let path = entry.unwrap().path();
@@ -309,7 +309,7 @@ fn product_executor_is_owned_outside_the_native_language_crate() {
 
 #[test]
 fn sequence_gate_policy_retains_lazy_memory_reads_and_native_atomic_selection() {
-    let read = |p| fs::read_to_string(root().join(p)).unwrap();
+    let read = |p| upstream::read_source(root().join(p)).unwrap();
     let ordered = |s: &str, parts: &[&str]| {
         let mut n = 0;
         for p in parts {
@@ -428,7 +428,7 @@ fn sequence_gate_policy_retains_lazy_memory_reads_and_native_atomic_selection() 
 
 #[test]
 fn group_progress_policy_keeps_native_snapshot_and_original_lazy_read_order() {
-    let read = |p| fs::read_to_string(root().join(p)).unwrap();
+    let read = |p| upstream::read_source(root().join(p)).unwrap();
     let ordered = |s: &str, parts: &[&str]| {
         let mut n = 0;
         for p in parts {
@@ -531,7 +531,7 @@ fn group_progress_policy_keeps_native_snapshot_and_original_lazy_read_order() {
 
 #[test]
 fn group_successor_registration_policy_retains_native_authority_and_outer_commit() {
-    let read = |p| fs::read_to_string(root().join(p)).unwrap();
+    let read = |p| upstream::read_source(root().join(p)).unwrap();
     let ordered = |s: &str, parts: &[&str]| {
         let mut n = 0;
         for p in parts {
@@ -653,7 +653,7 @@ fn group_successor_registration_policy_retains_native_authority_and_outer_commit
 
 #[test]
 fn group_finalization_policy_keeps_native_evaluation_and_one_outer_transaction() {
-    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let read = |path| upstream::read_source(root().join(path)).unwrap();
     let ordered = |source: &str, fragments: &[&str]| {
         let mut offset = 0;
         for f in fragments {
@@ -770,7 +770,7 @@ fn group_finalization_policy_keeps_native_evaluation_and_one_outer_transaction()
 
 #[test]
 fn dispatch_claim_policy_preserves_native_atomicity_cold_capacity_path_and_lazy_memory_selection() {
-    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let read = |path| upstream::read_source(root().join(path)).unwrap();
     let ordered = |source: &str, fragments: &[&str]| {
         let mut offset = 0;
         for f in fragments {
@@ -922,7 +922,7 @@ fn dispatch_claim_policy_preserves_native_atomicity_cold_capacity_path_and_lazy_
 
 #[test]
 fn merge_graph_registration_keeps_native_admission_and_distinct_backend_ordering() {
-    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let read = |path| upstream::read_source(root().join(path)).unwrap();
     let ordered = |source: &str, fragments: &[&str]| {
         let mut offset = 0;
         for f in fragments {
@@ -1069,7 +1069,7 @@ fn merge_graph_registration_keeps_native_admission_and_distinct_backend_ordering
 
 #[test]
 fn pending_registration_policy_keeps_native_admission_watermark_and_replay_boundaries() {
-    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let read = |path| upstream::read_source(root().join(path)).unwrap();
     let ordered = |source: &str, fragments: &[&str]| {
         let mut offset = 0;
         for f in fragments {
@@ -1204,7 +1204,7 @@ fn pending_registration_policy_keeps_native_admission_watermark_and_replay_bound
 
 #[test]
 fn expiration_batches_keep_borrowed_memory_order_and_native_snapshot_transaction_boundaries() {
-    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let read = |path| upstream::read_source(root().join(path)).unwrap();
     let ordered = |source: &str, fragments: &[&str]| {
         let mut offset = 0;
         for f in fragments {
@@ -1339,7 +1339,7 @@ fn expiration_batches_keep_borrowed_memory_order_and_native_snapshot_transaction
 
 #[test]
 fn ordinary_completion_policy_preserves_backend_precedence_and_native_transaction_ownership() {
-    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let read = |path| upstream::read_source(root().join(path)).unwrap();
     let ordered = |source: &str, fragments: &[&str]| {
         let mut offset = 0;
         for fragment in fragments {
@@ -1464,7 +1464,7 @@ fn ordinary_completion_policy_preserves_backend_precedence_and_native_transactio
 
 #[test]
 fn acknowledgement_policy_keeps_native_admission_and_distinct_memory_replay_semantics() {
-    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let read = |path| upstream::read_source(root().join(path)).unwrap();
     let ordered = |source: &str, fragments: &[&str]| {
         let mut offset = 0;
         for fragment in fragments {
@@ -1593,7 +1593,7 @@ fn acknowledgement_policy_keeps_native_admission_and_distinct_memory_replay_sema
 
 #[test]
 fn retry_journal_policy_keeps_native_storage_and_distinct_lease_replay_order() {
-    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let read = |path| upstream::read_source(root().join(path)).unwrap();
     let ordered = |source: &str, fragments: &[&str]| {
         let mut offset = 0;
         for fragment in fragments {
@@ -1725,7 +1725,7 @@ fn retry_journal_policy_keeps_native_storage_and_distinct_lease_replay_order() {
 
 #[test]
 fn ordinary_cancellation_policy_preserves_native_ownership_and_distinct_replay_validation() {
-    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let read = |path| upstream::read_source(root().join(path)).unwrap();
     let ordered = |source: &str, fragments: &[&str]| {
         let mut offset = 0;
         for fragment in fragments {
@@ -1842,7 +1842,7 @@ fn ordinary_cancellation_policy_preserves_native_ownership_and_distinct_replay_v
 
 #[test]
 fn audit_read_projection_is_adapter_owned_without_native_query_or_error_ownership() {
-    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let read = |path| upstream::read_source(root().join(path)).unwrap();
     let adapter = read("crates/leselang-command/src/reference_audit_read.rs");
     for required in [
         "pub trait ReferenceAuditReadRow",
@@ -1946,7 +1946,7 @@ fn audit_read_projection_is_adapter_owned_without_native_query_or_error_ownershi
 
 #[test]
 fn audit_commit_policy_moves_but_native_transaction_and_memory_mutation_ownership_remain() {
-    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let read = |path| upstream::read_source(root().join(path)).unwrap();
     let adapter = read("crates/leselang-command/src/reference_audit_commit.rs");
     for required in [
         "pub trait MemoryAuditJournal",
@@ -2033,7 +2033,7 @@ fn audit_commit_policy_moves_but_native_transaction_and_memory_mutation_ownershi
 
 #[test]
 fn audit_recovery_policy_is_adapter_owned_while_native_reads_stay_in_the_checkpoint() {
-    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let read = |path| upstream::read_source(root().join(path)).unwrap();
     let adapter = read("crates/leselang-command/src/reference_audit_recovery.rs");
     for required in [
         "pub trait ReferenceAuditRow",
@@ -2116,7 +2116,7 @@ fn audit_recovery_policy_is_adapter_owned_while_native_reads_stay_in_the_checkpo
 
 #[test]
 fn reference_journal_schema_moves_without_native_file_or_transaction_ownership() {
-    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let read = |path| upstream::read_source(root().join(path)).unwrap();
     let adapter = read("crates/leselang-command/src/reference_journal_schema.rs");
     for required in [
         "pub const JOURNAL_SCHEMA_VERSION: u32 = 10",
@@ -2270,7 +2270,7 @@ fn root() -> &'static Path {
 
 #[test]
 fn root_publication_is_product_policy_over_private_native_commit_and_cache_hooks() {
-    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let read = |path| upstream::read_source(root().join(path)).unwrap();
     let adapter = read("crates/leselang-command/src/reference_publication.rs");
     assert!(adapter.contains("pub trait ReferenceRootPublicationHost"));
     assert!(adapter.contains("pub(crate) fn publish_group<"));
@@ -2322,7 +2322,7 @@ fn root_publication_is_product_policy_over_private_native_commit_and_cache_hooks
 
 #[test]
 fn startup_policy_keeps_validation_before_native_open_and_recovery_before_publication() {
-    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let read = |path| upstream::read_source(root().join(path)).unwrap();
     let vm = read("crates/leserpent-vm/src/leserpent_profile.rs");
     let adapter = read("crates/leselang-command/src/reference_startup.rs");
     let constructors = vm
@@ -2415,7 +2415,7 @@ fn startup_policy_keeps_validation_before_native_open_and_recovery_before_public
 
 #[test]
 fn sequence_selection_keeps_native_reservation_before_watermark_and_local_occupancy() {
-    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let read = |path| upstream::read_source(root().join(path)).unwrap();
     let vm = read("crates/leserpent-vm/src/leserpent_profile.rs");
     let adapter = read("crates/leselang-command/src/reference_allocation.rs");
     let bridge = vm
@@ -2517,7 +2517,7 @@ fn sequence_selection_keeps_native_reservation_before_watermark_and_local_occupa
 
 #[test]
 fn maintenance_policy_preserves_admission_sort_commit_and_native_cache_mutations() {
-    let read = |path| fs::read_to_string(root().join(path)).unwrap();
+    let read = |path| upstream::read_source(root().join(path)).unwrap();
     let vm = read("crates/leserpent-vm/src/leserpent_profile.rs");
     let adapter = read("crates/leselang-command/src/reference_settlement/maintenance.rs");
     for (from, to, delegation) in [
@@ -2642,7 +2642,7 @@ fn maintenance_policy_preserves_admission_sort_commit_and_native_cache_mutations
 #[test]
 fn group_visibility_and_completion_cache_policy_keep_native_storage_and_borrowing() {
     let root = root();
-    let read = |path| std::fs::read_to_string(root.join(path)).unwrap();
+    let read = |path| upstream::read_source(root.join(path)).unwrap();
     let vm = read("crates/leserpent-vm/src/leserpent_profile.rs");
     let adapter = read("crates/leselang-command/src/reference_settlement/visibility.rs");
     let journal = read("crates/leserpent-vm/src/journal.rs");
@@ -5526,7 +5526,7 @@ fn product_scheduler_policy_moves_without_owning_leases_or_journal_admission() {
 
 #[test]
 fn selected_record_cleanup_retains_raw_sql_and_borrowed_transaction_boundaries() {
-    let read = |p: &str| fs::read_to_string(root().join(p)).unwrap();
+    let read = |p: &str| upstream::read_source(root().join(p)).unwrap();
     let adapter = read("crates/leselang-command/src/reference_compaction_records.rs");
     for absent in [
         "rusqlite",
@@ -5628,7 +5628,7 @@ fn selected_record_cleanup_retains_raw_sql_and_borrowed_transaction_boundaries()
 
 #[test]
 fn compaction_policy_keeps_native_transactions_and_post_commit_cache_publication() {
-    let read = |p: &str| fs::read_to_string(root().join(p)).unwrap();
+    let read = |p: &str| upstream::read_source(root().join(p)).unwrap();
     let adapter = read("crates/leselang-command/src/reference_compaction_commit.rs");
     for absent in [
         "rusqlite",
@@ -6147,8 +6147,8 @@ fn product_request_codec_is_adapter_owned_and_vm_admission_stays_mandatory() {
 }
 
 fn assert_complete_checkpoint_finalization_order() {
-    let core =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/src/checkpoint.rs")).unwrap();
+    let core = upstream::read_source(root().join("crates/leselang-runtime-core/src/checkpoint.rs"))
+        .unwrap();
     let ordered = core
         .split_once("pub fn finish_recovery<")
         .unwrap()
@@ -6235,7 +6235,7 @@ fn complete_checkpoint_finalization_is_shared_without_importing_product_audit_po
         assert!(frozen.contains(proof), "{proof}");
     }
     let consumer =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/tests/checkpoint.rs"))
+        upstream::read_source(root().join("crates/leselang-runtime-core/tests/checkpoint.rs"))
             .unwrap();
     for test in [
         "ordered_finalization_joins_original_maxima_without_clamping_or_early_handoff",
@@ -6247,14 +6247,14 @@ fn complete_checkpoint_finalization_is_shared_without_importing_product_audit_po
     ] {
         assert!(consumer.contains(test), "{test}");
     }
-    upstream::assert_same_source("crates/leselang-runtime-core/src/checkpoint.rs");
+    upstream::assert_recorded_source("crates/leselang-runtime-core/src/checkpoint.rs");
     upstream::assert_consumer_test("checkpoint_recovery");
 }
 
 #[test]
 fn complete_dispatch_recovery_is_shared_before_checkpoint_commit() {
     let core =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/src/dispatch_recovery.rs"))
+        upstream::read_source(root().join("crates/leselang-runtime-core/src/dispatch_recovery.rs"))
             .unwrap();
     let body = core
         .split_once("pub fn inspect_dispatch_recovery<")
@@ -6343,10 +6343,10 @@ fn complete_dispatch_recovery_is_shared_before_checkpoint_commit() {
     assert!(frozen.contains(
         "late_dispatch_refusal_blocks_snapshot_and_watermark_until_original_data_is_repaired"
     ));
-    upstream::assert_same_source("crates/leselang-runtime-core/src/dispatch_recovery.rs");
+    upstream::assert_recorded_source("crates/leselang-runtime-core/src/dispatch_recovery.rs");
     upstream::assert_consumer_test("dispatch_plan");
     let consumer =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/tests/dispatch_plan.rs"))
+        upstream::read_source(root().join("crates/leselang-runtime-core/tests/dispatch_plan.rs"))
             .unwrap();
     for test in [
         "dispatch_recovery_numeric_and_history_order_matches_boundary_oracle",
@@ -6424,7 +6424,7 @@ fn product_dispatch_recovery_keeps_sql_reads_and_authority_outside_the_adapter()
 
 fn assert_complete_record_recovery_order() {
     let core =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/src/record_recovery.rs"))
+        upstream::read_source(root().join("crates/leselang-runtime-core/src/record_recovery.rs"))
             .unwrap();
     let body = core
         .split_once("pub fn inspect_record_recovery<")
@@ -6490,7 +6490,7 @@ fn complete_effect_record_recovery_is_shared_before_opaque_checkpoint_staging() 
     assert!(frozen.contains("assert_eq!(comparisons, 784)"));
     assert!(frozen.contains("assert_eq!(snapshot(&tx), before)"));
     let consumer =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/tests/checkpoint.rs"))
+        upstream::read_source(root().join("crates/leselang-runtime-core/tests/checkpoint.rs"))
             .unwrap();
     for test in [
         "stored_record_moves_original_noncomparable_local_owners_and_defers_pending_receipts",
@@ -6500,13 +6500,13 @@ fn complete_effect_record_recovery_is_shared_before_opaque_checkpoint_staging() 
     ] {
         assert!(consumer.contains(test), "{test}");
     }
-    upstream::assert_same_source("crates/leselang-runtime-core/src/record_recovery.rs");
+    upstream::assert_recorded_source("crates/leselang-runtime-core/src/record_recovery.rs");
     upstream::assert_consumer_test("checkpoint_recovery");
 }
 
 fn assert_complete_group_recovery_order() {
     let core =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/src/group_recovery.rs"))
+        upstream::read_source(root().join("crates/leselang-runtime-core/src/group_recovery.rs"))
             .unwrap();
     let ordered = core.split_once("pub fn inspect_group_recovery<").unwrap().1;
     let mut offset = 0;
@@ -6528,9 +6528,10 @@ fn assert_complete_group_recovery_order() {
 }
 
 fn assert_complete_group_batch_order() {
-    let core =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/src/group_recovery_batch.rs"))
-            .unwrap();
+    let core = upstream::read_source(
+        root().join("crates/leselang-runtime-core/src/group_recovery_batch.rs"),
+    )
+    .unwrap();
     let body = core
         .split_once("pub fn inspect_group_recovery_batch<")
         .unwrap()
@@ -6616,7 +6617,7 @@ fn complete_stored_group_batch_uses_shared_global_reservations_before_checkpoint
     .unwrap();
     assert!(frozen.contains("assert_eq!(comparisons, 364)"));
     assert!(!frozen.contains("inspect_group_recovery_batch("));
-    upstream::assert_same_source("crates/leselang-runtime-core/src/group_recovery_batch.rs");
+    upstream::assert_recorded_source("crates/leselang-runtime-core/src/group_recovery_batch.rs");
     upstream::assert_consumer_test("recovery_fences");
 }
 
@@ -9558,9 +9559,10 @@ fn shared_watermark_planning_keeps_native_validation_reads_and_commit_before_pub
                 "watermark_planning_preserves_every_table_on_import_recovery_and_exhaustion_refusal"
             )
     );
-    let core =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/src/sequence_watermark.rs"))
-            .unwrap();
+    let core = upstream::read_source(
+        root().join("crates/leselang-runtime-core/src/sequence_watermark.rs"),
+    )
+    .unwrap();
     for absent in [
         "rusqlite",
         "leserpent",
@@ -9673,9 +9675,10 @@ fn continuation_context_kernel_preserves_native_phase_order_in_every_succession_
         tail.find("image.fuel_remaining >= previous_fuel").unwrap()
             < tail.find("same_inherited_context").unwrap()
     );
-    let core =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/src/continuation_context.rs"))
-            .unwrap();
+    let core = upstream::read_source(
+        root().join("crates/leselang-runtime-core/src/continuation_context.rs"),
+    )
+    .unwrap();
     for absent in [
         "rusqlite",
         "leserpent",
@@ -9767,7 +9770,7 @@ fn successor_capture_extension_shares_retention_without_authority_or_saved_body_
     assert!(fs::read_to_string(root().join("crates/leserpent-vm/tests/dataflow.rs")).unwrap()
         .contains("successor_capture_extension_refusal_preserves_every_journal_table_and_original_budget"));
     let core =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/src/capture_extension.rs"))
+        upstream::read_source(root().join("crates/leselang-runtime-core/src/capture_extension.rs"))
             .unwrap();
     for absent in [
         "rusqlite",
@@ -9898,7 +9901,7 @@ fn live_and_recovered_capture_correspondence_delegates_traversal_without_project
     );
     assert!(source.contains("saved_capture_correspondence_preserves_frozen_native_fault_order"));
     assert!(fs::read_to_string(root().join("crates/leserpent-vm/tests/parallel_group_tail.rs")).unwrap().contains("false_group_alias_and_result_capture_correspondence_blocks_recovery_without_mutation"));
-    let core = fs::read_to_string(
+    let core = upstream::read_source(
         root().join("crates/leselang-runtime-core/src/capture_correspondence.rs"),
     )
     .unwrap();
@@ -10033,7 +10036,7 @@ fn live_sequence_and_bound_recovery_share_stop_precedence_without_replay_or_sett
             .contains("bound_output_precedence_receipts_cannot_replace_aggregate_or_first_stop")
     );
     let core =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/src/outcome_summary.rs"))
+        upstream::read_source(root().join("crates/leselang-runtime-core/src/outcome_summary.rs"))
             .unwrap();
     for absent in [
         "rusqlite",
@@ -10112,7 +10115,7 @@ fn pending_sequence_recovery_delegates_frontier_phases_without_dispatch_or_evalu
         assert!(journal.contains(proof));
     }
     let core =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/src/sequence_frontier.rs"))
+        upstream::read_source(root().join("crates/leselang-runtime-core/src/sequence_frontier.rs"))
             .unwrap();
     for absent in [
         "rusqlite",
@@ -10206,7 +10209,7 @@ fn product_group_recovery_policy_preserves_explicit_host_proofs_and_has_no_stora
 fn complete_stored_group_recovery_is_core_owned_without_native_storage_or_product_types() {
     assert_complete_group_recovery_order();
     let core =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/src/group_recovery.rs"))
+        upstream::read_source(root().join("crates/leselang-runtime-core/src/group_recovery.rs"))
             .unwrap();
     for required in [
         "pub trait GroupRecoveryHost",
@@ -10247,7 +10250,7 @@ fn complete_stored_group_recovery_is_core_owned_without_native_storage_or_produc
     assert!(frozen.contains("assert_eq!(snapshot(&tx), before)"));
     assert!(!frozen.contains("inspect_group_recovery("));
     let consumer =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/tests/recovery_fence.rs"))
+        upstream::read_source(root().join("crates/leselang-runtime-core/tests/recovery_fence.rs"))
             .unwrap();
     for required in [
         "complete_group_recovery_preserves_state_matrix_short_circuit_and_original_receipt",
@@ -10257,7 +10260,7 @@ fn complete_stored_group_recovery_is_core_owned_without_native_storage_or_produc
     ] {
         assert!(consumer.contains(required), "{required}");
     }
-    upstream::assert_same_source("crates/leselang-runtime-core/src/group_recovery.rs");
+    upstream::assert_recorded_source("crates/leselang-runtime-core/src/group_recovery.rs");
     upstream::assert_consumer_test("recovery_fences");
 }
 
@@ -10300,8 +10303,9 @@ fn native_chain_recovery_delegates_order_not_policy_or_execution() {
             "chain wrapper grew behavior: {absent}"
         );
     }
-    let core = fs::read_to_string(root.join("crates/leselang-runtime-core/src/successor_chain.rs"))
-        .unwrap();
+    let core =
+        upstream::read_source(root.join("crates/leselang-runtime-core/src/successor_chain.rs"))
+            .unwrap();
     for absent in [
         "rusqlite",
         "leserpent",
@@ -10395,7 +10399,7 @@ fn sqlite_reservation_and_completion_fences_are_shared_without_repair_or_executi
         assert!(!reservations.contains(forbidden));
     }
     let core =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/src/recovery_fence.rs"))
+        upstream::read_source(root().join("crates/leselang-runtime-core/src/recovery_fence.rs"))
             .unwrap();
     for absent in [
         "leserpent",
@@ -10586,7 +10590,8 @@ fn actual_group_request_and_recovery_graphs_use_the_shared_bounded_identity_kern
         assert!(code.contains(proof));
     }
     let core =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/src/group_graph.rs")).unwrap();
+        upstream::read_source(root().join("crates/leselang-runtime-core/src/group_graph.rs"))
+            .unwrap();
     for absent in [
         "leserpent",
         "rusqlite",
@@ -10720,7 +10725,8 @@ fn actual_atomic_and_group_saved_bodies_use_the_shared_hir_entry_without_body_re
     }
     assert!(!reentry.contains("body:"));
     let shared =
-        fs::read_to_string(root().join("crates/leselang-hir-core/src/effect_reentry.rs")).unwrap();
+        upstream::read_source(root().join("crates/leselang-hir-core/src/effect_reentry.rs"))
+            .unwrap();
     for boundary in [
         "with_captured_scope_state(",
         "evaluate_resumable_effects_in_scope(body, scope, environment, fuel, limits)",
@@ -10769,8 +10775,9 @@ fn saved_frame_is_shared_data_while_reference_restore_and_authority_remain_nativ
     for removed in ["pub struct ContinuationImage", "pub struct ResourceBudget"] {
         assert!(!code.contains(removed));
     }
-    let core = fs::read_to_string(root().join("crates/leselang-runtime-core/src/continuation.rs"))
-        .unwrap();
+    let core =
+        upstream::read_source(root().join("crates/leselang-runtime-core/src/continuation.rs"))
+            .unwrap();
     for absent in [
         "leserpent",
         "leselang_hir",
@@ -10850,8 +10857,8 @@ fn actual_sqlite_recovery_uses_host_neutral_staging_without_moving_frame_or_auth
     assert_complete_checkpoint_finalization_order();
     assert!(code.contains("recovery_commit_failure_releases_staging_and_rolls_back_the_watermark"));
     assert!(code.contains("recovery_rejects_a_late_invalid_row_without_exposing_the_valid_prefix"));
-    let core =
-        fs::read_to_string(root().join("crates/leselang-runtime-core/src/checkpoint.rs")).unwrap();
+    let core = upstream::read_source(root().join("crates/leselang-runtime-core/src/checkpoint.rs"))
+        .unwrap();
     for absent in [
         "rusqlite",
         "leserpent",

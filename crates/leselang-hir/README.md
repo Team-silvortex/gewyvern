@@ -10,3 +10,15 @@ rejects new product consumers, including dev/build dependencies and aliases.
 
 Existing facade conformance suites stay here until their acceptance obligations
 have replacements. See the [handoff guide](../../docs/leselang-repository-handoff.md).
+
+## Compatibility Acceptance
+
+`cargo test -p leselang-hir --no-default-features` covers the released native
+import path, core type identity, foreign-host contracts and compile-fail docs
+that exclude product APIs. CI runs this complete suite once rather than repeating
+eight selected integration targets under the same feature configuration.
+
+The default-profile `product_identity` target separately proves that old product
+types are unchanged re-exports of `leserpent-hir`. Product lowering and recorded
+migration outcomes belong to that product owner. Native upstream acceptance does
+not replace either local API obligation, even when test bodies match byte-for-byte.

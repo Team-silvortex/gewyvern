@@ -4,6 +4,9 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
+#[path = "support/leselang_upstream.rs"]
+pub mod upstream;
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct OpenSourceCorePolicy {
@@ -45,6 +48,54 @@ fn read(path: impl AsRef<Path>) -> String {
 
 fn normalized_whitespace(value: &str) -> String {
     value.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn component_source(component: &OpenSourceComponent) -> Result<PathBuf, String> {
+    if upstream::NATIVE_CORES.contains(&component.id.as_str()) {
+        let recorded = upstream::source_inventory();
+        let expected = format!(
+            "{}/tree/{}/crates/{}",
+            recorded.repository, recorded.revision, component.id
+        );
+        if component.source != expected {
+            return Err(format!(
+                "{} must name its pinned public source, not a local pointer or mutable URL",
+                component.id
+            ));
+        }
+        Ok(upstream::checkout().join("crates").join(&component.id))
+    } else {
+        let relative = Path::new(&component.source);
+        if !relative
+            .components()
+            .all(|part| matches!(part, std::path::Component::Normal(_)))
+        {
+            return Err("product sources must stay inside the repository".into());
+        }
+        Ok(repository_root().join(relative))
+    }
+}
+
+#[test]
+fn external_core_policy_cannot_use_navigation_directories_or_mutable_sources() {
+    for id in upstream::NATIVE_CORES {
+        for source in [
+            format!("crates/{id}"),
+            format!("https://github.com/Team-silvortex/leselang/tree/main/crates/{id}"),
+            format!(
+                "https://example.invalid/leselang/tree/{}/crates/{id}",
+                upstream::source_inventory().revision
+            ),
+        ] {
+            assert!(
+                component_source(&OpenSourceComponent {
+                    id: (*id).into(),
+                    source
+                })
+                .is_err()
+            );
+        }
+    }
 }
 
 #[test]
@@ -146,14 +197,25 @@ fn every_current_primary_capability_is_mit_open_source_and_free() {
     assert_eq!(policy.components.len(), actual_components.len());
     assert_eq!(policy.components.len(), component_sources.len());
     for component in &policy.components {
-        let path = repository_root().join(&component.source);
+        let path = component_source(component).unwrap();
         assert!(
             path.is_dir(),
             "open-source component {} has no source directory {}",
             component.id,
             component.source
         );
+        if upstream::NATIVE_CORES.contains(&component.id.as_str()) {
+            assert!(path.join("src/lib.rs").is_file());
+            let package = upstream::product_metadata()["packages"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|package| package["name"] == component.id)
+                .unwrap();
+            assert_eq!(package["license"], "MIT");
+        }
     }
+    assert!(upstream::read("LICENSE").starts_with("MIT License\n"));
 
     let supporting_tooling =
         BTreeSet::from(["crates/gewyvern-dev", "crates/leserpent-frontend-package"]);

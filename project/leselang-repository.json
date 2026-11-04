@@ -15,7 +15,7 @@
     "leselang-vm"
   ],
   "native_development_owner": "leselang",
-  "product_source_state": "frozen-acceptance-snapshots",
+  "product_source_state": "pinned-source-inventory",
   "local_repository_created": true,
   "remote_url": "https://github.com/Team-silvortex/leselang",
   "remote_created": true,
@@ -29,13 +29,42 @@
     "ci_uses_pinned_upstream_consumer": true,
     "allowed_local_facade_edge": "leselang-vm -> leselang-hir",
     "local_facades_retired": false,
-    "frozen_snapshots_retired": false,
+    "frozen_snapshots_retired": true,
+    "frozen_core_manifests_retired": true,
+    "core_source_inspection_uses_pinned_upstream": true,
+    "frozen_core_compilation_retired": true,
+    "migration_oracle_harness_retired": true,
+    "runtime_documentation_snapshot_retired": true,
+    "status_source_evidence_uses_inventory": true,
     "source_exporter_retired": true
+  },
+  "source_inspection": {
+    "owner": "cargo-resolved-pinned-native-cores",
+    "snapshot_fallback": false,
+    "gates": [
+      "tests/language_independence_tdd.rs",
+      "tests/leselang_native_profile_tdd.rs",
+      "tests/leselang_vm_profile_tdd.rs",
+      "tests/reliability_gate_tdd.rs"
+    ],
+    "acceptance": "tests/leselang_source_ownership_tdd.rs"
+  },
+  "migration_oracle_acceptance": "crates/leserpent-hir/tests/fixtures/migration-boundaries/ownership.json",
+  "source_inventory": "project/status/leselang-source-inventory.json",
+  "documentation_inspection": {
+    "owner": "cargo-resolved-pinned-upstream",
+    "snapshot_fallback": false,
+    "gate": "tests/documentation_system_tdd.rs",
+    "runtime_baseline": {
+      "revision": "5f86dfb8dd79a28986fe5eb4cbfe6b044796f935",
+      "path": "docs/provenance/runtime-core-baseline.md",
+      "sha256": "ef13641472ec7270fdf48646efa4f95621a2502fa79c4e0ae8bdd8fb35384a7a"
+    }
   },
   "registry_published": false,
   "complete_vm": false,
   "full_extraction_gate": false,
-  "next_gate": "Native development continues in Leselang; retire frozen source-inspection snapshots only after migrating their acceptance evidence. Complete host-neutral durable recovery and full product parity remain separate gates.",
+  "next_gate": "Native development continues in Leselang. Core source snapshots are retired; preserve the pinned source inventory and classify the remaining local facade compatibility suites before retiring their APIs. Complete host-neutral durable recovery and full product parity remain separate gates.",
   "handoff": "docs/leselang-repository-handoff.md",
   "dependency_verification": "docs/fixtures/leselang_product_compatibility_cleanup_macos_arm64_20261028.json",
   "pinned_consumer_verification": "docs/fixtures/leselang_pinned_consumer_macos_arm64_20261104.json",
