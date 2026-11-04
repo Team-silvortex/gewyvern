@@ -36,9 +36,10 @@ native mutation and capture-copy accounting. Shared library code owns parsing,
 compilation, expression evaluation and reply-gated continuation. No test fixture,
 product service, SQLite, runtime thread or second evaluator is embedded here.
 This is an atomic scalar example, not complete language coverage, an external
-receipt authentication protocol or a production recovery backend. The native
-source exporter copies it unchanged into both package and consumer, then runs
-its tests plus immediate and queued success/cancel modes in each workspace.
+receipt authentication protocol or a production recovery backend. The independent
+repository owns the native package and consumer copies. `cargo dev check leselang`
+runs the pinned consumer tests and immediate/queued success/cancel modes; the
+shared acceptance map checks byte equality. The old source exporter is retired.
 
 ### Queued Host Driving
 
@@ -71,9 +72,9 @@ cargo +1.98.0 run -p leserpent-vm --no-default-features --release --locked --off
 ```
 
 `gewyvern_validate leserpent-benchmark` uses that same product target. Its fixed
-workload and JSON report are unchanged. Native source export neither reads nor
-requires the product benchmark, and rejects it if reintroduced into this crate's
-closed example inventory. This changes ownership, not language or performance
+workload and JSON report are unchanged. The native consumer neither reads nor
+requires the product benchmark; the ownership gate checks that it is absent from
+the native repository's files and targets. This changes ownership, not language or performance
 semantics; historical benchmark evidence keeps its original checkpoint paths.
 
 ## Acceptance History
@@ -847,8 +848,8 @@ parallel replies, group provenance/order/count rejection, parent cancellation,
 policy revocation, shared-IR isolation and every smaller fuel budget. This is
 bounded flat-group composition, not a new scheduler or durable exactly-once fence.
 These proofs are not complete reference-language/group coverage, a real GUI adapter, durable recovery
-or the planned full `host_embedding.rs` proof. The source checkpoint currently
-exports syntax/runtime-core/HIR and this native facade, not the complete VM or
-the product/reference profile. All-features builds of that checkpoint stay native.
+or the planned full `host_embedding.rs` proof. The independent repository owns
+syntax/runtime-core/HIR and the native facade, not the complete durable VM or
+the product/reference profile. Its all-features builds stay native.
 See the [embedding contract](../../docs/leselang-embedding.md#native-vm-build-profile)
 and [extraction gates](../../docs/leselang-embedding.md#repository-extraction-readiness).

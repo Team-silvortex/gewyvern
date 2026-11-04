@@ -32,7 +32,9 @@ jobs:
       # Native package tests/lints belong to the independent repository. Cargo
       # cannot test dev-dependencies of a Git dependency as a workspace member.
       - name: Fetch pinned native core and product dependencies
-        run: cargo +1.98.0 fetch --locked
+        run: |
+          cargo +1.98.0 fetch --locked
+          cargo +1.98.0 fetch --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml --locked
 
       - name: Verify immutable source identity and frozen acceptance snapshots
         run: cargo +1.98.0 test -p gewyvern --locked --offline --test leselang_repository_tdd
@@ -71,10 +73,10 @@ jobs:
         run: |
           cargo +1.98.0 test -p leselang-hir --locked --no-default-features --test source_preparation
 
-      - name: Verify native source and separate consumer outside the monorepo
+      - name: Verify pinned upstream consumer and product boundary without source export
         run: >-
-          cargo +1.98.0 run --locked -p gewyvern-dev --
-          package leselang --output "$RUNNER_TEMP/leselang-native-source" --verify
+          cargo +1.98.0 run --locked --offline --profile lean -p gewyvern-dev --
+          check leselang
 
       - name: Verify public loop stages and frozen product compatibility
         run: |
@@ -396,6 +398,12 @@ jobs:
 
       - name: Select Rust toolchain
         run: rustup default 1.98.0
+
+      # Host builds omit cross-platform packages needed by offline metadata.
+      - name: Fetch complete locked dependency graph
+        run: |
+          cargo fetch --locked
+          cargo fetch --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml --locked
 
       - name: Install RustSec audit tool
         run: cargo install cargo-audit --locked --version 0.22.2

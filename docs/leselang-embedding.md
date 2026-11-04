@@ -39,11 +39,11 @@ they do not imply rollback. The initial six example tests cover source/capture/r
 cancellation, initial/late refusal, native failure, all smaller fuel grants and
 cold invalid input. Source byte and compiler limits precede execution.
 
-The exporter uses a closed example inventory: `native_counter.rs` is copied
-byte-for-byte to package and consumer. The product benchmark belongs to
-`leserpent-vm` and is neither inspected nor required by native example export;
-unexpected example assets in the language crate still refuse export. Verification and generated
-CI explicitly run example tests and normal/cancel modes in both workspaces,
+The independent repository owns `native_counter.rs` in its package and consumer;
+the shared acceptance map checks those retained bytes and executable targets.
+The product benchmark belongs to `leserpent-vm`, not the native repository.
+Pinned consumer verification and upstream CI explicitly run example tests and
+normal/cancel modes,
 rather than relying on Cargo's default compile-only treatment of examples.
 This improves independent onboarding without changing runtime APIs, language
 coverage claims, storage protocols, publication settings or extraction gates.
@@ -92,8 +92,8 @@ the status catalog points to the new current owners.
 
 The product `language_benchmark` now lives under `leserpent-vm/examples` and
 imports `leserpent_hir` and `leserpent_vm` directly. The native language crate
-contains only its product-free `native_counter` example; its exporter no longer
-needs a product benchmark file to be present. The performance harness selects
+contains only its product-free `native_counter` example; the pinned upstream
+consumer does not depend on a product benchmark file. The performance harness selects
 `leserpent-vm --no-default-features` because this workload uses the memory VM,
 not SQLite. Its 64 branches, 500 iterations, 5,371 source bytes, 1,674 tokens and
 version-1 JSON report remain unchanged; two direct-product tests freeze the source
@@ -227,7 +227,7 @@ recursive calls through its own functions, sharing unchanged lowering, type and
 opaque-effect helpers. It checks 55 trees across 880 scope/group combinations and 165 private
 lexical views. A separate native integration target checks all twelve forwarders,
 borrow identity, native error/unwind propagation and current-policy re-observation.
-The source exporter runs that target again in its external consumer workspace.
+Pinned upstream verification runs that target in its separate consumer workspace.
 
 This removes one concrete cross-crate extraction blocker, not the whole HIR
 split. The declaration assembly boundary below replaces two private preflight
@@ -286,7 +286,7 @@ including error positions, optional arguments, budgets, callback failure/unwind
 and domain-query order. They share the original structure/type kernels, not a
 second compiler. Eight separate-crate tests cover original native ownership,
 strict ingress, current policy, once-only consumption and template revalidation;
-the source exporter copies these tests unchanged into its consumer workspace.
+the pinned upstream consumer runs the same byte-checked test bodies.
 No syntax, wire or journal schema changes are made. Remaining private compiler
 hooks, acyclic HIR package ownership and complete independent-language/durable
 acceptance are still separate extraction gates.
@@ -6012,7 +6012,7 @@ on one host, live policy re-entry, cancellation and terminal fuel exhaustion.
 These are two scalar-host profiles, not complete
 reference-language/group coverage, a real GUI adapter or durable recovery.
 The full `tests/host_embedding.rs` acceptance proof remains planned and absent;
-the four-crate source checkpoint now exports this native VM facade unchanged.
+the independent repository owns this native VM facade and its consumer tests.
 Complete independent VM and repository extraction gates remain open.
 
 ### Forced Publication Termination
@@ -8830,74 +8830,35 @@ or complete independent durable VM is introduced.
 
 ### Native Source Checkpoint
 
-`cargo dev package leselang --output target/leselang-native-source --verify`
-exports syntax, runtime-core, native HIR/session and native VM facade source as a self-contained
-MIT workspace. The output parent must exist and the destination must be fresh.
-`--dry-run` performs bounded source planning without writes or verifier calls.
-The Rust workflow refuses source symlinks, unsafe/protected paths, duplicate or
-oversized inventory and existing destinations. Failed verification or changed/
-unplanned export files leave no published checkpoint. A sibling reservation
-serializes cooperating publishers; this is a trusted local-filesystem workflow,
-not a sandbox against hostile concurrent filesystem mutation.
+The source exporter is retired now that the MIT language foundation owns its
+independent repository. Use `cargo dev check leselang` for product integration:
+it validates pinned upstream source identities and executes the separate
+`consumer/` workspace plus the product boundary fixture. The old
+`cargo dev package leselang` command no longer generates manifests or copies
+sources. Frozen local files are acceptance snapshots, not another implementation.
 
-Production Rust files and native/mixed tests are copied byte-for-byte from the
-same implementation. Product-only modules/tests and the optional product
-dependency stay behind. Explicit crate metadata replaces monorepo inheritance;
-registry versions/checksums come from the original locked transitive closure.
-The reference cfg name is recognized only for unchanged unreachable guards,
-not an enableable Cargo feature, so exported all-features builds remain native.
-Packages are `publish = false` until a separate publication decision.
+The shared product-side acceptance map compares retained test/helper/example
+files byte-for-byte with that checkout and verifies registered executable targets.
+Native/default/all-features packages have no enableable reference or SQLite
+feature. Product policies and storage remain in Gewyvern's product adapters.
+Independent packages remain `publish = false` until a separate registry decision.
 
-The VM manifest projection removes its optional product/storage dependencies and
-their explicit reference test/example targets. Its package metadata, features,
-dependencies and gated targets have a closed reviewed shape: added build hooks,
-unknown dependencies/features, custom target paths, duplicate or incomplete
-sections fail source planning, rather than silently changing the exported profile.
-The exported VM package has no enableable reference or SQLite feature; its
-`native::Vm` remains the exact shared `StackedControlSession`. Upstream source
-documentation for the omitted product profile does not grant that feature here.
+Earlier source checkpoints are retained as historical evidence:
+the [native VM source export proof](fixtures/leselang_native_vm_source_export_macos_arm64_20261012.json)
+records the original four-crate inventory, exact SHA-256 and provenance, isolated
+workspace/consumer tests and strict lints. The later
+[isolated verification proof](fixtures/leselang_native_isolated_verification_macos_arm64_20261020.json)
+records cold-build cache disposal and publication safeguards from the retired
+workflow. Their hashes, versions, counts and flags describe those past runs;
+they are not restamped as current verification or rerun by current CI.
 
-The export has its own locked/offline CI and a separate `consumer/` workspace
-whose relative dependencies point only into the exported source. `--verify`
-checks local dependency paths, runs all native tests and strict lints, then runs
-the consumer's checkpoint/saved-frame/group-graph/recovery-fence/captured-reentry/durable-control/scope/session/stack/GUI/native-VM tests and
-strict lints. Verification uses a fresh, exclusive Cargo target directory in the
-system temporary area, not the monorepo's `target` or an inherited target cache.
-The exported workspace and consumer share only that invocation's disposable
-build artifacts. Overlapping exports have distinct targets; no repository-wide
-cache eviction or cleanup is performed. This deliberately cold-builds language
-crates for the portability proof; the locked registry download cache may still
-be reused. Ordinary exports without `--verify` do not compile or create a target.
-
-The Rust exporter removes its verification cache before sealing or publishing
-the source inventory. Verification and cleanup errors are both retained; failed
-cleanup blocks publication even when Cargo succeeded. The owned source stage and
-target also attempt cleanup during unwinding. Unix directories are created with
-mode 0700, and recursive cleanup does not follow links into unrelated directories.
-Abrupt process termination can still leave temporary directories; this is not a
-transactional filesystem service or a sandbox for arbitrary verifier code.
-
-`export-manifest.json` records relative file paths, exact SHA-256 and provenance;
-`verified` becomes true only after those checks and exact inventory revalidation.
-It is not a signature or a durable execution/authority certificate.
-The manifest separately reports `native_vm_facade = true` while retaining
-`complete_vm = false` and `full_extraction_gate = false`. The copied native VM
-host proof runs both as a workspace integration test and through the separate
-consumer's direct VM dependency, without root product metadata or assets.
-The retained [macOS arm64 export proof](fixtures/leselang_native_vm_source_export_macos_arm64_20261012.json)
-records the four-crate inventory, exact facade/consumer provenance and successful
-workspace/consumer tests and strict lints. It is local source-portability evidence,
-not a claim of fresh Linux validation or the remaining complete-runtime gates.
-The newer [isolated verification proof](fixtures/leselang_native_isolated_verification_macos_arm64_20261020.json)
-reruns the complete locked/offline `--verify` path with a fresh disposable cache,
-including workspace/consumer tests and strict Clippy, byte-identical source
-inventory, and cache removal before publication. It records a verified source
-checkpoint, not completion of host-neutral durable recovery or physical extraction.
-
-This closes the native source portability proof, **not the complete independent
-VM or repository extraction gate**. Product-coupled durable recovery and reference
-wire/auth/GUI compatibility remain separate; FFI and an OS shell are deferred.
-The repository CI runs this export in its temporary directory outside the monorepo.
+Those checkpoints report `native_vm_facade = true`, `complete_vm = false`
+and `full_extraction_gate = false`. Repository separation does not close every
+runtime milestone: this is **not the complete independent VM or repository
+extraction gate**. Product-coupled durable recovery and reference wire/auth/GUI
+compatibility remain separate; FFI and an OS shell are deferred. See the
+[handoff record](leselang-repository-handoff.md) for current verification and
+retained compatibility assets.
 
 ### Remaining Product Boundaries
 
@@ -9529,8 +9490,8 @@ covers 374 frozen comparisons over 22 real SQLite states from eight flow forms,
 checking exact fault order and unchanged original tables. Standalone consumers
 cover 96 state/policy combinations, graph refusal, owned native errors, every
 reached hook unwind and checkpoint handoff with distinct native keys. A late record
-or commit failure cannot publish their staged snapshot. The source exporter
-includes the new core implementation and the same independent consumer tests.
+or commit failure cannot publish their staged snapshot. The independent repository
+owns the core implementation and the same consumer tests.
 That migration was recorded at reference execution contract `1.101.0`, not native durable
 VM completeness: original authority, cross-group proofs, atomic commit and the
 complete language recovery pipeline still govern the remaining extraction gate.
@@ -9591,7 +9552,7 @@ records 1,176 frozen comparisons across 49 dispatches from eight flow forms and
 prevents checkpoint publication and watermark updates. Independent consumers
 cover 10,584 numeric/history/state boundary combinations, move-only local owners,
 unsized hosts, exact native error ownership, every reached hook unwind, cleanup,
-and late-proof/commit failure. The source-export consumer reuses these tests.
+and late-proof/commit failure. The pinned upstream consumer reuses these tests.
 That migration advanced reference execution to `1.104.0`; native embedding stays `0.162.0`,
 Developing at completion 10. This is another migrated recovery pipeline, not a
 complete independent durable evaluator or permission to replay settled effects.

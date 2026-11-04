@@ -79,28 +79,36 @@ cargo dev doctor
 cargo dev version check
 ```
 
-Prepare a fresh, independently buildable Leselang native-source checkpoint:
+Check the pinned independent Leselang dependency and product boundary:
 
 ```bash
-cargo dev package leselang --output target/leselang-native-source --verify
+cargo dev check leselang
+cargo dev check leselang --dry-run
 ```
 
-`--dry-run` plans the exact source inventory without writing or running the
-isolated verifier. The output parent must already exist, and an existing output
-is never replaced. Verification shares one temporary build target between the
-exported workspace and its consumer, then removes that target before publishing
-the verified output. It retains the source checkpoint and `export-manifest.json`,
-not a per-export compiler cache. Locked registry downloads remain reusable.
-The exported workspace and its separate consumer own explicit metadata,
-locked registry dependencies, MIT license and native CI. This is not the full
-durable VM extraction or publication gate. The five exported crates are
-`leselang-syntax`, `leselang-runtime-core`, `leselang-hir-core`, `leselang-hir`
-and `leselang-vm`. The native VM facade and its direct-consumer host tests are
-included; neither product/reference nor SQLite features are enableable in the
-checkpoint. Product execution acceptance belongs to `leserpent-vm`; legacy API
-checks remain in the facades. See the [acceptance owner map](monorepo-stack.md#acceptance-owners)
-before choosing where a new test belongs.
-See [embedding boundaries](leselang-embedding.md).
+This Rust workflow resolves the exact Git source/version from locked, offline Cargo
+metadata, checks all five native package identities, then runs the upstream
+consumer's tests/lints and native examples plus the product-HIR boundary fixture.
+It uses the existing Cargo target directory with the `lean` profile. No sibling
+checkout, source export, temporary build cache or rewritten manifest is needed.
+`--dry-run` still checks metadata but does not compile or run tests/examples.
+Fetch the locked main and boundary-fixture dependencies first on a new machine;
+missing cached dependencies fail explicitly rather than falling back to snapshots.
+Native workspace development and its full test/lint matrix belong upstream.
+
+The five independent crates are `leselang-syntax`, `leselang-runtime-core`,
+`leselang-hir-core`, `leselang-hir` and `leselang-vm`. Their implementation and
+release tooling belong to the independent repository. The old
+`cargo dev package leselang` source exporter is retired; it no longer writes
+workspaces, projects product versions onto language manifests or cold-builds a
+second copy. Old export records remain historical evidence, not current commands.
+
+Product execution acceptance belongs to `leserpent-vm`; legacy API checks remain
+in the facades. Shared product-side acceptance helpers resolve the pinned upstream
+consumer, compare retained Rust files byte-for-byte and check registered targets.
+See the [acceptance owner map](monorepo-stack.md#acceptance-owners) before choosing
+where a new test belongs, and the [repository handoff](leselang-repository-handoff.md)
+for current cleanup state.
 
 Before cutting a release, use `cargo dev version check` to verify that Cargo,
 .NET, lockfiles, public docs, and the status checkpoint still agree on one

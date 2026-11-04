@@ -1,5 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::process::Command;
+
+#[path = "support/leselang_upstream.rs"]
+pub mod upstream;
+
+use upstream::{
+    assert_consumer_file as assert_upstream_acceptance,
+    assert_consumer_test as assert_upstream_hir_test, checkout as upstream_checkout,
+    product_metadata as workspace_metadata,
+};
 
 #[test]
 fn queued_native_example_uses_separate_owners_and_original_reply_boundaries() {
@@ -25,16 +33,14 @@ fn queued_native_example_uses_separate_owners_and_original_reply_boundaries() {
     for forbidden in ["tokio", "async fn", "std::thread", "Mutex", "Arc<"] {
         assert!(!text.contains(forbidden), "{forbidden}");
     }
-    let exporter =
-        std::fs::read_to_string(root.join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
+    let ci = std::fs::read_to_string(upstream_checkout().join(".github/workflows/ci.yml")).unwrap();
     for mode in [
         "--queued",
         "--queued-cancel-pending",
         "--queued-cancel-reply",
     ] {
-        assert!(exporter.contains(&format!("\"{mode}\"")), "{mode}");
         assert_eq!(
-            exporter.matches(&format!("lean -- {mode}\\n")).count(),
+            ci.matches(&format!("lean -- {mode}\n")).count(),
             2,
             "{mode}"
         );
@@ -71,10 +77,11 @@ fn runnable_native_example_uses_public_facade_without_including_test_adapters() 
     for forbidden in [".unwrap()", ".expect(", "panic!", "unsafe {"] {
         assert!(!adapter.contains(forbidden), "{forbidden}");
     }
-    let exporter =
-        std::fs::read_to_string(root.join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("consumer/examples/native_counter.rs"));
-    assert!(exporter.contains("untracked VM example asset"));
+    assert_upstream_acceptance(
+        "crates/leselang-vm/examples/native_counter.rs",
+        "examples/native_counter.rs",
+        Some("example"),
+    );
 }
 
 #[test]
@@ -292,8 +299,11 @@ fn native_group_disk_reopen_restores_parent_and_collector_under_one_owner() {
     for forbidden in ["leserpent", "rusqlite", "unsafe {", "#[cfg("] {
         assert!(!portable.contains(forbidden), "{forbidden}");
     }
-    let export = std::fs::read_to_string(root.join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(export.contains("consumer/tests/support/native_group_checkpoint.rs"));
+    assert_upstream_acceptance(
+        "crates/leselang-vm/tests/support/native_group_checkpoint.rs",
+        "tests/support/native_group_checkpoint.rs",
+        None,
+    );
 }
 
 #[test]
@@ -321,8 +331,11 @@ fn native_disk_reopen_reuses_original_frames_and_host_owned_receipts() {
     for forbidden in ["leserpent", "rusqlite", "unsafe {", "#[cfg("] {
         assert!(!fixture.contains(forbidden), "{forbidden}");
     }
-    let export = std::fs::read_to_string(root.join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(export.contains("consumer/tests/support/native_checkpoint.rs"));
+    assert_upstream_acceptance(
+        "crates/leselang-vm/tests/support/native_checkpoint.rs",
+        "tests/support/native_checkpoint.rs",
+        None,
+    );
 }
 
 #[test]
@@ -701,9 +714,7 @@ fn native_hir_owner_is_physical_product_free_and_reexported_without_a_second_tre
     let harness = read("crates/leselang-hir/tests/support/migration_computation.rs");
     assert!(harness.contains("include!(\"../../../leserpent-hir/src/computation.rs\");"));
     assert!(harness.contains("mod scalar_form_contract_tests;"));
-    assert!(
-        read("crates/gewyvern-dev/src/leselang.rs").contains("\"consumer/tests/core_identity.rs\"")
-    );
+    assert_upstream_hir_test("core_identity");
     let ci = read(".github/workflows/ci.yml");
     assert!(ci.contains("--test leselang_repository_tdd"));
     let install = ci
@@ -750,9 +761,7 @@ fn product_hir_is_compiled_as_a_foreign_crate_without_reference_feature_unificat
         read("crates/leserpent-hir/src/computation.rs")
             .contains("crate::pure_typing::valid_local_name(name)")
     );
-    assert!(
-        read("crates/gewyvern-dev/src/leselang.rs").contains("\"consumer/tests/local_names.rs\"")
-    );
+    assert_upstream_hir_test("local_names");
     let ci = read(".github/workflows/ci.yml");
     assert!(ci.contains("--no-default-features --test local_names"));
     assert!(ci.contains("test --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml --locked --target-dir target --test product"));
@@ -808,9 +817,7 @@ fn public_scalar_form_removes_product_private_scalar_kernel_access_without_weake
     assert!(frozen.contains("assert_eq!(cases, 3840)"));
     let consumer = read("crates/leselang-hir/tests/scalar_form.rs");
     assert!(consumer.contains("assert_eq!(cases, 870)"));
-    assert!(
-        read("crates/gewyvern-dev/src/leselang.rs").contains("\"consumer/tests/scalar_form.rs\"")
-    );
+    assert_upstream_hir_test("scalar_form");
     let ci = read(".github/workflows/ci.yml");
     assert!(ci.contains("--no-default-features --test scalar_form"));
     assert!(ci.contains("--test migration_oracles computation::scalar_form_contract_tests"));
@@ -883,10 +890,7 @@ fn public_fold_stages_keep_collection_first_and_next_admission_after_scope_clean
     assert!(oracle.contains("crate::scalar_source::fold_source"));
     assert!(!oracle.contains("bind_fold_source"));
     assert!(frozen.contains("assert_eq!(cases, 1920)"));
-    assert!(
-        read("crates/gewyvern-dev/src/leselang.rs")
-            .contains("\"consumer/tests/fold_preparation.rs\"")
-    );
+    assert_upstream_hir_test("fold_preparation");
     let ci = read(".github/workflows/ci.yml");
     assert!(ci.contains("--no-default-features --test fold_preparation"));
     assert!(ci.contains("--test migration_oracles computation::fold_preparation_contract_tests"));
@@ -944,10 +948,7 @@ fn public_loop_stages_replace_private_product_gates_without_exposing_unchecked_p
     assert!(oracle.contains("crate::scalar_source::loop_source"));
     assert!(!oracle.contains("bind_loop_source"));
     assert!(frozen.contains("assert_eq!(cases, 1152)"));
-    assert!(
-        read("crates/gewyvern-dev/src/leselang.rs")
-            .contains("\"consumer/tests/loop_preparation.rs\"")
-    );
+    assert_upstream_hir_test("loop_preparation");
     let ci = read(".github/workflows/ci.yml");
     assert!(ci.contains("--no-default-features --test loop_preparation"));
     assert!(ci.contains("--test migration_oracles computation::loop_preparation_contract_tests"));
@@ -997,10 +998,7 @@ fn public_native_source_plans_keep_original_borrows_and_do_not_replace_strict_in
     let oracle = frozen.split_once("type Data =").unwrap().0;
     assert!(!oracle.contains("bind_field_source("));
     assert!(!oracle.contains("bind_host_source_root("));
-    assert!(
-        read("crates/gewyvern-dev/src/leselang.rs")
-            .contains("\"consumer/tests/source_preparation.rs\"")
-    );
+    assert_upstream_hir_test("source_preparation");
     let ci = read(".github/workflows/ci.yml");
     assert!(ci.contains("--no-default-features --test source_preparation"));
     assert!(ci.contains("--test leselang_repository_tdd"));
@@ -1064,10 +1062,7 @@ fn public_argument_stages_are_bounded_named_alignments_not_source_or_authority_r
     let oracle = frozen.split_once("type Data =").unwrap().0;
     assert!(!oracle.contains("bind_helper_source_arguments("));
     assert!(!oracle.contains("bind_source_arguments("));
-    assert!(
-        read("crates/gewyvern-dev/src/leselang.rs")
-            .contains("\"consumer/tests/argument_binding.rs\"")
-    );
+    assert_upstream_hir_test("argument_binding");
     let ci = read(".github/workflows/ci.yml");
     assert!(ci.contains("--no-default-features --test argument_binding"));
     assert!(ci.contains("--test leselang_repository_tdd"));
@@ -1125,10 +1120,7 @@ fn declaration_receipts_replace_private_compiler_bypasses_without_unchecked_sour
     assert!(product.contains("accepted.source_for(function)"));
     assert!(!product.contains("lower_preflighted_helper_body"));
     assert!(!product.contains("assemble_preflighted_program"));
-    assert!(
-        read("crates/gewyvern-dev/src/leselang.rs")
-            .contains("\"consumer/tests/declaration_source.rs\"")
-    );
+    assert_upstream_hir_test("declaration_source");
     assert!(
         read(".github/workflows/ci.yml")
             .contains("--no-default-features --test declaration_source")
@@ -1181,8 +1173,7 @@ fn computation_policy_is_foreign_host_implementable_without_inherent_alias_metho
     let native = read("crates/leselang-hir/tests/computation_profile.rs");
     assert!(!native.contains("#![cfg(feature"));
     assert!(!native.contains("leserpent"));
-    let export = read("crates/gewyvern-dev/src/leselang.rs");
-    assert!(export.contains("\"consumer/tests/computation_profile.rs\""));
+    assert_upstream_hir_test("computation_profile");
     let ci = read(".github/workflows/ci.yml");
     assert!(ci.contains("--no-default-features --test computation_profile"));
     assert!(ci.contains("--lib computation::profile_contract_tests"));
@@ -1898,21 +1889,6 @@ fn real_shared_control_entries_retain_owned_outputs_through_prefix_and_native_ow
     ] {
         assert!(tests.contains(proof));
     }
-}
-
-fn workspace_metadata() -> serde_json::Value {
-    let output = Command::new(env!("CARGO"))
-        .args(["metadata", "--format-version", "1", "--locked", "--offline"])
-        .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .output()
-        .expect("cargo metadata should start");
-    assert!(
-        output.status.success(),
-        "cargo metadata failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    serde_json::from_slice(&output.stdout).expect("cargo metadata should be valid JSON")
 }
 
 fn workspace_dependency_graph() -> BTreeMap<String, BTreeSet<String>> {

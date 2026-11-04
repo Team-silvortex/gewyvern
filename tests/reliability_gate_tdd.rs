@@ -238,6 +238,82 @@ fn continuous_integration_enforces_all_primary_product_gates() {
     }
 }
 
+// Keep dependency preparation inside each job and before its offline consumers.
+fn fetches_complete_locked_inputs(job: &str, cargo: &str, gate: &str) -> bool {
+    let Some((before_gate, _)) = job.split_once(gate) else {
+        return false;
+    };
+    let commands: Vec<_> = before_gate
+        .lines()
+        .map(str::trim)
+        .map(|line| line.strip_prefix("run: ").unwrap_or(line))
+        .collect();
+    // Exact commands deliberately reject --target/--offline: host builds do not
+    // fetch the cross-platform packages required by unfiltered offline metadata.
+    [
+        format!("{cargo} fetch --locked"),
+        format!("{cargo} fetch --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml --locked"),
+    ]
+    .iter()
+    .all(|command| commands.contains(&command.as_str()))
+}
+
+#[test]
+fn offline_metadata_jobs_fetch_both_lockfiles_before_tests() {
+    let workflow = include_str!("../.github/workflows/ci.yml");
+    for (job, next, cargo, gate) in [
+        (
+            "rust",
+            "product-surfaces",
+            "cargo",
+            "cargo test --workspace --all-features --locked",
+        ),
+        (
+            "leselang-core",
+            "rust",
+            "cargo +1.98.0",
+            "cargo +1.98.0 test -p gewyvern --locked --offline",
+        ),
+    ] {
+        let body = workflow
+            .split_once(&format!("\n  {job}:\n"))
+            .unwrap()
+            .1
+            .split_once(&format!("\n  {next}:\n"))
+            .unwrap()
+            .0;
+        assert!(
+            fetches_complete_locked_inputs(body, cargo, gate),
+            "{job} must fetch the complete root and foreign-fixture lockfiles before offline metadata consumers"
+        );
+    }
+}
+
+#[test]
+fn offline_preparation_guard_rejects_missing_filtered_or_late_fetches() {
+    let root_fetch = "cargo fetch --locked";
+    let fixture_fetch = "cargo fetch --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml --locked";
+    let gate = "cargo test --workspace --all-features --locked";
+    let valid = format!("run: |\n  {root_fetch}\n  {fixture_fetch}\nrun: {gate}\n");
+    assert!(fetches_complete_locked_inputs(&valid, "cargo", gate));
+    for fetch in [root_fetch, fixture_fetch] {
+        for replacement in [
+            String::new(),
+            format!("# {fetch}"),
+            format!("{fetch} --target x86_64-unknown-linux-gnu"),
+            format!("{fetch} --offline"),
+        ] {
+            assert!(!fetches_complete_locked_inputs(
+                &valid.replace(fetch, &replacement),
+                "cargo",
+                gate
+            ));
+        }
+    }
+    let late = format!("run: {gate}\n{valid}");
+    assert!(!fetches_complete_locked_inputs(&late, "cargo", gate));
+}
+
 // A focused delimiter guard, not a replacement for parsing the complete YAML.
 fn ambiguous_plain_run(line: &str) -> bool {
     let line = line.trim_start();

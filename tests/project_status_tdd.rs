@@ -10672,7 +10672,7 @@ fn native_source_checkpoint_status_records_portability_without_full_runtime_prom
         assert!(cell.contract.surfaces.iter().any(|s| s == surface));
     }
     for path in [
-        "crates/gewyvern-dev/src/leselang.rs",
+        "crates/gewyvern-dev/src/leselang_check.rs",
         "crates/gewyvern-dev/src/main.rs",
         "crates/gewyvern-dev/src/version.rs",
         "tests/leselang_native_profile_tdd.rs",
@@ -10686,7 +10686,8 @@ fn native_source_checkpoint_status_records_portability_without_full_runtime_prom
         );
     }
     for boundary in [
-        "cargo dev package leselang --verify",
+        "source exporter is retired",
+        "cargo dev check leselang",
         "byte-for-byte",
         "original locked registry closure",
         "outside the monorepo",
@@ -10887,7 +10888,7 @@ fn committed_checkpoint_status_tracks_actual_recovery_without_full_vm_promotion(
         "crates/leselang-runtime-core/src/checkpoint.rs",
         "crates/leselang-runtime-core/tests/checkpoint.rs",
         "crates/leserpent-vm/src/journal.rs",
-        "crates/gewyvern-dev/src/leselang.rs",
+        "crates/gewyvern-dev/src/leselang_check.rs",
         "tests/leselang_vm_profile_tdd.rs",
     ] {
         assert!(
@@ -26771,11 +26772,13 @@ fn repository_handoff_keeps_runtime_acceptance_and_missing_evidence_unpromoted()
             "reference dependency posture changed: {dependency}"
         );
     }
-    let exporter =
-        std::fs::read_to_string(repository_root().join("crates/gewyvern-dev/src/leselang.rs"))
-            .unwrap();
-    assert!(exporter.contains("\"complete_vm\": false"));
-    assert!(exporter.contains("\"full_extraction_gate\": false"));
+    let handoff: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join("project/leselang-repository.json"))
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(handoff["complete_vm"], false);
+    assert_eq!(handoff["full_extraction_gate"], false);
 }
 
 #[test]

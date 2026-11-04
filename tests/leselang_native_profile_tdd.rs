@@ -1,5 +1,8 @@
 use std::{fs, path::Path, process::Command};
 
+#[path = "support/leselang_upstream.rs"]
+pub mod upstream;
+
 fn root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
 }
@@ -59,94 +62,67 @@ fn native_profile_has_only_language_workspace_dependencies_and_no_product_contra
 }
 
 #[test]
-fn native_source_export_is_a_rust_workflow_with_unchanged_code_and_isolated_consumer_proofs() {
+fn native_source_export_is_retired_after_real_upstream_acceptance_migration() {
     let workflow = fs::read_to_string(root().join("crates/gewyvern-dev/src/main.rs")).unwrap();
-    assert!(workflow.contains("cargo dev package leselang [--output DIR] [--verify] [--dry-run]"));
-    assert!(workflow.contains("leselang::export(&root, &options)?"));
-    let source = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    for retained in [
-        "fn module_names(",
-        "fn crate_manifest(",
-        "fn registry_lock(",
-        "fn check_inventory(",
-        "fn publish(",
-        "read_regular(root, source)?",
-        "publish = false",
-        "source symlink refused",
-        "export destination already exists",
-        "--all-features",
-        "--all-targets",
-        "--locked",
-        "--offline",
-        "--no-deps",
-        "source export",
-        "leselang-native-source-consumer",
-        "complete_vm\": false",
-        "full_extraction_gate\": false",
-        "dry_run_plans_real_sources_without_files_or_verifier_calls",
-        "failed_isolated_verification_leaves_no_published_directory_or_private_stage",
-        "changed_production_bytes_after_verification_are_not_sealed_or_published",
-        "unplanned_verifier_files_cannot_enter_a_verified_source_inventory",
-        "publication_serializes_exporters_and_never_replaces_preexisting_destination",
-    ] {
-        assert!(
-            source.contains(retained),
-            "native source export lost {retained}"
-        );
-    }
-    for forbidden in [
-        "Command::new(\"python",
-        "Command::new(\"node",
-        "Command::new(\"sh",
-        "Command::new(\"bash",
-        "cargo clean",
-        "git commit",
-        "git push",
-    ] {
-        assert!(!source.contains(forbidden));
-    }
-    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
-    assert!(
-        ci.contains("package leselang --output \"$RUNNER_TEMP/leselang-native-source\" --verify")
+    assert!(workflow.contains("cargo dev check leselang [--dry-run]"));
+    assert!(!workflow.contains("PackageLeselang"));
+    assert!(!root().join("crates/gewyvern-dev/src/leselang.rs").exists());
+    upstream::assert_complete_consumer_inventory();
+    let state: serde_json::Value =
+        serde_json::from_str(include_str!("../project/leselang-repository.json")).unwrap();
+    assert_eq!(
+        state["compatibility_cleanup"]["source_exporter_retired"],
+        true
     );
+    assert_eq!(state["complete_vm"], false);
+    assert_eq!(state["full_extraction_gate"], false);
+    let ci = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+    assert!(ci.contains("check leselang"));
+    assert!(!ci.contains("package leselang"));
     assert!(ci.contains("cargo test --workspace --all-features --locked"));
     assert!(ci.contains("cargo +1.98.0 test -p leselang-vm --locked --no-default-features"));
 }
 
 #[test]
-fn source_verification_owns_disposable_cache_without_monorepo_build_artifacts() {
-    let source = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    for required in [
-        "struct ExportDirectory",
-        "impl Drop for ExportDirectory",
-        "std::env::temp_dir().join(",
-        "verifier(&stage.path, &target.path)",
-        "finish_export_cleanup(result, target.cleanup())?",
-        "finish_export_cleanup(result, stage.cleanup())?",
-        "verified_exports_use_fresh_private_targets_and_remove_them_before_publication",
-        "overlapping_exports_never_share_or_remove_each_others_verification_cache",
-        "verifier_unwind_cleans_both_owned_directories_without_publishing",
-        "failed_cache_cleanup_preserves_verification_error_and_blocks_publication",
-        "owned_cache_cleanup_does_not_follow_links_into_unrelated_directories",
-    ] {
-        assert!(source.contains(required), "missing {required}");
-    }
-    let export = source
-        .split("fn export_with_verifier(")
-        .nth(1)
+fn upstream_workspace_metadata_has_five_native_owners_without_product_features() {
+    let metadata = upstream::native_metadata();
+    let members = metadata["workspace_members"].as_array().unwrap();
+    let owners: Vec<_> = metadata["packages"]
+        .as_array()
         .unwrap()
-        .split("fn unique_suffix(")
-        .next()
-        .unwrap();
-    assert!(!export.contains("root.join(\"target\")"));
-    let cleanup = export
-        .find("finish_export_cleanup(result, target.cleanup())?")
-        .unwrap();
-    assert!(cleanup < export.find("check_inventory(&stage.path, &plan)?").unwrap());
-    assert!(cleanup < export.find("publish(&stage.path, &output)?").unwrap());
-    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
-    assert!(docs.contains("Overlapping exports have distinct targets"));
-    assert!(docs.contains("Abrupt process termination can still leave temporary directories"));
+        .iter()
+        .filter(|package| members.contains(&package["id"]))
+        .collect();
+    assert_eq!(owners.len(), upstream::NATIVE_CRATES.len());
+    for name in upstream::NATIVE_CRATES {
+        let package = owners.iter().find(|p| p["name"] == *name).unwrap();
+        assert_eq!(package["version"], "0.1.0");
+        assert_eq!(package["license"], "MIT");
+        assert_eq!(
+            Path::new(package["manifest_path"].as_str().unwrap()),
+            upstream::checkout()
+                .join("crates")
+                .join(name)
+                .join("Cargo.toml")
+        );
+        for feature in ["leserpent-profile", "sqlite-journal"] {
+            assert!(package["features"].get(feature).is_none());
+        }
+        for dependency in package["dependencies"].as_array().unwrap() {
+            let dependency = dependency["name"].as_str().unwrap();
+            assert!(
+                upstream::NATIVE_CRATES.contains(&dependency)
+                    || ["serde", "serde_json"].contains(&dependency)
+            );
+        }
+    }
+    let source =
+        fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang_check.rs")).unwrap();
+    let source = source.split("#[cfg(test)]").next().unwrap();
+    assert!(!source.contains("std::env::temp_dir()"));
+    assert!(!source.contains("remove_dir_all"));
+    assert!(!source.contains("fs::write"));
+    assert!(source.contains("absolute(&product, \"target_directory\")?"));
 }
 
 #[test]
@@ -162,42 +138,45 @@ fn default_and_explicit_profiles_retain_the_existing_host_contract() {
 }
 
 #[test]
-fn native_vm_source_checkpoint_keeps_direct_consumer_proof_and_closed_reference_projection() {
-    let source = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    for required in [
-        "fn native_vm_manifest(",
-        "reference_tests.contains(test_name)",
-        "native_vm_facade\": true",
-        "consumer/tests/native_vm_embedding.rs",
-        "vm_manifest_projection_preserves_native_dependencies_and_omits_every_reference_target",
-        "vm_manifest_projection_refuses_unreviewed_features_dependencies_sections_and_targets",
-        "crates/leserpent-vm/src/leserpent_profile.rs",
-        "crates/leserpent-vm/src/journal.rs",
-    ] {
-        assert!(source.contains(required), "VM export lost {required}");
-    }
-    let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
-    let section = docs
-        .split("### Native Source Checkpoint")
-        .nth(1)
+fn native_vm_repository_keeps_direct_consumer_proof_without_reference_targets() {
+    upstream::assert_consumer_test("native_vm_embedding");
+    let vm = upstream::native_metadata()["packages"]
+        .as_array()
         .unwrap()
-        .split("### Remaining Product Boundaries")
-        .next()
-        .unwrap()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
-    for required in [
-        "native VM facade source",
-        "closed reviewed shape",
-        "no enableable reference or SQLite feature",
-        "native_vm_facade = true",
-        "complete_vm = false",
-        "full_extraction_gate = false",
-        "separate consumer's direct VM dependency",
-    ] {
-        assert!(section.contains(required), "VM export docs lost {required}");
+        .iter()
+        .find(|package| package["name"] == "leselang-vm")
+        .unwrap();
+    // Recognizing an unreachable cfg name in lints does not enable a Cargo feature.
+    for feature in ["leserpent-profile", "sqlite-journal"] {
+        assert!(vm["features"].get(feature).is_none());
     }
+    for dependency in vm["dependencies"].as_array().unwrap() {
+        assert!(!["leserpent-vm", "rusqlite"].contains(&dependency["name"].as_str().unwrap()));
+    }
+    for absent in [
+        "src/leserpent_profile.rs",
+        "src/journal.rs",
+        "examples/language_benchmark.rs",
+    ] {
+        assert!(
+            !upstream::checkout()
+                .join("crates/leselang-vm")
+                .join(absent)
+                .exists()
+        );
+    }
+    let consumer = upstream::consumer_package();
+    assert!(
+        consumer["dependencies"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|dependency| dependency["name"] == "leselang-vm")
+    );
+    let state: serde_json::Value =
+        serde_json::from_str(include_str!("../project/leselang-repository.json")).unwrap();
+    assert_eq!(state["complete_vm"], false);
+    assert_eq!(state["full_extraction_gate"], false);
 }
 
 #[test]
@@ -250,11 +229,7 @@ fn continuous_host_pipeline_is_exported_without_promoting_the_complete_vm_gate()
     for forbidden in ["leserpent_domain", "leselang_command", "rusqlite", "#[cfg("] {
         assert!(!code.contains(forbidden));
     }
-    let export = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(export.contains(proof));
-    assert!(export.contains("consumer/tests/native_host_pipeline.rs"));
-    assert!(export.contains("\"complete_vm\": false"));
-    assert!(export.contains("\"full_extraction_gate\": false"));
+    upstream::assert_consumer_test("native_host_pipeline");
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     let section = docs
         .split("### Native Host Pipeline Matrix")
@@ -331,9 +306,8 @@ fn saved_return_stack_consumer_reuses_native_reentry_without_promoting_durable_v
             "saved return proof lost {required}"
         );
     }
-    let export = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(export.contains("crates/leselang-hir/tests/durable_control.rs"));
-    assert!(export.contains("crates/leselang-hir/tests/effect_stack.rs"));
+    upstream::assert_consumer_test("durable_control");
+    upstream::assert_consumer_test("return_stack");
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     let section = docs
         .split("### Restored Native Return Stacks")
@@ -388,9 +362,7 @@ fn restored_parallel_consumer_uses_the_existing_barrier_without_promoting_durabl
     ] {
         assert!(proof.contains(required));
     }
-    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("crates/leselang-hir/tests/saved_parallel.rs"));
-    assert!(exporter.contains("consumer/tests/saved_parallel.rs"));
+    upstream::assert_consumer_test("saved_parallel");
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     let section = docs
         .split("### Restored Parallel Reply Barriers")
@@ -452,9 +424,7 @@ fn saved_sequence_consumer_derives_frontiers_through_the_original_reply_core() {
     ] {
         assert!(proof.contains(name));
     }
-    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("crates/leselang-hir/tests/saved_sequence.rs"));
-    assert!(exporter.contains("consumer/tests/saved_sequence.rs"));
+    upstream::assert_consumer_test("saved_sequence");
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     let section = docs
         .split("### Restored Sequential Frontiers")
@@ -527,8 +497,7 @@ fn saved_mixed_consumer_composes_existing_walkers_without_claiming_portable_reco
             "mixed recovery docs lost {boundary}"
         );
     }
-    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("252 two-host frontier combinations"));
+    upstream::assert_consumer_test("native_host_pipeline");
 }
 
 #[test]
@@ -583,8 +552,7 @@ fn saved_call_operands_restore_without_an_evaluator_or_native_inventory_dependen
     ] {
         assert!(proof.contains(required));
     }
-    let export = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(export.contains("consumer/tests/saved_call.rs"));
+    upstream::assert_consumer_test("saved_call");
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     let section = docs
         .split("### Restored Native Call Operands")
@@ -699,8 +667,7 @@ fn assembled_group_restore_reuses_cold_checks_without_a_second_meter_or_executio
     ] {
         assert!(proof.contains(case));
     }
-    let export = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(export.contains("consumer/tests/saved_group.rs"));
+    upstream::assert_consumer_test("saved_group");
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     assert!(docs.contains("### Restored Assembled Group Values"));
     assert!(docs.contains("authenticate that assembly\nwas already committed"));
@@ -1574,8 +1541,7 @@ fn dispatch_lease_fence_is_shared_without_exporting_reference_storage() {
     for source in [&journal, &successor, &policy] {
         assert!(!source.contains("lease.lease_expires_at_ms < now_ms"));
     }
-    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("consumer/tests/dispatch_lease.rs"));
+    upstream::assert_consumer_test("dispatch_lease");
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     assert!(docs.contains("### Shared Dispatch Lease Fencing"));
     assert!(docs.contains("does not turn `LocalVm` restoration into a journal"));
@@ -1632,8 +1598,7 @@ fn semantic_retry_planning_reuses_numeric_kernels_and_stays_outside_host_storage
     assert!(dispatch.contains("validate_retry_schedule("));
     assert!(!dispatch.contains("schedule.retry_count + 1"));
     assert!(!journal.contains("dispatch.retry_count + 1"));
-    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("consumer/tests/retry_schedule.rs"));
+    upstream::assert_consumer_test("retry_schedule");
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     assert!(docs.contains("### Shared Semantic Retry Planning"));
     assert!(docs.contains("not a retry registry, durable owner or crash settlement"));
@@ -1696,8 +1661,7 @@ fn dispatch_capacity_is_shared_without_moving_storage_or_product_policy_into_cor
         .unwrap();
     assert!(bounded_query.contains("LIMIT ?2"));
     assert!(bounded_query.contains("d.lease_expires_at_ms > ?1"));
-    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("consumer/tests/dispatch_capacity.rs"));
+    upstream::assert_consumer_test("dispatch_capacity");
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     assert!(docs.contains("### Shared Dispatch Capacity"));
     assert!(docs.contains("not a reservation, queue or"));
@@ -1753,8 +1717,7 @@ fn lease_issuance_planning_stays_separate_from_existing_lease_settlement() {
         fs::read_to_string(root().join("crates/leserpent-vm/src/journal/successor.rs")).unwrap();
     assert!(successor.contains("validate_dispatch_clock(now_ms)?;"));
     assert!(!successor.contains("validate_lease_clock("));
-    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("consumer/tests/dispatch_plan.rs"));
+    upstream::assert_consumer_test("dispatch_plan");
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     assert!(docs.contains("### Shared Dispatch Issuance Planning"));
     assert!(docs.contains("not a lease grant, durable owner or crash settlement"));
@@ -1802,8 +1765,7 @@ fn dispatch_data_is_host_owned_and_reference_types_are_not_mirrored() {
     ));
     assert!(adapter.contains("pub enum RetryDisposition {"));
     assert!(!adapter.contains("pub type RetryDisposition"));
-    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("consumer/tests/dispatch_data.rs"));
+    upstream::assert_consumer_test("dispatch_data");
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     assert!(docs.contains("### Host-Owned Dispatch Data"));
     assert!(docs.contains("data\nownership extraction, not a generic scheduler"));

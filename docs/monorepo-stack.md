@@ -17,7 +17,7 @@ changing a cross-project boundary.
 | [`crates/gewylang-compiler/`](../crates/gewylang-compiler) | product-independent expansion, host-generic lowering, and materializer dispatch | canonical compiler behavior and host boundaries |
 | [`crates/gewylang-ir/`](../crates/gewylang-ir) | product-independent Binding IR, Analysis IR, diagnostics, history, fingerprints, invariant validation, strict wire codec, typed compatibility diff, and projection-host orchestration | stable compiler-stage data, identity, validation, comparison, and exchange contracts |
 | [`crates/gewyc/`](../crates/gewyc) | GewyLang compiler CLI | diagnostic and lowering orchestration |
-| [`crates/gewyvern-dev/`](../crates/gewyvern-dev) | native development, version, packaging and source-export tooling | contributor workflow, not runtime authority |
+| [`crates/gewyvern-dev/`](../crates/gewyvern-dev) | native development, version, packaging and pinned dependency verification | contributor workflow, not runtime authority |
 | [`crates/silvortex-bounded-io/`](../crates/silvortex-bounded-io) | product-neutral bounded files and transport deadlines | native I/O safety invariants |
 | [`crates/silvortex-identity/`](../crates/silvortex-identity) | product-neutral validated protocol identities | identifier grammar and scalar wire identity |
 | [`crates/gewyvern-install-contract/`](../crates/gewyvern-install-contract) | strict Gewyvern installation and retirement exchange | cross-plane lifecycle wire contract |
@@ -28,7 +28,7 @@ changing a cross-project boundary.
 | [`crates/leselang-hir/`](../crates/leselang-hir) | native-core and optional product re-exports | compatibility facade; no compiler implementation |
 | [`crates/leserpent-hir/`](../crates/leserpent-hir) | Leserpent effects, lowering and capability policy | product owner depending on native HIR core, never the facade |
 | [`crates/leselang-vm/`](../crates/leselang-vm) | native session facade and feature-gated legacy product API re-export | no product executor implementation; not yet a fully extracted durable VM |
-| [`crates/leserpent-vm/`](../crates/leserpent-vm) | Leserpent-specialized evaluator, live dispatch, memory and SQLite journals | product execution/transaction authority; excluded from the native language export |
+| [`crates/leserpent-vm/`](../crates/leserpent-vm) | Leserpent-specialized evaluator, live dispatch, memory and SQLite journals | product execution/transaction authority; outside the native language repository |
 | [`crates/leselang-host-contract/`](../crates/leselang-host-contract) | reference-host identities, capabilities and ABI values | host exchange types without a product runtime dependency |
 | [`crates/leselang-command/`](../crates/leselang-command) | Leserpent payloads/codecs, pure policy planning and reference execution/recovery coordination | product adapter, not generic language core; native VM owners retain live admission, dispatch and journal commit authority |
 | [`crates/leselang-ui/`](../crates/leselang-ui) | renderer-neutral Leserpent UI IR | product presentation contract, not a GUI toolkit |
@@ -218,21 +218,24 @@ Where a product acceptance body has moved, the legacy target includes that
 same body through explicit facade aliases. Remaining legacy suites still need
 individual classification; do not delete them wholesale. The separate
 facade/product type-identity proof must keep comparing distinct import paths.
-The native export support inventory contains only `native_checkpoint.rs` and
-`native_group_checkpoint.rs`; product oracles are not export prerequisites.
+The pinned native consumer support inventory contains only `native_checkpoint.rs`
+and `native_group_checkpoint.rs`; product oracles are not native prerequisites.
+The shared [upstream acceptance map](../tests/support/leselang_upstream.rs) checks
+actual consumer files and executable targets, not an exporter's string inventory.
 
 Cargo features are additive within a resolved graph. Validate native consumers
 in isolation rather than inferring independence from a default workspace build.
-The current five-crate source checkpoint contains syntax, runtime-core, HIR core,
-the compatible HIR facade and native VM facade; it excludes product/reference code.
+The independent five-crate repository contains syntax, runtime-core, HIR core,
+the native HIR facade and native VM facade; it excludes product/reference code.
+The old source exporter is retired; `cargo dev check leselang` validates integration.
 It remains `complete_vm=false` and `full_extraction_gate=false`: host-neutral
 durable recovery and the full-language independent host pipeline are still
 open. See [embedding boundaries](leselang-embedding.md) for authoritative gates.
 
 Keep pure language mechanisms below host adapters. Keep live authority checks,
 durable product state and renderer dispatch in their current owners. A moved
-codec or a successful source export is not evidence that the full VM is ready
-to split.
+codec or a past source export is not evidence that full durable-runtime acceptance
+is complete.
 
 ## Toolchain Boundaries
 

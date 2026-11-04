@@ -39,8 +39,8 @@ acceptance. The native foundation now has a local MIT repository named `leselang
 the product now pins its published 0.1.0 Git revision across all native cores.
 Full independent VM acceptance remains open. The native source checkpoint retains
 its original metadata and flags; it is not a durable VM or release-publication gate.
-See the handoff document for frozen acceptance snapshots,
-compatibility facades and the single-source ownership rule.
+See the handoff document for retained snapshots, compatibility facades and the
+single-source ownership rule. The source exporter is retired; use `cargo dev check leselang`.
 
 Local `leselang-hir`/`leselang-vm` retain `leserpent-profile`, unlike independent packages.
 Product code/tests use `leserpent-hir`/`leserpent-vm`; `sqlite-journal` selects

@@ -1,5 +1,8 @@
 use std::{fs, path::Path, process::Command};
 
+#[path = "support/leselang_upstream.rs"]
+pub mod upstream;
+
 const PRODUCT_OWNED_DURABLE_SUITES: &[(&str, usize)] = &[
     ("backpressure", 20),
     ("clock_boundaries", 10),
@@ -68,18 +71,20 @@ fn dispatch_authority_oracles_are_product_owned_without_a_native_export_prerequi
     assert!(legacy.contains("let mut product = leserpent_vm::Vm::new(100);"));
     assert!(legacy.contains("let facade: &mut Vm = &mut product;"));
     assert!(legacy.contains("use leselang_vm::{"));
-    let exporter = read("crates/gewyvern-dev/src/leselang.rs");
-    let selection = exporter
-        .split("fn validate_vm_test_support(")
-        .nth(1)
-        .unwrap()
-        .split("fn copy_crate(")
-        .next()
-        .unwrap();
-    assert!(selection.contains("native_checkpoint.rs"));
-    assert!(selection.contains("native_group_checkpoint.rs"));
-    assert!(!selection.contains("reference_dispatch_authority"));
-    assert!(!selection.contains("reference_request_build_authority"));
+    for directory in ["crates/leselang-vm/tests/support", "consumer/tests/support"] {
+        let names: std::collections::BTreeSet<_> =
+            fs::read_dir(upstream::checkout().join(directory))
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name())
+                .collect();
+        assert_eq!(
+            names,
+            ["native_checkpoint.rs", "native_group_checkpoint.rs"]
+                .map(std::ffi::OsString::from)
+                .into_iter()
+                .collect()
+        );
+    }
     let ci = read(".github/workflows/ci.yml");
     for command in [
         "test -p leserpent-vm --locked --test dispatch_scheduling --test dispatch_authority_memory",
@@ -220,17 +225,29 @@ fn product_benchmark_is_not_owned_or_required_by_the_native_facade() {
     assert!(benchmark.contains("use leserpent_vm::{Step, Vm};"));
     assert!(!benchmark.contains("leselang_hir::"));
     assert!(!benchmark.contains("leselang_vm::"));
-    let exporter = read("crates/gewyvern-dev/src/leselang.rs");
-    let inventory = exporter
-        .split("fn copy_native_example(")
-        .nth(1)
+    upstream::assert_consumer_file(
+        "crates/leselang-vm/examples/native_counter.rs",
+        "examples/native_counter.rs",
+        Some("example"),
+    );
+    assert!(
+        !upstream::checkout()
+            .join("crates/leselang-vm/examples/language_benchmark.rs")
+            .exists()
+    );
+    let native = upstream::native_metadata()["packages"]
+        .as_array()
         .unwrap()
-        .split("struct RegistryLock")
-        .next()
+        .iter()
+        .find(|package| package["name"] == "leselang-vm")
         .unwrap();
-    assert!(inventory.contains("native_counter.rs"));
-    assert!(!inventory.contains("language_benchmark"));
-    assert!(!inventory.contains("leserpent-vm"));
+    assert!(
+        !native["targets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|target| target["name"] == "language_benchmark")
+    );
     let ci = read(".github/workflows/ci.yml");
     assert!(ci.contains(
         "test -p leserpent-vm --locked --no-default-features --example language_benchmark"
@@ -6230,9 +6247,8 @@ fn complete_checkpoint_finalization_is_shared_without_importing_product_audit_po
     ] {
         assert!(consumer.contains(test), "{test}");
     }
-    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("crates/leselang-runtime-core/src/checkpoint.rs"));
-    assert!(exporter.contains("consumer/tests/checkpoint_recovery.rs"));
+    upstream::assert_same_source("crates/leselang-runtime-core/src/checkpoint.rs");
+    upstream::assert_consumer_test("checkpoint_recovery");
 }
 
 #[test]
@@ -6327,9 +6343,8 @@ fn complete_dispatch_recovery_is_shared_before_checkpoint_commit() {
     assert!(frozen.contains(
         "late_dispatch_refusal_blocks_snapshot_and_watermark_until_original_data_is_repaired"
     ));
-    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("crates/leselang-runtime-core/src/dispatch_recovery.rs"));
-    assert!(exporter.contains("consumer/tests/dispatch_plan.rs"));
+    upstream::assert_same_source("crates/leselang-runtime-core/src/dispatch_recovery.rs");
+    upstream::assert_consumer_test("dispatch_plan");
     let consumer =
         fs::read_to_string(root().join("crates/leselang-runtime-core/tests/dispatch_plan.rs"))
             .unwrap();
@@ -6485,9 +6500,8 @@ fn complete_effect_record_recovery_is_shared_before_opaque_checkpoint_staging() 
     ] {
         assert!(consumer.contains(test), "{test}");
     }
-    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("crates/leselang-runtime-core/src/record_recovery.rs"));
-    assert!(exporter.contains("consumer/tests/checkpoint_recovery.rs"));
+    upstream::assert_same_source("crates/leselang-runtime-core/src/record_recovery.rs");
+    upstream::assert_consumer_test("checkpoint_recovery");
 }
 
 fn assert_complete_group_recovery_order() {
@@ -6602,9 +6616,8 @@ fn complete_stored_group_batch_uses_shared_global_reservations_before_checkpoint
     .unwrap();
     assert!(frozen.contains("assert_eq!(comparisons, 364)"));
     assert!(!frozen.contains("inspect_group_recovery_batch("));
-    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("crates/leselang-runtime-core/src/group_recovery_batch.rs"));
-    assert!(exporter.contains("consumer/tests/recovery_fences.rs"));
+    upstream::assert_same_source("crates/leselang-runtime-core/src/group_recovery_batch.rs");
+    upstream::assert_consumer_test("recovery_fences");
 }
 
 fn assert_complete_successor_admission_order() {
@@ -9563,11 +9576,7 @@ fn shared_watermark_planning_keeps_native_validation_reads_and_commit_before_pub
     }
     assert!(core.contains("stored_watermark.max(self.required)"));
     assert!(core.contains("write_required: self.required > stored_watermark"));
-    assert!(
-        fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs"))
-            .unwrap()
-            .contains("consumer/tests/sequence_watermark.rs")
-    );
+    upstream::assert_consumer_test("sequence_watermark");
 }
 
 #[test]
@@ -9691,11 +9700,7 @@ fn continuation_context_kernel_preserves_native_phase_order_in_every_succession_
     );
     assert!(fs::read_to_string(root().join("crates/leserpent-vm/tests/successor.rs")).unwrap()
         .contains("inherited_context_refusal_preserves_journal_and_imported_watermark_for_every_succession_kind"));
-    assert!(
-        fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs"))
-            .unwrap()
-            .contains("consumer/tests/continuation_context.rs")
-    );
+    upstream::assert_consumer_test("continuation_context");
 }
 
 #[test]
@@ -9776,11 +9781,7 @@ fn successor_capture_extension_shares_retention_without_authority_or_saved_body_
         assert!(!core.contains(absent));
     }
     assert!(core.contains("drop(domain)"));
-    assert!(
-        fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs"))
-            .unwrap()
-            .contains("consumer/tests/capture_extension.rs")
-    );
+    upstream::assert_consumer_test("capture_extension");
 }
 
 #[test]
@@ -9913,11 +9914,7 @@ fn live_and_recovered_capture_correspondence_delegates_traversal_without_project
         assert!(!core.contains(absent));
     }
     assert!(core.contains("matched |= match_result("));
-    assert!(
-        fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs"))
-            .unwrap()
-            .contains("consumer/tests/capture_correspondence.rs")
-    );
+    upstream::assert_consumer_test("capture_correspondence");
 }
 
 #[test]
@@ -10049,11 +10046,7 @@ fn live_sequence_and_bound_recovery_share_stop_precedence_without_replay_or_sett
     ] {
         assert!(!core.contains(absent));
     }
-    assert!(
-        fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs"))
-            .unwrap()
-            .contains("consumer/tests/outcome_summary.rs")
-    );
+    upstream::assert_consumer_test("outcome_summary");
 }
 
 #[test]
@@ -10135,8 +10128,7 @@ fn pending_sequence_recovery_delegates_frontier_phases_without_dispatch_or_evalu
             "frontier core grew policy: {absent}"
         );
     }
-    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("consumer/tests/sequence_frontier.rs"));
+    upstream::assert_consumer_test("sequence_frontier");
 }
 
 #[test]
@@ -10265,9 +10257,8 @@ fn complete_stored_group_recovery_is_core_owned_without_native_storage_or_produc
     ] {
         assert!(consumer.contains(required), "{required}");
     }
-    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("crates/leselang-runtime-core/src/group_recovery.rs"));
-    assert!(exporter.contains("consumer/tests/recovery_fences.rs"));
+    upstream::assert_same_source("crates/leselang-runtime-core/src/group_recovery.rs");
+    upstream::assert_consumer_test("recovery_fences");
 }
 
 #[test]
@@ -10324,8 +10315,7 @@ fn native_chain_recovery_delegates_order_not_policy_or_execution() {
     }
     let journal = fs::read_to_string(root.join("crates/leserpent-vm/src/journal.rs")).unwrap();
     assert!(journal.contains("successor_chain_inspection_preserves_frozen_sqlite_fault_order"));
-    let exporter = fs::read_to_string(root.join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("consumer/tests/successor_chain.rs"));
+    upstream::assert_consumer_test("successor_chain");
 }
 
 #[test]
@@ -10432,11 +10422,7 @@ fn sqlite_reservation_and_completion_fences_are_shared_without_repair_or_executi
                     .contains(proof)
         );
     }
-    assert!(
-        fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs"))
-            .unwrap()
-            .contains("consumer/tests/recovery_fences.rs")
-    );
+    upstream::assert_consumer_test("recovery_fences");
 }
 
 #[test]
@@ -10614,8 +10600,7 @@ fn actual_group_request_and_recovery_graphs_use_the_shared_bounded_identity_kern
             "graph kernel grew native policy: {absent}"
         );
     }
-    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("consumer/tests/group_graph.rs"));
+    upstream::assert_consumer_test("group_graph");
 }
 
 #[test]
@@ -10749,8 +10734,7 @@ fn actual_atomic_and_group_saved_bodies_use_the_shared_hir_entry_without_body_re
         fs::read_to_string(root().join("crates/leselang-hir/tests/durable_control.rs")).unwrap();
     assert!(consumer.contains("let outcome = resume_captured_effects_in_scope("));
     assert!(!consumer.contains("with_captured_scope("));
-    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    assert!(exporter.contains("consumer/tests/captured_reentry.rs"));
+    upstream::assert_consumer_test("captured_reentry");
 }
 
 #[test]
@@ -10796,15 +10780,8 @@ fn saved_frame_is_shared_data_while_reference_restore_and_authority_remain_nativ
     ] {
         assert!(!core.contains(absent), "saved data grew policy: {absent}");
     }
-    let exporter = fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    for proof in [
-        "crates/leselang-runtime-core/tests/continuation.rs",
-        "crates/leselang-hir/tests/durable_control.rs",
-        "consumer/tests/continuation_frame.rs",
-        "consumer/tests/durable_control.rs",
-    ] {
-        assert!(exporter.contains(proof));
-    }
+    upstream::assert_consumer_test("continuation_frame");
+    upstream::assert_consumer_test("durable_control");
     let docs = fs::read_to_string(root().join("docs/leselang-embedding.md")).unwrap();
     for boundary in [
         "Shared Saved Frames And Budgets",
@@ -10885,11 +10862,7 @@ fn actual_sqlite_recovery_uses_host_neutral_staging_without_moving_frame_or_auth
     ] {
         assert!(!core.contains(absent), "checkpoint core retained {absent}");
     }
-    assert!(
-        fs::read_to_string(root().join("crates/gewyvern-dev/src/leselang.rs"))
-            .unwrap()
-            .contains("crates/leselang-runtime-core/tests/checkpoint.rs")
-    );
+    upstream::assert_consumer_test("checkpoint_recovery");
 }
 
 fn tree(features: &[&str]) -> String {

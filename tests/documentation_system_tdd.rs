@@ -96,7 +96,7 @@ fn repository_guide_keeps_native_extraction_and_disk_retention_separate() {
 }
 
 #[test]
-fn repository_guide_routes_acceptance_to_current_owners_and_names_the_five_crate_export() {
+fn repository_guide_routes_acceptance_to_current_owners_and_the_independent_repository() {
     let root = repository_root();
     let map = fs::read_to_string(root.join("docs/monorepo-stack.md")).unwrap();
     let owners = map
@@ -119,29 +119,19 @@ fn repository_guide_routes_acceptance_to_current_owners_and_names_the_five_crate
             "unmapped owner: {path}"
         );
     }
-    assert!(owners.contains("product oracles are not export prerequisites"));
+    assert!(owners.contains("product oracles are not native prerequisites"));
     assert!(owners.contains("individual classification; do not delete them wholesale"));
     let development = fs::read_to_string(root.join("docs/development.md")).unwrap();
-    assert!(development.contains("The five exported crates are"));
-    let exporter = fs::read_to_string(root.join("crates/gewyvern-dev/src/leselang.rs")).unwrap();
-    let crates = exporter
-        .split_once("const CRATES: &[&str] = &[")
-        .unwrap()
-        .1
-        .split_once("];\n")
-        .unwrap()
-        .0;
-    let crates: Vec<_> = crates
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .collect();
+    assert!(development.contains("The five independent crates are"));
+    let state: serde_json::Value =
+        serde_json::from_str(include_str!("../project/leselang-repository.json")).unwrap();
+    let crates = state["crates"].as_array().unwrap();
     assert_eq!(crates.len(), 5);
     for name in crates {
-        let name = name.trim_end_matches(',').trim_matches('"');
+        let name = name.as_str().unwrap();
         assert!(
             development.contains(&format!("`{name}`")),
-            "missing export: {name}"
+            "missing independent package: {name}"
         );
     }
 }
@@ -3450,18 +3440,14 @@ fn native_source_checkpoint_docs_distinguish_portability_from_full_vm_extraction
         .unwrap();
     let normalized = section.split_whitespace().collect::<Vec<_>>().join(" ");
     for boundary in [
-        "cargo dev package leselang",
-        "--verify",
-        "--dry-run",
-        "destination must be fresh",
-        "Production Rust files and native/mixed tests are copied byte-for-byte",
-        "Explicit crate metadata replaces monorepo inheritance",
-        "not an enableable Cargo feature",
+        "source exporter is retired",
+        "cargo dev check leselang",
+        "historical evidence",
+        "pinned upstream source",
+        "registered executable targets",
         "publish = false",
         "separate `consumer/` workspace",
         "exact SHA-256 and provenance",
-        "exact inventory revalidation",
-        "not a sandbox against hostile concurrent filesystem mutation",
         "not the complete independent VM or repository extraction gate",
         "wire/auth/GUI compatibility remain separate",
     ] {
@@ -3470,10 +3456,7 @@ fn native_source_checkpoint_docs_distinguish_portability_from_full_vm_extraction
             "source checkpoint docs lost {boundary}"
         );
     }
-    assert!(
-        include_str!("../docs/development.md")
-            .contains("cargo dev package leselang --output target/leselang-native-source --verify")
-    );
+    assert!(include_str!("../docs/development.md").contains("cargo dev check leselang"));
     assert!(include_str!("../docs/modules/leselang.md").contains("native source checkpoint"));
 }
 
@@ -3578,7 +3561,7 @@ fn native_vm_build_profiles_are_explicit_without_claiming_complete_extraction() 
         "Cargo features are additive",
         "not a capability or security boundary",
         "acceptance proof remains planned and absent",
-        "source checkpoint now exports this native VM facade unchanged",
+        "independent repository owns this native VM facade and its consumer tests",
     ] {
         assert!(
             section.contains(boundary),

@@ -367,15 +367,13 @@ fn handoff_and_ci_track_the_verified_dependency_not_full_vm_acceptance() {
     let cleanup = &state["compatibility_cleanup"];
     assert_eq!(cleanup["root_tests_use_product_owners"], true);
     assert_eq!(cleanup["foreign_consumer_uses_published_facades"], true);
+    assert_eq!(cleanup["ci_uses_pinned_upstream_consumer"], true);
     assert_eq!(
         cleanup["allowed_local_facade_edge"],
         "leselang-vm -> leselang-hir"
     );
-    for retained in [
-        "local_facades_retired",
-        "frozen_snapshots_retired",
-        "source_exporter_retired",
-    ] {
+    assert_eq!(cleanup["source_exporter_retired"], true);
+    for retained in ["local_facades_retired", "frozen_snapshots_retired"] {
         assert_eq!(cleanup[retained], false);
     }
     for flag in ["registry_published", "complete_vm", "full_extraction_gate"] {
@@ -383,6 +381,33 @@ fn handoff_and_ci_track_the_verified_dependency_not_full_vm_acceptance() {
     }
     let workflow = include_str!("../.github/workflows/ci.yml");
     assert!(workflow.contains("--test leselang_repository_tdd"));
+    assert!(workflow.contains("check leselang"));
+    assert!(!workflow.contains("package leselang"));
+    let proof: Value = serde_json::from_slice(
+        &fs::read(root().join(state["pinned_consumer_verification"].as_str().unwrap())).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(proof["pinned_revision"], state["pinned_revision"]);
+    assert_eq!(proof["ci_uses_pinned_upstream_consumer"], true);
+    assert_eq!(proof["source_exporter_is_ci_stage"], false);
+    for flag in [
+        "source_exporter_retired",
+        "complete_vm",
+        "full_extraction_gate",
+    ] {
+        assert_eq!(proof[flag], false);
+    }
+    assert!(include_str!("../docs/development.md").contains("cargo dev check leselang"));
+    let retirement: Value = serde_json::from_slice(
+        &fs::read(root().join(state["cleanup_verification"].as_str().unwrap())).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(retirement["pinned_revision"], state["pinned_revision"]);
+    assert_eq!(retirement["source_exporter_retired"], true);
+    assert_eq!(retirement["local_facades_retired"], false);
+    assert_eq!(retirement["frozen_snapshots_retired"], false);
+    assert_eq!(retirement["complete_vm"], false);
+    assert_eq!(retirement["full_extraction_gate"], false);
     let members = product_metadata()["workspace_members"].as_array().unwrap();
     for facade in ["leselang-hir", "leselang-vm"] {
         let package = product_metadata()["packages"]

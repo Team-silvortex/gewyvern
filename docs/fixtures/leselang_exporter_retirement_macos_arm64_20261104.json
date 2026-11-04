@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "kind": "leselang-historical-source-exporter-retirement",
+  "date": "2026-11-04",
+  "platform": "macos-arm64",
+  "rust_toolchain": "1.98.0",
+  "profile": "lean",
+  "pinned_revision": "5f86dfb8dd79a28986fe5eb4cbfe6b044796f935",
+  "native_package_version": "0.1.0",
+  "product_package_version": "2.5.0",
+  "source_exporter_retired": true,
+  "removed_implementation": "crates/gewyvern-dev/src/leselang.rs",
+  "removed_implementation_lines": 2275,
+  "retired_exporter_only_unit_tests": 27,
+  "replacement": {
+    "workflow": "cargo dev check leselang",
+    "shared_acceptance_map": "tests/support/leselang_upstream.rs",
+    "inherited_consumer_test_targets": 39,
+    "additional_upstream_repository_boundary_target": 1,
+    "recovery_support_files": 2,
+    "example_targets": 1,
+    "byte_equal_retained_acceptance_files": 42,
+    "registered_test_inventory_exact": true,
+    "source_exporter_text_reads_remaining": 0,
+    "native_boundary_checks": "Actual pinned Cargo package features, dependency closures, source paths, support directories and executable targets"
+  },
+  "test_results": {
+    "upstream-consumer": { "passed": 701, "failed": 0, "suites": 41 },
+    "product-boundary-fixture": { "passed": 5, "failed": 0, "suites": 2 },
+    "root-regression": { "passed": 682, "failed": 0, "suites": 7 },
+    "developer-workflow": { "passed": 31, "failed": 0, "suites": 1 }
+  },
+  "test_executions": 1419,
+  "test_count_scope": "Final selected verification runs, not unique test-function or fuzz-input counts; the product fixture includes one empty library target. Exporter-only unit tests were retired with their removed implementation, and one retired-command regression was added.",
+  "native_example_modes_passed": 5,
+  "workflow_stages_passed": 9,
+  "observed_workflow_seconds": 90.634,
+  "timing_scope": "One local run using existing dependency caches, not a cold-build benchmark or a speedup claim",
+  "retired_command_probe": {
+    "command": "target/lean/gewyvern-dev package leselang --output /private/tmp/leselang-retired-output-20261104 --verify",
+    "expected_exit_code": 1,
+    "observed_exit_code": 1,
+    "output_existed_before": false,
+    "output_exists_after": false,
+    "replacement_guidance_present": true
+  },
+  "removed_generated_export": {
+    "path": "target/leselang-native-source",
+    "version": "2.3.0",
+    "verified_against_own_manifest_before_deletion": true,
+    "extra_files_or_symlinks": false,
+    "git_checkout": false,
+    "inventory_files": 242,
+    "total_files_including_manifest": 243,
+    "bytes": 4289344,
+    "manifest_sha256": "526d5ac87869a39bc64f19d7595751073f44210d750cafb9a26cde76ecb73f7b"
+  },
+  "verification_commands": [
+    "cargo +1.98.0 run --locked --offline --profile lean -p gewyvern-dev -- check leselang",
+    "cargo +1.98.0 test --locked --offline --profile lean --no-fail-fast -p gewyvern --test language_independence_tdd --test leselang_repository_tdd --test documentation_system_tdd --test leselang_fuzz_tdd --test project_status_tdd --test leselang_native_profile_tdd --test leselang_vm_profile_tdd",
+    "cargo +1.98.0 test --locked --offline --profile lean -p gewyvern-dev",
+    "cargo +1.98.0 clippy --locked --offline --profile lean --workspace --all-targets -- -D warnings",
+    "cargo +1.98.0 fmt --all -- --check",
+    "git diff --check"
+  ],
+  "prior_checkpoint": "docs/fixtures/leselang_pinned_consumer_macos_arm64_20261104.json",
+  "historical_proofs_rewritten": false,
+  "independent_repository_changed": false,
+  "local_facades_retired": false,
+  "frozen_snapshots_retired": false,
+  "complete_vm": false,
+  "full_extraction_gate": false,
+  "non_claims": [
+    "No new remote CI run, commit or push",
+    "No new Linux/eBPF or live GUI verification",
+    "No removal of local compatibility facades or frozen core acceptance snapshots",
+    "No full independent durable-runtime replacement",
+    "No rewriting of independent language sources or manifests"
+  ]
+}

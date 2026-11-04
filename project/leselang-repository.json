@@ -26,10 +26,11 @@
   "compatibility_cleanup": {
     "root_tests_use_product_owners": true,
     "foreign_consumer_uses_published_facades": true,
+    "ci_uses_pinned_upstream_consumer": true,
     "allowed_local_facade_edge": "leselang-vm -> leselang-hir",
     "local_facades_retired": false,
     "frozen_snapshots_retired": false,
-    "source_exporter_retired": false
+    "source_exporter_retired": true
   },
   "registry_published": false,
   "complete_vm": false,
@@ -37,6 +38,8 @@
   "next_gate": "Native development continues in Leselang; retire frozen source-inspection snapshots only after migrating their acceptance evidence. Complete host-neutral durable recovery and full product parity remain separate gates.",
   "handoff": "docs/leselang-repository-handoff.md",
   "dependency_verification": "docs/fixtures/leselang_product_compatibility_cleanup_macos_arm64_20261028.json",
+  "pinned_consumer_verification": "docs/fixtures/leselang_pinned_consumer_macos_arm64_20261104.json",
+  "cleanup_verification": "docs/fixtures/leselang_exporter_retirement_macos_arm64_20261104.json",
   "initial_dependency_verification": "docs/fixtures/leselang_product_cutover_macos_arm64_20261028.json",
   "verification": "docs/fixtures/leselang_repository_bootstrap_macos_arm64_20261028.json"
 }

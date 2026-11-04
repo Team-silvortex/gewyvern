@@ -10,7 +10,7 @@ use std::time::{Instant, SystemTime};
 
 use ring::digest::{Context, SHA256, digest};
 
-mod leselang;
+mod leselang_check;
 mod version;
 
 const CONTROL_BUNDLE_RID: &str = "linux-x64";
@@ -31,10 +31,10 @@ const USAGE: &str = r#"Usage:
   cargo dev version check
   cargo dev version set VERSION [--dry-run]
   cargo dev check [--scope core|control|desktop|all] [--restore] [--dry-run]
+  cargo dev check leselang [--dry-run]
   cargo dev build [--scope core|control|desktop|all] [--release] [--restore] [--dry-run]
   cargo dev package linux [--format layout|deb|rpm|all] [--skip-build] [--out-dir PATH] [--dry-run]
   cargo dev package control [--output DIR] [--dry-run]
-  cargo dev package leselang [--output DIR] [--verify] [--dry-run]
   cargo dev package desktop [--output APP] [--silvortex-issuer URL] [--identity ID --notary-profile PROFILE] [--dry-run]
   cargo dev deploy control [--output DIR] [--reuse] [--no-start] [--keep-releases N] [--dry-run]
   cargo dev deploy desktop [--output APP] [--silvortex-issuer URL] [--identity ID --notary-profile PROFILE] [--launch] [--dry-run]
@@ -175,9 +175,9 @@ enum Workflow {
     Doctor,
     Version(version::VersionAction),
     Check(BuildOptions),
+    CheckLeselang(leselang_check::Options),
     Build(BuildOptions),
     PackageLinux(LinuxPackageOptions),
-    PackageLeselang(leselang::Options),
     Control(ControlOptions),
     Desktop(DesktopOptions),
 }
@@ -191,16 +191,26 @@ impl Workflow {
                 Ok(Self::Doctor)
             }
             Some("version") => version::VersionAction::parse(arguments).map(Self::Version),
-            Some("check") => parse_check(arguments).map(Self::Check),
+            Some("check") => {
+                let mut arguments = arguments.peekable();
+                if arguments.peek().is_some_and(|value| value == "leselang") {
+                    arguments.next();
+                    leselang_check::Options::parse(arguments).map(Self::CheckLeselang)
+                } else {
+                    parse_check(arguments).map(Self::Check)
+                }
+            }
             Some("build") => parse_build(arguments).map(Self::Build),
             Some("package") => match arguments.next().as_deref() {
                 Some("linux") => parse_linux_package(arguments).map(Self::PackageLinux),
-                Some("leselang") => leselang::Options::parse(arguments).map(Self::PackageLeselang),
+                Some("leselang") => Err(
+                    "Leselang source export is retired; development and releases belong to Team-silvortex/leselang. Use `cargo dev check leselang` to verify the pinned dependency; no files were exported.".into()
+                ),
                 Some("control") => parse_control(arguments, false).map(Self::Control),
                 Some("desktop") => parse_desktop(arguments, false).map(Self::Desktop),
                 Some(value) => Err(format!("unknown package target `{value}`\n{USAGE}")),
                 None => Err(format!(
-                    "package requires linux, control, desktop, or leselang\n{USAGE}"
+                    "package requires linux, control, or desktop\n{USAGE}"
                 )),
             },
             Some("deploy") => match arguments.next().as_deref() {
@@ -457,6 +467,13 @@ fn execute(workflow: Workflow, root: PathBuf) -> Result<WorkflowOutcome, String>
                 artifact: None,
             })
         }
+        Workflow::CheckLeselang(options) => {
+            leselang_check::check(&root, &options)?;
+            Ok(WorkflowOutcome {
+                action: "check-pinned-leselang",
+                artifact: None,
+            })
+        }
         Workflow::Build(options) => {
             run_parallel(build_specs(&root, &options), options.dry_run)?;
             Ok(WorkflowOutcome {
@@ -468,13 +485,6 @@ fn execute(workflow: Workflow, root: PathBuf) -> Result<WorkflowOutcome, String>
             let artifact = package_linux(&root, &options)?;
             Ok(WorkflowOutcome {
                 action: "package-linux",
-                artifact: Some(artifact),
-            })
-        }
-        Workflow::PackageLeselang(options) => {
-            let artifact = leselang::export(&root, &options)?;
-            Ok(WorkflowOutcome {
-                action: "package-leselang-native-source",
                 artifact: Some(artifact),
             })
         }

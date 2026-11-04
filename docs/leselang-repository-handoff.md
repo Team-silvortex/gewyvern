@@ -40,8 +40,8 @@ workspace and never linked into product builds. Historical source-inspection
 tests still read them; `tests/leselang_repository_tdd.rs` compares their complete
 source/test inventories byte for byte with the actual Cargo-resolved upstream.
 Do not develop divergent native implementations or overwrite the new repository
-with another export. The old source exporter reproduces the compatibility
-checkpoint, not a new independent Leselang release.
+with another export. The old source exporter is retired; historical checkpoint
+records remain evidence, not a second release or development workflow.
 
 The source baseline was the working tree at HEAD
 `784e4aac7ca622497de40333ab1d4ade5787f84d` (`2.5.5`), including pending product
@@ -63,7 +63,8 @@ Product compatibility facades remain here while callers migrate deliberately.
 Do not enable old product features on the new native facade packages. Product
 HIR/VM/command tests, facade identity/recovery tests and no-SQLite profiles verify
 the boundary. Native package tests and lints run in the independent repository;
-Gewyvern CI runs the pinned-source gate before its historical export verification.
+Gewyvern CI runs the pinned-source gate and `cargo dev check leselang`, which reads
+the actual Cargo-resolved Git checkout rather than rebuilding a source export.
 
 To update Leselang, review an upstream commit, update all exact pins and lockfiles,
 and migrate or refresh frozen acceptance snapshots from that commit. Run the
@@ -92,11 +93,58 @@ identity, canonical/wire roundtrips, product authority/cold-operand checks and
 the native VM's original fuel, scope revocation and sticky cancellation.
 
 Local compatibility packages and their own conformance suites have not been
-deleted. Frozen source-inspection snapshots and the historical exporter also
-remain. Retiring these assets requires migrating their specific acceptance
+deleted. Frozen source-inspection snapshots also remain. Retiring these assets
+requires migrating their specific acceptance
 obligations; removing ordinary product consumers does not close that gate.
 `leselang-command`, `leselang-ui`, `leselang-observe` and `leselang-host-contract`
 remain product adapters regardless of their historical prefix.
+
+## Pinned Consumer Verification
+
+The [pinned consumer proof](fixtures/leselang_pinned_consumer_macos_arm64_20261104.json)
+records this tool/CI migration separately from the unchanged dependency cutover.
+
+`cargo dev check leselang` verifies both the product's three shared-core identities
+and the foreign fixture's five native identities against the handoff pin. It then
+validates and executes the separate `consumer/` workspace from that exact Cargo
+checkout, followed by the product compatibility fixture, strict lints and five
+native example modes. It does not depend on a sibling checkout or copy/rewrite
+sources. Identity, product-feature and dependency checks precede test execution;
+an unavailable offline dependency is an error, never a fallback to an old snapshot.
+
+Both consumers share the existing Cargo target directory and `lean` profile.
+`--dry-run` checks metadata and prints stages without running the tests or lints.
+The workflow does not delete caches. Upstream owns the native workspace's full
+test matrix; this product-side gate checks its actual upstream consumer and our
+integration, rather than a regenerated product-versioned language workspace.
+
+The first migration removed the exporter from CI and checked twelve upstream
+acceptance files. Its proof above keeps that original scope and result count.
+
+## Exporter Retirement
+
+The [retirement proof](fixtures/leselang_exporter_retirement_macos_arm64_20261104.json)
+records the replacement acceptance map, complete local checks and verified removal
+of the unmodified old generated 2.3.0 source directory. Earlier proofs remain intact.
+
+The old source exporter and its manifest rewriting, source copying, publication
+and disposable-cache machinery are removed. The retired `package leselang`
+command explains the replacement and exits without writing output; it does not
+silently run a different task. Development and release ownership stay upstream.
+
+The shared `tests/support/leselang_upstream.rs` acceptance map now covers all
+39 inherited consumer test targets, two recovery helpers and the native example.
+It verifies actual pinned files byte-for-byte and requires the exact registered
+test inventory, including upstream's additional repository-boundary suite. The
+native/VM/language gates read this source and metadata rather than exporter text.
+Product-only support and benchmark exclusion are checked against actual upstream
+directories and targets. No test bodies are copied or rewritten by the verifier.
+
+Exporter-only publication tests are obsolete because publication no longer exists
+here. Historical verification records retain their original hashes, versions and
+flags, including the earlier `source_exporter_retired = false`. Current cleanup
+state is in the handoff JSON. Compatibility facades and frozen core snapshots are
+still retained; full VM acceptance is not promoted by removing this tool.
 
 The local product handoff probe copies unmodified product Rust sources into an
 isolated workspace and points their three shared-core dependencies at the native
