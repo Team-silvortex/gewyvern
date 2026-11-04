@@ -19,148 +19,47 @@ pub const NATIVE_CORES: &[&str] = &[
     "leselang-hir-core",
 ];
 
-pub const CONSUMER_TESTS: &[(&str, &str)] = &[
-    (
-        "core_identity",
-        "crates/leselang-hir/tests/core_identity.rs",
-    ),
-    ("local_names", "crates/leselang-hir/tests/local_names.rs"),
-    ("scalar_form", "crates/leselang-hir/tests/scalar_form.rs"),
-    (
-        "fold_preparation",
-        "crates/leselang-hir/tests/fold_preparation.rs",
-    ),
-    (
-        "loop_preparation",
-        "crates/leselang-hir/tests/loop_preparation.rs",
-    ),
-    (
-        "source_preparation",
-        "crates/leselang-hir/tests/source_preparation.rs",
-    ),
-    (
-        "argument_binding",
-        "crates/leselang-hir/tests/argument_binding.rs",
-    ),
-    (
-        "declaration_source",
-        "crates/leselang-hir/tests/declaration_source.rs",
-    ),
-    (
-        "computation_profile",
-        "crates/leselang-hir/tests/computation_profile.rs",
-    ),
-    (
-        "checkpoint_recovery",
-        "crates/leselang-runtime-core/tests/checkpoint.rs",
-    ),
-    (
-        "continuation_frame",
-        "crates/leselang-runtime-core/tests/continuation.rs",
-    ),
-    (
-        "continuation_context",
-        "crates/leselang-runtime-core/tests/continuation_context.rs",
-    ),
-    (
-        "group_graph",
-        "crates/leselang-runtime-core/tests/group_graph.rs",
-    ),
-    (
-        "recovery_fences",
-        "crates/leselang-runtime-core/tests/recovery_fence.rs",
-    ),
-    (
-        "dispatch_lease",
-        "crates/leselang-runtime-core/tests/dispatch_lease.rs",
-    ),
-    (
-        "dispatch_capacity",
-        "crates/leselang-runtime-core/tests/dispatch_capacity.rs",
-    ),
-    (
-        "dispatch_plan",
-        "crates/leselang-runtime-core/tests/dispatch_plan.rs",
-    ),
-    (
-        "dispatch_data",
-        "crates/leselang-runtime-core/tests/dispatch_data.rs",
-    ),
-    (
-        "retry_schedule",
-        "crates/leselang-runtime-core/tests/retry_schedule.rs",
-    ),
-    (
-        "sequence_watermark",
-        "crates/leselang-runtime-core/tests/sequence_watermark.rs",
-    ),
-    (
-        "successor_chain",
-        "crates/leselang-runtime-core/tests/successor_chain.rs",
-    ),
-    (
-        "sequence_frontier",
-        "crates/leselang-runtime-core/tests/sequence_frontier.rs",
-    ),
-    (
-        "outcome_summary",
-        "crates/leselang-runtime-core/tests/outcome_summary.rs",
-    ),
-    (
-        "capture_correspondence",
-        "crates/leselang-runtime-core/tests/capture_correspondence.rs",
-    ),
-    (
-        "capture_extension",
-        "crates/leselang-runtime-core/tests/capture_extension.rs",
-    ),
-    (
-        "durable_control",
-        "crates/leselang-hir/tests/durable_control.rs",
-    ),
-    (
-        "captured_reentry",
-        "crates/leselang-hir/tests/captured_reentry.rs",
-    ),
-    (
-        "owned_scope",
-        "crates/leselang-runtime-core/tests/owned_scope.rs",
-    ),
-    (
-        "local_execution",
-        "crates/leselang-runtime-core/tests/local_execution.rs",
-    ),
-    (
-        "control_session",
-        "crates/leselang-hir/tests/effect_session.rs",
-    ),
-    ("return_stack", "crates/leselang-hir/tests/effect_stack.rs"),
-    (
-        "saved_parallel",
-        "crates/leselang-hir/tests/saved_parallel.rs",
-    ),
-    (
-        "saved_sequence",
-        "crates/leselang-hir/tests/saved_sequence.rs",
-    ),
-    ("saved_call", "crates/leselang-hir/tests/saved_call.rs"),
-    ("saved_group", "crates/leselang-hir/tests/saved_group.rs"),
-    (
-        "prepared_counter_host",
-        "crates/leselang-hir/tests/catalog_group_source.rs",
-    ),
-    (
-        "prepared_gui_host",
-        "crates/leselang-hir/tests/prepared_gui_host.rs",
-    ),
-    (
-        "native_vm_embedding",
-        "crates/leselang-vm/tests/native_embedding.rs",
-    ),
-    (
-        "native_host_pipeline",
-        "crates/leselang-vm/tests/native_host_pipeline.rs",
-    ),
+pub const CONSUMER_TESTS: &[&str] = &[
+    "core_identity",
+    "local_names",
+    "scalar_form",
+    "fold_preparation",
+    "loop_preparation",
+    "source_preparation",
+    "argument_binding",
+    "declaration_source",
+    "computation_profile",
+    "checkpoint_recovery",
+    "continuation_frame",
+    "continuation_context",
+    "group_graph",
+    "recovery_fences",
+    "dispatch_lease",
+    "dispatch_capacity",
+    "dispatch_plan",
+    "dispatch_data",
+    "retry_schedule",
+    "sequence_watermark",
+    "successor_chain",
+    "sequence_frontier",
+    "outcome_summary",
+    "capture_correspondence",
+    "capture_extension",
+    "durable_control",
+    "captured_reentry",
+    "owned_scope",
+    "local_execution",
+    "control_session",
+    "return_stack",
+    "saved_parallel",
+    "saved_sequence",
+    "saved_call",
+    "saved_group",
+    "prepared_counter_host",
+    "prepared_gui_host",
+    "native_vm_embedding",
+    "native_host_pipeline",
+    "repository_boundary",
 ];
 
 pub fn product_root() -> &'static Path {
@@ -347,19 +246,37 @@ pub fn runtime_baseline_document() -> &'static str {
     })
 }
 
+pub fn load_pinned_inventory(
+    product: &Path,
+    state: &Value,
+    field: &str,
+) -> Result<gewyvern::project_status::SourceInventory, String> {
+    let path = state[field]
+        .as_str()
+        .ok_or("missing source inventory path")?;
+    let inventory = gewyvern::project_status::SourceInventory::load_from_repository(product, path)?;
+    if state["remote_url"] != inventory.repository || state["pinned_revision"] != inventory.revision
+    {
+        return Err("source inventory does not match the pinned repository and revision".into());
+    }
+    Ok(inventory)
+}
+
 pub fn source_inventory() -> &'static gewyvern::project_status::SourceInventory {
     static INVENTORY: OnceLock<gewyvern::project_status::SourceInventory> = OnceLock::new();
     INVENTORY.get_or_init(|| {
         let state: Value =
             serde_json::from_str(include_str!("../../project/leselang-repository.json")).unwrap();
-        let inventory = gewyvern::project_status::SourceInventory::load_from_repository(
-            product_root(),
-            state["source_inventory"].as_str().unwrap(),
-        )
-        .unwrap();
-        assert_eq!(inventory.repository, state["remote_url"]);
-        assert_eq!(inventory.revision, state["pinned_revision"]);
-        inventory
+        load_pinned_inventory(product_root(), &state, "source_inventory").unwrap()
+    })
+}
+
+pub fn consumer_inventory() -> &'static gewyvern::project_status::SourceInventory {
+    static INVENTORY: OnceLock<gewyvern::project_status::SourceInventory> = OnceLock::new();
+    INVENTORY.get_or_init(|| {
+        let state: Value =
+            serde_json::from_str(include_str!("../../project/leselang-repository.json")).unwrap();
+        load_pinned_inventory(product_root(), &state, "consumer_inventory").unwrap()
     })
 }
 
@@ -387,47 +304,44 @@ pub fn read(path: &str) -> String {
     fs::read_to_string(checkout().join(relative(path))).unwrap()
 }
 
-pub fn acceptance_source(
-    original: &str,
-    product: &Path,
+pub fn recorded_source(
     native: &Path,
+    path: &str,
     recorded: &gewyvern::project_status::SourceInventory,
 ) -> Result<Vec<u8>, String> {
-    let path = product.join(original);
-    let relative = source_relative(&path, product).map_err(|error| error.to_string())?;
-    let actual = resolve_source_path(&path, product, native).map_err(|error| error.to_string())?;
-    if is_core_source(relative) {
-        let key = relative
-            .to_str()
-            .ok_or("non-UTF8 source path")?
-            .replace('\\', "/");
-        let file = recorded
-            .file(&key)
-            .ok_or_else(|| format!("unrecorded core source: {key}"))?;
-        let bytes = silvortex_bounded_io::read_bounded_utf8_regular_file(&actual, file.bytes)
-            .map_err(|error| format!("pinned acceptance source is unavailable: {error}"))?
-            .into_bytes();
-        recorded.verify_file(&key, &bytes)?;
-        Ok(bytes)
-    } else {
-        // Legacy facade/product acceptance still belongs here, not upstream.
-        fs::read(actual).map_err(|error| error.to_string())
+    recorded.validate()?;
+    let file = recorded
+        .file(path)
+        .ok_or_else(|| format!("unrecorded acceptance source: {path}"))?;
+    let mut actual = native.to_path_buf();
+    for component in path.split('/') {
+        actual.push(component);
+        let metadata = fs::symlink_metadata(&actual)
+            .map_err(|error| format!("pinned acceptance source is unavailable: {error}"))?;
+        if metadata.file_type().is_symlink() {
+            return Err("pinned acceptance source must not follow symlinks".into());
+        }
     }
+    let bytes = silvortex_bounded_io::read_bounded_utf8_regular_file(&actual, file.bytes)
+        .map_err(|error| format!("pinned acceptance source is unavailable: {error}"))?
+        .into_bytes();
+    recorded.verify_file(path, &bytes)?;
+    Ok(bytes)
 }
 
 pub fn assert_recorded_source(path: &str) {
     assert!(is_core_source(relative(path)));
-    acceptance_source(path, product_root(), checkout(), source_inventory()).unwrap();
+    recorded_source(checkout(), path, source_inventory()).unwrap();
 }
 
-pub fn assert_consumer_file(original: &str, path: &str, kind: Option<&str>) {
+pub fn assert_consumer_file(path: &str, kind: Option<&str>) {
     let actual = checkout().join("consumer").join(relative(path));
-    let expected =
-        acceptance_source(original, product_root(), checkout(), source_inventory()).unwrap();
-    assert!(
-        expected == fs::read(&actual).unwrap(),
-        "upstream acceptance differs: {path}"
-    );
+    recorded_source(
+        checkout(),
+        &format!("consumer/{path}"),
+        consumer_inventory(),
+    )
+    .unwrap();
     if let Some(kind) = kind {
         let package = consumer_package();
         assert!(
@@ -454,17 +368,16 @@ pub fn consumer_package() -> &'static Value {
 }
 
 pub fn assert_consumer_test(name: &str) {
-    let (_, original) = CONSUMER_TESTS
-        .iter()
-        .find(|(candidate, _)| *candidate == name)
-        .unwrap_or_else(|| panic!("unmapped upstream test: {name}"));
-    assert_consumer_file(original, &format!("tests/{name}.rs"), Some("test"));
+    assert!(
+        CONSUMER_TESTS.contains(&name),
+        "unmapped upstream test: {name}"
+    );
+    assert_consumer_file(&format!("tests/{name}.rs"), Some("test"));
 }
 
 pub fn assert_complete_consumer_inventory() {
-    let mut expected: BTreeSet<_> = CONSUMER_TESTS.iter().map(|(name, _)| *name).collect();
+    let expected: BTreeSet<_> = CONSUMER_TESTS.iter().copied().collect();
     assert_eq!(expected.len(), CONSUMER_TESTS.len());
-    expected.insert("repository_boundary");
     let actual: BTreeSet<_> = consumer_package()["targets"]
         .as_array()
         .unwrap()
@@ -479,19 +392,29 @@ pub fn assert_complete_consumer_inventory() {
         .map(|target| target["name"].as_str().unwrap())
         .collect();
     assert_eq!(actual, expected, "upstream consumer test inventory changed");
-    for (name, _) in CONSUMER_TESTS {
+    let mut paths: BTreeSet<_> = CONSUMER_TESTS
+        .iter()
+        .map(|name| format!("consumer/tests/{name}.rs"))
+        .collect();
+    paths.extend([
+        "consumer/examples/native_counter.rs".into(),
+        "consumer/tests/support/native_checkpoint.rs".into(),
+        "consumer/tests/support/native_group_checkpoint.rs".into(),
+    ]);
+    assert_eq!(
+        consumer_inventory()
+            .files
+            .iter()
+            .map(|file| file.path.clone())
+            .collect::<BTreeSet<_>>(),
+        paths,
+        "recorded consumer source inventory changed"
+    );
+    for name in CONSUMER_TESTS {
         assert_consumer_test(name);
     }
-    assert_consumer_file(
-        "crates/leselang-vm/examples/native_counter.rs",
-        "examples/native_counter.rs",
-        Some("example"),
-    );
+    assert_consumer_file("examples/native_counter.rs", Some("example"));
     for name in ["native_checkpoint", "native_group_checkpoint"] {
-        assert_consumer_file(
-            &format!("crates/leselang-vm/tests/support/{name}.rs"),
-            &format!("tests/support/{name}.rs"),
-            None,
-        );
+        assert_consumer_file(&format!("tests/support/{name}.rs"), None);
     }
 }

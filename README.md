@@ -42,6 +42,13 @@ Leselang makes GUI/CLI/code intent equivalent, and every renderer remains
 replaceable. The canonical system map and the project's distinct advantage
 zone live in [the architecture blueprint](docs/architecture-blueprint.md).
 
+The native Leselang foundation is maintained in the independent MIT-licensed
+[Leselang repository](https://github.com/Team-silvortex/leselang). This checkout
+pins its Git revision and owns the Leserpent integration, not a second language
+core. Start at the [repository map](docs/monorepo-stack.md) for source ownership
+and the [field-validation handoff](docs/field-validation.md#post-split-handoff)
+for the next Gewyvern validation campaign.
+
 The long-term direction is:
 
 - fragments are the embryo of runtime IR

@@ -23,13 +23,14 @@ use gewyvern::validation_harness::{
     run_leserpent_aot_validation, run_leserpent_benchmark_validation,
     run_leserpent_parity_recovery_validation, run_leserpent_schema_freeze_validation,
     run_leserpent_transport_validation, run_linux_attach_smoke, run_linux_kprobe_smoke,
-    run_linux_tc_smoke, run_package_install_smoke, run_pathological_container_validation,
-    run_registry_validation, run_release_container_check, run_release_gate,
-    run_remote_linux_host_validation, run_resilience_bundle_validation,
-    run_resilience_drive_bad_json_validation, run_resilience_emit_helper_validation,
-    run_resilience_log_evidence_validation, run_resilience_roundtrip_validation,
-    run_runtime_lifecycle_validation, run_runtime_operator_validation, run_socket_roundtrip_demo,
-    run_three_module_stack_smoke, run_training_dataset_roundtrip_demo, set_validation_json_mode,
+    run_linux_tc_smoke, run_linux_tcp_capture_validation, run_linux_tcp_juice_shop_validation,
+    run_package_install_smoke, run_pathological_container_validation, run_registry_validation,
+    run_release_container_check, run_release_gate, run_remote_linux_host_validation,
+    run_resilience_bundle_validation, run_resilience_drive_bad_json_validation,
+    run_resilience_emit_helper_validation, run_resilience_log_evidence_validation,
+    run_resilience_roundtrip_validation, run_runtime_lifecycle_validation,
+    run_runtime_operator_validation, run_socket_roundtrip_demo, run_three_module_stack_smoke,
+    run_training_dataset_roundtrip_demo, set_validation_json_mode,
     validate_leserpent_control_plane_aot_evidence,
     validate_leserpent_language_pack_local_orchestra_aot_evidence,
 };
@@ -57,6 +58,7 @@ const TOP_LEVEL_COMMANDS: &[&str] = &[
     "linux-attach-smoke",
     "linux-kprobe-smoke",
     "linux-tc-smoke",
+    "linux-tcp-capture",
     "list",
     "package-install-smoke",
     "pathological-container-validation",
@@ -530,6 +532,34 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
             }
             let options = parse_linux_ebpf_smoke_options(rest, "ip_route_output_flow", "--symbol")?;
             let report = run_linux_kprobe_smoke(&options.target, options.out_dir)?;
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
+            Ok(())
+        }
+        "linux-tcp-capture" => {
+            if wants_subcommand_help(&rest) {
+                println!(
+                    "Usage: gewyvern_validate linux-tcp-capture [--juice-shop] [--out-dir <new-path>]"
+                );
+                println!(
+                    "Default mode captures only owned IPv4 loopback socket cookies, reconstructs real TCP states, and verifies half-close/refusal/decoy behavior. Requires Linux, BTF, clang, bpftool and BPF privileges. No payload capture or PID attribution."
+                );
+                println!(
+                    "--juice-shop uses a pinned cached Docker image on an owned internal network without published ports; captures only two selected private-endpoint client sockets. Requires writable cgroup v2 and BPF links. Correlates client HTTP evidence with TCP facts and bounded 64-byte ingress BPF prefixes, then verifies HTTP/1.1 403/500 DSL classification and replay. Not stream reassembly or vulnerability detection."
+                );
+                return Ok(());
+            }
+            let (juice_shop, out_dir) = parse_tcp_capture_options(rest)?;
+            let report = if juice_shop {
+                run_linux_tcp_juice_shop_validation(out_dir)?
+            } else {
+                run_linux_tcp_capture_validation(out_dir)?
+            };
             print_validation_report(
                 &command,
                 &report,
@@ -1186,6 +1216,35 @@ fn parse_linux_ebpf_smoke_options(
     })
 }
 
+fn parse_tcp_capture_options(
+    args: Vec<String>,
+) -> Result<(bool, Option<PathBuf>), ValidationError> {
+    let mut juice_shop = false;
+    let mut out_dir = None;
+    let mut iter = args.into_iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--juice-shop" if !juice_shop => juice_shop = true,
+            "--out-dir" if out_dir.is_none() => {
+                let path = iter
+                    .next()
+                    .filter(|value| !value.starts_with('-'))
+                    .ok_or_else(|| ValidationError::new("--out-dir requires a path"))?;
+                out_dir = Some(PathBuf::from(path));
+            }
+            value if !value.starts_with('-') && out_dir.is_none() => {
+                out_dir = Some(PathBuf::from(value))
+            }
+            _ => {
+                return Err(ValidationError::new(format!(
+                    "unknown or repeated linux-tcp-capture option `{arg}`"
+                )));
+            }
+        }
+    }
+    Ok((juice_shop, out_dir))
+}
+
 fn parse_optional_out_dir(
     command_name: &str,
     args: Vec<String>,
@@ -1268,6 +1327,7 @@ fn print_help() {
     println!("  juice-shop-container-validation [--out-dir <path>]");
     println!("  linux-attach-smoke [--hookpoint <category/event>] [--out-dir <path>]");
     println!("  linux-kprobe-smoke [--symbol <kernel-symbol>] [--out-dir <path>]");
+    println!("  linux-tcp-capture [--juice-shop] [--out-dir <new-path>]");
     println!("  linux-tc-smoke --dev <netdev> [--out-dir <path>]");
     println!("  package-install-smoke [--deb|--rpm]");
     println!(
@@ -1584,6 +1644,7 @@ fn classify_failure(message: &str) -> Option<(FailureClass, &'static str)> {
         || message.contains("unknown remote-linux-host-validation option `")
         || message.contains("unknown linux smoke option `")
         || message.contains("unknown pathological-container-validation option `")
+        || message.contains("unknown or repeated linux-tcp-capture option `")
     {
         return Some((FailureClass::Input, "invalid_cli_input"));
     }
@@ -1729,6 +1790,7 @@ fn failure_guidance_lines(message: &str) -> Vec<&'static str> {
         || message.contains("unknown remote-linux-host-validation option `")
         || message.contains("unknown linux smoke option `")
         || message.contains("unknown pathological-container-validation option `")
+        || message.contains("unknown or repeated linux-tcp-capture option `")
     {
         guidance.push(
             "next-step: rerun with `gewyvern_validate help` or the subcommand `--help` output and correct the missing or invalid CLI option",
@@ -3005,6 +3067,7 @@ fn print_three_module_stack_smoke_help() {
 
 fn print_ftp_denied_container_validation_help() {
     println!("Usage: gewyvern_validate ftp-denied-container-validation [--out-dir <path>]");
+    println!("Requires GEWY_CONTAINER_TC_DEVICE naming a dedicated lab interface.");
     println!();
     println!(
         "Run a Linux-only practical lab check against an FTP server that rejects bad credentials, then preserve client-side 530 evidence, target-side FAIL LOGIN logs, and same-host attach/kprobe/tc smoke evidence."
@@ -3013,6 +3076,7 @@ fn print_ftp_denied_container_validation_help() {
 
 fn print_ldap_bind_denied_container_validation_help() {
     println!("Usage: gewyvern_validate ldap-bind-denied-container-validation [--out-dir <path>]");
+    println!("Requires GEWY_CONTAINER_TC_DEVICE naming a dedicated lab interface.");
     println!();
     println!(
         "Run a Linux-only practical lab check against an LDAP server that rejects a bad bind, then preserve client-side err=49 evidence, target-side bind logs, and same-host attach/kprobe/tc smoke evidence."
@@ -3021,6 +3085,7 @@ fn print_ldap_bind_denied_container_validation_help() {
 
 fn print_juice_shop_container_validation_help() {
     println!("Usage: gewyvern_validate juice-shop-container-validation [--out-dir <path>]");
+    println!("Requires GEWY_CONTAINER_TC_DEVICE naming a dedicated lab interface.");
     println!();
     println!(
         "Run a Linux-only practical lab check against an OWASP Juice Shop container, then preserve target-side anomaly evidence next to native attach/kprobe/tc smoke evidence."
@@ -3042,6 +3107,30 @@ fn print_pathological_container_validation_help() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tcp_capture_options_keep_target_selection_explicit_and_reject_ambiguity() {
+        assert_eq!(parse_tcp_capture_options(vec![]).unwrap(), (false, None));
+        assert_eq!(
+            parse_tcp_capture_options(vec![
+                "--juice-shop".into(),
+                "--out-dir".into(),
+                "evidence".into()
+            ])
+            .unwrap(),
+            (true, Some(PathBuf::from("evidence")))
+        );
+        for args in [
+            vec!["--juice-shop", "--juice-shop"],
+            vec!["--out-dir", "--juice-shop"],
+            vec!["--target", "http://unowned.example"],
+            vec!["--out-dir", "one", "--out-dir", "two"],
+        ] {
+            assert!(
+                parse_tcp_capture_options(args.into_iter().map(str::to_owned).collect()).is_err()
+            );
+        }
+    }
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};

@@ -13,13 +13,15 @@ struct AcceptanceScratch(PathBuf);
 
 impl AcceptanceScratch {
     fn new() -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let stamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "leselang-acceptance-{}-{stamp}",
-            std::process::id()
+            "leselang-acceptance-{}-{stamp}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         ));
         fs::create_dir(&path).unwrap();
         Self(path)
@@ -33,75 +35,184 @@ impl Drop for AcceptanceScratch {
 }
 
 #[test]
-fn acceptance_sources_require_recorded_native_bytes_without_redirecting_product_owners() {
+fn acceptance_scratch_directories_are_unique_for_parallel_checks() {
+    let directories = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..16)
+            .map(|_| scope.spawn(AcceptanceScratch::new))
+            .collect();
+        handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+    let paths: std::collections::BTreeSet<_> = directories.iter().map(|dir| &dir.0).collect();
+    assert_eq!(paths.len(), directories.len());
+    assert!(paths.iter().all(|path| path.is_dir()));
+}
+
+#[test]
+fn consumer_acceptance_has_its_own_pinned_source_inventory() {
+    let state = state();
+    assert_eq!(
+        state["compatibility_cleanup"]["consumer_acceptance_uses_inventory"],
+        true
+    );
+    let inventory = gewyvern::project_status::SourceInventory::load_from_repository(
+        upstream::product_root(),
+        state["consumer_inventory"].as_str().unwrap(),
+    )
+    .unwrap();
+    assert_eq!(inventory.repository, state["remote_url"]);
+    assert_eq!(inventory.revision, state["pinned_revision"]);
+    assert_eq!(inventory.files.len(), 43);
+    assert!(
+        inventory
+            .files
+            .iter()
+            .all(|file| file.path.starts_with("consumer/"))
+    );
+    upstream::assert_complete_consumer_inventory();
+}
+
+fn sample_source_inventory(path: &str) -> gewyvern::project_status::SourceInventory {
+    serde_json::from_value(json!({
+        "schema_version": 1, "repository": "https://example.invalid/native", "revision": "1".repeat(40),
+        "files": [{"path": path, "bytes": 3,
+            "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"}]
+    })).unwrap()
+}
+
+#[test]
+fn recorded_acceptance_is_independent_of_local_templates_and_never_falls_back() {
     let scratch = AcceptanceScratch::new();
     let product = scratch.0.join("product");
     let native = scratch.0.join("native");
-    let original = "crates/leselang-runtime-core/src/lib.rs";
-    let recorded: gewyvern::project_status::SourceInventory = serde_json::from_value(json!({
-        "schema_version": 1, "repository": "https://example.invalid/native", "revision": "1".repeat(40),
-        "files": [{"path": original, "bytes": 3,
-            "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"}]
-    })).unwrap();
-    recorded.validate().unwrap();
-    for root in [&product, &native] {
-        fs::create_dir_all(root.join(original).parent().unwrap()).unwrap();
-        fs::write(root.join(original), b"abc").unwrap();
-    }
-    assert_eq!(
-        upstream::acceptance_source(original, &product, &native, &recorded).unwrap(),
-        b"abc"
-    );
-    fs::remove_file(product.join(original)).unwrap();
-    assert_eq!(
-        upstream::acceptance_source(original, &product, &native, &recorded).unwrap(),
-        b"abc"
-    );
-    fs::write(product.join(original), b"abc").unwrap();
-    fs::write(native.join(original), b"abd").unwrap();
-    assert!(
-        upstream::acceptance_source(original, &product, &native, &recorded)
-            .unwrap_err()
-            .contains("SHA-256")
-    );
-    fs::write(native.join(original), b"abcd").unwrap();
-    assert!(upstream::acceptance_source(original, &product, &native, &recorded).is_err());
-    fs::remove_file(native.join(original)).unwrap();
-    assert!(
-        upstream::acceptance_source(original, &product, &native, &recorded)
-            .unwrap_err()
-            .contains("unavailable")
-    );
-    for missing in [
-        "crates/leselang-runtime-core/src/other.rs",
-        "crates/leselang-syntax/src/lib.rs",
+    for (path, local) in [
+        (
+            "crates/leselang-runtime-core/src/lib.rs",
+            "crates/leselang-runtime-core/src/lib.rs",
+        ),
+        (
+            "consumer/tests/core_identity.rs",
+            "crates/leselang-hir/tests/core_identity.rs",
+        ),
     ] {
-        assert!(
-            upstream::acceptance_source(missing, &product, &native, &recorded)
-                .unwrap_err()
-                .contains("unrecorded")
+        let recorded = sample_source_inventory(path);
+        for file in [product.join(local), native.join(path)] {
+            fs::create_dir_all(file.parent().unwrap()).unwrap();
+            fs::write(file, b"abc").unwrap();
+        }
+        assert_eq!(
+            upstream::recorded_source(&native, path, &recorded).unwrap(),
+            b"abc"
         );
+        fs::write(product.join(local), b"locally evolved acceptance").unwrap();
+        assert_eq!(
+            upstream::recorded_source(&native, path, &recorded).unwrap(),
+            b"abc"
+        );
+        fs::remove_file(product.join(local)).unwrap();
+        assert_eq!(
+            upstream::recorded_source(&native, path, &recorded).unwrap(),
+            b"abc"
+        );
+        fs::write(product.join(local), b"abc").unwrap();
+        fs::write(native.join(path), b"abd").unwrap();
+        assert!(
+            upstream::recorded_source(&native, path, &recorded)
+                .unwrap_err()
+                .contains("SHA-256")
+        );
+        fs::write(native.join(path), b"abcd").unwrap();
+        assert!(upstream::recorded_source(&native, path, &recorded).is_err());
+        fs::write(native.join(path), b"ab").unwrap();
+        assert!(
+            upstream::recorded_source(&native, path, &recorded)
+                .unwrap_err()
+                .contains("byte length")
+        );
+        fs::remove_file(native.join(path)).unwrap();
+        assert!(
+            upstream::recorded_source(&native, path, &recorded)
+                .unwrap_err()
+                .contains("unavailable")
+        );
+        for unknown in [
+            "consumer/tests/unrecorded.rs",
+            "../outside.rs",
+            "/tmp/outside.rs",
+            "consumer/../outside.rs",
+        ] {
+            assert!(
+                upstream::recorded_source(&native, unknown, &recorded)
+                    .unwrap_err()
+                    .contains("unrecorded")
+            );
+        }
+        let mut invalid = recorded.clone();
+        invalid.files[0].path = "../outside.rs".into();
+        assert!(upstream::recorded_source(&native, "../outside.rs", &invalid).is_err());
     }
-    for original in [
+    // Source inspections still route product implementations locally; only
+    // immutable native acceptance reads lost their product-template input.
+    for path in [
         "crates/leselang-vm/src/native.rs",
         "crates/leserpent-hir/src/lib.rs",
         "crates/leselang-hir-core-product/src/lib.rs",
     ] {
-        for root in [&product, &native] {
-            fs::create_dir_all(root.join(original).parent().unwrap()).unwrap();
-        }
-        fs::write(product.join(original), b"local-owner").unwrap();
-        fs::write(native.join(original), b"not-the-owner").unwrap();
         assert_eq!(
-            upstream::acceptance_source(original, &product, &native, &recorded).unwrap(),
-            b"local-owner"
+            upstream::resolve_source_path(&product.join(path), &product, &native).unwrap(),
+            product.join(path)
         );
     }
-    for path in [
-        "../outside.rs",
-        "crates/leselang-runtime-core/../leserpent-hir/src/lib.rs",
-    ] {
-        assert!(upstream::acceptance_source(path, &product, &native, &recorded).is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn recorded_acceptance_rejects_file_and_parent_symlinks_even_when_bytes_match() {
+    let scratch = AcceptanceScratch::new();
+    let outside = scratch.0.join("outside");
+    fs::create_dir(&outside).unwrap();
+    fs::write(outside.join("fixture.rs"), b"abc").unwrap();
+    let path = "consumer/tests/fixture.rs";
+    let recorded = sample_source_inventory(path);
+    for parent_link in [false, true] {
+        let native = scratch.0.join(if parent_link { "parent" } else { "file" });
+        fs::create_dir_all(native.join("consumer")).unwrap();
+        if parent_link {
+            std::os::unix::fs::symlink(&outside, native.join("consumer/tests")).unwrap();
+        } else {
+            fs::create_dir(native.join("consumer/tests")).unwrap();
+            std::os::unix::fs::symlink(outside.join("fixture.rs"), native.join(path)).unwrap();
+        }
+        assert!(
+            upstream::recorded_source(&native, path, &recorded)
+                .unwrap_err()
+                .contains("symlinks")
+        );
+    }
+}
+
+#[test]
+fn pinned_acceptance_inventory_rejects_identity_changes_and_missing_metadata() {
+    let original = state();
+    for field in ["source_inventory", "consumer_inventory"] {
+        upstream::load_pinned_inventory(upstream::product_root(), &original, field).unwrap();
+        for (key, value) in [
+            ("remote_url", json!("https://example.invalid/other")),
+            ("pinned_revision", json!("0".repeat(40))),
+            ("pinned_revision", json!("main")),
+            (field, Value::Null),
+            (field, json!("../outside.json")),
+            (field, json!("project/missing-inventory.json")),
+        ] {
+            let mut changed = original.clone();
+            changed[key] = value;
+            assert!(
+                upstream::load_pinned_inventory(upstream::product_root(), &changed, field).is_err(),
+                "{field}: {key}"
+            );
+        }
     }
 }
 

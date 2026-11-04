@@ -21,6 +21,7 @@
     "linux-attach-smoke",
     "linux-kprobe-smoke",
     "linux-tc-smoke",
+    "linux-tcp-capture",
     "package-install-smoke",
     "pathological-container-validation",
     "registry",

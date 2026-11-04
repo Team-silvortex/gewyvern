@@ -43,6 +43,139 @@ For those, use:
 - [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
 - [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 
+## `2026-11-04` Kernel Payload Prefix To Gewylang Classification
+
+The container capture path now passed three physical-host runs with an actual
+`cgroup_skb/ingress` BPF sampler: ten TCP state events and two nonempty packet
+snapshots per run, two reconstructed flows, and zero reported capture loss.
+Validation-only Gewylang rules identified HTTP/1.1 403 and 500 from the captured
+bytes. Their socket cookies and prefixes matched independently saved client
+responses; the unselected HTTP 200 request remained absent. Facts, flows,
+reasons, program flows and protocol IR replayed identically. The original
+loopback mode also passed. See the [real prefix sample and proof hashes](fixtures/gewyvern_packet_capture_linux_x86_64_20261104.json).
+
+The first attempt exposed a verifier-visible zero-length read bound after LLVM
+folding. The sampler now explicitly proves a 1..64-byte read before calling the
+helper. That error path removed its owned resources too. Packet and TCP counter
+files are separate so one capture cannot overwrite the other's evidence.
+Final-source Linux regressions passed 721 unique tests, including two explicitly
+enabled socket tests; seven performance benchmarks were not run. Strict Clippy
+including test targets and format checks passed. No macOS build or image pull
+was used, and no release gate or tensor maturity was promoted.
+
+This remains a bounded validation backend: only two owned private-endpoint
+client sockets, ingress IPv4/TCP payloads, 128 events and 64 bytes per prefix.
+Every BPF path allows traffic without modification. A temporary cgroup is
+removed after restoring the validator's original placement, and the BPF link
+is fd-owned. No unrelated process is moved. The sampler records real TCP header
+fields; network namespace comes from the correlated kernel TCP state, not a
+fabricated PID. Kernel skb snapshots do not imply on-wire packet boundaries.
+There is no TCP stream reassembly, TLS decryption, vulnerability verdict,
+server-socket attribution or general live-CLI claim. Trust is `unverified-local`.
+
+## `2026-11-04` Container Request To TCP Flow Correlation
+
+The fixed `linux-tcp-capture --juice-shop` mode passed three independent runs on
+the same physical Ubuntu `7.0.0-42-generic` host. Each preserved file-guard HTTP
+403 and SQL-error HTTP 500 responses, matched ten kernel TCP state events to two
+client sockets and reconstructed flows, and excluded a third HTTP 200 request.
+Every run reported zero dropped events and replayed identical facts, flows and
+reasons. The [real sample and hashes](fixtures/gewyvern_container_capture_linux_x86_64_20261104.json)
+retain the cookie/tuple/netns/time/fact-ID joins. The original loopback mode also
+passed again after sharing the explicit address-scoped capture backend.
+Relevant Linux regressions passed 707 unique tests, including explicitly enabled
+TCP/Unix input tests, and targeted strict Clippy passed. Seven performance
+benchmarks were not run. The code and raw sample hashes were cross-checked;
+only small reports/HTTP evidence were copied to
+`target/validation/container-capture-20261104/` on macOS, with no local build.
+
+The first attempt stopped when this Docker internal network did not publish the
+requested host port. Isolation was retained: the final path publishes no ports
+and connects only to the inspected target IP from its owned bridge gateway.
+The second attempt caught chunked HTTP error responses; bounded, strict chunk
+framing is now supported, and raw client responses are saved before parsing.
+Failed-run logs are retained. The dedicated container, network and BPF pins
+were removed on success and both error paths; unrelated services were not used.
+
+The client observations are kept in a separate correlation report. No HTTP
+packet facts or PID lineage are synthesized into the kernel export. This is a
+bounded client-to-container evidence chain, not BPF payload classification or
+vulnerability detection. Sustained load, server-side socket attribution and
+multi-host/kernel acceptance remain unproven; trust stays `unverified-local`.
+
+## `2026-11-04` Real TCP Capture And Replay
+
+The same physical Ubuntu x86_64 host (`7.0.0-42-generic`) passed three independent
+`linux-tcp-capture` runs: each recorded seven real kernel TCP state events,
+reconstructed two owned flows, reported zero dropped events and excluded the
+unselected decoy socket. Established, half-closed and closed snapshots replayed
+with identical facts, flows and reasons. See the
+[captured sample and proof hashes](fixtures/gewyvern_tcp_capture_linux_x86_64_20261104.json).
+
+This uncovered and fixed two product bugs:
+
+- Flow reconstruction treated TCP state numbers as ordered liveness. In
+  particular `CLOSE_WAIT` was prematurely terminated. Terminal states are now
+  explicit; reconnecting on the same socket clears stale termination evidence.
+- TCP fact export omitted both IP addresses and replay silently replaced them
+  with zero. New exports preserve all 16 address bytes. Legacy files without
+  addresses remain readable; present but malformed address arrays are rejected.
+
+The initial live runs also exposed the host bpftool's nested BTF output format;
+the adapter now handles it without guessing untyped raw bytes. Failed-run logs
+are retained, and run-owned BPF pins were cleaned on failure as well as success.
+Compilation and tests stayed on Linux; no macOS build or image pull was needed.
+The final relevant regression set passed 679 unique tests, including explicitly
+enabled TCP/Unix input tests, plus targeted strict Clippy. Seven performance
+benchmarks were not run and are not counted as passes. Only small reports and
+capture JSON were copied to `target/validation/tcp-capture-20261104/` on macOS.
+
+This proves the bounded owned-socket kernel-event-to-runtime path. It does not
+prove HTTP payload analysis, vulnerability detection, PID lineage, general live
+CLI capture or container-target request correlation. The HTTP 204 was observed
+by the test client, not inferred by Gewyvern. Trust stays `unverified-local` and
+no status-tensor maturity or release gate was promoted.
+
+## `2026-11-04` Post-Split Linux Field Lab
+
+The current working tree passed its first post-split core validation campaign on
+one physical Ubuntu x86_64 host running `7.0.0-42-generic`. Compilation, regression
+tests and process-level scenarios ran in a resource-bounded Rust 1.98.0 container
+on that host; actual BPF attachment ran on the host itself. No macOS compilation
+or image pull was used. See the [bounded proof record](fixtures/gewyvern_field_lab_linux_x86_64_20261104.json).
+
+- All 361 protocol packages passed registry validation; high-frequency/mixed-flow,
+  debugger-cross, runtime-operator, runtime-lifecycle and socket/full-scan field
+  smoke passed. The latter runtime suites include malformed-input recovery.
+- 138 relevant unit/integration tests and targeted strict Clippy passed on Linux.
+- Cached Juice Shop, FTP and LDAP targets preserved HTTP 403/SQL-error 500, FTP
+  530/server denial, and LDAP 49/server bind-denial evidence respectively. Each
+  target also passed tracepoint, kprobe and dedicated-interface TC attach checks.
+- The lab entrypoints now require an explicit existing `GEWY_CONTAINER_TC_DEVICE`
+  before Docker effects. A run-owned dummy interface replaced automatic primary
+  route selection; missing targets were rejected by all three entrypoints.
+- Target containers and the dummy interface were removed. Existing non-lab
+  containers, the default route and non-transient qdisc state were unchanged.
+
+Initial isolated-container failures came from missing cached test dependencies
+and a non-writable default HOME. Fetching the locked dependencies and supplying
+a dedicated writable HOME resolved them. The cached Rust image lacked Clippy;
+it was installed in a temporary checking container, not on macOS or the host.
+The host's default sudo-rs rejected a legacy sudoers wildcard rule; this run used
+the existing password-authenticated `sudo.ws`, without changing system policy.
+
+This proves target-side evidence preservation plus same-host attach capability,
+not direct vulnerability classification or correlation of the target requests
+into Gewyvern's eBPF-derived session output. `resilience-roundtrip` generated
+helpers only and is not counted as live fault injection. Sustained-load/loss/tail
+latency measurements, full external-engine fault injection and a second host or
+kernel remain open. No status-tensor maturity or release gate was promoted.
+
+Full evidence and build caches remain in the remote dedicated Gewyvern workspace;
+only small top-level reports were copied to `target/validation/field-lab-20261104/`.
+The pinned target image digests in the proof make the cached lab reproducible
+without relying on a future `latest` tag.
+
 ## `2026-07-18` Linux Publication-Hardening Finding
 
 A physical Ubuntu `6.17.0-35-generic` run exposed a Linux-only ownership drift

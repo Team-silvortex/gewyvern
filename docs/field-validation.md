@@ -9,6 +9,32 @@ The goal is simple:
 - start judging readiness from repeated real-world operator use
 - define which outputs must stay stable enough under that use
 
+## Post-Split Handoff
+
+The [Leselang product cleanup boundary](leselang-repository-handoff.md#product-cleanup-closeout)
+is closed. Retained legacy API facades, product adapters and the independent
+language's future full-VM work do not block Gewyvern capability field testing.
+The runtime dependency gate keeps Gewyvern itself independent of the control
+stack; its development-only integration tests are a separate concern.
+
+Resume the existing native validation entrypoints rather than building a new
+parallel harness. The next campaign should cover these ordered layers:
+
+1. Establish the server/kernel/toolchain and packaged-binary identity, then verify standalone CLI, service startup, stop and restart behavior.
+2. Cross-check high-frequency and mixed protocol evidence through `registry`, `high-frequency` and `debugger-cross`, including negative cases that must not overclaim.
+3. Exercise `runtime-operator` and `runtime-lifecycle` for malformed input, recovery and continued service readability. `resilience-roundtrip` only prepares helpers/configuration/runbook files; do not count it as executed fault injection.
+4. On the authorized Linux lab, run real attach/kprobe/TC checks and the owned target-container scenario. Use a dedicated TC test interface and leave unrelated services, containers and traffic-control rules intact.
+5. Run `linux-tcp-capture` on the host to correlate owned loopback socket cookies with real kernel TCP states, reconstruct sessions and replay exports. Add `--juice-shop` for owned private-container HTTP 403/500 request-to-flow correlation, ingress BPF prefix classification and an unselected HTTP 200 negative control. Keep client HTTP bodies, BPF TCP states and bounded BPF packet prefixes separate. Neither mode proves stream reassembly, vulnerability detection or arbitrary process capture.
+6. Measure sustained-load CPU, resident memory, event loss and tail latency against an explicit baseline; capture limits and recovery after pressure, not just a short success run.
+
+See the [native command map](script-entrypoints.md) for command arguments and
+evidence paths. Record source revision, target identity, kernel, configuration
+and per-stage `passed`/`failed`/`skipped` outcomes. Missing privileges or absent
+hardware are explicit gaps, never a pass. The cleanup's local compile and
+contract results are not evidence that these Linux stages have already run.
+
+## Validation Context
+
 This is the bridge between:
 
 - contract freeze
@@ -16,19 +42,19 @@ This is the bridge between:
 - current release judgment for the active `2.5.x` line
 
 For the sealed `1.0.0` release posture and the final pre-stable checkpoint,
-see [docs/history/v1.0.0.md](docs/history/v1.0.0.md) and
-[docs/history/v0.20.x.md](docs/history/v0.20.x.md).
+see [1.0.0 release posture](history/v1.0.0.md) and
+[the pre-stable checkpoint](history/v0.20.x.md).
 
 For the short running record of what this validation has already shown in
-practice, see [docs/field-findings.md](docs/field-findings.md).
+practice, see [field findings](field-findings.md).
 
 For the shorter goal-based script map that now sits above the individual
 validation shelves, see
-[docs/script-entrypoints.md](docs/script-entrypoints.md).
+[native validation commands](script-entrypoints.md).
 
 For the concrete release gate, packaged artifact checklist, and ship/no-ship
 decision shelf, use
-[docs/release-checklist.md](docs/release-checklist.md).
+[release checklist](release-checklist.md).
 
 ## Role In The Shelf
 
@@ -37,7 +63,7 @@ Treat this page as the validation-program page for the active line.
 Use it when the question is:
 
 - what kinds of validation should we still be running repeatedly?
-- which scenario families matter most for trust in `1.0.0`?
+- which scenario families matter most for trust in the current release?
 - what counts as strong enough validation evidence versus shallow smoke?
 
 Do not use this page as:
@@ -48,22 +74,22 @@ Do not use this page as:
 
 For those, use:
 
-- [docs/release-checklist.md](docs/release-checklist.md)
-- [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
-- [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
-- [docs/field-findings.md](docs/field-findings.md)
+- [Release checklist](release-checklist.md)
+- [1.0.0 release posture](history/v1.0.0.md)
+- [Pre-stable checkpoint](history/v0.20.x.md)
+- [Field findings](field-findings.md)
 
 ## Companion Shelves
 
-- [docs/field-findings.md](docs/field-findings.md)
+- [Field findings](field-findings.md)
   for the short evidence log of what this validation line has already shown
-- [docs/release-checklist.md](docs/release-checklist.md)
+- [Release checklist](release-checklist.md)
   for the shortest current release gate
-- [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
+- [1.0.0 release posture](history/v1.0.0.md)
   for the stable line's intended claim and scope
-- [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
+- [Pre-stable checkpoint](history/v0.20.x.md)
   for the final pre-stable sealing context
-- [docs/history/v0.18.x.md](docs/history/v0.18.x.md)
+- [Protocol and host-validation baseline](history/v0.18.x.md)
   for the protocol breadth and physical-host validation baseline this line
   inherits
 
@@ -191,7 +217,7 @@ Current commands to keep exercising:
 - `cargo run -- --demo udp --json --summary-only`
 - `cargo run -- --dsl dsl/http_request_path.gewy --json --summary-only`
 - `cargo run -p gewyc -- explain dsl/http_request_path.gewy --json`
-- [scripts/validation/high_frequency_validation.sh](scripts/validation/high_frequency_validation.sh)
+- [scripts/validation/high_frequency_validation.sh](../scripts/validation/high_frequency_validation.sh)
 
 Expected qualities:
 
@@ -214,7 +240,7 @@ Current commands to keep exercising:
 
 - `cargo run -- --list-protocols`
 - `cargo run -- --scan-all --json --summary-only`
-- [scripts/validation/registry_validation.sh](scripts/validation/registry_validation.sh)
+- [scripts/validation/registry_validation.sh](../scripts/validation/registry_validation.sh)
 
 Expected qualities:
 
@@ -246,14 +272,14 @@ Current commands to keep exercising:
 
 - `cargo run --quiet --bin gewyvern_validate -- socket-roundtrip`
   Socket session roundtrip through the standalone ingest path. The legacy
-  [scripts/demos/socket_roundtrip_demo.sh](scripts/demos/socket_roundtrip_demo.sh)
+  [scripts/demos/socket_roundtrip_demo.sh](../scripts/demos/socket_roundtrip_demo.sh)
   wrapper remains for older automation.
-- [scripts/validation/runtime_operator_validation.sh](scripts/validation/runtime_operator_validation.sh)
+- [scripts/validation/runtime_operator_validation.sh](../scripts/validation/runtime_operator_validation.sh)
   Broader serve/API/runtime operator validation path.
 - local `--serve` plus read-only API usage
 
 Pair this validation track with the operator-facing preflight at
-[docs/book/how-to-security-checklist.md](docs/book/how-to-security-checklist.md)
+[Security checklist](book/how-to-security-checklist.md)
 so deployment intent and runtime behavior are checked together.
 
 Expected qualities:
@@ -349,16 +375,16 @@ The current local smoke entry point is:
 - `cargo run --quiet --bin gewyvern_validate -- registry`
 - `cargo run --quiet --bin gewyvern_validate -- runtime-operator`
 - `cargo run --quiet --bin gewyvern_validate -- container-runtime-validation`
-- [scripts/validation/field_validation_smoke.sh](scripts/validation/field_validation_smoke.sh)
-- [scripts/validation/high_frequency_validation.sh](scripts/validation/high_frequency_validation.sh)
-- [scripts/packaging/release_container_check.sh](scripts/packaging/release_container_check.sh)
-- [scripts/packaging/container_validation_summary.sh](scripts/packaging/container_validation_summary.sh)
-- [scripts/packaging/container_protocol_validation.sh](scripts/packaging/container_protocol_validation.sh)
-- [scripts/packaging/container_operator_path_validation.sh](scripts/packaging/container_operator_path_validation.sh)
-- [scripts/validation/registry_validation.sh](scripts/validation/registry_validation.sh)
-- [scripts/validation/runtime_operator_validation.sh](scripts/validation/runtime_operator_validation.sh)
-- [scripts/packaging/container_runtime_validation.sh](scripts/packaging/container_runtime_validation.sh)
-- [docs/release-checklist.md](docs/release-checklist.md)
+- [scripts/validation/field_validation_smoke.sh](../scripts/validation/field_validation_smoke.sh)
+- [scripts/validation/high_frequency_validation.sh](../scripts/validation/high_frequency_validation.sh)
+- [scripts/packaging/release_container_check.sh](../scripts/packaging/release_container_check.sh)
+- [scripts/packaging/container_validation_summary.sh](../scripts/packaging/container_validation_summary.sh)
+- [scripts/packaging/container_protocol_validation.sh](../scripts/packaging/container_protocol_validation.sh)
+- [scripts/packaging/container_operator_path_validation.sh](../scripts/packaging/container_operator_path_validation.sh)
+- [scripts/validation/registry_validation.sh](../scripts/validation/registry_validation.sh)
+- [scripts/validation/runtime_operator_validation.sh](../scripts/validation/runtime_operator_validation.sh)
+- [scripts/packaging/container_runtime_validation.sh](../scripts/packaging/container_runtime_validation.sh)
+- [Release checklist](release-checklist.md)
   Release-facing packaged and multi-project gate.
 
 It is intentionally small.
@@ -395,7 +421,7 @@ The release container check is the shortest repeatable check that:
 
 The exact packaged release gate, rebuild order, and three-module collaboration
 gate are intentionally described in
-[docs/release-checklist.md](docs/release-checklist.md)
+[Release checklist](release-checklist.md)
 rather than duplicated here. This page treats them as one validation track
 inside the wider field-validation program.
 

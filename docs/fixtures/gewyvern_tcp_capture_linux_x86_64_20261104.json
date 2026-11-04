@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "proof": "owned-linux-tcp-state-capture-to-runtime-replay",
+  "captured_on": "2026-11-04",
+  "release_line": "2.5.x",
+  "package_version": "2.5.0",
+  "source_base_revision": "01641a1c2cd5a0b6eec50d90c22afeb2d59711aa",
+  "working_tree_changes": true,
+  "verified_final_source_sha256": {
+    "Cargo.toml": "9c30266f8a8c804a9b07fb533f14b5196924b3d80bb79b29144fe72d1da2a2a5",
+    "Cargo.lock": "db25d044d98e21638a012ecf7f758ceb8b836c881a6ab7287bcd93acc3a4fff6",
+    "ebpf/validation/tcp_state.bpf.c": "eefbddc4712b7fca226d6fd52c608a74b9f9dc72ab4369159d4b699cd87a0ee8",
+    "src/runtime/flows.rs": "b8ea58b975311716bb1d6eceebe987e239166390cff8871fd6b1e5417faf9411",
+    "src/export/fact_codec/encode.rs": "6437cbba85a18404f5e2e31f8cb61b9ebb7c37a53193edb245d0a656d1d88fdd",
+    "src/export/fact_codec/decode.rs": "06c1f054bd1aaf043a030447463244c1af0e34eb012d22626754c8b5958240ed",
+    "src/validation_harness/linux_tcp_capture.rs": "031b1acd7e2d4b773ce1d9b6d194a732a094d832cc0ff95c9dfd24e92a6dbc88",
+    "src/validation_harness/linux_tcp_capture/linux.rs": "3e05e0dc63e96416735a987b2ef07ff563efe7c778b61d2fba7577d274a48ef4",
+    "src/bin/gewyvern_validate.rs": "086522266d97747d7afc9d97aae7d3fd68f604b65be92ad1af58eacfd48b1a9d"
+  },
+  "release_artifact": false,
+  "result": "passed",
+  "host": {"os": "ubuntu", "arch": "x86_64", "kernel": "7.0.0-42-generic", "unique_hosts": 1, "unique_kernels": 1},
+  "execution": {
+    "rust": "1.98.0",
+    "build_and_regression": "resource-bounded-linux-container",
+    "live_capture": "physical-linux-host",
+    "macos_builds": false,
+    "macos_image_pulls": false,
+    "remote_evidence": "~/.cache/gewyvern/field-evidence/20261104-tcp-capture",
+    "local_report_shelf": "target/validation/tcp-capture-20261104"
+  },
+  "live_runs": [
+    {"id": "run-03", "kernel_events": 7, "flows": 2, "dropped_events": 0, "decoy_events": 0, "pins_removed": true},
+    {"id": "run-04", "kernel_events": 7, "flows": 2, "dropped_events": 0, "decoy_events": 0, "pins_removed": true},
+    {"id": "run-05", "kernel_events": 7, "flows": 2, "dropped_events": 0, "decoy_events": 0, "pins_removed": true}
+  ],
+  "regression": {
+    "library_tests": 499,
+    "documentation_tests": 74,
+    "export_contract_tests": 5,
+    "cli_json_snapshot_tests": 9,
+    "machine_error_contract_tests": 9,
+    "native_validation_harness_tests": 30,
+    "runtime_tests": 30,
+    "script_portability_tests": 14,
+    "version_posture_tests": 7,
+    "explicitly_enabled_socket_input_tests": 2,
+    "total_unique_passed": 679,
+    "performance_benchmarks_not_run": 7,
+    "targeted_clippy_deny_warnings": "passed",
+    "format_and_diff_checks": "passed"
+  },
+  "checks": [
+    "exact-SO_COOKIE-tuple-and-network-namespace-correlation",
+    "real-loopback-HTTP-204-exchange-observed-by-test-client",
+    "established-and-CLOSE_WAIT-not-terminated",
+    "SYN_SENT-to-CLOSE-for-owned-non-listening-port",
+    "unselected-socket-excluded",
+    "zero-capture-loss-in-bounded-test",
+    "facts-flows-and-reasons-replay-identically",
+    "owned-BPF-pins-removed-after-success-and-failure"
+  ],
+  "fixed_defects": [
+    "numeric-TCP-state-order-misclassified-half-closed-and-listening-sockets-as-terminated",
+    "TCP-fact-JSON-omitted-addresses-and-replay-replaced-them-with-zero"
+  ],
+  "capture_sample": {
+    "origin": "run-03/final-raw.json formatted values sorted by sequence; no generated events",
+    "expected_sockets": [[8193, 52343, 46231, 4026531833], [8194, 53427, 44137, 4026531833]],
+    "events": [
+      {"sequence":1,"monotonic_ns":3047922438104,"cookie":8193,"netns":4026531833,"cpu":4,"sport":52343,"dport":46231,"family":2,"old_state":7,"new_state":2,"saddr":[127,0,0,1],"daddr":[127,0,0,1]},
+      {"sequence":2,"monotonic_ns":3047922485624,"cookie":8193,"netns":4026531833,"cpu":4,"sport":52343,"dport":46231,"family":2,"old_state":2,"new_state":1,"saddr":[127,0,0,1],"daddr":[127,0,0,1]},
+      {"sequence":3,"monotonic_ns":3048001360440,"cookie":8193,"netns":4026531833,"cpu":0,"sport":52343,"dport":46231,"family":2,"old_state":1,"new_state":8,"saddr":[127,0,0,1],"daddr":[127,0,0,1]},
+      {"sequence":4,"monotonic_ns":3048079917576,"cookie":8194,"netns":4026531833,"cpu":0,"sport":53427,"dport":44137,"family":2,"old_state":7,"new_state":2,"saddr":[127,0,0,1],"daddr":[127,0,0,1]},
+      {"sequence":5,"monotonic_ns":3048079949997,"cookie":8194,"netns":4026531833,"cpu":0,"sport":53427,"dport":44137,"family":2,"old_state":2,"new_state":7,"saddr":[127,0,0,1],"daddr":[127,0,0,1]},
+      {"sequence":6,"monotonic_ns":3048080063832,"cookie":8193,"netns":4026531833,"cpu":0,"sport":52343,"dport":46231,"family":2,"old_state":8,"new_state":9,"saddr":[127,0,0,1],"daddr":[127,0,0,1]},
+      {"sequence":7,"monotonic_ns":3048080076867,"cookie":8193,"netns":4026531833,"cpu":0,"sport":52343,"dport":46231,"family":2,"old_state":9,"new_state":7,"saddr":[127,0,0,1],"daddr":[127,0,0,1]}
+    ]
+  },
+  "report_sha256": {
+    "run-03/summary.json": "7f728b27eac2fc4c2ffb96a2bc2ae78e18721cd19dd7a1c9df553b0a691f90fc",
+    "run-04/summary.json": "81b520570fcf68ddeeee139d50b85447a4d20e598ad6c33e6b943d82f3660898",
+    "run-05/summary.json": "355a0adb6db976e548088e648adba25bd7ea5107a0d3cd2c4adfcd3cc7f43ac2",
+    "run-03/final-raw.json": "a9fed96ec3a1f35b4055926d93305af011a01318d4336ffcc93d3d2c59af7fda"
+  },
+  "tested_binary_sha256": "fc09b1f3430ec200d5f203fa9566804ba2af68fed8ed32395d72cba67511c152",
+  "initial_failures": ["bpftool-BTF-wrapper-not-decoded", "real-addresses-lost-during-export-replay"],
+  "ingest_trust_mode": "unverified-local",
+  "status_maturity_promoted": false,
+  "not_proven": [
+    "general-live-CLI-or-arbitrary-process-capture",
+    "HTTP-payload-classification-or-vulnerability-detection",
+    "PID-lineage-attribution",
+    "container-target-request-to-session-correlation",
+    "sustained-load-loss-and-tail-latency",
+    "multi-host-or-multi-kernel-acceptance"
+  ]
+}

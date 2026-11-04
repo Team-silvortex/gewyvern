@@ -190,11 +190,7 @@ fn runnable_native_example_uses_public_facade_without_including_test_adapters() 
     for forbidden in [".unwrap()", ".expect(", "panic!", "unsafe {"] {
         assert!(!adapter.contains(forbidden), "{forbidden}");
     }
-    assert_upstream_acceptance(
-        "crates/leselang-vm/examples/native_counter.rs",
-        "examples/native_counter.rs",
-        Some("example"),
-    );
+    assert_upstream_acceptance("examples/native_counter.rs", Some("example"));
 }
 
 #[test]
@@ -412,11 +408,7 @@ fn native_group_disk_reopen_restores_parent_and_collector_under_one_owner() {
     for forbidden in ["leserpent", "rusqlite", "unsafe {", "#[cfg("] {
         assert!(!portable.contains(forbidden), "{forbidden}");
     }
-    assert_upstream_acceptance(
-        "crates/leselang-vm/tests/support/native_group_checkpoint.rs",
-        "tests/support/native_group_checkpoint.rs",
-        None,
-    );
+    assert_upstream_acceptance("tests/support/native_group_checkpoint.rs", None);
 }
 
 #[test]
@@ -444,11 +436,7 @@ fn native_disk_reopen_reuses_original_frames_and_host_owned_receipts() {
     for forbidden in ["leserpent", "rusqlite", "unsafe {", "#[cfg("] {
         assert!(!fixture.contains(forbidden), "{forbidden}");
     }
-    assert_upstream_acceptance(
-        "crates/leselang-vm/tests/support/native_checkpoint.rs",
-        "tests/support/native_checkpoint.rs",
-        None,
-    );
+    assert_upstream_acceptance("tests/support/native_checkpoint.rs", None);
 }
 
 #[test]

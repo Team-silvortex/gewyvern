@@ -83,6 +83,10 @@ semver = "1"
 silvortex-bounded-io = { path = "crates/silvortex-bounded-io" }
 zeroize = "1"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+socket2 = { workspace = true, features = ["all"] }
+
 [dev-dependencies]
 leselang-syntax.workspace = true
 leserpent-domain = { path = "crates/leserpent-domain" }

@@ -17,10 +17,10 @@ This page is not the best first stop for:
 
 For those, use:
 
-- [docs/index.md](docs/index.md)
-- [docs/system.md](docs/system.md)
-- [docs/dsl.md](docs/dsl.md)
-- [docs/fragments.md](docs/fragments.md)
+- [Documentation index](index.md)
+- [System architecture](system.md)
+- [GewyLang DSL](dsl.md)
+- [eBPF fragments](fragments.md)
 
 ## Role In The Shelf
 
@@ -40,18 +40,18 @@ Do not use this page as:
 
 For those, use:
 
-- [docs/cli-recipes.md](docs/cli-recipes.md)
-- [docs/script-entrypoints.md](docs/script-entrypoints.md)
-- [docs/packaging.md](docs/packaging.md)
-- [docs/headless-linux.md](docs/headless-linux.md)
+- [CLI recipes](cli-recipes.md)
+- [Native validation commands](script-entrypoints.md)
+- [Packaging](packaging.md)
+- [Headless Linux](headless-linux.md)
 
 ## Companion Shelves
 
-- [docs/cli-recipes.md](docs/cli-recipes.md)
+- [CLI recipes](cli-recipes.md)
   for the compact command shelf
-- [docs/headless-linux.md](docs/headless-linux.md)
+- [Headless Linux](headless-linux.md)
   for Linux-only eBPF bring-up and validation
-- [docs/module-boundaries.md](docs/module-boundaries.md)
+- [Module boundaries](module-boundaries.md)
   for source ownership when a change crosses subsystems
 
 ## Quick Start
@@ -105,7 +105,8 @@ second copy. Old export records remain historical evidence, not current commands
 
 Product execution acceptance belongs to `leserpent-vm`; legacy API checks remain
 in the facades. Shared product-side acceptance helpers resolve the pinned upstream
-consumer, verify recorded native hashes and local facade bytes, and check registered targets.
+consumer, verify recorded native core/consumer hashes, and check registered targets.
+Local facade suites run independently and are no longer upstream source templates.
 Architecture/profile/safety inspections follow the pinned native core checkout;
 product adapters and compatibility APIs still resolve locally. Former core
 directories contain navigation only; source/test snapshots and manifests are retired.
@@ -119,11 +120,16 @@ The local runtime-core README is navigation only; missing or modified upstream
 documentation fails rather than falling back to an older manual.
 Status v4 source evidence references a pinned file inventory, not local core-file
 existence. The upstream identity gate checks all recorded hashes; status queries
-themselves need no Cargo cache or network. Native consumer comparisons use
-hash-checked upstream originals; remaining facade test bodies still belong here.
+themselves need no Cargo cache or network. Native consumer acceptance uses
+`project/leselang-consumer-inventory.json`; remaining facade test bodies still
+belong here and may evolve without forcing an upstream source-text update.
 See the [acceptance owner map](monorepo-stack.md#acceptance-owners) before choosing
 where a new test belongs, and the [repository handoff](leselang-repository-handoff.md)
 for current cleanup state.
+
+The [product-side cleanup boundary](leselang-repository-handoff.md#product-cleanup-closeout)
+is closed. Legacy API retirement and future native VM capabilities remain separate
+work; the mainline now moves to [Gewyvern capability field validation](field-validation.md#post-split-handoff).
 
 Before cutting a release, use `cargo dev version check` to verify that Cargo,
 .NET, lockfiles, public docs, and the status checkpoint still agree on one
@@ -270,7 +276,7 @@ cargo run --bin gewyvern_status -- validate
 ```
 
 The status protocol and update rules live in
-[docs/project-status-system.md](docs/project-status-system.md).
+[Project status system](project-status-system.md).
 
 Run the primary TDD acceptance loop:
 
@@ -413,7 +419,7 @@ implicit for this project.
 
 The compact command shelf now lives in:
 
-- [docs/cli-recipes.md](docs/cli-recipes.md)
+- [CLI recipes](cli-recipes.md)
 
 The default contributor commands remain:
 
@@ -468,6 +474,13 @@ It explicitly selects this checkout's `target/`, regardless of
 applications are retained. Separately inspect release bundles under
 `artifacts/` before removing them. Do not follow output symlinks into another
 workspace or remove a caller-supplied shared Cargo target cache implicitly.
+
+An unpacked Cargo package can contain its own nested `target/` cache. Inspect
+that directory separately while builds are idle; it is not part of the source
+checkpoint. If it is ignored, untracked and not symlinked, clean only its build
+profile with an explicit `--target-dir`. Preserve the adjacent `.crate` archive,
+unpacked source, manifests and proof records. Historical package versions do
+not by themselves justify deleting evidence or old compatibility checkpoints.
 
 When `target/debug/incremental/` dominates disk usage, removing only that
 directory while no compiler is running preserves compiled dependencies,

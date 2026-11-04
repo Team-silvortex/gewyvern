@@ -23,6 +23,16 @@
   "remote_repository_id": 1437125421,
   "pinned_revision": "5f86dfb8dd79a28986fe5eb4cbfe6b044796f935",
   "product_dependency_cutover": true,
+  "product_cleanup": {
+    "scope": "post-split-product-integration",
+    "state": "complete",
+    "gate": "tests/leselang_repository_tdd.rs",
+    "retained_compatibility": ["leselang-hir", "leselang-vm"],
+    "retained_product_adapters": ["leselang-command", "leselang-host-contract", "leselang-observe", "leselang-ui"],
+    "non_blocking_followups": ["legacy-api-retirement", "native-full-vm-parity", "crates-io-publication"],
+    "next_focus": "gewyvern-capability-field-validation",
+    "field_validation": "docs/field-validation.md"
+  },
   "compatibility_cleanup": {
     "root_tests_use_product_owners": true,
     "foreign_consumer_uses_published_facades": true,
@@ -36,6 +46,7 @@
     "migration_oracle_harness_retired": true,
     "runtime_documentation_snapshot_retired": true,
     "status_source_evidence_uses_inventory": true,
+    "consumer_acceptance_uses_inventory": true,
     "source_exporter_retired": true
   },
   "source_inspection": {
@@ -51,6 +62,7 @@
   },
   "migration_oracle_acceptance": "crates/leserpent-hir/tests/fixtures/migration-boundaries/ownership.json",
   "source_inventory": "project/status/leselang-source-inventory.json",
+  "consumer_inventory": "project/leselang-consumer-inventory.json",
   "documentation_inspection": {
     "owner": "cargo-resolved-pinned-upstream",
     "snapshot_fallback": false,
@@ -64,7 +76,7 @@
   "registry_published": false,
   "complete_vm": false,
   "full_extraction_gate": false,
-  "next_gate": "Native development continues in Leselang. Core source snapshots are retired; preserve the pinned source inventory and classify the remaining local facade compatibility suites before retiring their APIs. Complete host-neutral durable recovery and full product parity remain separate gates.",
+  "next_gate": "Post-split product integration cleanup is closed; proceed to Gewyvern capability field validation. Preserve the pinned source inventories and isolated compatibility gates. Legacy API retirement, complete host-neutral durable recovery/full product parity, and registry publication are separate followups, not prerequisites for Gewyvern field testing.",
   "handoff": "docs/leselang-repository-handoff.md",
   "dependency_verification": "docs/fixtures/leselang_product_compatibility_cleanup_macos_arm64_20261028.json",
   "pinned_consumer_verification": "docs/fixtures/leselang_pinned_consumer_macos_arm64_20261104.json",

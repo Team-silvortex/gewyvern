@@ -156,12 +156,19 @@ remaining physical boundary.
 
 ## Leselang Extraction Boundary
 
-The native foundation has a separate local MIT repository named `leselang`.
+The native foundation lives in the public MIT-licensed
+[Leselang repository](https://github.com/Team-silvortex/leselang).
 Gewyvern consumes its exact published 0.1.0 Git revision for the three native
 cores; ordinary builds do not require a sibling checkout. Local core source/test
 snapshots are retired; a complete reviewed inventory checks resolved upstream bytes.
 See [repository ownership and cutover](leselang-repository-handoff.md). Repository
 bootstrap does not promote complete language or durable-runtime acceptance.
+
+The [product cleanup closeout](leselang-repository-handoff.md#product-cleanup-closeout)
+records the retained compatibility APIs and product adapters; their presence is
+not an unfinished source split. Full native VM parity and legacy API retirement
+are separate followups. The product mainline proceeds to
+[Gewyvern capability field validation](field-validation.md#post-split-handoff).
 
 Do not move all `leselang-*` crates into an independent repository as one unit.
 There are two distinct layers today:
@@ -237,7 +244,9 @@ facade/product type-identity proof must keep comparing distinct import paths.
 The pinned native consumer support inventory contains only `native_checkpoint.rs`
 and `native_group_checkpoint.rs`; product oracles are not native prerequisites.
 The shared [upstream acceptance map](../tests/support/leselang_upstream.rs) checks
-actual consumer files and executable targets, not an exporter's string inventory.
+actual consumer files against the [pinned inventory](../project/leselang-consumer-inventory.json)
+and registered executable targets, not an exporter's string inventory or mutable
+local facade test templates. Local released-API acceptance runs independently.
 
 Cargo features are additive within a resolved graph. Validate native consumers
 in isolation rather than inferring independence from a default workspace build.

@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "repository": "https://github.com/Team-silvortex/leselang",
+  "revision": "5f86dfb8dd79a28986fe5eb4cbfe6b044796f935",
+  "files": [
+    {
+      "path": "consumer/examples/native_counter.rs",
+      "sha256": "7cd3426dc70c686577550a88084ae756c4d1fd1bc4d2d9bd31ba52c1d069b949",
+      "bytes": 34011
+    },
+    {
+      "path": "consumer/tests/argument_binding.rs",
+      "sha256": "bb373a83eb666be18e9697af902237847c57e538ebeade8694ab801ef6aad8f7",
+      "bytes": 12566
+    },
+    {
+      "path": "consumer/tests/capture_correspondence.rs",
+      "sha256": "5d1e88fc27b1432c450f151917690e92e121d9e1a401a0b469cde6cc14455e9a",
+      "bytes": 10596
+    },
+    {
+      "path": "consumer/tests/capture_extension.rs",
+      "sha256": "d770edd88be411b4e6808169a3db84df9e629547b0cac085099e4a7f4c362171",
+      "bytes": 10566
+    },
+    {
+      "path": "consumer/tests/captured_reentry.rs",
+      "sha256": "4b65dc56a483925bc70d58eff8d6284f65ec792247bc165c0aaccd0ba4c17dee",
+      "bytes": 14281
+    },
+    {
+      "path": "consumer/tests/checkpoint_recovery.rs",
+      "sha256": "70919297d1a831a43496cad7dec0c50199039eb7e6e55c503bf1d2471ce09bfd",
+      "bytes": 38368
+    },
+    {
+      "path": "consumer/tests/computation_profile.rs",
+      "sha256": "7c0f0f225066b0b5411afc68a7059623eca134402d4923d3dc92e0d7cd2d493a",
+      "bytes": 8678
+    },
+    {
+      "path": "consumer/tests/continuation_context.rs",
+      "sha256": "338626aa2078a1e4ea134d6a7faf3104fd4fcee6bd1cae5e3edeef6866ddfff7",
+      "bytes": 9547
+    },
+    {
+      "path": "consumer/tests/continuation_frame.rs",
+      "sha256": "ca31fd8015de615958b031e90f94fbaa1b9b4ee73ce6dfb4da0d5bd10718b143",
+      "bytes": 7776
+    },
+    {
+      "path": "consumer/tests/control_session.rs",
+      "sha256": "04e69d18f629da3170735b6240dd01ef2d391391642b570c17e42fbcb16acce9",
+      "bytes": 151832
+    },
+    {
+      "path": "consumer/tests/core_identity.rs",
+      "sha256": "9b5acb1424a871ce45122aa8b15fb4722b3c6c6e179866545be97da723581283",
+      "bytes": 2782
+    },
+    {
+      "path": "consumer/tests/declaration_source.rs",
+      "sha256": "a7bd0d2876e702d4c0cc9f0451ef130c9c237927f477a7a91046ba7a8afbc5b9",
+      "bytes": 18498
+    },
+    {
+      "path": "consumer/tests/dispatch_capacity.rs",
+      "sha256": "38ed96d10b64e164b10540ab6cd4bddedf1dedd457bd54435155c56c089ab0fe",
+      "bytes": 6249
+    },
+    {
+      "path": "consumer/tests/dispatch_data.rs",
+      "sha256": "d17c78c562e2af38e51f303c3b2cc396b08ffeb3a7cc1d6b9edf8f8b48e05a34",
+      "bytes": 8919
+    },
+    {
+      "path": "consumer/tests/dispatch_lease.rs",
+      "sha256": "182d3bf91996bc362503599528c988957fa9965d5d2496b13b0ded063278d7cf",
+      "bytes": 5446
+    },
+    {
+      "path": "consumer/tests/dispatch_plan.rs",
+      "sha256": "b625ea48e78d45697229fdcad8231d8c7014e176ea5cf3265ddcb3c5b213c5be",
+      "bytes": 18861
+    },
+    {
+      "path": "consumer/tests/durable_control.rs",
+      "sha256": "d496454415ec1e7f60a82e08a6db9327b4a23b328f19310b2789c1563a2b1553",
+      "bytes": 48039
+    },
+    {
+      "path": "consumer/tests/fold_preparation.rs",
+      "sha256": "bb285631621b481f2c6d307fcb3840ccf03f3c8fc2e614e6ff3de3c2b886d152",
+      "bytes": 19938
+    },
+    {
+      "path": "consumer/tests/group_graph.rs",
+      "sha256": "7f8bc2130df429539d72aa7d130c48f52fb00182477ab75df0f32ec26de637ef",
+      "bytes": 12071
+    },
+    {
+      "path": "consumer/tests/local_execution.rs",
+      "sha256": "c8ce25d82fe0a86e3a02f62cdccfce85af416da668a485d0c68799434a296d3a",
+      "bytes": 6528
+    },
+    {
+      "path": "consumer/tests/local_names.rs",
+      "sha256": "b20de022e62107709fd53a988dcd300d3c4714dedb9c44dcd8e4f959c140acd1",
+      "bytes": 3729
+    },
+    {
+      "path": "consumer/tests/loop_preparation.rs",
+      "sha256": "7e46aee2a6010ac6cadb479ad6bf07debafa1f39c6003c9452ce10640d9769f7",
+      "bytes": 15458
+    },
+    {
+      "path": "consumer/tests/native_host_pipeline.rs",
+      "sha256": "a2d2fe421293cb215766c9d06e3b6c9a1e00df4d9e05f434f5eb836760d88506",
+      "bytes": 369006
+    },
+    {
+      "path": "consumer/tests/native_vm_embedding.rs",
+      "sha256": "077fa4a82ddbdc649ada2b8a867049068f9bf0a98f6ba8e1da2917b3065a6c0c",
+      "bytes": 45317
+    },
+    {
+      "path": "consumer/tests/outcome_summary.rs",
+      "sha256": "d9a258bdcaa877336753fc2172b6404b2036dd52745182455cb0d1daad66f0ae",
+      "bytes": 8560
+    },
+    {
+      "path": "consumer/tests/owned_scope.rs",
+      "sha256": "0427292f4af39c5e7f65793e53f200c8f85d7973a63cc033b6533e8519527eb3",
+      "bytes": 7757
+    },
+    {
+      "path": "consumer/tests/prepared_counter_host.rs",
+      "sha256": "93103c72dcd9c3a562d15cfd5a7d504bc1d8ad26b14192d91dac2bc1bbfe9dc5",
+      "bytes": 157411
+    },
+    {
+      "path": "consumer/tests/prepared_gui_host.rs",
+      "sha256": "262384ce702d8b6a72e94926e1bd93320b32663b563ec8c52b190d25d31a8842",
+      "bytes": 141315
+    },
+    {
+      "path": "consumer/tests/recovery_fences.rs",
+      "sha256": "f3e4e8f7fc1f917704a7582098498a192caefe742973600f0c7dd98252a98c6b",
+      "bytes": 38785
+    },
+    {
+      "path": "consumer/tests/repository_boundary.rs",
+      "sha256": "bd09e57e56b0a794d692cc819952d2bf627b46a0f08501694e14bdf1e7da3240",
+      "bytes": 6282
+    },
+    {
+      "path": "consumer/tests/retry_schedule.rs",
+      "sha256": "144d7dad89ee0f50228c85c6cffadd4f1fc4cec9bff953c809fef91aa036a412",
+      "bytes": 6525
+    },
+    {
+      "path": "consumer/tests/return_stack.rs",
+      "sha256": "ea74276c63db952d54ac39b3ea81ca4ba226dc89274e3ce015860b6909326328",
+      "bytes": 34840
+    },
+    {
+      "path": "consumer/tests/saved_call.rs",
+      "sha256": "2ea493dfa28d52c5e7ee8197f5fc0f69934c3076f59956c5fab896e7f0baeeeb",
+      "bytes": 29223
+    },
+    {
+      "path": "consumer/tests/saved_group.rs",
+      "sha256": "e8e6430ac1535e815ab370e2e7db2ee5507c5d156e0f16106fc451cce283eba3",
+      "bytes": 288403
+    },
+    {
+      "path": "consumer/tests/saved_parallel.rs",
+      "sha256": "177959c11fc246dce34d6c4c0c06bb7881d20463c73b1c753a3369aa09628d6e",
+      "bytes": 48995
+    },
+    {
+      "path": "consumer/tests/saved_sequence.rs",
+      "sha256": "2aeb7ec1e37444fa7a4cf7f4c29d4d1db12e502eef98c3e51048fd53646985be",
+      "bytes": 60184
+    },
+    {
+      "path": "consumer/tests/scalar_form.rs",
+      "sha256": "eb65e85a49a239d9748c4224f3ec2101c122dd502e27fbefcdb8cc198c72c4e7",
+      "bytes": 18698
+    },
+    {
+      "path": "consumer/tests/sequence_frontier.rs",
+      "sha256": "db9a1c35ab041c6b177728f74be0a98ddc54cda2cd0cff3431ed784a1751e99e",
+      "bytes": 14008
+    },
+    {
+      "path": "consumer/tests/sequence_watermark.rs",
+      "sha256": "342dd85d50e00555e1e1d9d5f29e808a0c2eadd50199b13872f23dd496e5cedc",
+      "bytes": 7133
+    },
+    {
+      "path": "consumer/tests/source_preparation.rs",
+      "sha256": "86a292242487c349c2a41ccf7534368644faa1c7db237879708aa604d564f48f",
+      "bytes": 13450
+    },
+    {
+      "path": "consumer/tests/successor_chain.rs",
+      "sha256": "ee6802c4e13758ba736a3c50599ab32357b2962f85ff8889b0e6281dba0b0e0b",
+      "bytes": 9466
+    },
+    {
+      "path": "consumer/tests/support/native_checkpoint.rs",
+      "sha256": "2bc59a5254558159172ede9fead81e262dc09cdf13a2135362926416e4c3d236",
+      "bytes": 26136
+    },
+    {
+      "path": "consumer/tests/support/native_group_checkpoint.rs",
+      "sha256": "cd44bd40cde9350fb8ed321c5b0514e82da4ba530b289d3d05be4391396a7312",
+      "bytes": 134473
+    }
+  ]
+}

@@ -27,8 +27,8 @@ pub(crate) fn parse_fact(value: &JsonValue) -> Result<FactEnvelope, ExportError>
                 .get("sk_cookie")
                 .ok_or_else(|| ExportError::InvalidShape("fact.tcp_state.sk_cookie".into()))?
                 .as_i64()? as u64,
-            saddr: [0; 16],
-            daddr: [0; 16],
+            saddr: parse_tcp_address(kind.get("saddr"), "saddr")?,
+            daddr: parse_tcp_address(kind.get("daddr"), "daddr")?,
             sport: kind
                 .get("sport")
                 .ok_or_else(|| ExportError::InvalidShape("fact.tcp_state.sport".into()))?
@@ -350,6 +350,27 @@ pub(crate) fn parse_fact(value: &JsonValue) -> Result<FactEnvelope, ExportError>
             .to_string(),
         kind: fact_kind,
     })
+}
+
+fn parse_tcp_address(value: Option<&JsonValue>, field: &str) -> Result<[u8; 16], ExportError> {
+    // Older exports omitted addresses entirely. Preserve their legacy unknown
+    // value, but never silently replace malformed addresses in newer evidence.
+    let Some(value) = value else {
+        return Ok([0; 16]);
+    };
+    let values = value.as_array()?;
+    if values.len() != 16 {
+        return Err(ExportError::InvalidShape(format!(
+            "fact.tcp_state.{field}: expected 16 bytes"
+        )));
+    }
+    let mut address = [0; 16];
+    for (byte, value) in address.iter_mut().zip(values) {
+        *byte = u8::try_from(value.as_i64()?).map_err(|_| {
+            ExportError::InvalidValue(format!("fact.tcp_state.{field}: byte out of range"))
+        })?;
+    }
+    Ok(address)
 }
 
 pub(crate) fn parse_rejected_fact(value: &JsonValue) -> Result<RejectedFact, ExportError> {

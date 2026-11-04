@@ -1177,6 +1177,12 @@ remains as a compatibility wrapper around
 `gewyvern_validate runtime-lifecycle`.
 - operator-facing deployment posture
 
+`resilience-roundtrip` prepares helper programs, configuration and a runbook;
+it does not start a runtime or execute failure/recovery scenarios. A successful
+report from that command is preparation evidence only. Live malformed-input
+recovery is exercised by `runtime-operator` and `runtime-lifecycle`; use the
+fault-injection runbook for the broader external-engine failure campaign.
+
 Relevant docs:
 
 - [docs/book/how-to-validate-runtime-surface.md](docs/book/how-to-validate-runtime-surface.md)
@@ -1240,13 +1246,13 @@ before running the script.
 Run:
 
 ```bash
-sudo cargo run --quiet --bin gewyvern_validate -- juice-shop-container-validation
+sudo env GEWY_CONTAINER_TC_DEVICE=gwlab0 cargo run --quiet --bin gewyvern_validate -- juice-shop-container-validation
 ```
 
 Or through the server-aware wrapper:
 
 ```bash
-bash scripts/validation/juice_shop_container_validation.sh
+GEWY_CONTAINER_TC_DEVICE=gwlab0 bash scripts/validation/juice_shop_container_validation.sh
 ```
 
 Use this when the real question is:
@@ -1259,13 +1265,18 @@ If you want the same style of proof for protocol/authentication denial instead
 of HTTP error evidence, run:
 
 ```bash
-bash scripts/validation/ftp_denied_container_validation.sh
-bash scripts/validation/ldap_bind_denied_container_validation.sh
+GEWY_CONTAINER_TC_DEVICE=gwlab0 bash scripts/validation/ftp_denied_container_validation.sh
+GEWY_CONTAINER_TC_DEVICE=gwlab0 bash scripts/validation/ldap_bind_denied_container_validation.sh
 ```
 
 These practical suites also contain same-host eBPF attach proof. Docker group
 access is automatic on the validation account, but BPF privilege remains a
 separate explicit requirement and is never silently elevated by the wrapper.
+
+Create a dedicated lab interface before running these suites and pass its name
+through `GEWY_CONTAINER_TC_DEVICE` (`gwlab0` above is an example, not auto-created).
+The suites validate this target before starting containers and do not select a
+default-route interface. Remove only the interface created for your run afterward.
 
 That companion check preserves client-side FTP `530` denial evidence,
 target-side `FAIL LOGIN` server logs, and the same nested Linux attach proof.
@@ -1309,6 +1320,95 @@ cargo run --quiet --bin gewyvern_validate -- training-roundtrip --api-addr 127.0
 Use these when you want one thin path instead of a grouped validation shelf.
 The socket, external-engine, and training dataset shell demos remain legacy
 wrappers around the native `gewyvern_validate` commands.
+
+### I want real kernel events reconstructed and replayed
+
+Build on the Linux server, then run the native validator on the host:
+
+```bash
+cargo build --locked --bin gewyvern_validate
+sudo target/debug/gewyvern_validate --json linux-tcp-capture --out-dir target/validation/tcp-capture-new
+```
+
+The output directory must be new. This requires kernel BTF, a mounted writable
+`/sys/fs/bpf`, Clang's BPF backend, libbpf development headers, `bpftool` with
+`autoattach` and BTF-formatted map dumps, and BPF attachment privileges. Compiling
+in a resource-bounded Linux build container is fine; run the actual capture on
+the authorized host. Do not start a local Docker build on a disk-constrained Mac.
+
+By default the Rust driver owns two IPv4 loopback sockets and selects their real `SO_COOKIE`
+values before connecting. Its CO-RE tracepoint program records at most 128 TCP
+state events, not payloads, PIDs or unrelated sockets. A real HTTP exchange,
+half-close, refused connection and unselected decoy exercise the chain. The
+validator checks exact cookie/tuple/netns identity, loss counters, lifecycle and
+facts/flows/reasons after export replay. It removes only its own BPF pins; it
+does not install TC rules or touch the default-route interface.
+
+Read `summary.json`, `*-raw.json`, `*-export.json` and `tools.log`. Raw captures
+retain monotonic nanoseconds; runtime export timestamps use milliseconds.
+Exports remain `unverified-local`. The client's HTTP status is not an inferred
+Gewyvern classification. This is a bounded validation backend, not the general
+live CLI, payload decoder, PID attribution or sustained-load acceptance test.
+See the [physical-host evidence](fixtures/gewyvern_tcp_capture_linux_x86_64_20261104.json).
+
+To correlate real container requests with those kernel facts, use the fixed lab mode:
+
+```bash
+sudo target/debug/gewyvern_validate --json linux-tcp-capture --juice-shop --out-dir target/validation/container-capture-new
+```
+
+This uses the already-cached Juice Shop digest recorded in the
+[container capture proof](fixtures/gewyvern_container_capture_linux_x86_64_20261104.json).
+It never pulls images automatically and does not accept an arbitrary target URL.
+The validator uses the local Docker socket, creates a labelled internal bridge
+and resource-bounded target container, and publishes no ports. It binds its owned
+client sockets to that bridge's gateway and connects directly to the inspected
+private container IP. Both addresses and the two socket cookies are pinned into
+the BPF filter. This host-to-internal-bridge access follows Docker's
+[internal bridge model](https://docs.docker.com/engine/network/port-publishing/#gateway-modes);
+it is not a host-network container or a change to existing network policies.
+
+`correlation.json` joins each native-client request/response to exact socket
+cookie, tuple, network namespace, monotonic time bounds, continuous TCP states,
+export fact IDs and flow ID. The file guard (403) and SQL error (500) are checked
+against their response bodies. A third, unselected normal request (200) must
+produce no captured facts. Raw `*-request.http` and `*-response.http` files have
+SHA-256 hashes in the correlation record; `final-export.json` contains TCP state
+facts only. The bounded client accepts complete Content-Length or simple chunked
+framing, rejects conflicting/truncated data, and does not decompress bodies or
+follow redirects. Response size is limited to 256 KiB with a five-second read
+deadline. Chunk extensions/trailers are deliberately unsupported by this fixture.
+
+The container mode additionally requires a writable unified cgroup v2 hierarchy
+and BPF cgroup link support. It moves only the validation process into a new
+run-owned cgroup before creating the selected sockets. An ingress-only BPF
+program filters their exact cookies, private addresses and ports, always allows
+traffic, and snapshots at most 128 nonempty IPv4/TCP payloads with a 64-byte prefix
+each. It preserves actual IP/TCP lengths, flags, sequence, acknowledgement and
+window fields. The socket network namespace is joined from captured TCP facts,
+not inferred from a process name. These are kernel skb snapshots, not a promise
+of individual on-wire frames or TCP stream reassembly.
+
+`packet-prefix-raw.json`, `packet-events.json` and `packet-export.json` keep this
+evidence separate from native-client I/O. The validation-only
+`ebpf/validation/http_prefix.gewy` rules match complete HTTP/1.1 403/500 start-line
+prefixes, then replay the facts, flows, reasons, program flows and protocol IR.
+The resulting status/cookie pairs and independently saved client prefixes must
+agree. A split status line is not reassembled and cannot count as passing evidence.
+Any selected-packet parse failure, overflow or reported map loss fails the run.
+No full body, TLS plaintext or vulnerability finding is claimed.
+
+The validator verifies ownership labels and removes resources by ID, including
+on normal error unwinding. Check stderr after a cleanup failure; abrupt process
+termination still requires manual cleanup of the recorded run-owned resources.
+The BPF link fd detaches on process exit; normal cleanup also restores the original
+cgroup and removes the owned directory. A killed process can leave an empty
+cgroup, pins or target resources requiring cleanup. Client response bodies remain
+client I/O evidence; only the bounded captured prefixes drive DSL classification.
+This proves the client-to-container endpoint correlation and scoped HTTP prefix
+classification, not container PID/server-socket
+attribution, vulnerability detection, general live CLI capture or load acceptance.
+Trust remains `unverified-local`; no release gate or tensor maturity is promoted.
 
 ### I want Linux-only probe smoke
 

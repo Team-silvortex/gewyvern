@@ -18,6 +18,8 @@ maintenance, and historical context.
 - [Sidecar collaboration](../sidecar-collaboration.md)
 - [External-engine contract](../external-engine-contract.md)
 - [Packaging](../packaging.md)
+- [Workspace hygiene](../development.md#workspace-hygiene)
+- [Leselang repository handoff](../leselang-repository-handoff.md)
 - [Documentation system](../documentation-system.md)
 - [Release checklist](../release-checklist.md)
 - [Leserpent 2.0 architecture](../leserpent-2-architecture.md)

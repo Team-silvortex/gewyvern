@@ -16,6 +16,26 @@ pub(crate) fn fact_json(fact: &FactEnvelope) -> JsonValue {
                 "sk_cookie".into(),
                 JsonValue::Number(value.sk_cookie as i64),
             ),
+            (
+                "saddr".into(),
+                JsonValue::Array(
+                    value
+                        .saddr
+                        .iter()
+                        .map(|byte| JsonValue::Number(i64::from(*byte)))
+                        .collect(),
+                ),
+            ),
+            (
+                "daddr".into(),
+                JsonValue::Array(
+                    value
+                        .daddr
+                        .iter()
+                        .map(|byte| JsonValue::Number(i64::from(*byte)))
+                        .collect(),
+                ),
+            ),
             ("sport".into(), JsonValue::Number(value.sport as i64)),
             ("dport".into(), JsonValue::Number(value.dport as i64)),
             ("family".into(), JsonValue::Number(value.family as i64)),

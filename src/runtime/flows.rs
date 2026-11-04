@@ -67,10 +67,10 @@ pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {
             FactKind::TcpState(state) => {
                 acc.evidence.tcp_state_facts.push(fact.id);
                 acc.tcp_state_now = Some(state.new);
-                if state.new >= 7 {
-                    acc.terminated = true;
-                    acc.termination_fact = Some(fact.id);
-                }
+                // TCP state numbers are not ordered by liveness. CLOSE_WAIT
+                // still permits writes; a reused socket may start a new connect.
+                acc.terminated = matches!(state.new, 6 | 7);
+                acc.termination_fact = acc.terminated.then_some(fact.id);
             }
             FactKind::PacketMeta(_) => {
                 acc.evidence.packet_facts.push(fact.id);

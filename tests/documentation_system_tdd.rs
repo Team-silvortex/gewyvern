@@ -2322,6 +2322,59 @@ fn tutorial_shelf_covers_cli_desktop_languages_and_remote_lifecycle() {
 }
 
 #[test]
+fn current_navigation_uses_file_relative_links_without_a_repository_root_fallback() {
+    let root = repository_root();
+    let mut documents = [
+        "README.md",
+        "LESERPENT.md",
+        "ROADMAP.md",
+        "STATUS.md",
+        "apps/README.md",
+        "docs/index.md",
+        "docs/monorepo-stack.md",
+        "docs/development.md",
+        "docs/field-validation.md",
+        "docs/leselang-repository-handoff.md",
+        "docs/documentation-system.md",
+    ]
+    .map(|path| root.join(path))
+    .to_vec();
+    documents.extend(
+        MODULES
+            .iter()
+            .map(|name| root.join("docs/modules").join(name)),
+    );
+
+    let mut checked = 0;
+    for document in documents {
+        let source = fs::read_to_string(&document).unwrap();
+        for target in markdown_link_targets(&source) {
+            let target = target.trim_start_matches('<').trim_end_matches('>');
+            if target.starts_with('#')
+                || target.starts_with("https://")
+                || target.starts_with("http://")
+                || target.starts_with("mailto:")
+            {
+                continue;
+            }
+            let path = target.split('#').next().unwrap();
+            assert!(
+                !path.is_empty()
+                    && Path::new(path).is_relative()
+                    && document.parent().unwrap().join(path).exists(),
+                "current navigation must resolve from {} without a repo-root fallback: {target}",
+                document.strip_prefix(&root).unwrap().display()
+            );
+            checked += 1;
+        }
+    }
+    assert!(
+        checked >= 100,
+        "current navigation coverage must not be empty"
+    );
+}
+
+#[test]
 fn documentation_tree_has_no_dangling_local_links() {
     let root = repository_root();
     let mut documents = vec![root.join("README.md"), root.join("LESERPENT.md")];
@@ -3623,7 +3676,8 @@ fn leselang_repository_bootstrap_is_distinct_from_complete_runtime_acceptance() 
         .collect::<Vec<_>>()
         .join(" ");
     assert!(module.contains("2.3.0-and-later phase"));
-    assert!(module.contains("local MIT repository named `leselang`"));
+    assert!(module.contains("public MIT-licensed"));
+    assert!(module.contains("https://github.com/Team-silvortex/leselang"));
     assert!(module.contains("product now pins its published 0.1.0 Git revision"));
     let handoff = include_str!("../docs/leselang-repository-handoff.md");
     for boundary in [

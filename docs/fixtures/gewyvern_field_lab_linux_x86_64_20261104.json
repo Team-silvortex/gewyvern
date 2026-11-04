@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "proof": "gewyvern-post-split-linux-field-lab",
+  "captured_on": "2026-11-04",
+  "release_line": "2.5.x",
+  "package_version": "2.5.0",
+  "result": "passed",
+  "scope": "core-process-validation-and-target-evidence-with-same-host-bpf-smoke",
+  "source": {
+    "base_revision": "01641a1c2cd5a0b6eec50d90c22afeb2d59711aa",
+    "working_tree_changes": true,
+    "release_artifact": false,
+    "verified_sha256": {
+      "Cargo.lock": "7d2e9e9b3122f9dc0f1e0bd1a4a414b079fd5048e0c124dc8972cac5910a8e08",
+      "Cargo.toml": "ea09569251de1cd13e35521607f9c5238830424a171443ede71c9e04fc16beaf",
+      "src/validation_harness/stack_suites.rs": "7c73e5deb69ee6dbbdada4bd95d2218f033873036b927eca40aa8a06adf1e844",
+      "src/bin/gewyvern_validate.rs": "58626e9b2589b9aaa330ae2f74bc37f10742d66328e4c723aa165e5d714330d5",
+      "tests/native_validation_harness_tdd.rs": "b1dc5bee3c3a840a59607113302ad201ffa26580f6aefa064986676867e291a6"
+    }
+  },
+  "host": {
+    "os": "ubuntu",
+    "arch": "x86_64",
+    "kernel": "7.0.0-42-generic",
+    "unique_hosts": 1,
+    "unique_kernels": 1
+  },
+  "execution": {
+    "rust": "1.98.0",
+    "build_and_process_checks": "unprivileged-resource-bounded-linux-container",
+    "cpu_limit": 2,
+    "memory_limit_gib": 4,
+    "bpf_checks": "physical-host-with-explicit-sudo.ws-authentication",
+    "macos_builds": false,
+    "macos_image_pulls": false,
+    "remote_workspace": "~/.cache/gewyvern/field-workspace",
+    "remote_evidence": "~/.cache/gewyvern/field-evidence/20261104",
+    "local_report_shelf": "target/validation/field-lab-20261104"
+  },
+  "checks": {
+    "registry_packages": { "passed": 361, "failed": 0 },
+    "high_frequency": "passed",
+    "debugger_cross": "passed",
+    "runtime_operator": "passed",
+    "runtime_lifecycle": "passed",
+    "field_smoke_with_socket_and_scan_all": "passed",
+    "resilience_roundtrip": "helpers-only-not-live-fault-injection",
+    "stack_suite_unit_tests": 13,
+    "documentation_system_tests": 74,
+    "native_validation_harness_tests": 30,
+    "script_portability_tests": 14,
+    "version_posture_tests": 7,
+    "targeted_clippy_deny_warnings": "passed",
+    "missing_tc_target_rejections": 3
+  },
+  "targets": [
+    {
+      "image": "bkimminich/juice-shop@sha256:e68144772ebaaca0ec117b38d44903af92416793230288ef7c5437fc4f26850a",
+      "file_guard_http_status": 403,
+      "sql_error_http_status": 500,
+      "tracepoint": "passed",
+      "kprobe": "passed",
+      "tc": "passed"
+    },
+    {
+      "image": "fauria/vsftpd@sha256:6d71d7c7f1b0ab2844ec7dc7999a30aef6d758b6d8179cf5967513f87c79c177",
+      "ftp_reply": 530,
+      "curl_exit": 67,
+      "target_denial_log": "preserved",
+      "tracepoint": "passed",
+      "kprobe": "passed",
+      "tc": "passed"
+    },
+    {
+      "image": "osixia/openldap@sha256:18742e9c449c9c1afe129d3f2f3ee15fb34cc43e5f940a20f3399728f41d7c28",
+      "ldap_exit": 49,
+      "target_bind_denial_log": "preserved",
+      "tracepoint": "passed",
+      "kprobe": "passed",
+      "tc": "passed"
+    }
+  ],
+  "cleanup": {
+    "tc_device": "gwf1104",
+    "tc_device_kind": "dummy",
+    "tc_device_removed": true,
+    "remaining_lab_containers": 0,
+    "foreign_owned_evidence_entries": 0,
+    "existing_non_lab_container_identities_unchanged": true,
+    "default_route_unchanged": true,
+    "non_docker_routes_unchanged": true,
+    "non_transient_qdiscs_unchanged": true,
+    "transient_differences": "builder veth removed; docker0 linkdown after disposable containers stopped"
+  },
+  "report_sha256": {
+    "registry.json": "032f243f0054020191c2b02af857582f8014cc9dc0e2120536bac56d1526de70",
+    "high-frequency.json": "bae5951128416734ea50eaeb6828067ef7d65751af9742896cb93ff058e76d82",
+    "debugger-cross.json": "20e4d14304123ed212f8efc66dfe13763a11aa80a2676e735ce635df29f51e73",
+    "runtime-operator.json": "6cc6eb01d42cb91c095b1fde8b2ac2dc5b3434299e8a3b37f3123c628d00b08c",
+    "runtime-lifecycle.json": "540c99538d67f86ead1cfbeb81eed4652c675449d91acafb4f28602210d6cde9",
+    "resilience-roundtrip.json": "73a616e889231b0c9381344cc0adcf298cbd4d634b9ef268d131badac7be75db",
+    "field-smoke.json": "867fd3da263c472992bb688aef1df9adcfbc767f3e8806b2fd1dd894e2a731b3",
+    "juice-shop.json": "04590eadf105cdb3ff739d881f55e1c6907d08e3b3a2c6f555f1c1bc9020a710",
+    "ftp-denied.json": "a9b9e1abaca706a2f4d62ab493e30bf91c4abcca22e8dc1f1557732987c6ce2d",
+    "ldap-bind-denied.json": "456322e1b96997ed28b1046af8d934cd66e2c36d22d4381d3819df7bee6e488b"
+  },
+  "not_proven": [
+    "direct-vulnerability-classification-by-gewyvern",
+    "target-request-to-ebpf-derived-gewyvern-session-correlation",
+    "full-external-engine-fault-injection",
+    "sustained-load-event-loss-and-tail-latency-baseline",
+    "multi-host-or-multi-kernel-acceptance"
+  ],
+  "status_maturity_promoted": false
+}

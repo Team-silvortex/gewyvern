@@ -29,6 +29,8 @@ bash scripts/packaging/build_packages_in_container.sh --format all
 bash scripts/packaging/release_container_check.sh
 bash scripts/packaging/container_validation_summary.sh
 bash scripts/validation/pathological_container_validation.sh
+# Practical labs require an existing dedicated interface on the remote host.
+export GEWY_CONTAINER_TC_DEVICE=gwlab0
 bash scripts/validation/juice_shop_container_validation.sh
 bash scripts/validation/ftp_denied_container_validation.sh
 bash scripts/validation/ldap_bind_denied_container_validation.sh
@@ -83,6 +85,16 @@ Membership in the remote `docker` group is sufficient for package and ordinary
 container validation. Linux eBPF attach checks still require their documented
 BPF privileges. The dispatcher does not silently grant `sudo`, weaken the
 Docker socket, or turn skipped attach evidence into a successful result.
+
+Juice Shop, FTP denial and LDAP denial suites require `GEWY_CONTAINER_TC_DEVICE`
+to name an existing dedicated lab interface. They reject missing, malformed and
+loopback targets before starting a container; they never select the default-route
+device. The operator owns interface creation and removal. Existing ingress/clsact
+state is still protected by the TC smoke guard. Do not use a production interface.
+
+When workstation disk is limited, use `--no-sync-back` on the generic dispatcher
+and retrieve only selected small reports. Leave build caches, images and package
+bundles on Linux rather than copying the complete validation/package shelf back.
 
 For a one-off local run:
 

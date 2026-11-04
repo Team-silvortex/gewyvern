@@ -1,7 +1,68 @@
 mod support;
 
-use gewyvern::export::ExportBundle;
+use gewyvern::export::{ExportBundle, fact_from_json, fact_to_json};
+use gewyvern::ledger::FactKind;
 use support::{packet_fact, route_fact, run_handshake_session, tcp_state_fact};
+
+#[test]
+fn tcp_addresses_survive_fact_export_and_session_replay() {
+    for (family, source, destination) in [
+        (
+            2,
+            [127, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [192, 0, 2, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ),
+        (
+            10,
+            [0x20, 1, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [0x20, 1, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255],
+        ),
+    ] {
+        let mut fact = tcp_state_fact(1, 42, 2, 1);
+        let FactKind::TcpState(state) = &mut fact.kind else {
+            unreachable!()
+        };
+        state.family = family;
+        state.saddr = source;
+        state.daddr = destination;
+        assert_eq!(fact_from_json(&fact_to_json(&fact)).unwrap(), fact);
+        let export = run_handshake_session(vec![fact]);
+        let replay = ExportBundle::from_json(&export.to_json())
+            .unwrap()
+            .replay()
+            .unwrap();
+        assert_eq!(export.facts, replay.facts);
+        assert_eq!(export.flows, replay.flows);
+        assert_eq!(export.reasons, replay.reasons);
+    }
+}
+
+#[test]
+fn legacy_missing_tcp_addresses_remain_readable_but_invalid_addresses_are_rejected() {
+    let fact = tcp_state_fact(1, 42, 2, 1);
+    let mut value: serde_json::Value = serde_json::from_str(&fact_to_json(&fact)).unwrap();
+    let kind = value["kind"].as_object_mut().unwrap();
+    kind.remove("saddr");
+    kind.remove("daddr");
+    assert_eq!(fact_from_json(&value.to_string()).unwrap(), fact);
+    for field in ["saddr", "daddr"] {
+        for invalid in [
+            serde_json::json!(null),
+            serde_json::json!("127.0.0.1"),
+            serde_json::json!(vec![0; 15]),
+            serde_json::json!(vec![0; 17]),
+            serde_json::json!(vec![-1; 16]),
+            serde_json::json!(vec![256; 16]),
+        ] {
+            let mut bad = value.clone();
+            bad["kind"][field] = invalid;
+            assert!(
+                fact_from_json(&bad.to_string()).is_err(),
+                "accepted malformed {field}"
+            );
+        }
+    }
+}
 
 #[test]
 fn export_bundle_keeps_replay_critical_top_level_fields() {

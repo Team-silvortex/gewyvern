@@ -32,6 +32,7 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("\"remote-linux-host-validation\""));
     assert!(binary.contains("\"linux-attach-smoke\""));
     assert!(binary.contains("\"linux-kprobe-smoke\""));
+    assert!(binary.contains("\"linux-tcp-capture\""));
     assert!(binary.contains("\"linux-tc-smoke\""));
     assert!(binary.contains("evidence-index.json"));
     assert!(binary.contains("\"field-smoke\""));
@@ -151,6 +152,7 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(mod_file.contains("run_remote_linux_host_validation"));
     assert!(mod_file.contains("run_linux_attach_smoke"));
     assert!(mod_file.contains("run_linux_kprobe_smoke"));
+    assert!(mod_file.contains("run_linux_tcp_capture_validation"));
     assert!(mod_file.contains("run_linux_tc_smoke"));
     assert!(mod_file.contains("run_stack_probe_validation"));
     assert!(mod_file.contains("run_three_module_stack_smoke"));
@@ -1461,6 +1463,37 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(docs.contains("remote source cache"));
     assert!(docs.contains("repoints its requested remote"));
     assert!(docs.contains("slowest observed phases"));
+}
+
+#[test]
+fn practical_container_labs_require_tc_target_before_starting_docker() {
+    let stack = read_repo_file("src/validation_harness/stack_suites.rs");
+    for name in [
+        "run_juice_shop_container_validation",
+        "run_ftp_denied_container_validation",
+        "run_ldap_bind_denied_container_validation",
+    ] {
+        let function = stack
+            .split_once(&format!("pub fn {name}("))
+            .unwrap()
+            .1
+            .split("\npub fn ")
+            .next()
+            .unwrap();
+        let target = function.find("container_tc_device_from_env()?").unwrap();
+        let docker = function.find("ensure_docker_reachable()?").unwrap();
+        assert!(
+            target < docker,
+            "{name} must reject missing targets before Docker effects"
+        );
+        assert!(function.contains("run_linux_tc_smoke(&netdev,"));
+        assert!(function.contains("tc_device={}"));
+    }
+    assert!(!stack.contains("detect_default_route_device"));
+    assert!(
+        read_repo_file("scripts/remote/run_on_linux_host.sh").contains("GEWY_CONTAINER_TC_DEVICE")
+    );
+    assert!(read_repo_file("docs/remote-docker.md").contains("GEWY_CONTAINER_TC_DEVICE"));
 }
 
 #[test]

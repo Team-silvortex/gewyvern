@@ -157,10 +157,10 @@ and disposable-cache machinery are removed. The retired `package leselang`
 command explains the replacement and exits without writing output; it does not
 silently run a different task. Development and release ownership stay upstream.
 
-The shared `tests/support/leselang_upstream.rs` acceptance map now covers all
-39 inherited consumer test targets, two recovery helpers and the native example.
-It verifies actual pinned files byte-for-byte and requires the exact registered
-test inventory, including upstream's additional repository-boundary suite. The
+The shared `tests/support/leselang_upstream.rs` acceptance map covers all
+39 inherited consumer test targets, two recovery helpers and the native example,
+plus upstream's repository-boundary suite. It verifies their recorded size/hash
+and requires the exact registered test inventory. The
 native/VM/language gates read this source and metadata rather than exporter text.
 Product-only support and benchmark exclusion are checked against actual upstream
 directories and targets. No test bodies are copied or rewritten by the verifier.
@@ -273,19 +273,39 @@ return. The repository gate checks both this retirement and the entire upstream
 inventory, including unexpected additions or missing files.
 
 The five remaining runtime-source identity checks now verify recorded hashes.
-The 39-target consumer map still compares actual executable test bodies and checks
-registered targets: native-core originals are read from upstream only after their
-recorded size/hash matches; retained facade originals still come from this product
-checkout. The two recovery helpers and example retain their existing comparisons.
-No test target, fixture body, type-identity check or execution stage is removed.
-Negative tests cover changed/oversized/missing native bytes, missing inventory
-entries, local-copy fallback and accidental redirection of product owners.
+The initial consumer migration compared executable bodies against native-core
+originals and retained local facade tests. The independent consumer inventory
+below replaces that last live-template dependency without removing test targets,
+fixture bodies, type-identity checks or execution stages.
 
 The open-source core policy names immutable public source URLs for the three
 external cores and verifies the actual Cargo packages' MIT license metadata.
 Navigation directories alone cannot satisfy that source-availability check.
 Local facade/API retirement remains separate work; this cleanup does not change
 syntax, runtime behavior, dependency identity or complete-VM acceptance.
+
+## Independent Consumer Acceptance
+
+The [consumer source inventory](../project/leselang-consumer-inventory.json)
+records all 43 Rust acceptance files from the reviewed native commit: 40 test
+targets, two recovery helpers and one runnable example. The initial capture
+verified the 42 previously mapped bodies against their old acceptance sources;
+the upstream-only repository-boundary test is now hash-checked as well. No source
+snapshot is created, and historical proofs retain their original scope.
+
+Upstream acceptance now checks that inventory's repository/revision, file size,
+SHA-256 and registered Cargo targets. It no longer uses mutable local HIR/VM test
+bodies as templates. Local compatibility suites still run through their released
+import paths; matching old source text is not a reason to delete those suites.
+The two repositories can evolve their tests independently, while a native pin
+upgrade still requires explicit inventory review and actual consumer execution.
+
+The bounded reader rejects missing, modified, oversized, unrecorded or symlinked
+files, including symlinked parents, and has no local-copy fallback or auto-update
+mode. The source-owner tests also prove that changing or removing a local template
+does not affect pinned native acceptance. The original 166-file core inventory
+and status evidence remain unchanged; this is test ownership cleanup, not a
+language/API change or a complete-VM promotion.
 
 ## Separate Acceptance Gates
 
@@ -294,3 +314,34 @@ Complete two-host language parity, host-neutral durable graph recovery and full
 reference wire/authority/GUI/CLI parity remain open. The embedding tensor remains
 developing; `complete_vm` and `full_extraction_gate` are not promoted. Historical
 checkpoint flags and missing planned evidence remain unchanged.
+
+## Product Cleanup Closeout
+
+Post-split product integration cleanup is complete within this repository's
+boundary. This does not mean all future native VM capabilities are complete.
+The machine-readable `product_cleanup` record names the retained compatibility
+packages, product adapters, guard and next validation phase.
+
+The pinned native packages have no sibling checkout or in-tree implementation
+requirement. Production consumers and root integration tests no longer import
+the local HIR/VM facades; only the old VM-to-old-HIR compatibility edge remains.
+Those facades preserve
+released paths and keep their own acceptance suites. The old HIR's direct syntax,
+runtime-core and serde imports are test-only, while its public types still come
+from the same native/product owners. The VM facade's duplicate runtime serde/JSON
+dependencies are also removed; its fixture codecs remain dev-only. Optional
+product test dependencies remain feature-gated so native-only acceptance does
+not pull in the product stack.
+
+`leselang-command`, `leselang-host-contract`, `leselang-observe` and `leselang-ui`
+are intentionally product adapters despite their historical names. Renaming them
+or deleting legacy APIs is not required to finish this cleanup. The repository
+gate traverses resolved normal/build package IDs, including aliases and
+target-specific edges, to keep Gewyvern's own runtime free of Leselang/Leserpent;
+dev-only integration tests remain permitted.
+
+The next mainline task is [Gewyvern capability field validation](field-validation.md#post-split-handoff),
+not another round of source extraction. Native full-VM parity, legacy API removal
+and crates.io publication remain independently scoped work. Local dependency,
+compile and contract checks do not count as real Linux attach, target-lab,
+resource-pressure or multi-host evidence, and no such result is implied here.

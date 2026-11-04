@@ -1,0 +1,693 @@
+{
+  "schema_version": 1,
+  "proof": "owned-kernel-packet-prefix-to-gewylang-status-and-replay",
+  "captured_on": "2026-11-04",
+  "package_version": "2.5.0",
+  "source_base_revision": "01641a1c2cd5a0b6eec50d90c22afeb2d59711aa",
+  "working_tree_changes": true,
+  "release_artifact": false,
+  "result": "passed",
+  "host": {
+    "os": "ubuntu",
+    "arch": "x86_64",
+    "kernel": "7.0.0-42-generic",
+    "unique_hosts": 1,
+    "unique_kernels": 1
+  },
+  "execution": {
+    "build": "bounded-Rust-1.98-Linux-container",
+    "capture": "physical-Linux-host",
+    "remote_evidence": "~/.cache/gewyvern/field-evidence/20261104-packet-capture",
+    "local_report_shelf": "target/validation/packet-capture-20261104",
+    "local_report_disk_kib": 424,
+    "macos_builds": false,
+    "macos_image_pulls": false
+  },
+  "verified_final_source_run": "run-04",
+  "verified_final_source_sha256": {
+    "ebpf/validation/http_prefix.bpf.c": "160e1cdfcc885c16a6dde8404655dda8205208079623f2a552a870a644c45fbe",
+    "ebpf/validation/http_prefix.gewy": "7ca9db8158adfee8b89271092ecedcc37a72ca382e33a6129371fc8318d045b9",
+    "ebpf/validation/tcp_state.bpf.c": "d725e38202c50bf0247c22c70ea5a7645b26b9850fd5bbb6bd08b032fe7f5e64",
+    "src/fragment.rs": "ea17e2a09d6efbad23a8b2e942ac92930f713a6b51681fc893ce50b4035644d0",
+    "src/loader.rs": "1f6853e99d4e0f890d153d5f425afdb849160cc466731f10211ec7714f5652f8",
+    "src/export/attach_codec.rs": "5838ae21ee3606b89a781d1442c8e683d4ebc01a45b1f38b12a086679855564d",
+    "src/bin/gewyvern_validate.rs": "435d38dc911b6922471a886ea8b6a8f932a50cde4d254aa47848c921a902d856",
+    "src/validation_harness/linux_tcp_capture.rs": "d7a1d5a73ca360a7c36db63d9f72fdcc011430f09a7904a96241c0208058fe78",
+    "src/validation_harness/linux_tcp_capture/packet_evidence.rs": "29d0eecc501c682119f1a276e3e21bca79e7ce4c5dcd07da8279b4ea83ec5eb2",
+    "src/validation_harness/linux_tcp_capture/linux.rs": "dbe7f97793ba80bf0e2b055405455b9802b9a80b1099ff8c6d28dbb6bca004c9",
+    "src/validation_harness/linux_tcp_capture/linux/packet_capture.rs": "8e6ef57279aeb3810e761497e226181b189cc40b2d1bc87f65a2a49d8ce7f4ca",
+    "src/validation_harness/linux_tcp_capture/linux/juice_shop.rs": "8af83d750f182ee847495051ffe844332878a7735a7e580f84aaa7c72db0a915"
+  },
+  "live_runs": [
+    {
+      "id": "run-02",
+      "kernel_events": 10,
+      "packet_events": 2,
+      "flows": 2,
+      "client_http_statuses": [
+        403,
+        500
+      ],
+      "kernel_dsl_http_statuses": [
+        [
+          28675,
+          403
+        ],
+        [
+          28676,
+          500
+        ]
+      ],
+      "packet_dropped_events": 0,
+      "dropped_events": 0,
+      "decoy_events": 0,
+      "cgroup_removed": true,
+      "pins_removed": true,
+      "container_removed": true,
+      "network_removed": true
+    },
+    {
+      "id": "run-03",
+      "kernel_events": 10,
+      "packet_events": 2,
+      "flows": 2,
+      "client_http_statuses": [
+        403,
+        500
+      ],
+      "kernel_dsl_http_statuses": [
+        [
+          40961,
+          403
+        ],
+        [
+          40962,
+          500
+        ]
+      ],
+      "packet_dropped_events": 0,
+      "dropped_events": 0,
+      "decoy_events": 0,
+      "cgroup_removed": true,
+      "pins_removed": true,
+      "container_removed": true,
+      "network_removed": true
+    },
+    {
+      "id": "run-04",
+      "kernel_events": 10,
+      "packet_events": 2,
+      "flows": 2,
+      "client_http_statuses": [
+        403,
+        500
+      ],
+      "kernel_dsl_http_statuses": [
+        [
+          4105,
+          403
+        ],
+        [
+          4106,
+          500
+        ]
+      ],
+      "packet_dropped_events": 0,
+      "dropped_events": 0,
+      "decoy_events": 0,
+      "cgroup_removed": true,
+      "pins_removed": true,
+      "container_removed": true,
+      "network_removed": true
+    }
+  ],
+  "loopback_regression": "passed",
+  "regression": {
+    "library_tests": 513,
+    "validation_cli_tests": 19,
+    "documentation_tests": 74,
+    "export_contract_tests": 5,
+    "fragment_rule_tests": 8,
+    "cli_json_snapshot_tests": 10,
+    "machine_error_tests": 9,
+    "native_harness_tests": 30,
+    "runtime_tests": 30,
+    "script_portability_tests": 14,
+    "version_posture_tests": 7,
+    "explicit_socket_input_tests": 2,
+    "total_unique_passed": 721,
+    "performance_benchmarks_not_run": 7,
+    "strict_clippy_including_tests": "passed",
+    "format_and_diff_checks": "passed"
+  },
+  "report_sha256": {
+    "run-02/summary.json": "83804fe3d6be0f1c31a10ef9db0ce1897406b8368c7093b80a79d891e0b2f586",
+    "run-03/summary.json": "79fc7621001793fd1370e79d9904244880e5adc0bb74ee152ed914f2d70a6df4",
+    "run-04/summary.json": "d3b5189b9a42f5ead63aa621761100a3134e5f7a428c66437b9097b7e92d5cd4",
+    "run-02/final-raw.json": "d611736e9f86c57aee6f31bcc14af2e77be6548c4eec170dd0589afce8d6c73b",
+    "run-02/packet-prefix-raw.json": "779b4b6f8582e2a9aefe7f3aaa0a790f5882aa1b66aa60d6c648f254ff8990e9",
+    "run-02/packet-export.json": "9f3cbdca42f8ceab7c99a09cdecdceefc390cc365113140498ace87af36b1d34",
+    "run-04/packet-counts-raw.json": "4de5c20e3e55a7d1c2e257f895b04efaf00fd032c1153837851842187dd4941e",
+    "run-04/counts-raw.json": "60f98f87fc1a50ddda13d825f88a11f572cd18eaa9729ffeb15a32190450ecc6",
+    "regression.log": "1acb33ab5cade118f65e11a1a86bd36047fc6a2d4af665e1a05d7ad6b3c8b9be",
+    "clippy.log": "814a42f2fc0792f0f7338e998e3ffeec3fbebcfbea090795437e489e0d545938",
+    "socket-input.log": "1a30af6975b2b1a065d02440cd420ff863290d8f23e1fb7d5e5b8aeb9b3c9392"
+  },
+  "cleanup": {
+    "owned_containers_and_networks_removed": true,
+    "owned_bpf_pins_removed": true,
+    "owned_cgroups_removed": true,
+    "temporary_build_and_check_containers_removed": true,
+    "unrelated_running_container_ids_unchanged": true,
+    "sudo_lease_invalidated": true,
+    "test_shells_closed": true
+  },
+  "capture_sample": {
+    "origin": "run-02 actual BPF map values, not generated events",
+    "summary": {
+      "addresses": [
+        [
+          172,
+          20,
+          0,
+          1
+        ],
+        [
+          172,
+          20,
+          0,
+          2
+        ]
+      ],
+      "capture_prefix_limit": 64,
+      "cgroup_removed": true,
+      "checks": [
+        "owned_internal_container_target",
+        "client_http_403_and_500",
+        "socket_cookie_tuple_netns_correlation",
+        "continuous_kernel_tcp_lifecycles",
+        "exact_export_fact_and_flow_join",
+        "unselected_http_200_excluded",
+        "zero_reported_capture_loss",
+        "deterministic_replay",
+        "kernel_packet_prefix_http_403_and_500",
+        "packet_metadata_and_dsl_replay",
+        "owned_cgroup_removed",
+        "owned_resources_removed"
+      ],
+      "client_http_statuses": [
+        403,
+        500
+      ],
+      "clock_anchor_monotonic_ns": 6699952759062,
+      "clock_anchor_unix_ns": "1793794023358697116",
+      "container_removed": true,
+      "decoy_cookie": 28677,
+      "decoy_events": 0,
+      "decoy_http_status": 200,
+      "dropped_events": 0,
+      "flows": 2,
+      "http_evidence_source": "owned-native-client-io",
+      "image": "bkimminich/juice-shop@sha256:e68144772ebaaca0ec117b38d44903af92416793230288ef7c5437fc4f26850a",
+      "ingest_trust_mode": "unverified-local",
+      "kernel": "7.0.0-42-generic",
+      "kernel_dsl_http_statuses": [
+        [
+          28675,
+          403
+        ],
+        [
+          28676,
+          500
+        ]
+      ],
+      "kernel_events": 10,
+      "mode": "juice-shop-client-correlation",
+      "network_removed": true,
+      "not_proven": [
+        "TCP-stream-reassembly",
+        "TLS-decryption",
+        "vulnerability-detection",
+        "container-PID-or-post-NAT-socket-attribution",
+        "general-live-CLI",
+        "sustained-load"
+      ],
+      "ok": true,
+      "packet_dropped_events": 0,
+      "packet_events": 2,
+      "packet_evidence_source": "bpf-cgroup-skb-ingress",
+      "payload_inferred_by_gewyvern": true,
+      "pins_removed": true,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          28675,
+          36929,
+          3000,
+          4026531833
+        ],
+        [
+          28676,
+          41591,
+          3000,
+          4026531833
+        ]
+      ]
+    },
+    "events": [
+      {
+        "sequence": 1,
+        "monotonic_ns": 6700132957127,
+        "cookie": 28675,
+        "netns": 4026531833,
+        "cpu": 5,
+        "sport": 36929,
+        "dport": 3000,
+        "family": 2,
+        "old_state": 7,
+        "new_state": 2,
+        "saddr": [
+          172,
+          20,
+          0,
+          1
+        ],
+        "daddr": [
+          172,
+          20,
+          0,
+          2
+        ]
+      },
+      {
+        "sequence": 2,
+        "monotonic_ns": 6700133039982,
+        "cookie": 28675,
+        "netns": 4026531833,
+        "cpu": 5,
+        "sport": 36929,
+        "dport": 3000,
+        "family": 2,
+        "old_state": 2,
+        "new_state": 1,
+        "saddr": [
+          172,
+          20,
+          0,
+          1
+        ],
+        "daddr": [
+          172,
+          20,
+          0,
+          2
+        ]
+      },
+      {
+        "sequence": 3,
+        "monotonic_ns": 6700140084641,
+        "cookie": 28675,
+        "netns": 4026531833,
+        "cpu": 7,
+        "sport": 36929,
+        "dport": 3000,
+        "family": 2,
+        "old_state": 1,
+        "new_state": 8,
+        "saddr": [
+          172,
+          20,
+          0,
+          1
+        ],
+        "daddr": [
+          172,
+          20,
+          0,
+          2
+        ]
+      },
+      {
+        "sequence": 4,
+        "monotonic_ns": 6700140098798,
+        "cookie": 28675,
+        "netns": 4026531833,
+        "cpu": 5,
+        "sport": 36929,
+        "dport": 3000,
+        "family": 2,
+        "old_state": 8,
+        "new_state": 9,
+        "saddr": [
+          172,
+          20,
+          0,
+          1
+        ],
+        "daddr": [
+          172,
+          20,
+          0,
+          2
+        ]
+      },
+      {
+        "sequence": 5,
+        "monotonic_ns": 6700140137681,
+        "cookie": 28675,
+        "netns": 4026531833,
+        "cpu": 5,
+        "sport": 36929,
+        "dport": 3000,
+        "family": 2,
+        "old_state": 9,
+        "new_state": 7,
+        "saddr": [
+          172,
+          20,
+          0,
+          1
+        ],
+        "daddr": [
+          172,
+          20,
+          0,
+          2
+        ]
+      },
+      {
+        "sequence": 6,
+        "monotonic_ns": 6700217904786,
+        "cookie": 28676,
+        "netns": 4026531833,
+        "cpu": 12,
+        "sport": 41591,
+        "dport": 3000,
+        "family": 2,
+        "old_state": 7,
+        "new_state": 2,
+        "saddr": [
+          172,
+          20,
+          0,
+          1
+        ],
+        "daddr": [
+          172,
+          20,
+          0,
+          2
+        ]
+      },
+      {
+        "sequence": 7,
+        "monotonic_ns": 6700217971101,
+        "cookie": 28676,
+        "netns": 4026531833,
+        "cpu": 12,
+        "sport": 41591,
+        "dport": 3000,
+        "family": 2,
+        "old_state": 2,
+        "new_state": 1,
+        "saddr": [
+          172,
+          20,
+          0,
+          1
+        ],
+        "daddr": [
+          172,
+          20,
+          0,
+          2
+        ]
+      },
+      {
+        "sequence": 8,
+        "monotonic_ns": 6700232340956,
+        "cookie": 28676,
+        "netns": 4026531833,
+        "cpu": 7,
+        "sport": 41591,
+        "dport": 3000,
+        "family": 2,
+        "old_state": 1,
+        "new_state": 8,
+        "saddr": [
+          172,
+          20,
+          0,
+          1
+        ],
+        "daddr": [
+          172,
+          20,
+          0,
+          2
+        ]
+      },
+      {
+        "sequence": 9,
+        "monotonic_ns": 6700232356775,
+        "cookie": 28676,
+        "netns": 4026531833,
+        "cpu": 12,
+        "sport": 41591,
+        "dport": 3000,
+        "family": 2,
+        "old_state": 8,
+        "new_state": 9,
+        "saddr": [
+          172,
+          20,
+          0,
+          1
+        ],
+        "daddr": [
+          172,
+          20,
+          0,
+          2
+        ]
+      },
+      {
+        "sequence": 10,
+        "monotonic_ns": 6700232404295,
+        "cookie": 28676,
+        "netns": 4026531833,
+        "cpu": 12,
+        "sport": 41591,
+        "dport": 3000,
+        "family": 2,
+        "old_state": 9,
+        "new_state": 7,
+        "saddr": [
+          172,
+          20,
+          0,
+          1
+        ],
+        "daddr": [
+          172,
+          20,
+          0,
+          2
+        ]
+      }
+    ],
+    "packets": [
+      {
+        "sequence": 1,
+        "monotonic_ns": 6700138950218,
+        "cookie": 28675,
+        "cpu": 7,
+        "ifindex": 131,
+        "source": 2886991874,
+        "destination": 2886991873,
+        "seq": 916722905,
+        "ack": 3286163953,
+        "sport": 3000,
+        "dport": 36929,
+        "total_len": 2321,
+        "window": 64,
+        "payload_len": 2269,
+        "prefix_len": 64,
+        "flags": 24,
+        "ip_header_len": 20,
+        "tcp_header_len": 32,
+        "prefix": [
+          72,
+          84,
+          84,
+          80,
+          47,
+          49,
+          46,
+          49,
+          32,
+          52,
+          48,
+          51,
+          32,
+          70,
+          111,
+          114,
+          98,
+          105,
+          100,
+          100,
+          101,
+          110,
+          13,
+          10,
+          65,
+          99,
+          99,
+          101,
+          115,
+          115,
+          45,
+          67,
+          111,
+          110,
+          116,
+          114,
+          111,
+          108,
+          45,
+          65,
+          108,
+          108,
+          111,
+          119,
+          45,
+          79,
+          114,
+          105,
+          103,
+          105,
+          110,
+          58,
+          32,
+          42,
+          13,
+          10,
+          88,
+          45,
+          67,
+          111,
+          110,
+          116,
+          101,
+          110
+        ]
+      },
+      {
+        "sequence": 2,
+        "monotonic_ns": 6700231655326,
+        "cookie": 28676,
+        "cpu": 7,
+        "ifindex": 131,
+        "source": 2886991874,
+        "destination": 2886991873,
+        "seq": 3015360299,
+        "ack": 1263409903,
+        "sport": 3000,
+        "dport": 41591,
+        "total_len": 1340,
+        "window": 64,
+        "payload_len": 1288,
+        "prefix_len": 64,
+        "flags": 24,
+        "ip_header_len": 20,
+        "tcp_header_len": 32,
+        "prefix": [
+          72,
+          84,
+          84,
+          80,
+          47,
+          49,
+          46,
+          49,
+          32,
+          53,
+          48,
+          48,
+          32,
+          73,
+          110,
+          116,
+          101,
+          114,
+          110,
+          97,
+          108,
+          32,
+          83,
+          101,
+          114,
+          118,
+          101,
+          114,
+          32,
+          69,
+          114,
+          114,
+          111,
+          114,
+          13,
+          10,
+          65,
+          99,
+          99,
+          101,
+          115,
+          115,
+          45,
+          67,
+          111,
+          110,
+          116,
+          114,
+          111,
+          108,
+          45,
+          65,
+          108,
+          108,
+          111,
+          119,
+          45,
+          79,
+          114,
+          105,
+          103,
+          105,
+          110,
+          58
+        ]
+      }
+    ]
+  },
+  "initial_failure": "run-01: verifier could not prove variable skb read length nonzero; fixed with an explicit verifier-visible 1..64 bound",
+  "scope": {
+    "packet_source": "cgroup_skb/ingress",
+    "filter": "two owned SO_COOKIE values and exact private IPv4/TCP endpoints",
+    "netns_source": "join to kernel TCP state using socket cookie",
+    "traffic_policy": "always allow; no packet mutation",
+    "payload_limit": 64,
+    "event_limit": 128,
+    "http_rules": "validation-only exact HTTP/1.1 response-prefix signatures",
+    "trust": "unverified-local"
+  },
+  "not_proven": [
+    "TCP-stream-reassembly",
+    "TLS-decryption",
+    "vulnerability-detection",
+    "container-PID-or-post-NAT-socket-attribution",
+    "general-live-CLI",
+    "sustained-load"
+  ]
+}

@@ -258,13 +258,17 @@ When you want one stronger Linux-only target-side read without claiming that
 `gewyvern` is already a web-vulnerability scanner, add:
 
 ```bash
-sudo cargo run --quiet --bin gewyvern_validate -- juice-shop-container-validation
+sudo env GEWY_CONTAINER_TC_DEVICE=gwlab0 cargo run --quiet --bin gewyvern_validate -- juice-shop-container-validation
 ```
 
 That practical target-lab path preserves suspicious HTTP evidence from a real
 Docker target and then proves the same host can still execute attach, kprobe,
 and tc smoke. Treat it as a high-signal release-confidence check for Linux/BPF
 reliability, not as direct vulnerability classification.
+
+`gwlab0` must be an existing dedicated test interface. The suite requires this
+explicit target before creating containers and never chooses the primary network
+interface automatically; remove the interface you created after the run.
 
 Use them when:
 

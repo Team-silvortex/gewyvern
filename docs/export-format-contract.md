@@ -54,6 +54,15 @@ Treat these as the current contract candidate:
 
 ## Current Compatibility Carry-Over
 
+TCP state facts now include `kind.saddr` and `kind.daddr` as arrays of exactly
+16 integer bytes (`0..255`). IPv4 uses the first four bytes with zero padding;
+IPv6 uses all sixteen. These are observed addresses, not anonymized labels, so
+review evidence before sharing it. Export/import and replay preserve them.
+Legacy facts that omit either field retain the previous all-zero unknown value
+for that field; an explicitly malformed value is rejected, not coerced to zero.
+The fact wall-clock timestamp remains millisecond precision. A capture backend
+that records finer timestamps must retain its raw timing evidence separately.
+
 These summary shelves are still useful, but should not replace replay-critical
 inputs as the first machine dependency:
 

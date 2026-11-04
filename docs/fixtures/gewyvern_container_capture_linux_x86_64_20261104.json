@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "proof": "owned-container-client-http-to-kernel-tcp-flow-correlation",
+  "captured_on": "2026-11-04",
+  "package_version": "2.5.0",
+  "release_line": "2.5.x",
+  "source_base_revision": "01641a1c2cd5a0b6eec50d90c22afeb2d59711aa",
+  "working_tree_changes": true,
+  "verified_final_source_sha256": {
+    "ebpf/validation/tcp_state.bpf.c":"d725e38202c50bf0247c22c70ea5a7645b26b9850fd5bbb6bd08b032fe7f5e64",
+    "src/validation_harness/linux_tcp_capture.rs":"dbba4d65af0289574bc2ec6331fb9bef7fdc1260cd5553d06a2803fdb63bf6c5",
+    "src/validation_harness/linux_tcp_capture/linux.rs":"73fe4bc4a205fe28fd005268b51972ac773a42189aca739b13e3503e8a5de570",
+    "src/validation_harness/linux_tcp_capture/linux/docker_target.rs":"b33ab1ccf71a6e44fdbaa778e8f0f6e62fd4ebe15a2dec32843eac406c7e5802",
+    "src/validation_harness/linux_tcp_capture/linux/http_evidence.rs":"e208ac54df75914d3d533bab7cd673247b90709f7c3c6cb82f040e8ba98ba25c",
+    "src/validation_harness/linux_tcp_capture/linux/juice_shop.rs":"0407243948820baa531c42c890a5d9213ecbcef40e8b57d125ec029925f6d49d",
+    "src/bin/gewyvern_validate.rs":"5aaa7080e66a88ac97d787aef7303720907fb27ee62e6a11fb0a17817fdb9562"
+  },
+  "release_artifact": false,
+  "result": "passed",
+  "host": {"os":"ubuntu","arch":"x86_64","kernel":"7.0.0-42-generic","docker":"29.1.1","unique_hosts":1,"unique_kernels":1},
+  "execution": {
+    "build_and_regression":"bounded-Rust-1.98-Linux-container",
+    "live_capture":"physical-Linux-host",
+    "target_image":"bkimminich/juice-shop@sha256:e68144772ebaaca0ec117b38d44903af92416793230288ef7c5437fc4f26850a",
+    "target_network":"owned-internal-bridge-with-no-published-ports",
+    "remote_evidence":"~/.cache/gewyvern/field-evidence/20261104-container-capture",
+    "local_report_shelf":"target/validation/container-capture-20261104",
+    "macos_builds":false,
+    "macos_image_pulls":false
+  },
+  "live_runs": [
+    {"id":"run-03","kernel_events":10,"flows":2,"client_http_statuses":[403,500],"decoy_http_status":200,"dropped_events":0,"decoy_events":0},
+    {"id":"run-04","kernel_events":10,"flows":2,"client_http_statuses":[403,500],"decoy_http_status":200,"dropped_events":0,"decoy_events":0},
+    {"id":"run-05","kernel_events":10,"flows":2,"client_http_statuses":[403,500],"decoy_http_status":200,"dropped_events":0,"decoy_events":0}
+  ],
+  "loopback_regression":"passed",
+  "regression": {
+    "library_tests":507,
+    "validation_cli_unit_tests":19,
+    "documentation_tests":74,
+    "export_contract_tests":5,
+    "cli_json_snapshot_tests":10,
+    "machine_error_contract_tests":9,
+    "native_validation_harness_tests":30,
+    "runtime_tests":30,
+    "script_portability_tests":14,
+    "version_posture_tests":7,
+    "explicitly_enabled_socket_input_tests":2,
+    "total_unique_passed":707,
+    "performance_benchmarks_not_run":7,
+    "targeted_clippy_deny_warnings":"passed",
+    "format_and_diff_checks":"passed"
+  },
+  "cleanup":{"owned_containers_removed":true,"owned_networks_removed":true,"owned_bpf_pins_removed":true},
+  "capture_sample": {
+    "origin":"run-03 raw formatted BPF values sorted by sequence and native-client observations; not generated events",
+    "addresses":[[172,20,0,1],[172,20,0,2]],
+    "expected_sockets":[[4101,52885,3000,4026531833],[4102,43645,3000,4026531833]],
+    "clock_anchor_monotonic_ns":4977272708049,
+    "events":[
+      {"sequence":1,"monotonic_ns":4977350240434,"cookie":4101,"netns":4026531833,"cpu":12,"sport":52885,"dport":3000,"family":2,"old_state":7,"new_state":2,"saddr":[172,20,0,1],"daddr":[172,20,0,2]},
+      {"sequence":2,"monotonic_ns":4977350334953,"cookie":4101,"netns":4026531833,"cpu":12,"sport":52885,"dport":3000,"family":2,"old_state":2,"new_state":1,"saddr":[172,20,0,1],"daddr":[172,20,0,2]},
+      {"sequence":3,"monotonic_ns":4977354964751,"cookie":4101,"netns":4026531833,"cpu":4,"sport":52885,"dport":3000,"family":2,"old_state":1,"new_state":8,"saddr":[172,20,0,1],"daddr":[172,20,0,2]},
+      {"sequence":4,"monotonic_ns":4977354981212,"cookie":4101,"netns":4026531833,"cpu":12,"sport":52885,"dport":3000,"family":2,"old_state":8,"new_state":9,"saddr":[172,20,0,1],"daddr":[172,20,0,2]},
+      {"sequence":5,"monotonic_ns":4977355031979,"cookie":4101,"netns":4026531833,"cpu":12,"sport":52885,"dport":3000,"family":2,"old_state":9,"new_state":7,"saddr":[172,20,0,1],"daddr":[172,20,0,2]},
+      {"sequence":6,"monotonic_ns":4977432986743,"cookie":4102,"netns":4026531833,"cpu":4,"sport":43645,"dport":3000,"family":2,"old_state":7,"new_state":2,"saddr":[172,20,0,1],"daddr":[172,20,0,2]},
+      {"sequence":7,"monotonic_ns":4977433081803,"cookie":4102,"netns":4026531833,"cpu":4,"sport":43645,"dport":3000,"family":2,"old_state":2,"new_state":1,"saddr":[172,20,0,1],"daddr":[172,20,0,2]},
+      {"sequence":8,"monotonic_ns":4977445945756,"cookie":4102,"netns":4026531833,"cpu":2,"sport":43645,"dport":3000,"family":2,"old_state":1,"new_state":8,"saddr":[172,20,0,1],"daddr":[172,20,0,2]},
+      {"sequence":9,"monotonic_ns":4977445964762,"cookie":4102,"netns":4026531833,"cpu":4,"sport":43645,"dport":3000,"family":2,"old_state":8,"new_state":9,"saddr":[172,20,0,1],"daddr":[172,20,0,2]},
+      {"sequence":10,"monotonic_ns":4977446026879,"cookie":4102,"netns":4026531833,"cpu":4,"sport":43645,"dport":3000,"family":2,"old_state":9,"new_state":7,"saddr":[172,20,0,1],"daddr":[172,20,0,2]}
+    ],
+    "observations":[
+      {"completed_ns":4977432916300,"cookie":4101,"dport":3000,"netns":4026531833,"path":"/ftp/acquisitions.md.bak","request_id":"307645-1793792298483919699-file-guard","request_sha256":"8a035b259ec5653c8102f890913904cd7209b20b478383aa305718f680679d86","response_sha256":"be5e9d34b050dbe5a3ff1c65fd8e7a8d6fae8e1eda3163fb29550e6b41cb70b9","sport":52885,"started_ns":4977350209205,"status":403},
+      {"completed_ns":4977524170992,"cookie":4102,"dport":3000,"netns":4026531833,"path":"/rest/products/search?q=%27%20OR%201%3D1--","request_id":"307645-1793792298483919699-sql-error","request_sha256":"26b8520ce17920b1b71e5cfcee44263e4a0fab6caeb191c58243de2c38b54a76","response_sha256":"f3189f5ca4b3a3b3d087a082116f9b72482799aa6864680465a3ce6e8b568ac5","sport":43645,"started_ns":4977432959311,"status":500}
+    ]
+  },
+  "report_sha256": {
+    "run-03/summary.json":"abdac6045b82eddab483f3a8077acace3db872c0da9fad41b70fc42e693a65ae",
+    "run-04/summary.json":"e54758af9813882f2903bdfb679d05e556fbc8d0a092ee716dad8b3b670b0419",
+    "run-05/summary.json":"f5076507dbc321782bb1518240f586e33b4c9304e650f769e7c34ecafd172ed1",
+    "run-03/final-raw.json":"0effd17d0b99fbf0a716f12ffc72a4892ad7cfb4ef896ab0c7a3c4a3aa04c61f",
+    "run-03/final-export.json":"911b5058b48f092df7a2847f386921675dd2abe889022be85ba5a7139b1c0f64",
+    "run-03/correlation.json":"e1d1e98f7d3dfbf5078e191d9314a4eebe02be0f3c913444d5aef55a07646e6a"
+  },
+  "initial_failures":["internal-network-did-not-publish-a-host-port","target-error-response-used-chunked-framing"],
+  "http_evidence_source":"owned-native-client-io",
+  "ingest_trust_mode":"unverified-local",
+  "status_maturity_promoted":false,
+  "not_proven":["BPF-payload-classification","vulnerability-detection","container-PID-or-server-socket-attribution","general-live-CLI","sustained-load","multi-host-or-multi-kernel-acceptance"]
+}

@@ -474,6 +474,7 @@ pub fn run_juice_shop_container_validation(
         ));
     }
 
+    let netdev = container_tc_device_from_env()?;
     let cfg = JuiceShopValidationConfig::from_env(out_dir)?;
     require_cmd("docker")?;
     require_cmd("curl")?;
@@ -551,13 +552,12 @@ pub fn run_juice_shop_container_validation(
         "ip_route_output_flow",
         Some(cfg.out_dir.join("linux-kprobe-smoke")),
     )?;
-    let netdev = detect_default_route_device()?;
     let tc = run_linux_tc_smoke(&netdev, Some(cfg.out_dir.join("linux-tc-smoke")))?;
 
     fs::write(
         cfg.out_dir.join("summary.txt"),
         format!(
-            "juice shop container validation: ok\nhost_url=http://127.0.0.1:{}\nfile_guard_status={}\nsqli_status={}\ndefault_route_device={}\nchecked=juice_shop_ready,file_guard_evidence,sqli_evidence,linux_attach_smoke,linux_kprobe_smoke,linux_tc_smoke\nattach_evidence={}\nkprobe_evidence={}\ntc_evidence={}\nevidence={}\n",
+            "juice shop container validation: ok\nhost_url=http://127.0.0.1:{}\nfile_guard_status={}\nsqli_status={}\ntc_device={}\nchecked=juice_shop_ready,file_guard_evidence,sqli_evidence,linux_attach_smoke,linux_kprobe_smoke,linux_tc_smoke\nattach_evidence={}\nkprobe_evidence={}\ntc_evidence={}\nevidence={}\n",
             cfg.host_port,
             file_guard_status,
             sqli_status,
@@ -612,6 +612,7 @@ pub fn run_ftp_denied_container_validation(
         ));
     }
 
+    let netdev = container_tc_device_from_env()?;
     let cfg = FtpDeniedValidationConfig::from_env(out_dir)?;
     require_cmd("docker")?;
     require_cmd("curl")?;
@@ -685,13 +686,12 @@ pub fn run_ftp_denied_container_validation(
         "ip_route_output_flow",
         Some(cfg.out_dir.join("linux-kprobe-smoke")),
     )?;
-    let netdev = detect_default_route_device()?;
     let tc = run_linux_tc_smoke(&netdev, Some(cfg.out_dir.join("linux-tc-smoke")))?;
 
     fs::write(
         cfg.out_dir.join("summary.txt"),
         format!(
-            "ftp denied container validation: ok\nhost_url=ftp://127.0.0.1:{}\ncurl_exit_status={}\ndefault_route_device={}\nchecked=ftp_ready,ftp_denied_evidence,ftp_target_log_evidence,linux_attach_smoke,linux_kprobe_smoke,linux_tc_smoke\nattach_evidence={}\nkprobe_evidence={}\ntc_evidence={}\nevidence={}\n",
+            "ftp denied container validation: ok\nhost_url=ftp://127.0.0.1:{}\ncurl_exit_status={}\ntc_device={}\nchecked=ftp_ready,ftp_denied_evidence,ftp_target_log_evidence,linux_attach_smoke,linux_kprobe_smoke,linux_tc_smoke\nattach_evidence={}\nkprobe_evidence={}\ntc_evidence={}\nevidence={}\n",
             cfg.host_port,
             denied_exit,
             netdev,
@@ -743,6 +743,7 @@ pub fn run_ldap_bind_denied_container_validation(
         ));
     }
 
+    let netdev = container_tc_device_from_env()?;
     let cfg = LdapBindDeniedValidationConfig::from_env(out_dir)?;
     require_cmd("docker")?;
     require_cmd("ldapsearch")?;
@@ -842,13 +843,12 @@ pub fn run_ldap_bind_denied_container_validation(
         "ip_route_output_flow",
         Some(cfg.out_dir.join("linux-kprobe-smoke")),
     )?;
-    let netdev = detect_default_route_device()?;
     let tc = run_linux_tc_smoke(&netdev, Some(cfg.out_dir.join("linux-tc-smoke")))?;
 
     fs::write(
         cfg.out_dir.join("summary.txt"),
         format!(
-            "ldap bind denied container validation: ok\nhost_url=ldap://127.0.0.1:{}\nldap_exit_status={}\ndefault_route_device={}\nchecked=ldap_ready,ldap_bind_denied_evidence,ldap_target_log_evidence,linux_attach_smoke,linux_kprobe_smoke,linux_tc_smoke\nattach_evidence={}\nkprobe_evidence={}\ntc_evidence={}\nevidence={}\n",
+            "ldap bind denied container validation: ok\nhost_url=ldap://127.0.0.1:{}\nldap_exit_status={}\ntc_device={}\nchecked=ldap_ready,ldap_bind_denied_evidence,ldap_target_log_evidence,linux_attach_smoke,linux_kprobe_smoke,linux_tc_smoke\nattach_evidence={}\nkprobe_evidence={}\ntc_evidence={}\nevidence={}\n",
             cfg.host_port,
             denied_exit,
             netdev,
@@ -2259,35 +2259,30 @@ fn docker_logs(container_name: &str) -> Result<String, ValidationError> {
     Ok(text)
 }
 
-fn detect_default_route_device() -> Result<String, ValidationError> {
-    let output = Command::new("ip")
-        .arg("route")
-        .arg("show")
-        .arg("default")
-        .output()
-        .map_err(|err| {
-            ValidationError::new(format!("failed to detect default route device: {err}"))
-        })?;
-    if !output.status.success() {
+fn container_tc_device_from_env() -> Result<String, ValidationError> {
+    let value = env::var("GEWY_CONTAINER_TC_DEVICE").ok();
+    let device = parse_container_tc_device(value.as_deref())?;
+    if !Path::new("/sys/class/net").join(&device).is_dir() {
         return Err(ValidationError::new(format!(
-            "failed to detect default route device: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
+            "GEWY_CONTAINER_TC_DEVICE names a missing interface: {device}"
         )));
     }
-    let device = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if device.is_empty() {
+    Ok(device)
+}
+
+fn parse_container_tc_device(value: Option<&str>) -> Result<String, ValidationError> {
+    let device = value.ok_or_else(|| {
+        ValidationError::new(
+            "GEWY_CONTAINER_TC_DEVICE is required: select a dedicated lab interface; container validation never selects the default-route device",
+        )
+    })?;
+    crate::linux_ebpf_smoke::validate_netdev_name(device)
+        .map_err(|err| ValidationError::new(format!("invalid GEWY_CONTAINER_TC_DEVICE: {err}")))?;
+    if matches!(device, "lo" | "." | "..") || device.starts_with('-') || device.len() > 15 {
         return Err(ValidationError::new(
-            "failed to detect default route device: empty result",
+            "GEWY_CONTAINER_TC_DEVICE must name a dedicated lab interface (at most 15 bytes, no loopback or option-like names)",
         ));
     }
-    let device = device
-        .lines()
-        .find(|line| !line.trim().is_empty())
-        .map(str::trim)
-        .and_then(|line| line.split_whitespace().nth(4))
-        .ok_or_else(|| {
-            ValidationError::new("failed to detect default route device: missing field".to_string())
-        })?;
     Ok(device.to_string())
 }
 
@@ -2527,10 +2522,29 @@ fn validate_env_path(name: &str, value: String) -> Result<PathBuf, ValidationErr
 #[cfg(test)]
 mod tests {
     use super::{
-        validate_admin_token, validate_docker_cli_arg_value, validate_env_path,
-        validate_pathology_runtime_log,
+        parse_container_tc_device, validate_admin_token, validate_docker_cli_arg_value,
+        validate_env_path, validate_pathology_runtime_log,
     };
     use std::path::PathBuf;
+
+    #[test]
+    fn container_tc_device_requires_an_explicit_safe_target() {
+        assert!(parse_container_tc_device(None).is_err());
+        for value in [
+            "",
+            "lo",
+            ".",
+            "..",
+            "gw lab",
+            "gwlab\n",
+            "../eth0",
+            "-eth0",
+            "abcdefghijklmnop",
+        ] {
+            assert!(parse_container_tc_device(Some(value)).is_err(), "{value:?}");
+        }
+        assert_eq!(parse_container_tc_device(Some("gwlab0")).unwrap(), "gwlab0");
+    }
 
     #[test]
     fn pathology_log_accepts_current_json_parser_rejections() {

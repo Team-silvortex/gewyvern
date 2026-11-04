@@ -34,8 +34,9 @@ adapter or generated framework binding against the Leselang UI protocol. The
 Leselang and GewyLang are separate languages: GewyLang defines protocol behavior;
 Leselang controls explicitly adapted hosts, including Leserpent orchestration and UI.
 
-The 2.3.0-and-later phase separates repository bootstrap from full runtime
-acceptance. The native foundation now has a local MIT repository named `leselang`;
+The 2.3.0-and-later phase separates repository bootstrap from full runtime acceptance.
+The native foundation lives in the public MIT-licensed
+[Leselang repository](https://github.com/Team-silvortex/leselang);
 the product now pins its published 0.1.0 Git revision across all native cores.
 Full independent VM acceptance remains open. The native source checkpoint retains
 its original metadata and flags; it is not a durable VM or release-publication gate.
@@ -55,6 +56,5 @@ VM/SQLite linkage. In-memory wire round-trips do not prove durable recovery.
 See [VM profiles and adapter ownership](../../crates/leselang-vm/README.md) and
 [the captured-execution proof](../leselang-embedding.md#adapter-only-captured-execution-proof).
 
-Complete two-host language coverage, host-neutral durable graph recovery and full
-reference wire/authority/GUI/CLI parity remain open. Track acceptance in the status
-tensor; implementation details belong in the linked contracts, not this index.
+Complete two-host coverage, host-neutral durable graph recovery and full reference parity
+remain open. Track acceptance in the status tensor; use the linked contracts for details.

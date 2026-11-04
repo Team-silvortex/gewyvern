@@ -127,6 +127,41 @@ fn normalize_release_gate_snapshot(mut report: Value) -> Value {
 }
 
 #[test]
+fn container_capture_rejects_ambiguous_targets_before_any_lab_effects() {
+    for args in [
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--juice-shop",
+            "--juice-shop",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--target",
+            "http://unowned.example",
+        ],
+    ] {
+        let (ok, stdout, stderr) = run_validate_json(&args);
+        assert!(!ok);
+        let report = parse_single_json(if stdout.trim().is_empty() {
+            &stderr
+        } else {
+            &stdout
+        });
+        assert_eq!(report["ok"], false);
+        assert_eq!(report["failure_class"], "input");
+        assert_eq!(report["failure_code"], "invalid_cli_input");
+        assert!(
+            report["message"]
+                .as_str()
+                .unwrap()
+                .contains("unknown or repeated linux-tcp-capture option")
+        );
+    }
+}
+
+#[test]
 fn list_json_matches_fixture() {
     let expected = read_fixture("docs/fixtures/gewyvern_validate_list.json");
     let (ok, stdout, stderr) = run_validate_json(&["--json", "list"]);

@@ -40,7 +40,8 @@ cancellation, initial/late refusal, native failure, all smaller fuel grants and
 cold invalid input. Source byte and compiler limits precede execution.
 
 The independent repository owns `native_counter.rs` in its package and consumer;
-the shared acceptance map checks those retained bytes and executable targets.
+the shared acceptance map checks pinned consumer hashes and executable targets,
+independently of the local compatibility example's source text.
 The product benchmark belongs to `leserpent-vm`, not the native repository.
 Pinned consumer verification and upstream CI explicitly run example tests and
 normal/cancel modes,
@@ -8837,10 +8838,12 @@ independent repository. Use `cargo dev check leselang` for product integration:
 it validates pinned upstream source identities and executes the separate
 `consumer/` workspace plus the product boundary fixture. The old
 `cargo dev package leselang` command no longer generates manifests or copies
-sources. Frozen local files are acceptance snapshots, not another implementation.
+sources. The former local core snapshots are retired; immutable inventories retain
+their provenance without another implementation.
 
-The shared product-side acceptance map compares retained test/helper/example
-files byte-for-byte with that checkout and verifies registered executable targets.
+The shared product-side acceptance map verifies recorded size/SHA-256 for all
+consumer test/helper/example files and checks registered executable targets.
+Local compatibility test bodies are no longer templates for upstream acceptance.
 Native/default/all-features packages have no enableable reference or SQLite
 feature. Product policies and storage remain in Gewyvern's product adapters.
 Independent packages remain `publish = false` until a separate registry decision.

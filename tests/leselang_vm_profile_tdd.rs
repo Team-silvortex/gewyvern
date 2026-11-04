@@ -225,11 +225,7 @@ fn product_benchmark_is_not_owned_or_required_by_the_native_facade() {
     assert!(benchmark.contains("use leserpent_vm::{Step, Vm};"));
     assert!(!benchmark.contains("leselang_hir::"));
     assert!(!benchmark.contains("leselang_vm::"));
-    upstream::assert_consumer_file(
-        "crates/leselang-vm/examples/native_counter.rs",
-        "examples/native_counter.rs",
-        Some("example"),
-    );
+    upstream::assert_consumer_file("examples/native_counter.rs", Some("example"));
     assert!(
         !upstream::checkout()
             .join("crates/leselang-vm/examples/language_benchmark.rs")

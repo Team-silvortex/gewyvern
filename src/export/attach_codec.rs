@@ -39,6 +39,7 @@ fn parse_hookpoint(input: &str) -> Result<HookPoint, ExportError> {
     match input {
         "tc:ingress" => Ok(HookPoint::TCIngress),
         "tc:egress" => Ok(HookPoint::TCEgress),
+        "cgroup_skb:ingress" => Ok(HookPoint::CgroupSkbIngress),
         _ => Err(ExportError::InvalidValue("unknown hookpoint".into())),
     }
 }

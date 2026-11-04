@@ -220,6 +220,11 @@ pub fn linux_probe_kernel_hooks(plan: &AttachPlan) -> Result<Vec<AttachFailure>,
                 failures.extend(linux_probe_tc_ingress_hook(&binding.fragment_id, "eth0")?);
             }
             HookPoint::TCEgress => {}
+            HookPoint::CgroupSkbIngress => failures.push(AttachFailure {
+                fragment_id: binding.fragment_id.clone(),
+                hookpoint: binding.hookpoint.clone(),
+                error: "cgroup ingress capture requires an explicitly owned cgroup".into(),
+            }),
         }
     }
 
@@ -292,5 +297,20 @@ mod tests {
         let _: ProbeFn = linux_probe_tracepoint_hook;
         let _: ProbeFn = linux_probe_kprobe_hook;
         let _: ProbeFn = linux_probe_tc_ingress_hook;
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn cgroup_probe_without_owned_scope_is_an_explicit_failure() {
+        use crate::fragment::{HookBinding, HookPoint, builtin_registry};
+        let mut plan = builtin_registry().plan(["tcp_state_fragment"]).unwrap();
+        plan.hook_graph = vec![HookBinding {
+            fragment_id: "packet_capture".into(),
+            hookpoint: HookPoint::CgroupSkbIngress,
+        }];
+        let failures = super::linux_probe_kernel_hooks(&plan).unwrap();
+        assert_eq!(failures.len(), 1);
+        assert_eq!(failures[0].hookpoint, HookPoint::CgroupSkbIngress);
+        assert!(failures[0].error.contains("explicitly owned cgroup"));
     }
 }

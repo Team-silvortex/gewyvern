@@ -28,6 +28,36 @@ mod part_002;
 mod performance;
 
 #[test]
+fn tcp_lifecycle_uses_state_meaning_not_numeric_order() {
+    for state in 1..=12 {
+        let facts = [tcp_state_fact(1, 42, 1, state)];
+        let flows = build_flow_snapshots(&facts);
+        assert_eq!(
+            flows[0].lifecycle.terminated,
+            matches!(state, 6 | 7),
+            "state {state}"
+        );
+        assert_eq!(
+            flows[0].lifecycle.termination_fact.is_some(),
+            matches!(state, 6 | 7)
+        );
+    }
+}
+
+#[test]
+fn a_socket_reconnecting_after_close_does_not_remain_terminated() {
+    let facts = [
+        tcp_state_fact(1, 42, 2, 7),
+        tcp_state_fact(2, 42, 7, 2),
+        tcp_state_fact(3, 42, 2, 1),
+    ];
+    let flows = build_flow_snapshots(&facts);
+    assert_eq!(flows.len(), 1);
+    assert!(!flows[0].lifecycle.terminated);
+    assert_eq!(flows[0].lifecycle.termination_fact, None);
+}
+
+#[test]
 fn runtime_start_revalidates_public_session_config_without_panicking() {
     for (template, expected) in [
         (

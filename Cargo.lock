@@ -853,6 +853,7 @@ dependencies = [
  "leserpent-domain",
  "leserpent-hir",
  "leserpent-vm",
+ "libc",
  "rcgen",
  "ring",
  "rustls",
@@ -860,6 +861,7 @@ dependencies = [
  "serde",
  "serde_json",
  "silvortex-bounded-io",
+ "socket2",
  "x509-parser",
  "zeroize",
 ]

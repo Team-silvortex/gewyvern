@@ -18,6 +18,10 @@ execution. These are not interchangeable repeated runs. Even shared test bodies
 still verify the legacy import path and must not be removed solely because the
 independent native consumer or product owner also executes them.
 
+`serde` and `serde_json` belong only to the acceptance fixtures and are development
+dependencies. Product/SQLite test support remains optional rather than becoming
+unconditional dev dependencies that would contaminate native-only verification.
+
 ## Runnable Native Host
 
 Start with [native_counter.rs](examples/native_counter.rs), a standalone Rust
@@ -46,7 +50,8 @@ This is an atomic scalar example, not complete language coverage, an external
 receipt authentication protocol or a production recovery backend. The independent
 repository owns the native package and consumer copies. `cargo dev check leselang`
 runs the pinned consumer tests and immediate/queued success/cancel modes; the
-shared acceptance map checks byte equality. The old source exporter is retired.
+shared acceptance map checks recorded source hashes and executable targets, not
+byte equality with this local compatibility example. The old source exporter is retired.
 
 ### Queued Host Driving
 

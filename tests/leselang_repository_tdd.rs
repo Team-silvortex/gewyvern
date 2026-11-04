@@ -1,5 +1,5 @@
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -118,6 +118,275 @@ fn validate_compatibility_isolation(metadata: &Value) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+const FACADE_TEST_IMPORTS: &[(&str, &[&str])] = &[
+    (
+        "leselang-hir",
+        &["leselang-runtime-core", "leselang-syntax", "serde"],
+    ),
+    ("leselang-vm", &["serde", "serde_json"]),
+];
+
+fn validate_facade_test_dependencies(metadata: &Value) -> Result<(), String> {
+    let packages = metadata["packages"].as_array().ok_or("missing packages")?;
+    for (facade, imports) in FACADE_TEST_IMPORTS {
+        let package = packages
+            .iter()
+            .find(|package| package["name"] == *facade && package["source"].is_null())
+            .ok_or("missing legacy facade")?;
+        let dependencies = package["dependencies"]
+            .as_array()
+            .ok_or("missing dependencies")?;
+        for name in *imports {
+            let matches: Vec<_> = dependencies
+                .iter()
+                .filter(|dep| dep["name"] == *name)
+                .collect();
+            if matches.len() != 1 || matches[0]["kind"] != "dev" {
+                return Err(format!(
+                    "{facade} must use {name} only as a test dependency"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_gewyvern_runtime_isolation(metadata: &Value) -> Result<(), String> {
+    let mut packages = BTreeMap::new();
+    for package in metadata["packages"].as_array().ok_or("missing packages")? {
+        let id = package["id"].as_str().ok_or("missing package id")?;
+        if packages.insert(id, package).is_some() {
+            return Err("duplicate package id".into());
+        }
+    }
+    let roots: Vec<_> = packages
+        .values()
+        .filter(|package| package["name"] == "gewyvern")
+        .collect();
+    if roots.len() != 1 {
+        return Err("expected one Gewyvern package".into());
+    }
+    let mut nodes = BTreeMap::new();
+    for node in metadata["resolve"]["nodes"]
+        .as_array()
+        .ok_or("missing resolved graph")?
+    {
+        let id = node["id"].as_str().ok_or("missing node id")?;
+        if nodes.insert(id, node).is_some() {
+            return Err("duplicate resolved node".into());
+        }
+    }
+    let mut pending = vec![roots[0]["id"].as_str().ok_or("missing root id")?];
+    let mut visited = BTreeSet::new();
+    while let Some(id) = pending.pop() {
+        if !visited.insert(id) {
+            continue;
+        }
+        let package = packages.get(id).ok_or("resolved package is absent")?;
+        let name = package["name"].as_str().ok_or("missing package name")?;
+        if name.starts_with("leselang-")
+            || name.starts_with("leserpent-")
+            || matches!(name, "leselang" | "leserpent" | "leserpentd")
+        {
+            return Err(format!("Gewyvern runtime/build closure contains {name}"));
+        }
+        let node = nodes.get(id).ok_or("resolved node is absent")?;
+        for dependency in node["deps"]
+            .as_array()
+            .ok_or("missing resolved dependencies")?
+        {
+            let kinds = dependency["dep_kinds"]
+                .as_array()
+                .ok_or("missing dependency kinds")?;
+            if kinds.is_empty() {
+                return Err("empty dependency kinds".into());
+            }
+            let mut runtime = false;
+            for kind in kinds {
+                match kind.get("kind") {
+                    Some(Value::Null) => runtime = true,
+                    Some(Value::String(value)) if value == "build" => runtime = true,
+                    Some(Value::String(value)) if value == "dev" => {}
+                    _ => return Err("unknown dependency kind".into()),
+                }
+            }
+            // Follow resolved package IDs, not dependency aliases. Target-specific
+            // normal/build edges count too; product integration tests do not.
+            if runtime {
+                pending.push(
+                    dependency["pkg"]
+                        .as_str()
+                        .ok_or("missing dependency package id")?,
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn legacy_facades_keep_acceptance_only_imports_out_of_their_runtime_dependencies() {
+    let original = upstream::product_metadata();
+    validate_facade_test_dependencies(original).unwrap();
+    for (facade, imports) in FACADE_TEST_IMPORTS {
+        let index = original["packages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|p| p["name"] == *facade)
+            .unwrap();
+        for name in *imports {
+            let dep = original["packages"][index]["dependencies"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .position(|d| d["name"] == *name)
+                .unwrap();
+            for kind in [Value::Null, Value::String("build".into())] {
+                let mut changed = original.clone();
+                changed["packages"][index]["dependencies"][dep]["kind"] = kind;
+                assert!(validate_facade_test_dependencies(&changed).is_err());
+            }
+        }
+    }
+}
+
+#[test]
+fn gewyvern_runtime_and_build_closure_are_independent_of_the_control_stack() {
+    validate_gewyvern_runtime_isolation(upstream::product_metadata()).unwrap();
+}
+
+#[test]
+fn product_cleanup_closeout_does_not_promote_native_vm_or_retire_legacy_apis() {
+    use serde_json::json;
+    let state: Value =
+        serde_json::from_str(include_str!("../project/leselang-repository.json")).unwrap();
+    let closeout = &state["product_cleanup"];
+    assert_eq!(closeout["scope"], "post-split-product-integration");
+    assert_eq!(closeout["state"], "complete");
+    assert_eq!(closeout["gate"], "tests/leselang_repository_tdd.rs");
+    assert_eq!(
+        closeout["retained_compatibility"],
+        json!(["leselang-hir", "leselang-vm"])
+    );
+    assert_eq!(
+        closeout["retained_product_adapters"],
+        json!([
+            "leselang-command",
+            "leselang-host-contract",
+            "leselang-observe",
+            "leselang-ui"
+        ])
+    );
+    assert_eq!(
+        closeout["non_blocking_followups"],
+        json!([
+            "legacy-api-retirement",
+            "native-full-vm-parity",
+            "crates-io-publication"
+        ])
+    );
+    assert_eq!(
+        closeout["next_focus"],
+        "gewyvern-capability-field-validation"
+    );
+    assert_eq!(closeout["field_validation"], "docs/field-validation.md");
+    assert!(
+        root()
+            .join(closeout["field_validation"].as_str().unwrap())
+            .is_file()
+    );
+    for key in ["retained_compatibility", "retained_product_adapters"] {
+        for name in closeout[key].as_array().unwrap() {
+            assert!(
+                upstream::product_metadata()["packages"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|package| { package["name"] == *name && package["source"].is_null() })
+            );
+        }
+    }
+    for flag in [
+        "source_exporter_retired",
+        "frozen_snapshots_retired",
+        "frozen_core_manifests_retired",
+        "frozen_core_compilation_retired",
+        "migration_oracle_harness_retired",
+        "consumer_acceptance_uses_inventory",
+    ] {
+        assert_eq!(state["compatibility_cleanup"][flag], true);
+    }
+    for flag in ["registry_published", "complete_vm", "full_extraction_gate"] {
+        assert_eq!(state[flag], false);
+    }
+    assert_eq!(
+        state["compatibility_cleanup"]["local_facades_retired"],
+        false
+    );
+    validate_identity(upstream::product_metadata()).unwrap();
+    validate_compatibility_isolation(upstream::product_metadata()).unwrap();
+    validate_gewyvern_runtime_isolation(upstream::product_metadata()).unwrap();
+    validate_facade_test_dependencies(upstream::product_metadata()).unwrap();
+}
+
+#[test]
+fn runtime_isolation_follows_transitive_aliases_and_build_edges_but_not_test_edges() {
+    use serde_json::json;
+    let original = json!({
+        "packages": [
+            {"id": "root", "name": "gewyvern"},
+            {"id": "adapter", "name": "ordinary-adapter"},
+            {"id": "language", "name": "leselang-hir-core"}
+        ],
+        "resolve": {"nodes": [
+            {"id": "root", "deps": [{"name": "alias", "pkg": "adapter", "dep_kinds": [{"kind": null}]}]},
+            {"id": "adapter", "deps": [{"name": "not_obviously_language", "pkg": "language", "dep_kinds": [{"kind": "dev"}]}]},
+            {"id": "language", "deps": []}
+        ]}
+    });
+    validate_gewyvern_runtime_isolation(&original).unwrap();
+    for name in [
+        "leselang-hir-core",
+        "leserpent-vm",
+        "leserpentd",
+        "leselang",
+        "leserpent",
+    ] {
+        for kinds in [
+            json!([{"kind": null}]),
+            json!([{"kind": "build", "target": "cfg(target_os = \"linux\")"}]),
+            json!([{"kind": "dev"}, {"kind": null}]),
+        ] {
+            let mut changed = original.clone();
+            changed["packages"][2]["name"] = json!(name);
+            changed["resolve"]["nodes"][1]["deps"][0]["dep_kinds"] = kinds;
+            assert!(
+                validate_gewyvern_runtime_isolation(&changed)
+                    .unwrap_err()
+                    .contains(name)
+            );
+        }
+    }
+    for kinds in [json!([]), json!([{}]), json!([{"kind": "unknown"}])] {
+        let mut changed = original.clone();
+        changed["resolve"]["nodes"][1]["deps"][0]["dep_kinds"] = kinds;
+        assert!(validate_gewyvern_runtime_isolation(&changed).is_err());
+    }
+    let mut missing = original.clone();
+    missing["resolve"] = Value::Null;
+    assert!(validate_gewyvern_runtime_isolation(&missing).is_err());
+    let mut missing = original.clone();
+    missing["resolve"]["nodes"][0]["deps"][0]["pkg"] = json!("missing");
+    assert!(validate_gewyvern_runtime_isolation(&missing).is_err());
+    let mut cycle = original;
+    cycle["resolve"]["nodes"][1]["deps"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"pkg": "root", "dep_kinds": [{"kind": null}]}));
+    validate_gewyvern_runtime_isolation(&cycle).unwrap();
 }
 
 fn inventory(base: &Path) -> BTreeMap<PathBuf, Vec<u8>> {

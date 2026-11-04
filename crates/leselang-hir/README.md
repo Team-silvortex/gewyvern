@@ -22,3 +22,8 @@ The default-profile `product_identity` target separately proves that old product
 types are unchanged re-exports of `leserpent-hir`. Product lowering and recorded
 migration outcomes belong to that product owner. Native upstream acceptance does
 not replace either local API obligation, even when test bodies match byte-for-byte.
+
+Direct syntax, runtime-core and serde imports are development dependencies used
+by these suites, not implementation dependencies of the re-exporting library.
+Product test support stays optional under `leserpent-profile` so native-only
+acceptance keeps its product-free dependency closure.

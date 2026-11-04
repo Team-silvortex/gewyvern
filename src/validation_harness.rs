@@ -15,6 +15,7 @@ mod leserpent_parity_recovery;
 mod leserpent_schema_freeze;
 mod leserpent_transport;
 mod linux_ebpf;
+mod linux_tcp_capture;
 mod registry;
 mod release_gate;
 mod remote_host;
@@ -51,6 +52,9 @@ pub use leserpent_parity_recovery::run_leserpent_parity_recovery_validation;
 pub use leserpent_schema_freeze::run_leserpent_schema_freeze_validation;
 pub use leserpent_transport::run_leserpent_transport_validation;
 pub use linux_ebpf::{run_linux_attach_smoke, run_linux_kprobe_smoke, run_linux_tc_smoke};
+pub use linux_tcp_capture::{
+    run_linux_tcp_capture_validation, run_linux_tcp_juice_shop_validation,
+};
 pub use registry::run_registry_validation;
 pub use release_gate::{
     ReleaseCheckMode, ReleaseGateOptions, run_release_container_check, run_release_gate,

@@ -13,9 +13,10 @@ leserpent-profile = ["dep:leserpent-hir", "dep:leselang-host-contract"]
 leselang-hir-core.workspace = true
 leserpent-hir = { path = "../leserpent-hir", optional = true }
 leselang-host-contract = { path = "../leselang-host-contract", optional = true }
+
+[dev-dependencies]
+# The facade only re-exports its owners; these imports belong to its API tests.
 leselang-runtime-core.workspace = true
 leselang-syntax.workspace = true
 serde.workspace = true
-
-[dev-dependencies]
 serde_json.workspace = true

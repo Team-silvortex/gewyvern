@@ -72,9 +72,13 @@ Each subject page should normally have:
 2. zero to three close companion links
 3. no copied global table of contents
 
-Use standard paths relative to the current file in new documentation. The test
-suite still resolves historical repository-root-style links while old pages
-are gradually normalized.
+Use standard paths relative to the current file in new documentation. The root
+entries, application shelf, module manifests, repository map, development guide,
+repository handoff and field-validation guide have a strict file-relative link
+gate. These navigation pages cannot fall back to repository-root-style paths
+that only pass a local check but break in a Markdown viewer. The broader tree
+check still resolves historical repository-root-style links while old subject
+pages are gradually normalized.
 
 ## Change Checklist
 

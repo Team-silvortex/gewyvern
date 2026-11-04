@@ -62,6 +62,7 @@ pub enum HookPoint {
     KProbe(String),
     TCIngress,
     TCEgress,
+    CgroupSkbIngress,
 }
 
 impl HookPoint {
@@ -71,6 +72,7 @@ impl HookPoint {
             Self::KProbe(name) => format!("kprobe:{name}"),
             Self::TCIngress => "tc:ingress".into(),
             Self::TCEgress => "tc:egress".into(),
+            Self::CgroupSkbIngress => "cgroup_skb:ingress".into(),
         }
     }
 }
@@ -142,6 +144,7 @@ pub fn summarize_attach_failures(
         {
             Some(("tc", "ingress")) => "tc_ingress",
             Some(("tc", "egress")) => "tc_egress",
+            Some(("cgroup_skb", "ingress")) => "cgroup_skb_ingress",
             Some(("tracepoint", _)) => "tracepoint",
             Some(("kprobe", _)) => "kprobe",
             _ => "unknown",

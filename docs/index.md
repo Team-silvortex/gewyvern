@@ -20,6 +20,16 @@ that owns your question; do not scan the repository by filename.
 - Historical delivery record: [Leserpent 2.0 roadmap](leserpent-2-roadmap.md)
 - Sequential reading: [book](book/index.md)
 
+## Current Work
+
+- Source ownership and retained compatibility: [repository map](monorepo-stack.md)
+- Leselang dependency pin and product-side cleanup: [repository handoff](leselang-repository-handoff.md#product-cleanup-closeout)
+- Gewyvern capability testing: [field-validation handoff](field-validation.md#post-split-handoff)
+- Live progress and evidence: [status entry](../STATUS.md)
+- Local cache retention and cleanup: [workspace hygiene](development.md#workspace-hygiene)
+
+These are routes to the owning records, not a second progress checklist.
+
 ## Modules
 
 | Module | Owns |
