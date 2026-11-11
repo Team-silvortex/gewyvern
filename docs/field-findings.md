@@ -43,6 +43,288 @@ For those, use:
 - [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
 - [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 
+## `2026-11-11` Explicit Catalog Reuse Removes The Runtime Batch Hotspot
+
+Bounded stage timing identified repeated protocol-directory discovery inside
+every batch export, including batches whose custom operation has no protocol IR.
+`RuntimeExportContext` now lets callers retain an immutable catalog summary and
+reuse it through `export_bundle_with_context`/`into_export_bundle_with_context`.
+The continuous runtime adapter uses one context per phase, including sampled
+reanalysis. Original export methods still rediscover; there is no global cache.
+Tests cover output equality, aliases, stable old snapshots and explicit refresh.
+See the [source-bound profile and live proof](fixtures/gewyvern_runtime_catalog_profile_linux_x86_64_20261111.json).
+
+Three identical synthetic 32,768-record runs before and after the change gave
+median timed-region durations of 3.404 s and 0.103 s. Median analysis time per
+256-fact batch fell from 25.564 ms to 86.32 us. Setup is excluded from those
+durations: the optimized context also performs one catalog discovery, with a
+27.04-ms median. These are fixed-input hotspot measurements, not live packet
+throughput, and stage timers measure wall time rather than CPU time.
+
+The subsequent physical Linux five-phase campaign retained the 1-MiB ring,
+256-fact batches, two clients and two-core/512-MiB/32-task limits. Its two
+sixty-second normal windows delivered and analyzed 4,809,997 and 4,783,236
+events, with zero output failures or sequence gaps. Mean throughput was
+79,913 events/s versus a same-run no-capture baseline of 102,750 requests/s.
+The preceding pre-optimization runtime campaign averaged 8,206 events/s and
+lost about 88%; this sequential comparison is not a randomized experiment.
+
+Mean kernel-to-batch-analysis latency was 1.731/1.714 ms; p99 upper bounds were
+26.929/26.896 ms and maxima 31.644/31.949 ms. The tail remains visible rather
+than being replaced by the mean. Both windows used approximately two cores of
+whole-test CPU and showed quota throttling. RSS peaks were 25.53/29.34 MiB;
+neither short samples nor a bounded active batch establish long-duration leak
+freedom. No transport, byte-integrity or memory-limit/OOM failure occurred.
+
+Pausing the consumer for 2.0002 seconds still caused 197,472 output failures,
+exactly matching observed sequence gaps. That phase remains incomplete, while
+the following normal window was complete again. Fresh post-pressure HTTP
+capture/replay passed. Build settings still optimize the project package only,
+with dev-profile dependencies. This is opt-in bounded packet-batch analysis,
+not a blanket performance claim for existing callers, durable storage or
+continuous cross-batch sessions; no release gate or tensor maturity is promoted.
+
+Linux regression passed 1,322 functional/contract tests, including protocol
+registry, protocol IR, failure paths and explicit Unix/TCP input. The separate
+profiling fixture passed all six before/after runs; seven existing performance
+benchmarks were not run. Strict Clippy and formatting passed. Owned capture
+resources and temporary containers were removed; seven unrelated running service
+containers were unchanged. The administrative session was closed, and macOS
+received 276 KiB of reports without any build or image pull.
+
+## `2026-11-11` Bounded Runtime Batch Analysis Exposes Sustained Overload
+
+This is the historical pre-catalog-reuse measurement; the section above records
+the subsequent optimization without replacing these original observations.
+
+`linux-tcp-capture --capture-runtime` now sends every delivered event through
+actual `RuntimeSession` ingestion, flow/program/reason analysis and bundle
+construction. Independent batches are capped at 256 facts; completed results
+are checked and released, rather than accumulating an ever-growing session.
+Representative batches undergo JSON roundtrip and fresh-session reanalysis with
+the same native capture adapter and DSL rules. This recomputes program results
+instead of relying on generic offline replay's retained program output. No
+synthetic TCP transitions, process attribution or packet exports are introduced.
+See the [source-bound runtime batch proof](fixtures/gewyvern_capture_runtime_linux_x86_64_20261111.json).
+
+The physical x86_64 host completed the same five-phase campaign under a two-core,
+512-MiB, 32-task cgroup limit. The two sixty-second unpaused windows delivered
+and analyzed 499,997 and 495,389 events: 8,242 and 8,170 events/s, including final
+drain time. They rejected 3,648,228 and 3,625,081 observations, respectively,
+or 87.95%/87.98% of selected response events. Both windows are explicitly
+incomplete. Mean kernel-to-batch-analysis completion latency was 957/966 ms,
+with maxima of 1.273/1.272 seconds. All reported percentiles overflow the
+100-ms histogram range and remain null, not zero or a guessed percentile.
+
+The deliberate two-second consumer pause produced 686,270 measured output
+failures; 73,245 measured events still reached analysis after resumption.
+Across all three capture phases, including warmup, 1,139,136 received facts
+were ingested and analyzed in 4,455 bounded batches, with nine representative
+batch reanalyses passing. Kernel totals reconcile with deliveries plus output
+failures. Observed sequence gaps are a lower bound: rejected trailing events
+need not have a later received sequence to reveal their gap.
+
+This is a **performance gap, not lossless runtime acceptance**. The runtime
+campaign's no-capture mean was 104,175 requests/s. A subsequent same-build
+observer-only campaign still delivered 9,346,144 measured events without loss
+in its two unpaused windows, averaging 77,869 events/s with p99 of 9 us. Its own
+baseline was 97,665 requests/s, so cross-campaign raw rates are not a controlled
+isolated-cost comparison. The large runtime-path deficit warrants profiling
+conversion, ingestion and analysis separately; simply enlarging the ring would
+not resolve sustained excess production.
+
+Normal runtime-phase RSS peaks were 25.39/42.97 MiB. Within each window RSS grew
+608/888 KiB; the larger inter-phase increase includes shared allocator and
+reporting state and is not evidence of long-duration leak freedom. No transport,
+byte-integrity or cgroup memory-limit/OOM error occurred. The build optimized the
+project package at level 2 while dependencies used the dev profile, not full
+release. CPU includes clients, servers, observer and runtime, not isolated
+analysis cost. Both campaigns passed fresh post-pressure HTTP capture/replay.
+
+The independent-batch adapter does not preserve cross-batch session context,
+persist the full stream or establish generic-adapter offline replay. Source
+and report hashes distinguish this diagnostic result from production claims;
+no release gate or status-tensor maturity is promoted.
+
+Related Linux regressions passed 739 unique tests, including explicit Unix/TCP
+input cases; seven existing performance benchmarks were not run. Strict Clippy
+including test targets and formatting checks passed. Measurement source hashes
+and the final equivalent modulo-to-`is_multiple_of` lint adjustment are recorded
+separately. Owned BPF resources and temporary build/check containers were removed;
+the seven unrelated running service-container IDs were unchanged. Administrative
+credentials were invalidated and the session closed. macOS received 468 KiB of
+reports, with no local build or image pull.
+
+## `2026-11-11` Continuous Ring Delivery And Consumer Backpressure
+
+The opt-in `linux-tcp-capture --capture-stream` backend now uses the same BPF
+packet parser with a fixed 1-MiB ring, 128-byte records and a Rust/libbpf reader
+limited to 512 callbacks per batch. No unbounded queue is introduced. Ring
+output failure rejects the new observation without blocking network traffic;
+malformed selected packets have a separate counter. The previous 128-slot
+snapshot mode remains an explicit control. See the [source-bound continuous-delivery proof](fixtures/gewyvern_capture_stream_linux_x86_64_20261111.json).
+
+On the same physical x86_64 kernel `7.0.0-42-generic`, two sixty-second normal
+windows delivered 5,265,737 and 5,347,700 checked response events with zero
+observed output failures or echo-sequence gaps. Both complete observations
+include their warmup. Normal measured delivery averaged 88,424 events/s versus
+104,499 requests/s without capture: 15.38% lower throughput under the same
+two-core quota, including reader, byte checking and timestamp/histogram work.
+These costs cannot be replaced with the previous discard-only 1.56% comparison.
+Kernel-to-Rust delivery p50/p95/p99 upper bounds were 4/5/7 us in both windows;
+maximum delivery latency was 24.39/21.02 ms, with CPU quota throttling visible.
+
+Pausing the drained consumer for 2.0002 seconds produced exactly 199,283 output
+failures and the same number of observed echo-sequence gaps. The ten-second
+window still delivered 716,487 events after resuming. Its observation remains
+incomplete, not silently repaired. All 7,710 buffered old records exceeded the
+100-ms histogram range; the maximum was about two seconds and p99 is explicitly
+null/overflow, never zero. Counts reconcile as `received + dropped == total`.
+The following normal window was complete again, demonstrating renewed production
+and consumption, not just draining the original buffer.
+
+Normal-stream sampled RSS peaks were 9.88/13.54 MiB; these include the shared
+test process, mapping, allocator and metric storage, not isolated collector cost.
+No transport/byte-integrity error or cgroup memory-limit/OOM event occurred.
+Owned links, pins and cgroups were removed. Fresh split-prefix replay, the old
+loss/overflow/error/abort/SIGKILL campaign, loopback and Juice Shop paths passed.
+
+Related Linux regressions passed 735 unique tests, including explicit Unix/TCP
+socket-input cases; seven existing performance benchmarks were not run. Strict
+Clippy including test targets and formatting checks passed. Tested source hashes
+match the local worktree. The seven unrelated running service-container IDs were
+unchanged, temporary build/check containers were removed and the administrative
+session was closed. macOS received only 480 KiB of reports, with no build or image pull.
+
+This proves a bounded kernel-to-Rust delivery path and explicit slow-consumer
+loss accounting on one host. The sink is an echo-integrity/latency observer,
+not full `RuntimeSession` ledger ingestion or durable storage. Arbitrary-network
+retransmission handling, open-loop tails, long-duration leak freedom and
+supervisor/host-crash recovery remain outside this proof. No release gate or
+status-tensor maturity is promoted.
+
+## `2026-11-11` Sustained Capacity-Exhausted Capture Pressure
+
+The physical Ubuntu x86_64 host (`7.0.0-42-generic`, Ryzen 7 7735H) completed
+baseline/capture/capture/baseline phases with sixty measured seconds each and
+two seconds of warmup. Two owned loopback clients exchanged checked 64-byte
+requests and echoes, one request in flight per client. The native test cgroup
+was capped at two CPU cores of quota, 512 MiB and 32 tasks. No build or regression
+suite ran concurrently. See the [full metric definitions and compact proof](fixtures/gewyvern_capture_load_linux_x86_64_20261111.json).
+
+Across 24,803,972 measured requests, average baseline throughput was 104,159/s
+and capacity-exhausted capture throughput was 102,537/s, a 1.56% reduction in
+this experiment. Baseline repeat drift was +0.044%; capture repeat drift was
+-0.190%. Baseline RTT p99 upper bounds were 26/27 us, capture p99 was 27/27 us;
+all p50/p95 values were 17/22 us. Worst RTT was 15.74 ms. Both modes used roughly
+200% of one CPU core and were quota-throttled, so the numbers are quota-bound,
+closed-loop application RTTs, not isolated BPF cost or open-loop tail bounds.
+
+The snapshot sampler used in this comparison has 128 slots and no
+continuous consumer. Both maps filled during warmup. The measured capture
+windows observed and budget-rejected exactly 6,158,248 and 6,146,484 response
+events, respectively. Measured rejection was 100%; including warmup it was
+approximately 99.99799%. This is **evidence rejection, not network packet loss**.
+Counters reconciled with completed requests, no incomplete packet export was
+published, and there were no transport or byte-integrity errors. It would be
+incorrect to advertise these results as lossless sustained capture throughput.
+
+Sampled process RSS peaks were 6.57/7.32/8.93/9.81 MiB in phase order. The first
+capture cgroup charged up to 47.0 MiB, versus 3.32 MiB on the second capture;
+cgroup charges include setup/cache/kernel state and are not process RSS. All
+phases share one process and retained reporting/allocator state, so neither
+the inter-phase RSS difference nor cgroup charge is a clean collector-only
+memory overhead measurement. No cgroup memory limit/OOM event occurred. These
+short samples do not establish long-duration leak freedom.
+
+Both capture links and every owned pin/cgroup were removed. A fresh real split
+HTTP-prefix/body-decoy capture and deterministic replay passed after pressure.
+At this snapshot-only stage, continuous drain/backpressure and capture delivery
+latency were unproven; the continuous-ring campaign above now covers that bounded
+path. Complete runtime ingest performance remains unproven, and status-tensor
+maturity is not promoted.
+
+Related Linux regressions passed 732 unique tests, including the explicit Unix
+and TCP socket-input cases. Strict Clippy including test targets and formatting
+checks passed; seven existing performance benchmarks were not run and are not
+counted as passes. The seven unrelated service-container IDs were unchanged.
+Temporary build/check containers were removed, the administrative session was
+closed, and macOS received only 152 KiB of reports with no local build or image pull.
+
+## `2026-11-04` Capture Loss, Limits And Worker Recovery
+
+The native `linux-tcp-capture --capture-recovery` campaign passed repeated runs
+on the physical Ubuntu x86_64 host, kernel `7.0.0-42-generic`. Exactly 128 packet
+events exported and replayed successfully. Packet overflow recorded 131 events
+with three dropped; TCP-state overflow recorded 160 with 32 dropped. A two-entry
+map produced real update failures (five observed, three dropped), while deleting
+one detached snapshot entry produced four entries for five counted events and
+zero reported drops. All incomplete cases were rejected before packet export.
+See the [bounded proof and report hashes](fixtures/gewyvern_capture_recovery_linux_x86_64_20261104.json).
+
+This fixed a lifecycle gap: the tracepoint link was persistently pinned, unlike
+the already fd-owned packet link. After setup it is now fd-owned and unpinned.
+Owned worker error returns, SIGABRT and SIGKILL all detached both exact kernel
+link IDs. Normal error unwinding left no directories; abort/kill each left two
+pin directories and an empty cgroup, which the supervisor removed only after
+waiting for its child and matching recorded device/inode identities. No core
+dump or successful worker export was produced. Fresh capture/replay passed after
+each exit and after the loss sequence.
+
+The first trial did not exceed the TCP event budget: 80 connect attempts yielded
+80 selected states on this kernel. Increasing to 160 attempts supplied a real
+overflow; no counter was fabricated. Failed trial logs remain on Linux. The
+campaign sends only owned loopback traffic; it never drops network packets,
+terminates unrelated processes or sweeps old resources by name prefix.
+
+This does not prove sustained-load performance, production ring-buffer loss,
+supervisor death, host reboot, the pre-ready autoattach/fd-adoption window or a
+multi-host/kernel matrix. Trust remains `unverified-local`; no release gate or
+status-tensor maturity is promoted.
+
+Three full campaigns passed, including one on final sources. The original
+loopback, split-prefix/body-decoy and owned Juice Shop paths also passed again.
+Relevant Linux regressions passed 730 unique tests; seven performance benchmarks
+were not run. Strict Clippy including test targets, formatting and diff checks
+passed. The first documentation-link check preceded creation of the new proof
+file and failed; the completed documentation shelf passed on rerun. No owned
+pins/cgroups, target container/network or temporary build/check container remained.
+The seven unrelated running container IDs were unchanged. macOS received only
+520 KiB of small reports and no build artifacts.
+
+## `2026-11-04` Split Prefix And Body Decoy Boundaries
+
+The Docker-free `linux-tcp-capture --http-boundaries` scenario passed repeated
+physical-Linux runs. Each captured ten TCP state events and six packet snapshots
+(two SYN-ACK origins plus four payload pieces), with zero reported loss and no
+unselected socket events. One HTTP 403 status prefix was deliberately split
+across two observed packets; a separate HTTP 200 response body began with a fake
+`HTTP/1.1 500` prefix. See the [real boundary sample and proof](fixtures/gewyvern_http_boundaries_linux_x86_64_20261104.json).
+
+This exposed a real limitation of the prior packet-local rules: they produced
+a 500 candidate from the body and missed the split 403. Those rules now explicitly
+label packet candidates, rather than implying a verified response status.
+Separate derived evidence assembles only the first thirteen bytes relative to
+the peer's captured SYN-ACK sequence plus one. It correctly reports 403 and 200,
+keeps anchor/payload fact IDs, and reproduces the result after export replay.
+The original packet facts, lengths, sequence numbers and boundaries remain intact.
+
+Unit regressions cover reordered pieces, byte-identical retransmissions,
+32-bit sequence wrap, gaps, conflicting overlaps, missing/conflicting origins,
+and a zero-length cross-check that otherwise could vacuously pass on a SYN-ACK.
+Older samples without a handshake origin remain readable but cannot be silently
+promoted to origin-verified results. The container summary moves to schema 2,
+separating packet candidates from verified first-response-prefix statuses.
+Relevant Linux regressions passed 727 unique tests; seven performance benchmarks
+were not run. Strict Clippy including test targets and formatting checks passed.
+
+This is not general TCP reassembly or a complete HTTP parser. Later and interim
+responses, Fast Open, TLS, body semantics and vulnerability verdicts are outside
+the proof. The unit cases for reordering/retransmission are not claimed as live
+network fault injection. All live work stayed on Linux; no release gate or tensor
+maturity was promoted. The original loopback and owned Juice Shop paths remain
+regression targets, with client I/O separate from kernel-derived evidence.
+
 ## `2026-11-04` Kernel Payload Prefix To Gewylang Classification
 
 The container capture path now passed three physical-host runs with an actual

@@ -17,6 +17,8 @@ mod linux;
 
 #[cfg(any(target_os = "linux", test))]
 mod packet_evidence;
+#[cfg(any(target_os = "linux", test))]
+mod response_prefix;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -59,6 +61,76 @@ pub fn run_linux_tcp_juice_shop_validation(
         let _ = out_dir;
         Err(ValidationError::new(
             "linux-tcp-capture --juice-shop requires Linux and BPF privileges",
+        ))
+    }
+}
+
+pub fn run_linux_http_boundaries_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_http_boundaries(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "linux-tcp-capture --http-boundaries requires Linux and BPF privileges",
+        ))
+    }
+}
+
+pub fn run_linux_capture_recovery_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_capture_recovery(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "linux-tcp-capture --capture-recovery requires Linux and BPF privileges",
+        ))
+    }
+}
+
+pub fn run_linux_capture_load_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_capture_load(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "linux-tcp-capture --capture-load requires Linux, delegated cgroup limits and BPF privileges",
+        ))
+    }
+}
+
+pub fn run_linux_capture_stream_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_capture_stream(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "linux-tcp-capture --capture-stream requires Linux, libbpf ring consumption and BPF privileges",
+        ))
+    }
+}
+
+pub fn run_linux_capture_runtime_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_capture_runtime(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "linux-tcp-capture --capture-runtime requires Linux, libbpf and BPF privileges",
         ))
     }
 }

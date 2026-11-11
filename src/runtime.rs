@@ -21,6 +21,28 @@ mod flows;
 use self::analysis::{build_program_findings, summarize_module_findings};
 pub use self::flows::build_flow_snapshots;
 
+/// Immutable protocol metadata for a caller-owned analysis scope.
+/// Reuse across batches to avoid rescanning the registry; rediscover explicitly
+/// when registry changes should become visible. No process-global cache is used.
+#[derive(Clone, Debug)]
+pub struct RuntimeExportContext {
+    protocol_summaries: Vec<crate::protocol_profiles::ProtocolSummary>,
+}
+
+impl RuntimeExportContext {
+    pub fn discover() -> Self {
+        Self::from_protocol_catalog(&crate::protocol_profiles::ProtocolCatalogSnapshot::discover())
+    }
+
+    pub fn from_protocol_catalog(
+        catalog: &crate::protocol_profiles::ProtocolCatalogSnapshot,
+    ) -> Self {
+        Self {
+            protocol_summaries: catalog.protocol_summaries(),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct SessionConfig {
     pub template: Template,
@@ -377,16 +399,28 @@ impl RuntimeSession {
     }
 
     pub fn export_bundle(&self) -> ExportBundle {
-        let analysis = self.export_analysis();
+        let analysis = self.export_analysis(None);
         build_export_bundle(self.cloned_export_state(), analysis)
     }
 
     pub fn into_export_bundle(self) -> ExportBundle {
-        let analysis = self.export_analysis();
+        let analysis = self.export_analysis(None);
         build_export_bundle(self.into_export_state(), analysis)
     }
 
-    fn export_analysis(&self) -> ExportAnalysis {
+    /// Analyze using a stable caller-owned protocol snapshot instead of rediscovery.
+    pub fn export_bundle_with_context(&self, context: &RuntimeExportContext) -> ExportBundle {
+        let analysis = self.export_analysis(Some(context));
+        build_export_bundle(self.cloned_export_state(), analysis)
+    }
+
+    /// Consuming counterpart of `export_bundle_with_context`.
+    pub fn into_export_bundle_with_context(self, context: &RuntimeExportContext) -> ExportBundle {
+        let analysis = self.export_analysis(Some(context));
+        build_export_bundle(self.into_export_state(), analysis)
+    }
+
+    fn export_analysis(&self, context: Option<&RuntimeExportContext>) -> ExportAnalysis {
         let flows = build_flow_snapshots(&self.facts);
         let fact_index = FactIndex::new(&self.facts);
         let program_flows = build_program_flows_indexed(&self.program_model, &flows, &fact_index);
@@ -401,7 +435,13 @@ impl RuntimeSession {
         let module_findings = summarize_module_findings(&program_findings);
         let attach_failure_summary = summarize_attach_failures(&self.attach_report);
         let rejected_fact_summary = summarize_rejected_facts(&self.rejected_facts);
-        let protocol_ir = crate::export::infer_protocol_ir(&program_flows);
+        let protocol_ir = match context {
+            Some(context) => crate::export::infer_protocol_ir_with_summaries(
+                &program_flows,
+                &context.protocol_summaries,
+            ),
+            None => crate::export::infer_protocol_ir(&program_flows),
+        };
 
         ExportAnalysis {
             attach_failure_summary,

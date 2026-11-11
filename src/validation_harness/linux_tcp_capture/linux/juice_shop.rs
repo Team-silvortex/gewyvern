@@ -5,7 +5,8 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde_json::json;
 
-use super::super::packet_evidence::{classified_statuses, reconstruct_packets};
+use super::super::packet_evidence::{packet_status_candidates, reconstruct_packets};
+use super::super::response_prefix::{matches_client_response, verified_replay, verified_statuses};
 use super::docker_target::{IMAGE, OwnedResource, docker, target_addresses};
 use super::http_evidence::{Observation, correlate, exchange, parse_response, sha256};
 use super::packet_capture::{Capture, Scope};
@@ -98,7 +99,7 @@ pub(super) fn run(out_dir: Option<PathBuf>) -> Result<ValidationReport, Validati
         (cookies[0], port(&first)?, target_port, netns),
         (cookies[1], port(&second)?, target_port, netns),
     ];
-    let (pins, clock) = attach_capture_at(cookies, &out, addresses)?;
+    let (mut pins, clock) = attach_capture_at(cookies, &out, addresses)?;
     let packet_capture = Capture::attach(&packet_scope, &expected, addresses, &out)?;
     let mut observations = Vec::new();
     for (index, (socket, name, path, expected_status, marker)) in [
@@ -160,7 +161,7 @@ pub(super) fn run(out_dir: Option<PathBuf>) -> Result<ValidationReport, Validati
             "unselected baseline request did not return 200",
         ));
     }
-    fs::remove_file(pins.0.join("link"))?;
+    pins.detach();
     let (events, stats) = snapshot(&pins, &out, "final")?;
     let export = export_stage_at(&events, stats, &expected, clock, &out, "final", addresses)?;
     if events.iter().any(|event| event.cookie == decoy_cookie) {
@@ -171,29 +172,36 @@ pub(super) fn run(out_dir: Option<PathBuf>) -> Result<ValidationReport, Validati
     let correlation = correlate(&events, &export, &observations)?;
     let (packets, packet_stats) = packet_capture.finish(&out)?;
     let packet_export = reconstruct_packets(&export, &events, &packets, clock)?;
-    let statuses = classified_statuses(&packet_export)?;
+    let candidates = packet_status_candidates(&packet_export)?;
+    let response_prefixes = verified_replay(&packet_export)?;
+    let statuses = verified_statuses(&response_prefixes);
+    fs::write(out.join("packet-export.json"), packet_export.to_json())?;
+    fs::write(
+        out.join("response-prefixes.json"),
+        serde_json::to_vec_pretty(&response_prefixes)?,
+    )?;
+    fs::write(
+        out.join("packet-events.json"),
+        serde_json::to_vec_pretty(&packets)?,
+    )?;
     let mut expected_statuses: Vec<_> = observations.iter().map(|o| (o.cookie, o.status)).collect();
     expected_statuses.sort_unstable();
     if statuses != expected_statuses {
         return Err(ValidationError::new(
-            "kernel packet DSL classification disagrees with client HTTP evidence",
+            "kernel-derived response prefix disagrees with client HTTP status",
         ));
     }
     for (cookie, name) in [(cookies[0], "file-guard"), (cookies[1], "sql-error")] {
         let response = fs::read(out.join(format!("{name}-response.http")))?;
-        if !packets.iter().any(|p| {
-            p.cookie == cookie && response.starts_with(&p.prefix[..usize::from(p.prefix_len)])
-        }) {
+        if !response_prefixes
+            .iter()
+            .any(|p| p.cookie == cookie && matches_client_response(p, &response))
+        {
             return Err(ValidationError::new(
                 "kernel prefix does not match independently saved client response",
             ));
         }
     }
-    fs::write(out.join("packet-export.json"), packet_export.to_json())?;
-    fs::write(
-        out.join("packet-events.json"),
-        serde_json::to_vec_pretty(&packets)?,
-    )?;
     packet_scope.cleanup()?;
     fs::write(
         out.join("correlation.json"),
@@ -219,10 +227,11 @@ pub(super) fn run(out_dir: Option<PathBuf>) -> Result<ValidationReport, Validati
         "deterministic_replay",
         "kernel_packet_prefix_http_403_and_500",
         "packet_metadata_and_dsl_replay",
+        "syn_ack_anchored_response_prefix_and_replay",
         "owned_cgroup_removed",
         "owned_resources_removed",
     ];
-    let summary = json!({"schema_version":1,"ok":true,"mode":"juice-shop-client-correlation",
+    let summary = json!({"schema_version":2,"ok":true,"mode":"juice-shop-client-correlation",
         "kernel":fs::read_to_string("/proc/sys/kernel/osrelease")?.trim(), "kernel_events":stats.total,
         "dropped_events":stats.dropped, "flows":export.flows.len(), "selected_sockets":expected, "addresses":addresses,
         "client_http_statuses":observations.iter().map(|o| o.status).collect::<Vec<_>>(),
@@ -231,7 +240,9 @@ pub(super) fn run(out_dir: Option<PathBuf>) -> Result<ValidationReport, Validati
         "ingest_trust_mode":"unverified-local", "http_evidence_source":"owned-native-client-io",
         "payload_inferred_by_gewyvern":true,"packet_evidence_source":"bpf-cgroup-skb-ingress",
         "packet_events":packet_stats.total,"packet_dropped_events":packet_stats.dropped,
-        "kernel_dsl_http_statuses":statuses,"capture_prefix_limit":64,"cgroup_removed":true,
+        "packet_dsl_status_candidates":candidates,"verified_http_statuses":statuses,
+        "response_prefix_evidence":"derived-first-13-bytes-relative-to-captured-syn-ack",
+        "capture_prefix_limit":64,"cgroup_removed":true,
         "clock_anchor_monotonic_ns":clock.0,
         "clock_anchor_unix_ns":clock.1.duration_since(UNIX_EPOCH).map_err(|e| ValidationError::new(e.to_string()))?.as_nanos().to_string(),
         "not_proven":["TCP-stream-reassembly","TLS-decryption","vulnerability-detection","container-PID-or-post-NAT-socket-attribution","general-live-CLI","sustained-load"]});

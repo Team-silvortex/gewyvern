@@ -1,7 +1,7 @@
 use super::{ExportError, JsonValue};
 use crate::flow::{ProgramFlow, ProgramOperation};
 use crate::protocol_profiles::{
-    ProtocolSurfaceSummary, protocol_summaries, protocol_surface_from_summaries,
+    ProtocolSummary, ProtocolSurfaceSummary, protocol_summaries, protocol_surface_from_summaries,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -23,20 +23,40 @@ pub struct ProtocolIr {
 }
 
 pub(crate) fn infer_protocol_ir(program_flows: &[ProgramFlow]) -> Vec<ProtocolIr> {
-    let mut operations = program_flows
+    let operations = protocol_operations(program_flows);
+    if operations.is_empty() {
+        return Vec::new();
+    }
+    infer_operations(operations, &protocol_summaries())
+}
+
+pub(crate) fn infer_protocol_ir_with_summaries(
+    program_flows: &[ProgramFlow],
+    summaries: &[ProtocolSummary],
+) -> Vec<ProtocolIr> {
+    infer_operations(protocol_operations(program_flows), summaries)
+}
+
+fn protocol_operations(program_flows: &[ProgramFlow]) -> BTreeSet<&str> {
+    program_flows
         .iter()
         .filter_map(|flow| {
             let operation = operation_id(&flow.operation)?;
             protocol_flow_has_required_phases(flow, operation).then_some(operation)
         })
-        .collect::<BTreeSet<_>>();
+        .collect()
+}
+
+fn infer_operations(
+    mut operations: BTreeSet<&str>,
+    summaries: &[ProtocolSummary],
+) -> Vec<ProtocolIr> {
     if operations.is_empty() {
         return Vec::new();
     }
 
-    let summaries = protocol_summaries();
     let mut inferred = Vec::new();
-    'protocols: for summary in &summaries {
+    'protocols: for summary in summaries {
         for entry in &summary.entries {
             let matched = take_matching_operation(
                 &mut operations,
@@ -45,7 +65,7 @@ pub(crate) fn infer_protocol_ir(program_flows: &[ProgramFlow]) -> Vec<ProtocolIr
             );
             let Some(operation) = matched else { continue };
             if let Some(surface) = protocol_surface_from_summaries(
-                &summaries,
+                summaries,
                 summary.protocol.as_str(),
                 entry.mode.as_str(),
             ) {

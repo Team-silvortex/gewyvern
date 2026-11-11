@@ -280,13 +280,24 @@ The export bundle contains enough state to recompute L1 offline:
 - materialized program flows
 - materialized reasons
 
-Replay parses export JSON, rebuilds a runtime session, replays facts, and
-recomputes transport flows, program flows, and reasons.
+Generic replay parses export JSON, rebuilds a runtime session, replays facts,
+and recomputes transport flows and reasons; serialized program flows, protocol
+IR and findings are retained. Exact adapter/rule reanalysis is a separate check.
+
+Repeated batch analysis can create a caller-owned `RuntimeExportContext` once
+and use `export_bundle_with_context` or `into_export_bundle_with_context`.
+The context retains an immutable protocol-catalog summary snapshot, avoiding
+filesystem rediscovery for every export. It contains metadata, not captured
+facts, and is not a process-global cache. Recreate it explicitly when catalog
+updates should become visible. The original export methods retain their existing
+rediscovery behavior. A snapshot can also be supplied through
+`RuntimeExportContext::from_protocol_catalog` to share an already discovered
+`ProtocolCatalogSnapshot` within an operation.
 
 ## Current Limits
 
 - eBPF programs are still hand-written C, not generated from IR
-- there is no external DSL yet; `ProgramModel` is still embedded Rust data
+- Gewylang lowers DSL rules into runtime models; this is not whole-pipeline BPF generation
 - reason profiles are still intentionally small and conservative
 - `tc egress` is not implemented in the real Linux probe path yet
 - export JSON is still an internal project format, not a public stable schema

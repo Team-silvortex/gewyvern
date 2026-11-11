@@ -2,6 +2,12 @@
 #include <bpf/bpf_helpers.h>
 
 /* Validation only: two owned sockets, ingress only, always allow traffic. */
+#ifndef CAPTURE_MAP_CAPACITY
+#define CAPTURE_MAP_CAPACITY 128
+#endif
+#if CAPTURE_MAP_CAPACITY < 1 || CAPTURE_MAP_CAPACITY > 128
+#error Invalid validation map capacity
+#endif
 struct packet_event {
     __u64 sequence, monotonic_ns, cookie;
     __u32 cpu, ifindex, source, destination, seq, ack;
@@ -9,13 +15,22 @@ struct packet_event {
     __u8 flags, ip_header_len, tcp_header_len;
     __u8 prefix[64];
 };
+#ifdef CAPTURE_STREAMING
+struct capture_counts { __u64 total, dropped, malformed; };
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 1048576);
+} events SEC(".maps");
+_Static_assert(sizeof(struct packet_event) == 128, "packet event ABI changed");
+#else
 struct capture_counts { __u64 total, dropped; };
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 128);
+    __uint(max_entries, CAPTURE_MAP_CAPACITY);
     __type(key, __u32);
     __type(value, struct packet_event);
 } events SEC(".maps");
+#endif
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 1);
@@ -52,12 +67,16 @@ int capture_http_prefix(struct __sk_buff *ctx) {
         goto malformed;
     __u32 thl = (tcp[12] >> 4) * 4;
     __u32 total = be16(ip + 2);
-    if (thl < 20 || total < ihl + thl || total > ctx->len || be16(tcp) != 3000 ||
-        (cookie == COOKIE_A && be16(tcp + 2) != PORT_A) ||
-        (cookie == COOKIE_B && be16(tcp + 2) != PORT_B))
+    if (thl < 20 || total < ihl + thl || total > ctx->len ||
+        (cookie == COOKIE_A && (be16(tcp + 2) != PORT_A || be16(tcp) != REMOTE_PORT_A)) ||
+        (cookie == COOKIE_B && (be16(tcp + 2) != PORT_B || be16(tcp) != REMOTE_PORT_B)))
         goto malformed;
     __u32 payload = total - ihl - thl;
-    if (!payload)
+    __u8 syn_ack = (tcp[13] & 0x17) == 0x12;
+    /* Preserve the peer ISN as an observed stream origin. Fast Open is out of scope. */
+    if (syn_ack && payload)
+        goto malformed;
+    if (!payload && !syn_ack)
         return 1;
     struct packet_event value = {};
     value.monotonic_ns = bpf_ktime_get_ns();
@@ -79,21 +98,33 @@ int capture_http_prefix(struct __sk_buff *ctx) {
     __u32 length = payload > 64 ? 64 : payload;
     /* Keep a local nonzero bound visible to the verifier after LLVM folding. */
     __asm__ volatile("" : "+r"(length));
-    if (length == 0 || length > 64)
-        goto malformed;
     value.prefix_len = length;
-    if (bpf_skb_load_bytes(ctx, ihl + thl, value.prefix, length))
-        goto malformed;
+    if (payload) {
+        if (length == 0 || length > 64)
+            goto malformed;
+        if (bpf_skb_load_bytes(ctx, ihl + thl, value.prefix, length))
+            goto malformed;
+    }
     __u64 slot = __sync_fetch_and_add(&stats->total, 1);
+    value.sequence = slot + 1;
+#ifdef CAPTURE_STREAMING
+    /* Never block network traffic or overwrite unread evidence. */
+    if (bpf_ringbuf_output(&events, &value, sizeof(value), 0))
+        __sync_fetch_and_add(&stats->dropped, 1);
+#else
     if (slot >= 128)
         goto malformed;
     __u32 key = slot;
-    value.sequence = slot + 1;
     if (bpf_map_update_elem(&events, &key, &value, BPF_NOEXIST))
         goto malformed;
+#endif
     return 1;
 malformed:
+#ifdef CAPTURE_STREAMING
+    __sync_fetch_and_add(&stats->malformed, 1);
+#else
     __sync_fetch_and_add(&stats->dropped, 1);
+#endif
     return 1;
 }
 

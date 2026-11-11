@@ -1,0 +1,447 @@
+{
+  "schema_version": 1,
+  "proof": "bounded-capture-sustained-discard-pressure-versus-no-capture",
+  "captured_on": "2026-11-11",
+  "source_base_revision": "5a1f1d02182c32c6f462ed7c0522ff58ba6c4e1c",
+  "package_version": "2.5.0",
+  "working_tree_changes": true,
+  "release_artifact": false,
+  "result": "passed-with-explicit-continuous-capture-gap",
+  "host": {
+    "kernel": "7.0.0-42-generic",
+    "arch": "x86_64",
+    "cpu": "AMD Ryzen 7 7735H",
+    "logical_cpus": 16,
+    "unique_hosts": 1,
+    "unique_kernels": 1
+  },
+  "execution": {
+    "build_command": "cargo --config profile.dev.package.gewyvern.opt-level=2 build --locked -p gewyvern --bin gewyvern_validate",
+    "toolchain": "Rust 1.98.0",
+    "bpf_compiler_optimization": "clang -O2",
+    "dependency_profile": "dev-default-not-full-release",
+    "measurement": "physical-host-not-build-container",
+    "remote_evidence": "~/.cache/gewyvern/field-evidence/20261111-capture-load",
+    "builds_concurrent_with_measurement": false,
+    "macos_builds": false,
+    "macos_image_pulls": false,
+    "local_report_shelf": "target/validation/capture-load-20261111",
+    "local_report_disk_kib": 152
+  },
+  "verified_source_sha256": {
+    "ebpf/validation/http_prefix.bpf.c": "6022be72a638c7c57aee60e5ca7e0940f24e3970a65b1d358a1e7386d97b4dbb",
+    "src/bin/gewyvern_validate.rs": "084107fc8419b915e449ac8a96155d80e6f812e93687cc1368b14f47fd5d9205",
+    "src/validation_harness.rs": "53e3e6751239a2d521c81c64245ea8b37506fd9ac3054b286c578bfc7d3f7852",
+    "src/validation_harness/linux_tcp_capture.rs": "97e6e9393a0b83e1d36fb2a9703ba4b8e9ee6b02d71a359786be3ce9313f3539",
+    "src/validation_harness/linux_tcp_capture/linux.rs": "38d6e0434c961e472505971b9a97ea4a6e5362bae3b9221840de0098de611e7b",
+    "src/validation_harness/linux_tcp_capture/linux/packet_capture.rs": "d30f5d7c6da303fc6242b109cdc2ea3bd4334fca4a3647c1be9d3a73e9006f25",
+    "src/validation_harness/linux_tcp_capture/linux/bpf_link.rs": "36003903f21279e4fa15185b31c159a54b12232f4bccc465c8d202f63d38fd96",
+    "src/validation_harness/linux_tcp_capture/linux/load.rs": "bdca49a5b5dc6b34e337f5e35ae9d0f0a13de9dfcf92bd7fbd18b2114d00803d",
+    "src/validation_harness/linux_tcp_capture/linux/load/metrics.rs": "5a1b4d3e94fde29b3b4ef3eca5676ebce69496da863719e64eb733ddcca8d344",
+    "src/validation_harness/linux_tcp_capture/linux/load/traffic.rs": "c0114394bb0d38e70c8e62c18e3864d58bf0fa10f64495ec06ce05f02718938f",
+    "tests/gewyvern_validate_json_snapshot_tdd.rs": "d7571819d64ae9320a72b837099c50f32deeba178016a649fa57bc6ae1e3018c"
+  },
+  "report_sha256": {
+    "run-01/summary.json": "77e00bb88ccbe361f0866ff566344b23a3d097339e51eb6104909efd393d429a",
+    "run-01/after-pressure-restart/summary.json": "e76749a4a7154b0afac5f4edea0e8b23911a002c3c34a0473c57636e365ff4c7",
+    "campaign-01.log": "fb0055bd59de73c44d33b2ad2b71cb3fb2bf0cae27722ffd5859b6f9320a3a84",
+    "optimized-build.log": "a3899f65a5d8087b839bba7067a0114d77a252ba59ef7c92735563baf548be62",
+    "regression.log": "59ba74687b60221a466dd3ce86b5203ec03fef7d8a04469b45790023eb23a838",
+    "clippy.log": "1aa0fa4c990e3726eb75776b83da9d1314b72e150cacd5852db346f3366b67e1",
+    "socket-input.log": "1a30af6975b2b1a065d02440cd420ff863290d8f23e1fb7d5e5b8aeb9b3c9392"
+  },
+  "sample": {
+    "capture_backend": "128-slot-validation-hash-map",
+    "checks": [
+      "four_sustained_phases",
+      "owned_two_socket_traffic",
+      "byte_integrity",
+      "bounded_cpu_memory_pids",
+      "capacity_loss_accounted_not_hidden",
+      "no_incomplete_exports",
+      "per_phase_resources_removed",
+      "fresh_capture_and_replay_after_pressure"
+    ],
+    "comparison": {
+      "baseline_mean_requests_per_second": 104158.84075827876,
+      "baseline_repeat_change_percent": 0.04376472402927156,
+      "capture_repeat_change_percent": -0.1904766898219057,
+      "saturated_capture_mean_requests_per_second": 102537.31667588488,
+      "saturated_capture_throughput_change_percent": -1.5567800779935248
+    },
+    "concurrency": 2,
+    "driver": "native-Rust-closed-loop-one-inflight-per-client",
+    "ingest_trust_mode": "unverified-local",
+    "kernel": "7.0.0-42-generic",
+    "limits": {
+      "cpu_cores": 2,
+      "memory_bytes": 536870912,
+      "pids": 32
+    },
+    "measurement_seconds_per_phase": 60,
+    "metric_scope": {
+      "cpu": "whole-test-cgroup-including-clients-servers-sampler-not-isolated-BPF-cost",
+      "cpu_attribution_limit": "kernel-work-outside-test-cgroup-may-not-be-charged",
+      "latency": "closed-loop-application-request-response-RTT-not-capture-delivery-latency",
+      "memory": "process-RSS-and-whole-cgroup-including-fixed-histograms-map-and-kernel-charges",
+      "steady_state": "map-already-full-after-warmup-no-continuous-drain"
+    },
+    "mode": "capture-load",
+    "not_proven": [
+      "lossless-sustained-capture",
+      "production-ring-buffer-throughput",
+      "full-runtime-ingest-performance",
+      "open-loop-offered-load-latency",
+      "wire-packet-rate",
+      "isolated-BPF-CPU-overhead",
+      "multi-host-kernel-matrix",
+      "long-duration-memory-leak-freedom"
+    ],
+    "ok": true,
+    "phases": [
+      {
+        "name": "baseline-1",
+        "result": {
+          "anonymous_rss_kib": {
+            "first": 356,
+            "last": 592,
+            "last_minus_first": 236,
+            "peak": 592
+          },
+          "byte_integrity_errors": 0,
+          "capture": {
+            "enabled": false
+          },
+          "cgroup_memory_bytes": {
+            "first": 1765376,
+            "last": 1572864,
+            "last_minus_first": -192512,
+            "peak": 3051520
+          },
+          "cpu": {
+            "percent_one_core": 200.0062963648574,
+            "percent_two_core_quota": 100.0031481824287,
+            "system_seconds": 106.059542,
+            "throttled_periods": 600,
+            "throttled_seconds": 12.38215,
+            "usage_seconds": 120.00629,
+            "user_seconds": 13.946748
+          },
+          "elapsed_seconds": 60.001256051,
+          "latency": {
+            "histogram_overflow_count": 0,
+            "histogram_overflow_threshold_us": 100000,
+            "histogram_resolution_us": 1,
+            "max_us": 15042.417,
+            "mean_us": 19.14012271749697,
+            "null_percentile_means": "empty-or-overflow-not-zero",
+            "p50_us_upper_bound": 17,
+            "p95_us_upper_bound": 22,
+            "p99_us_upper_bound": 26,
+            "requests": 6248294
+          },
+          "loadavg_after": "2.23 2.37 1.81 1/2034 781674",
+          "memory_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+          "ok": true,
+          "requests": 6248294,
+          "requests_per_second": 104136.05333010132,
+          "rss_kib": {
+            "first": 5976,
+            "last": 6724,
+            "last_minus_first": 748,
+            "peak": 6724
+          },
+          "schema_version": 1,
+          "transport_errors": 0,
+          "warmup_requests": 213917
+        }
+      },
+      {
+        "name": "capture-1",
+        "result": {
+          "anonymous_rss_kib": {
+            "first": 536,
+            "last": 808,
+            "last_minus_first": 272,
+            "peak": 808
+          },
+          "byte_integrity_errors": 0,
+          "capture": {
+            "complete_export_produced": false,
+            "enabled": true,
+            "final_counts": {
+              "dropped": 6367628,
+              "total": 6367756
+            },
+            "loss_interpretation": "fixed-budget-rejection-not-streaming-throughput-loss",
+            "measured_events": 6158248,
+            "measured_rejected_events": 6158248,
+            "measured_rejection_percent": 100,
+            "rejection": {
+              "accepted": false,
+              "code": "capacity_exceeded",
+              "counts": {
+                "dropped": 6367628,
+                "total": 6367756
+              },
+              "observed_entries": null,
+              "packet_export_produced": false,
+              "schema_version": 1
+            },
+            "retained_event_slots": 128,
+            "state_during_measurement": "capacity-exhausted-discard-path",
+            "unexplained_counter_loss": 0,
+            "warmup_counts": {
+              "dropped": 209380,
+              "total": 209508
+            },
+            "whole_run_rejection_percent": 99.99798987272753
+          },
+          "cgroup_memory_bytes": {
+            "first": 47996928,
+            "last": 47718400,
+            "last_minus_first": -278528,
+            "peak": 49287168
+          },
+          "cpu": {
+            "percent_one_core": 200.03961497285778,
+            "percent_two_core_quota": 100.01980748642889,
+            "system_seconds": 108.093168,
+            "throttled_periods": 599,
+            "throttled_seconds": 11.72318,
+            "usage_seconds": 120.026578,
+            "user_seconds": 11.93341
+          },
+          "elapsed_seconds": 60.00140423,
+          "latency": {
+            "histogram_overflow_count": 0,
+            "histogram_overflow_threshold_us": 100000,
+            "histogram_resolution_us": 1,
+            "max_us": 15058.609,
+            "mean_us": 19.42187714444108,
+            "null_percentile_means": "empty-or-overflow-not-zero",
+            "p50_us_upper_bound": 17,
+            "p95_us_upper_bound": 22,
+            "p99_us_upper_bound": 27,
+            "requests": 6158248
+          },
+          "loadavg_after": "1.27 2.04 1.73 2/2038 783818",
+          "memory_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+          "ok": true,
+          "requests": 6158248,
+          "requests_per_second": 102635.06461272032,
+          "rss_kib": {
+            "first": 7228,
+            "last": 7500,
+            "last_minus_first": 272,
+            "peak": 7500
+          },
+          "schema_version": 1,
+          "transport_errors": 0,
+          "warmup_requests": 209508
+        }
+      },
+      {
+        "name": "capture-2",
+        "result": {
+          "anonymous_rss_kib": {
+            "first": 1672,
+            "last": 2456,
+            "last_minus_first": 784,
+            "peak": 2456
+          },
+          "byte_integrity_errors": 0,
+          "capture": {
+            "complete_export_produced": false,
+            "enabled": true,
+            "final_counts": {
+              "dropped": 6351708,
+              "total": 6351836
+            },
+            "loss_interpretation": "fixed-budget-rejection-not-streaming-throughput-loss",
+            "measured_events": 6146484,
+            "measured_rejected_events": 6146484,
+            "measured_rejection_percent": 100,
+            "rejection": {
+              "accepted": false,
+              "code": "capacity_exceeded",
+              "counts": {
+                "dropped": 6351708,
+                "total": 6351836
+              },
+              "observed_entries": null,
+              "packet_export_produced": false,
+              "schema_version": 1
+            },
+            "retained_event_slots": 128,
+            "state_during_measurement": "capacity-exhausted-discard-path",
+            "unexplained_counter_loss": 0,
+            "warmup_counts": {
+              "dropped": 205224,
+              "total": 205352
+            },
+            "whole_run_rejection_percent": 99.99798483462105
+          },
+          "cgroup_memory_bytes": {
+            "first": 2023424,
+            "last": 2539520,
+            "last_minus_first": 516096,
+            "peak": 3481600
+          },
+          "cpu": {
+            "percent_one_core": 200.04499222902976,
+            "percent_two_core_quota": 100.02249611451488,
+            "system_seconds": 108.600262,
+            "throttled_periods": 599,
+            "throttled_seconds": 11.862896,
+            "usage_seconds": 120.029141,
+            "user_seconds": 11.428878
+          },
+          "elapsed_seconds": 60.00107259,
+          "latency": {
+            "histogram_overflow_count": 0,
+            "histogram_overflow_threshold_us": 100000,
+            "histogram_resolution_us": 1,
+            "max_us": 14839.928,
+            "mean_us": 19.460111950506988,
+            "null_percentile_means": "empty-or-overflow-not-zero",
+            "p50_us_upper_bound": 17,
+            "p95_us_upper_bound": 22,
+            "p99_us_upper_bound": 27,
+            "requests": 6146484
+          },
+          "loadavg_after": "2.21 2.15 1.79 2/2034 785480",
+          "memory_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+          "ok": true,
+          "requests": 6146484,
+          "requests_per_second": 102439.56873904944,
+          "rss_kib": {
+            "first": 8364,
+            "last": 9148,
+            "last_minus_first": 784,
+            "peak": 9148
+          },
+          "schema_version": 1,
+          "transport_errors": 0,
+          "warmup_requests": 205352
+        }
+      },
+      {
+        "name": "baseline-2",
+        "result": {
+          "anonymous_rss_kib": {
+            "first": 3224,
+            "last": 3356,
+            "last_minus_first": 132,
+            "peak": 3356
+          },
+          "byte_integrity_errors": 0,
+          "capture": {
+            "enabled": false
+          },
+          "cgroup_memory_bytes": {
+            "first": 1982464,
+            "last": 1298432,
+            "last_minus_first": -684032,
+            "peak": 2486272
+          },
+          "cpu": {
+            "percent_one_core": 200.0064942898102,
+            "percent_two_core_quota": 100.0032471449051,
+            "system_seconds": 108.013881,
+            "throttled_periods": 600,
+            "throttled_seconds": 11.952338,
+            "usage_seconds": 120.004824,
+            "user_seconds": 11.990943
+          },
+          "elapsed_seconds": 60.000463698,
+          "latency": {
+            "histogram_overflow_count": 0,
+            "histogram_overflow_threshold_us": 100000,
+            "histogram_resolution_us": 1,
+            "max_us": 15743.91,
+            "mean_us": 19.131411252792777,
+            "null_percentile_means": "empty-or-overflow-not-zero",
+            "p50_us_upper_bound": 17,
+            "p95_us_upper_bound": 22,
+            "p99_us_upper_bound": 27,
+            "requests": 6250946
+          },
+          "loadavg_after": "2.29 2.20 1.84 1/2040 787099",
+          "memory_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+          "ok": true,
+          "requests": 6250946,
+          "requests_per_second": 104181.62818645622,
+          "rss_kib": {
+            "first": 9916,
+            "last": 10048,
+            "last_minus_first": 132,
+            "peak": 10048
+          },
+          "schema_version": 1,
+          "transport_errors": 0,
+          "warmup_requests": 210358
+        }
+      }
+    ],
+    "post_pressure_restart": "passed",
+    "request_bytes": 64,
+    "response_bytes": 64,
+    "schema_version": 1,
+    "warmup_seconds": 2
+  },
+  "sample_omits": [
+    "per-second-memory_samples-preserved-in-original-report"
+  ],
+  "interpretation": {
+    "measured_requests": 24803972,
+    "continuous_ingest_proven": false,
+    "capture_measured_rejection_percent": 100,
+    "full_report_rejection_percent_approximately": 99.99799,
+    "retained_slots_per_capture_phase": 128,
+    "cpu_capped_and_throttled": true,
+    "memory_is_not_isolated_collector_cost": true,
+    "memory_phase_order_confounded_by_shared_process_allocator_and_setup_cache": true,
+    "short_run_does_not_establish_leak_freedom": true,
+    "application_exchange_errors": 0,
+    "network_packet_loss_rate": "not-measured"
+  },
+  "not_proven": [
+    "lossless-sustained-capture",
+    "production-ring-buffer-throughput",
+    "full-runtime-ingest-performance",
+    "open-loop-offered-load-latency",
+    "wire-packet-rate",
+    "isolated-BPF-CPU-overhead",
+    "multi-host-kernel-matrix",
+    "long-duration-memory-leak-freedom"
+  ],
+  "regression": {
+    "library_tests": 524,
+    "validation_cli_tests": 19,
+    "documentation_tests": 74,
+    "export_contract_tests": 5,
+    "fragment_rules_tests": 8,
+    "cli_json_snapshot_tests": 10,
+    "machine_error_tests": 9,
+    "native_harness_tests": 30,
+    "runtime_tests": 30,
+    "script_portability_tests": 14,
+    "version_posture_tests": 7,
+    "explicit_socket_input_tests": 2,
+    "total_unique_passed": 732,
+    "existing_performance_benchmarks_not_run": 7,
+    "strict_clippy_including_tests": "passed",
+    "format_and_diff_checks": "passed"
+  },
+  "cleanup": {
+    "owned_bpf_links_detached": true,
+    "owned_bpf_pins_removed": true,
+    "owned_cgroups_removed": true,
+    "unrelated_lsm_link_id_2_retained": true,
+    "temporary_build_and_check_containers_removed": true,
+    "unrelated_running_container_ids_unchanged": true,
+    "sudo_lease_invalidated": true,
+    "test_shell_closed": true
+  }
+}

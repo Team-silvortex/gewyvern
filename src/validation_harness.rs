@@ -53,7 +53,10 @@ pub use leserpent_schema_freeze::run_leserpent_schema_freeze_validation;
 pub use leserpent_transport::run_leserpent_transport_validation;
 pub use linux_ebpf::{run_linux_attach_smoke, run_linux_kprobe_smoke, run_linux_tc_smoke};
 pub use linux_tcp_capture::{
-    run_linux_tcp_capture_validation, run_linux_tcp_juice_shop_validation,
+    run_linux_capture_load_validation, run_linux_capture_recovery_validation,
+    run_linux_capture_runtime_validation, run_linux_capture_stream_validation,
+    run_linux_http_boundaries_validation, run_linux_tcp_capture_validation,
+    run_linux_tcp_juice_shop_validation,
 };
 pub use registry::run_registry_validation;
 pub use release_gate::{

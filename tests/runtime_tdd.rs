@@ -7,7 +7,8 @@ use gewyvern::ledger::FactKind;
 use gewyvern::loader::StaticFailureLoader;
 use gewyvern::program::{ProgramModel, ProgramNarrative, ProgramPredicate, ProgramRule};
 use gewyvern::runtime::{
-    RejectedFactReason, RuntimeError, RuntimeSession, SessionConfig, build_flow_snapshots,
+    RejectedFactReason, RuntimeError, RuntimeExportContext, RuntimeSession, SessionConfig,
+    build_flow_snapshots,
 };
 use gewyvern::template::{
     FragmentParamValue, TemplateError, handshake_debug_template, udp_debug_template,
@@ -26,6 +27,34 @@ mod part_001;
 mod part_002;
 #[path = "runtime_tdd/performance.rs"]
 mod performance;
+
+#[test]
+fn explicit_export_context_preserves_analysis_and_protocol_aliases() {
+    let context = RuntimeExportContext::discover();
+    for operation in ["dns_lookup", "dns_udp", "unregistered_capture_operation"] {
+        let mut template = udp_debug_template();
+        template.program_model.as_mut().unwrap().operation =
+            ProgramOperation::Custom(operation.into());
+        let mut session =
+            RuntimeSession::start(SessionConfig::for_template(template).unwrap()).unwrap();
+        session.ingest(udp_packet_fact(1, 42, 72));
+        let expected = session.export_bundle();
+        if operation == "unregistered_capture_operation" {
+            assert!(expected.protocol_ir.is_empty());
+        } else {
+            assert_eq!(expected.protocol_ir.len(), 1);
+            assert_eq!(expected.protocol_ir[0].protocol, "dns");
+        }
+        assert_eq!(
+            session.export_bundle_with_context(&context).to_json(),
+            expected.to_json()
+        );
+        assert_eq!(
+            session.into_export_bundle_with_context(&context).to_json(),
+            expected.to_json()
+        );
+    }
+}
 
 #[test]
 fn tcp_lifecycle_uses_state_meaning_not_numeric_order() {

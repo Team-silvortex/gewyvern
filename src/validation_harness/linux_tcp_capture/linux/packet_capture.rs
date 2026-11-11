@@ -1,11 +1,10 @@
-use std::ffi::CString;
-use std::fs::{self, File};
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
-use std::os::unix::ffi::OsStrExt;
+use std::fs;
+use std::os::fd::OwnedFd;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
 use super::super::packet_evidence::PacketEvent;
+use super::bpf_link;
 use super::{Counts, Pins, ValidationError, map_dump, map_entries, repo_root, tool};
 
 pub(super) struct Scope {
@@ -30,6 +29,9 @@ fn original_cgroup(input: &str) -> Result<PathBuf, ValidationError> {
 }
 
 impl Scope {
+    pub(super) fn path(&self) -> &Path {
+        &self.owned
+    }
     pub(super) fn enter(token: &str) -> Result<Self, ValidationError> {
         if token.is_empty() || !token.bytes().all(|b| b.is_ascii_digit() || b == b'-') {
             return Err(ValidationError::new("invalid capture cgroup token"));
@@ -73,33 +75,6 @@ impl Drop for Scope {
     }
 }
 
-// Stable Linux UAPI, with zeroed trailing fields. Link ownership is an fd, so
-// process exit detaches it; unlike legacy cgroup attach, no permanent hook remains.
-#[repr(C)]
-struct ObjectGet {
-    pathname: u64,
-    bpf_fd: u32,
-    file_flags: u32,
-}
-#[repr(C)]
-struct LinkCreate {
-    prog_fd: u32,
-    target_fd: u32,
-    attach_type: u32,
-    flags: u32,
-}
-
-fn bpf_fd<T>(command: u32, attr: &T) -> Result<OwnedFd, ValidationError> {
-    // SAFETY: callers provide initialized repr(C) Linux UAPI attributes, and all
-    // referenced buffers/fds outlive this synchronous syscall. Success owns one fd.
-    let fd = unsafe { libc::syscall(libc::SYS_bpf, command, attr as *const T, size_of::<T>()) };
-    if fd < 0 {
-        return Err(std::io::Error::last_os_error().into());
-    }
-    // SAFETY: the successful BPF syscall returned a new, uniquely owned fd.
-    Ok(unsafe { OwnedFd::from_raw_fd(fd as i32) })
-}
-
 pub(super) struct Capture {
     link: Option<OwnedFd>,
     pins: Pins,
@@ -115,11 +90,95 @@ fn packet_counts(pins: &Pins, out: &Path) -> Result<Counts, ValidationError> {
     }
 }
 impl Capture {
+    pub(super) fn detach(&mut self) {
+        self.link.take();
+    }
+    pub(super) fn stream_map(&self) -> Result<OwnedFd, ValidationError> {
+        bpf_link::open_pinned(&self.pins.0.join("maps/events"))
+    }
+    pub(super) fn stream_counts<T: serde::de::DeserializeOwned>(
+        &self,
+        out: &Path,
+    ) -> Result<T, ValidationError> {
+        let bytes = map_dump(&self.pins, "counts", out)?;
+        fs::write(out.join("stream-counts-raw.json"), &bytes)?;
+        let mut entries = map_entries::<T>(&bytes)?;
+        if entries.len() != 1 || entries[0].key != 0 {
+            return Err(ValidationError::new("invalid stream capture counters"));
+        }
+        Ok(entries.remove(0).value)
+    }
+    pub(super) fn sample_counts(&self, out: &Path) -> Result<Counts, ValidationError> {
+        packet_counts(&self.pins, out)
+    }
+    pub(super) fn path(&self) -> &Path {
+        &self.pins.0
+    }
+    pub(super) fn link_id(&self) -> Result<u32, ValidationError> {
+        bpf_link::id(
+            self.link
+                .as_ref()
+                .ok_or_else(|| ValidationError::new("packet capture is detached"))?,
+        )
+    }
+    pub(super) fn remove_event_for_validation(
+        &mut self,
+        out: &Path,
+    ) -> Result<(), ValidationError> {
+        self.link.take();
+        tool(
+            Command::new("bpftool")
+                .args(["map", "delete", "pinned"])
+                .arg(self.pins.0.join("maps/events"))
+                .args(["key", "hex", "00", "00", "00", "00"]),
+            out,
+        )?;
+        Ok(())
+    }
     pub(super) fn attach(
         scope: &Scope,
         expected: &[(u64, u16, u16, u32); 2],
         addresses: ([u8; 4], [u8; 4]),
         out: &Path,
+    ) -> Result<Self, ValidationError> {
+        Self::attach_with_capacity(scope, expected, addresses, out, 128)
+    }
+
+    pub(super) fn attach_with_capacity(
+        scope: &Scope,
+        expected: &[(u64, u16, u16, u32); 2],
+        addresses: ([u8; 4], [u8; 4]),
+        out: &Path,
+        capacity: u32,
+    ) -> Result<Self, ValidationError> {
+        if !(1..=128).contains(&capacity) {
+            return Err(ValidationError::new("invalid validation map capacity"));
+        }
+        Self::load(scope, expected, addresses, out, capacity, false)
+    }
+
+    pub(super) fn attach_stream(
+        scope: &Scope,
+        expected: &[(u64, u16, u16, u32); 2],
+        out: &Path,
+    ) -> Result<Self, ValidationError> {
+        Self::load(
+            scope,
+            expected,
+            ([127, 0, 0, 1], [127, 0, 0, 1]),
+            out,
+            128,
+            true,
+        )
+    }
+
+    fn load(
+        scope: &Scope,
+        expected: &[(u64, u16, u16, u32); 2],
+        addresses: ([u8; 4], [u8; 4]),
+        out: &Path,
+        capacity: u32,
+        streaming: bool,
     ) -> Result<Self, ValidationError> {
         let pins = Pins::new()?;
         let object = out.join("http-prefix.bpf.o");
@@ -134,6 +193,14 @@ impl Capture {
                 .arg(format!("-DCOOKIE_B={}ULL", expected[1].0))
                 .arg(format!("-DPORT_A={}", expected[0].1))
                 .arg(format!("-DPORT_B={}", expected[1].1))
+                .arg(format!("-DREMOTE_PORT_A={}", expected[0].2))
+                .arg(format!("-DREMOTE_PORT_B={}", expected[1].2))
+                .arg(format!("-DCAPTURE_MAP_CAPACITY={capacity}"))
+                .args(if streaming {
+                    vec!["-DCAPTURE_STREAMING=1"]
+                } else {
+                    vec![]
+                })
                 .arg(format!(
                     "-DSOURCE_IPV4={}U",
                     u32::from_be_bytes(addresses.0)
@@ -163,29 +230,10 @@ impl Capture {
                 .args(["map", "update", "pinned"])
                 .arg(pins.0.join("maps/counts"))
                 .args(["key", "hex", "00", "00", "00", "00", "value", "hex"])
-                .args(["00"; 16]),
+                .args(vec!["00"; if streaming { 24 } else { 16 }]),
             out,
         )?;
-        let path = CString::new(program.as_os_str().as_bytes())
-            .map_err(|e| ValidationError::new(e.to_string()))?;
-        let prog = bpf_fd(
-            7,
-            &ObjectGet {
-                pathname: path.as_ptr() as u64,
-                bpf_fd: 0,
-                file_flags: 0,
-            },
-        )?;
-        let cgroup = File::open(&scope.owned)?;
-        let link = bpf_fd(
-            28,
-            &LinkCreate {
-                prog_fd: prog.as_raw_fd() as u32,
-                target_fd: cgroup.as_raw_fd() as u32,
-                attach_type: 0,
-                flags: 0,
-            },
-        )?;
+        let link = bpf_link::attach_cgroup(&program, &scope.owned)?;
         Ok(Self {
             link: Some(link),
             pins,
@@ -198,28 +246,60 @@ impl Capture {
     ) -> Result<(Vec<PacketEvent>, Counts), ValidationError> {
         self.link.take();
         let before = packet_counts(&self.pins, out)?;
+        // Refuse known loss before dumping a full map or constructing facts.
+        if let Some(code) = count_rejection(before) {
+            return reject(out, code, before, None);
+        }
         let bytes = map_dump(&self.pins, "events", out)?;
         fs::write(out.join("packet-prefix-raw.json"), &bytes)?;
         let after = packet_counts(&self.pins, out)?;
-        if before != after || after.total == 0 || after.total > 128 || after.dropped != 0 {
-            return Err(ValidationError::new(
-                "incomplete or changing packet capture",
-            ));
+        if before != after {
+            return reject(out, "unstable_snapshot", after, None);
         }
         let mut events = Vec::new();
         for entry in map_entries::<PacketEvent>(&bytes)? {
             if entry.key >= 128 || entry.value.sequence != u64::from(entry.key) + 1 {
-                return Err(ValidationError::new("packet capture slot mismatch"));
+                return reject(out, "invalid_slot", after, Some(events.len()));
             }
             events.push(entry.value);
         }
         events.sort_by_key(|e| e.sequence);
         if events.len() as u64 != after.total {
-            return Err(ValidationError::new("incomplete packet snapshot"));
+            return reject(out, "snapshot_incomplete", after, Some(events.len()));
         }
         self.pins.cleanup()?;
         Ok((events, after))
     }
+}
+
+fn count_rejection(counts: Counts) -> Option<&'static str> {
+    if counts.total > 128 {
+        Some("capacity_exceeded")
+    } else if counts.dropped > 0 {
+        Some("reported_loss")
+    } else if counts.total == 0 {
+        Some("empty_capture")
+    } else {
+        None
+    }
+}
+
+fn reject(
+    out: &Path,
+    code: &str,
+    counts: Counts,
+    observed: Option<usize>,
+) -> Result<(Vec<PacketEvent>, Counts), ValidationError> {
+    fs::write(
+        out.join("packet-rejection.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "schema_version":1,"accepted":false,"code":code,"counts":counts,"observed_entries":observed,
+            "packet_export_produced":false
+        }))?,
+    )?;
+    Err(ValidationError::new(format!(
+        "packet capture rejected: {code}"
+    )))
 }
 
 #[cfg(test)]
@@ -234,5 +314,36 @@ mod tests {
         for input in ["1:cpu:/x", "0::/../etc", "0::relative", "0::/x\n0::/y"] {
             assert!(original_cgroup(input).is_err(), "{input}");
         }
+    }
+    #[test]
+    fn loss_and_capacity_are_distinct_from_an_exactly_full_capture() {
+        assert_eq!(
+            count_rejection(Counts {
+                total: 128,
+                dropped: 0
+            }),
+            None
+        );
+        assert_eq!(
+            count_rejection(Counts {
+                total: 129,
+                dropped: 1
+            }),
+            Some("capacity_exceeded")
+        );
+        assert_eq!(
+            count_rejection(Counts {
+                total: 6,
+                dropped: 2
+            }),
+            Some("reported_loss")
+        );
+        assert_eq!(
+            count_rejection(Counts {
+                total: 0,
+                dropped: 0
+            }),
+            Some("empty_capture")
+        );
     }
 }

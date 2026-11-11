@@ -1383,28 +1383,210 @@ The container mode additionally requires a writable unified cgroup v2 hierarchy
 and BPF cgroup link support. It moves only the validation process into a new
 run-owned cgroup before creating the selected sockets. An ingress-only BPF
 program filters their exact cookies, private addresses and ports, always allows
-traffic, and snapshots at most 128 nonempty IPv4/TCP payloads with a 64-byte prefix
-each. It preserves actual IP/TCP lengths, flags, sequence, acknowledgement and
+traffic, and snapshots at most 128 IPv4/TCP events: SYN-ACK origins plus nonempty
+payloads with a 64-byte prefix each. It preserves actual IP/TCP lengths, flags, sequence, acknowledgement and
 window fields. The socket network namespace is joined from captured TCP facts,
 not inferred from a process name. These are kernel skb snapshots, not a promise
 of individual on-wire frames or TCP stream reassembly.
 
 `packet-prefix-raw.json`, `packet-events.json` and `packet-export.json` keep this
 evidence separate from native-client I/O. The validation-only
-`ebpf/validation/http_prefix.gewy` rules match complete HTTP/1.1 403/500 start-line
-prefixes, then replay the facts, flows, reasons, program flows and protocol IR.
-The resulting status/cookie pairs and independently saved client prefixes must
-agree. A split status line is not reassembled and cannot count as passing evidence.
+`ebpf/validation/http_prefix.gewy` rules emit **packet-local candidates**, not
+verified HTTP response statuses. Facts, flows, reasons, program flows and protocol
+IR replay unchanged. `response-prefixes.json` separately reconstructs only the
+first 13 bytes relative to a captured peer SYN-ACK sequence number, with anchor
+and contributing payload fact IDs. It handles splits, byte-identical duplicates,
+out-of-order prefix pieces and 32-bit sequence wrap; missing origins, gaps or
+conflicting bytes stay explicitly unverified. A later body packet cannot become
+the response start. No reconstructed bytes are inserted as a synthetic packet.
+This derived result must also replay and match the independently saved client
+prefix. The container summary is now schema 2: `packet_dsl_status_candidates`
+and `verified_http_statuses` replace the ambiguous `kernel_dsl_http_statuses`.
 Any selected-packet parse failure, overflow or reported map loss fails the run.
-No full body, TLS plaintext or vulnerability finding is claimed.
+No full body, later/interim response parsing, TLS plaintext or vulnerability finding
+is claimed; payload-bearing SYN-ACK/TCP Fast Open is explicitly unsupported.
+
+To reproduce a split 403 response and a normal 200 response whose **body** starts
+with a fake 500 line, use the separate, Docker-free loopback scenario:
+
+```bash
+sudo target/debug/gewyvern_validate --json linux-tcp-capture --http-boundaries --out-dir target/validation/http-boundaries-new
+```
+
+This requires the same BPF/cgroup prerequisites. It binds a fresh loopback port,
+reads each response piece before sending the next, and checks the actual BPF
+events rather than assuming write boundaries equal packet boundaries. The raw
+DSL must expose the body candidate; the origin-checked result must remain 200,
+while the split response becomes 403. `--juice-shop`, `--http-boundaries`,
+`--capture-recovery`, `--capture-load`, `--capture-stream` and `--capture-runtime` are mutually exclusive and reject mixed/duplicate flags
+before creating resources.
+
+To inject bounded collection faults and verify recovery, without Docker:
+
+```bash
+sudo target/debug/gewyvern_validate --json linux-tcp-capture --capture-recovery --out-dir target/validation/capture-recovery-new
+```
+
+This accepts exactly 128 observed packet events, rejects packet/TCP event-budget
+overflow, forces real map-write loss using a two-entry test map, and deletes one
+owned snapshot entry after detachment to test an unreported gap. It never drops
+or changes network packets. Read each case's `result.json`, `packet-rejection.json`
+or `tcp-rejection.json`; rejection codes distinguish `capacity_exceeded`,
+`reported_loss` and `snapshot_incomplete`. Rejected packet cases cannot publish
+`packet-export.json`. Independent, complete TCP evidence can still be retained.
+Top-level `ok:true` means the fault campaign passed, not that rejected captures
+became valid evidence.
+
+The same native binary supervises its own child workers, waits for an ownership
+manifest, then exercises error return, SIGABRT and SIGKILL. Both BPF link IDs must
+disappear before residual pin cleanup. Directory device/inode identities and
+the exact waited child constrain cleanup; no prefix-wide scan deletes resources.
+Core dumps are disabled only in these disposable workers. Each exit and the
+collection-loss sequence are followed by a fresh capture and deterministic replay.
+Do not rebuild the running validator while a campaign is active.
+
+See the [physical-host recovery proof](fixtures/gewyvern_capture_recovery_linux_x86_64_20261104.json).
+This is not sustained-load/ring-buffer acceptance, a test of killing the supervisor,
+a host-reboot test or coverage of the pre-ready autoattach-to-fd handoff window.
+
+To measure sustained **capacity-exhausted** behavior against a no-capture baseline:
+
+```bash
+cargo --config profile.dev.package.gewyvern.opt-level=2 build --locked --bin gewyvern_validate
+sudo target/debug/gewyvern_validate --json linux-tcp-capture --capture-load --out-dir target/validation/capture-load-new
+```
+
+This runs baseline/capture/capture/baseline phases, each with two seconds of
+warmup and sixty measured seconds. Two selected loopback clients each keep one
+64-byte request/echo response in flight. All bytes and request sequences are
+checked. Only a fresh owned cgroup is limited to two CPU cores of quota, 512 MiB
+and 32 tasks; missing delegated controllers are an error, not a reason to change
+global controller settings. Do not run builds or other benchmarks concurrently.
+The build command optimizes the project package, not every dependency and not
+the entire release profile; record the exact build command with results.
+
+Read per-phase `result.json` and the top-level `summary.json`. CPU is the measured
+test-cgroup delta, including clients, echo servers and monitoring. Some kernel
+work may be charged outside that cgroup, so this is not isolated BPF CPU cost.
+RSS and cgroup memory are sampled at roughly one-second intervals; they include
+fixed-size latency histograms and kernel/cache charges, not just collector state.
+RTT percentiles use one-microsecond upper-bound buckets; values at or above
+100 ms go into an explicit overflow bucket. A null percentile is not zero.
+Maximum and mean latency are retained independently of histogram overflow.
+
+The existing sampler has **128 retained slots and no continuous consumer**. It
+fills during warmup, so the measured capture phase exercises parsing/counting
+and budget rejection, not sustained export/ingest. `measured_rejection_percent`
+is therefore expected to be 100%; it must not be advertised as network packet
+loss or as a production streaming loss rate. Capacity accounting, no incomplete
+exports, byte integrity and a fresh split-prefix capture/replay after pressure
+are checked. This is a closed-loop pressure test, not an open-loop offered-load
+tail-latency bound, wire packet-rate measurement, long-duration leak proof or
+lossless production capture benchmark. Failed phases do not publish a successful
+top-level summary. Original phase results remain available if a later phase fails.
+
+To exercise bounded continuous kernel-to-Rust delivery instead of that snapshot
+control, use the same optimized build and a new output directory:
+
+```bash
+sudo target/debug/gewyvern_validate --json linux-tcp-capture --capture-stream --out-dir target/validation/capture-stream-new
+```
+
+This mode requires `libbpf.so.1` with `ring_buffer__consume_n` on the Linux host.
+It is loaded only for the native reader; ordinary builds and unit tests do not
+link against a system libbpf installation. The same packet parser emits 128-byte
+records to a fixed 1-MiB BPF ring. A thread-confined Rust callback consumes at
+most 512 records per batch, with bounded waits and cancellation checks. ABI size
+and prefix bounds are checked before callback delivery; callback errors and Rust
+unwinding are contained at the FFI boundary. No unbounded user-space queue or
+full capture file is created. The kernel never waits for the consumer: output
+failure counts a rejected new event without modifying network traffic or
+overwriting unread evidence. See the [kernel ring-buffer semantics](https://kernel.org/doc/html/latest/bpf/ringbuf.html)
+and [libbpf reader API](https://libbpf.readthedocs.io/en/latest/api.html).
+
+The campaign runs a sixty-second baseline, a sixty-second continuous phase, a
+ten-second phase with the consumer paused for roughly two seconds, another
+sixty-second continuous phase, and a final sixty-second baseline. Each phase has
+two seconds of warmup. CPU/memory/task limits and owned traffic match the load
+control. Warmup is drained to an explicit checkpoint. After traffic stops, the
+link detaches before the reader drains the remaining ring and reconciles
+`received + dropped == total`; malformed input and unexplained sequence gaps
+fail the run. A paused case must drop events and then deliver more than one
+ring's capacity, demonstrating actual resumed collection, not just draining the
+old buffer. A subsequent split-prefix capture/replay checks the snapshot path.
+
+`observation_complete` is false when a phase lost events; `normal_windows_complete`
+records whether both unpaused phases were complete. Top-level `ok` means the
+accounting/recovery campaign passed, not that the intentional pause was lossless.
+Delivery latency is kernel monotonic timestamp to checked Rust sink acceptance,
+separate from request RTT. Events older than 100 ms stay visible in the histogram
+overflow count and exact maximum; a null p99 is not zero. The sink only checks
+owned echo bytes/sequence and records bounded metrics/samples. This is not yet
+full `RuntimeSession` ledger ingest, persistent storage, general TCP reassembly
+or lossless capture on arbitrary networks. CPU and memory remain whole-test
+measurements; no collector-only or open-loop latency claim is made.
+
+To include actual runtime ledger ingestion and analysis, use:
+
+```bash
+sudo target/debug/gewyvern_validate --json linux-tcp-capture --capture-runtime --out-dir target/validation/capture-runtime-new
+```
+
+The same five-phase campaign now passes every delivered packet through
+`RuntimeSession::ingest` and `into_export_bundle_with_context`, including flow, program and
+reason analysis. Independent sessions contain at most 256 facts; completed
+bundles are checked then released, with no unbounded user-space queue or export
+archive. Fact IDs are monotonic across batches, while session IDs identify the
+independent batches. There is no synthetic TCP-state or process evidence.
+Warmup's partial batch is flushed before measurement starts. Reports reconcile
+ingested/analyzed facts with consumer receipts and include the batch high-water
+mark, analyzed batch count and kernel-to-analysis-completion latency. This last
+metric includes waiting to fill a batch and analysis but excludes sampled replay.
+
+One caller-owned `RuntimeExportContext` per capture phase fixes protocol metadata
+for its independent batches and sampled reanalysis, rather than rescanning the
+protocol directory on every export. `stage_profile` records bounded aggregates
+for one-time catalog discovery, conversion, ingestion, rotation, analysis,
+validation, sampled replay and release. These are consumer-thread wall times,
+including setup/warmup and scheduling delays, not isolated CPU time. No
+per-event timing history is retained. Existing export callers are unchanged;
+they must opt into an explicit context to reuse a catalog snapshot.
+
+For repeatable hotspot diagnosis without BPF or live traffic, run on Linux:
+
+```bash
+cargo --config profile.test.package.gewyvern.opt-level=2 test --locked -p gewyvern --lib profile_runtime_sink_stages -- --ignored --nocapture
+```
+
+This ignored fixture feeds 32,768 synthetic two-cookie records through
+the same adapter. Its fixture elapsed time excludes sink setup; one-time catalog
+discovery is reported separately. It is not a kernel throughput or loss proof.
+
+Representative batches also undergo JSON roundtrip and fresh-session reanalysis
+using the same native capture adapter and rules. This does not use generic
+`ExportBundle::replay`, which assumes builtin probe dependencies and retains
+serialized program outputs. Reanalysis compares recomputed facts, flows,
+reasons, program stages, protocol IR and findings. No packet export is published,
+even when a phase is complete; the reports are bounded diagnostic evidence.
+
+`ok` still means accounting and recovery passed, not zero loss. A slow runtime
+may overflow the ring even without the deliberate pause, and such phases remain
+explicitly incomplete. Runtime batch analysis is not a continuous stateful
+session: TCP context does not cross batch boundaries. Full-stream serialization,
+durable storage, generic-adapter offline replay and long-duration memory behavior
+remain separate acceptance work.
 
 The validator verifies ownership labels and removes resources by ID, including
 on normal error unwinding. Check stderr after a cleanup failure; abrupt process
 termination still requires manual cleanup of the recorded run-owned resources.
-The BPF link fd detaches on process exit; normal cleanup also restores the original
+After setup both tracepoint and packet BPF link fds detach on process exit;
+normal cleanup also restores the original
 cgroup and removes the owned directory. A killed process can leave an empty
-cgroup, pins or target resources requiring cleanup. Client response bodies remain
-client I/O evidence; only the bounded captured prefixes drive DSL classification.
+cgroup, pins or target resources requiring cleanup. The recovery supervisor only
+reaps its explicitly recorded child resources, not arbitrary older runs or
+container resources. Client response bodies remain
+client I/O evidence; packet-local DSL candidates and origin-verified derived
+prefixes are deliberately distinct.
 This proves the client-to-container endpoint correlation and scoped HTTP prefix
 classification, not container PID/server-socket
 attribution, vulnerability detection, general live CLI capture or load acceptance.

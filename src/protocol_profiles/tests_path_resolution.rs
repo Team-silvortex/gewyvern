@@ -164,6 +164,49 @@ fn catalog_snapshot_is_request_local_and_refreshes_on_rediscovery() {
     .unwrap();
     let second = ProtocolCatalogSnapshot::discover_in(&root).expect("second catalog snapshot");
 
+    let mut template = crate::template::handshake_debug_template();
+    template.program_model.as_mut().unwrap().operation =
+        crate::flow::ProgramOperation::Custom("custom_observe".into());
+    let mut session = crate::runtime::RuntimeSession::start(
+        crate::runtime::SessionConfig::for_template(template).unwrap(),
+    )
+    .unwrap();
+    session.ingest(crate::ledger::FactEnvelope {
+        id: crate::ledger::FactId(1),
+        ts: UNIX_EPOCH,
+        cpu: crate::ledger::CpuId(0),
+        ifindex: None,
+        session: crate::ledger::SessionId(1),
+        fragment_id: "tcp_state_fragment".into(),
+        kind: crate::ledger::FactKind::TcpState(crate::ledger::TcpStateFact {
+            netns: 42,
+            sk_cookie: 7,
+            saddr: [0; 16],
+            daddr: [0; 16],
+            sport: 1234,
+            dport: 3000,
+            family: 2,
+            old: 2,
+            new: 1,
+        }),
+    });
+    let old_context = crate::runtime::RuntimeExportContext::from_protocol_catalog(&first);
+    let refreshed_context = crate::runtime::RuntimeExportContext::from_protocol_catalog(&second);
+    assert_eq!(
+        session.export_bundle_with_context(&old_context).protocol_ir[0].entry,
+        "observe"
+    );
+    assert!(
+        session
+            .export_bundle_with_context(&refreshed_context)
+            .protocol_ir
+            .is_empty()
+    );
+    assert_eq!(
+        session.export_bundle_with_context(&old_context).protocol_ir[0].entry,
+        "observe"
+    );
+
     assert!(
         first
             .resolve_protocol_profile("custom", Some("observe"))

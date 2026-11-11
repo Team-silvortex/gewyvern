@@ -1,12 +1,12 @@
-# Validation-only HTTP/1.1 response signatures, not stream reassembly.
+# Packet-local candidates only. TCP origin verification is separate derived evidence.
 fn captured_http_rules() =
   let module_name = :captured_http_response
   |> fragment :tcp_state_fragment
   |> fragment :tcp_packet_meta_fragment
   |> operation :captured_http_response
   |> reason_model :captured_http_response_reason
-  |> program_rule pred: "packet_observed:tcp:remote:3000:remote_to_local:bytes_at:0:0x48,0x54,0x54,0x50,0x2f,0x31,0x2e,0x31,0x20,0x34,0x30,0x33,0x20", stage: :packet_observed, narr: "static:captured HTTP/1.1 403 response prefix", dedupe: true, mod: $module_name, phase: :http_403
-  |> program_rule pred: "packet_observed:tcp:remote:3000:remote_to_local:bytes_at:0:0x48,0x54,0x54,0x50,0x2f,0x31,0x2e,0x31,0x20,0x35,0x30,0x30,0x20", stage: :packet_observed, narr: "static:captured HTTP/1.1 500 response prefix", dedupe: true, mod: $module_name, phase: :http_500
+  |> program_rule pred: "packet_observed:tcp:remote:3000:remote_to_local:bytes_at:0:0x48,0x54,0x54,0x50,0x2f,0x31,0x2e,0x31,0x20,0x34,0x30,0x33,0x20", stage: :packet_observed, narr: "static:packet-local HTTP/1.1 403 candidate; stream origin not verified by this rule", dedupe: true, mod: $module_name, phase: :http_403_candidate
+  |> program_rule pred: "packet_observed:tcp:remote:3000:remote_to_local:bytes_at:0:0x48,0x54,0x54,0x50,0x2f,0x31,0x2e,0x31,0x20,0x35,0x30,0x30,0x20", stage: :packet_observed, narr: "static:packet-local HTTP/1.1 500 candidate; stream origin not verified by this rule", dedupe: true, mod: $module_name, phase: :http_500_candidate
   |> reason_rule pred: "packet_observed:tcp:remote:3000:remote_to_local:prefix4:0x48545450", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_prefix
 
 template :linux_http_prefix_capture

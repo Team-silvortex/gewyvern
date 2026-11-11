@@ -1,0 +1,300 @@
+{
+  "schema_version": 1,
+  "proof": "bounded-kernel-capture-loss-capacity-and-worker-recovery",
+  "captured_on": "2026-11-04",
+  "package_version": "2.5.0",
+  "source_base_revision": "5a1f1d02182c32c6f462ed7c0522ff58ba6c4e1c",
+  "working_tree_changes": true,
+  "release_artifact": false,
+  "result": "passed",
+  "host": {
+    "kernel": "7.0.0-42-generic",
+    "arch": "x86_64",
+    "unique_hosts": 1,
+    "unique_kernels": 1
+  },
+  "scope": {
+    "source": "owned-loopback-BPF-TCP-and-cgroup-ingress",
+    "event_limit": 128,
+    "loss_map_capacity": 2,
+    "loss_injection": "real-BPF-map-update-failure",
+    "snapshot_gap_injection": "delete-owned-slot-after-detachment",
+    "network_packets_dropped_or_mutated": false,
+    "trust": "unverified-local"
+  },
+  "execution": {
+    "build_and_tests": "bounded-Rust-1.98-Linux-container",
+    "live_capture": "physical-Linux-host",
+    "remote_evidence": "~/.cache/gewyvern/field-evidence/20261104-capture-recovery",
+    "macos_builds": false,
+    "macos_image_pulls": false,
+    "local_report_shelf": "target/validation/capture-recovery-20261104",
+    "local_report_disk_kib": 520
+  },
+  "passed_runs": [
+    "run-02",
+    "run-03",
+    "run-04"
+  ],
+  "initial_trial": {
+    "id": "run-01",
+    "result": "failed-insufficient-test-load",
+    "tcp_events": 80,
+    "connect_attempts": 80,
+    "dropped_events": 0,
+    "correction": "160-attempts-produced-real-overflow"
+  },
+  "report_sha256": {
+    "run-02/summary.json": "d0895cac6bb4c33978dcf9df759a42eeb13001ea4be32a8eb4717c942b483347",
+    "run-03/summary.json": "43ba3e7d68aa4780b22558e9e27798979ab8afb6cfe11c8ba5c3fde94c8ef63f",
+    "run-04/summary.json": "8b95db04c12e5e20ac7376c1770196e41059ada1aecccc9bda8f06a581ffc93b",
+    "http-boundaries-final/summary.json": "63ab371a1c10248c98ea2f84ceb540da40792e7442351762a05932f2003e86f2",
+    "juice-shop-final/summary.json": "a8970cc5a0472ede8f1a6e875cf3232df8b845e9a634736eb6d7aa40eda91599",
+    "loopback-final/summary.json": "e9c9175636890021f74972a230f333656d6741d9ec2652e62783676ed68be06c",
+    "regression.log": "a5144917ccf2dc1bb2aebdb5cb5ee1388f70e93ced6752a9f054557a1f245912",
+    "regression-final.log": "0bda222b47a43c46d33f8bec38687105c796a79face487e7ff3f7460b66fec3a",
+    "clippy.log": "7528db25d9ab1e588b70b7d7849c09e4609aa60bf1a5cc8f33fb82a2100c48cb",
+    "socket-input.log": "1a30af6975b2b1a065d02440cd420ff863290d8f23e1fb7d5e5b8aeb9b3c9392"
+  },
+  "capture_sample": {
+    "cases": {
+      "abort": {
+        "core_dumped": false,
+        "exit_code": null,
+        "link_ids": [
+          103,
+          104
+        ],
+        "links_detached_before_cleanup": true,
+        "owned_resources_removed": true,
+        "reaped_owned_directories": 3,
+        "signal": 6,
+        "success_artifacts_absent": true,
+        "test_passed": true
+      },
+      "after-abort-restart": {
+        "accepted": true,
+        "counts": {
+          "dropped": 0,
+          "total": 5
+        },
+        "packet_facts": 5,
+        "replay_verified": true
+      },
+      "after-error-restart": {
+        "accepted": true,
+        "counts": {
+          "dropped": 0,
+          "total": 5
+        },
+        "packet_facts": 5,
+        "replay_verified": true
+      },
+      "after-kill-restart": {
+        "accepted": true,
+        "counts": {
+          "dropped": 0,
+          "total": 5
+        },
+        "packet_facts": 5,
+        "replay_verified": true
+      },
+      "after-loss-restart": {
+        "accepted": true,
+        "counts": {
+          "dropped": 0,
+          "total": 5
+        },
+        "packet_facts": 5,
+        "replay_verified": true
+      },
+      "error": {
+        "core_dumped": false,
+        "exit_code": 1,
+        "link_ids": [
+          99,
+          100
+        ],
+        "links_detached_before_cleanup": true,
+        "owned_resources_removed": true,
+        "reaped_owned_directories": 0,
+        "signal": null,
+        "success_artifacts_absent": true,
+        "test_passed": true
+      },
+      "exact-capacity": {
+        "accepted": true,
+        "counts": {
+          "dropped": 0,
+          "total": 128
+        },
+        "packet_facts": 128,
+        "replay_verified": true
+      },
+      "kill": {
+        "core_dumped": false,
+        "exit_code": null,
+        "link_ids": [
+          107,
+          108
+        ],
+        "links_detached_before_cleanup": true,
+        "owned_resources_removed": true,
+        "reaped_owned_directories": 3,
+        "signal": 9,
+        "success_artifacts_absent": true,
+        "test_passed": true
+      },
+      "over-capacity": {
+        "accepted": false,
+        "error": "packet capture rejected: capacity_exceeded",
+        "rejection": {
+          "accepted": false,
+          "code": "capacity_exceeded",
+          "counts": {
+            "dropped": 3,
+            "total": 131
+          },
+          "observed_entries": null,
+          "packet_export_produced": false,
+          "schema_version": 1
+        }
+      },
+      "reported-loss": {
+        "accepted": false,
+        "error": "packet capture rejected: reported_loss",
+        "rejection": {
+          "accepted": false,
+          "code": "reported_loss",
+          "counts": {
+            "dropped": 3,
+            "total": 5
+          },
+          "observed_entries": null,
+          "packet_export_produced": false,
+          "schema_version": 1
+        }
+      },
+      "snapshot-gap": {
+        "accepted": false,
+        "error": "packet capture rejected: snapshot_incomplete",
+        "rejection": {
+          "accepted": false,
+          "code": "snapshot_incomplete",
+          "counts": {
+            "dropped": 0,
+            "total": 5
+          },
+          "observed_entries": 4,
+          "packet_export_produced": false,
+          "schema_version": 1
+        }
+      },
+      "tcp-over-capacity": {
+        "accepted": false,
+        "connect_attempts": 160,
+        "rejection": {
+          "accepted": false,
+          "code": "capacity_exceeded",
+          "counts": {
+            "dropped": 32,
+            "total": 160
+          },
+          "schema_version": 1,
+          "tcp_export_produced": false
+        },
+        "tcp_export_produced": false,
+        "test_passed": true
+      }
+    },
+    "checks": [
+      "exact_128_event_acceptance",
+      "tcp_state_budget_overflow_rejected",
+      "real_map_write_loss_rejected",
+      "event_budget_overflow_rejected",
+      "unreported_snapshot_gap_rejected",
+      "no_partial_packet_exports",
+      "worker_error_unwinds",
+      "abort_and_sigkill_detach_both_links",
+      "owned_orphans_reaped",
+      "fresh_capture_after_each_exit"
+    ],
+    "ingest_trust_mode": "unverified-local",
+    "kernel": "7.0.0-42-generic",
+    "mode": "capture-recovery",
+    "not_proven": [
+      "sustained-load-performance",
+      "production-ring-buffer-loss",
+      "supervisor-SIGKILL-or-host-reboot",
+      "kill-during-pre-ready-attachment",
+      "multi-host-kernel-matrix"
+    ],
+    "ok": true,
+    "schema_version": 1
+  },
+  "not_proven": [
+    "sustained-load-performance",
+    "production-ring-buffer-loss",
+    "supervisor-SIGKILL-or-host-reboot",
+    "kill-during-pre-ready-attachment",
+    "multi-host-kernel-matrix"
+  ],
+  "verified_final_source_runs": [
+    "run-04",
+    "http-boundaries-final",
+    "juice-shop-final",
+    "loopback-final"
+  ],
+  "verified_final_source_sha256": {
+    "ebpf/validation/http_prefix.bpf.c": "6022be72a638c7c57aee60e5ca7e0940f24e3970a65b1d358a1e7386d97b4dbb",
+    "ebpf/validation/tcp_state.bpf.c": "d725e38202c50bf0247c22c70ea5a7645b26b9850fd5bbb6bd08b032fe7f5e64",
+    "src/bin/gewyvern_validate.rs": "f41819962adc3e51ad342cc0345f74dc109e9335a1fd45bf1933fede7502a3fb",
+    "src/validation_harness.rs": "ec8d8091b699af089fec59cb28ebb64804d539c916d91e03a21f9584309eac86",
+    "src/validation_harness/linux_tcp_capture.rs": "792d04810d326b70b852adfc8048e127213fecf382bd64f2f4005cd2bbff3019",
+    "src/validation_harness/linux_tcp_capture/linux.rs": "8828762d0b3cba7ee1f8a894eb685b0385058db2fd9e7874b47064448df4e562",
+    "src/validation_harness/linux_tcp_capture/linux/bpf_link.rs": "36003903f21279e4fa15185b31c159a54b12232f4bccc465c8d202f63d38fd96",
+    "src/validation_harness/linux_tcp_capture/linux/recovery.rs": "b004aca9d935aeed05b5597351cb4c72bb8b0cbd5140808be5fafb27762a008c",
+    "src/validation_harness/linux_tcp_capture/linux/recovery/supervisor.rs": "3f16744ca7f48adb98276762ebfb4675482252452000f00fbe1768ecc3bc420b",
+    "src/validation_harness/linux_tcp_capture/linux/packet_capture.rs": "bd6d0df729eae59a32f4d48657d8432221cd68fc4dbb8d583764b3a3d6d34d6b",
+    "src/validation_harness/linux_tcp_capture/linux/juice_shop.rs": "9b499605312584b2f44a78acba4adc0ea6fd6ac33f5de41ff6f4afe6ee9d63ed",
+    "src/validation_harness/linux_tcp_capture/linux/http_boundaries.rs": "9b545a10e218de98c4728244e4e07fa1adc68d70f835f73dc29a585aa8cd3ae3",
+    "src/validation_harness/linux_tcp_capture/packet_evidence.rs": "d157e1f3f351d45454fb212b09d3fd21a923c531a472c9aa73066e55e3e6adc4",
+    "src/validation_harness/linux_tcp_capture/response_prefix.rs": "fba7b305be4243be66e80036b5bbe78f32aad8e53d1c0419e59714b54ca5ce69",
+    "tests/gewyvern_validate_json_snapshot_tdd.rs": "c0cc09d366dc9652d8ba4c06dc42e331ba74d0a2fbf7cf15fcdd45651fec3e97"
+  },
+  "regression": {
+    "library_tests": 522,
+    "validation_cli_tests": 19,
+    "documentation_tests": 74,
+    "export_contract_tests": 5,
+    "fragment_rules_tests": 8,
+    "cli_json_snapshot_tests": 10,
+    "machine_error_tests": 9,
+    "native_harness_tests": 30,
+    "runtime_tests": 30,
+    "script_portability_tests": 14,
+    "version_posture_tests": 7,
+    "explicit_socket_input_tests": 2,
+    "total_unique_passed": 730,
+    "performance_benchmarks_not_run": 7,
+    "strict_clippy_including_tests": "passed",
+    "format_and_diff_checks": "passed",
+    "http_boundaries_live": "passed",
+    "juice_shop_live": "passed",
+    "loopback_live": "passed",
+    "initial_document_link_check": "failed-before-proof-file-was-created",
+    "document_link_rerun": "passed"
+  },
+  "cleanup": {
+    "owned_bpf_links_detached": true,
+    "owned_bpf_pins_removed": true,
+    "owned_cgroups_removed": true,
+    "owned_target_containers_and_networks_removed": true,
+    "temporary_build_and_check_containers_removed": true,
+    "unrelated_running_container_ids_unchanged": true,
+    "unrelated_lsm_link_id_2_retained": true,
+    "worker_core_dumps": false,
+    "sudo_lease_invalidated": true,
+    "test_shell_closed": true
+  }
+}

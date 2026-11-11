@@ -1,11 +1,12 @@
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
+use std::os::fd::OwnedFd;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use socket2::{Domain, Protocol, Socket, Type};
 
@@ -16,16 +17,49 @@ use crate::validation_harness::command::{default_out_dir, repo_root};
 
 const TOOL_TIMEOUT: Duration = Duration::from_secs(20);
 
+mod bpf_link;
 mod docker_target;
+mod http_boundaries;
 mod http_evidence;
 mod juice_shop;
+mod load;
 mod packet_capture;
+mod recovery;
+mod stream;
 
 pub(super) fn run_juice_shop(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
     juice_shop::run(out)
 }
 
-struct Pins(PathBuf);
+pub(super) fn run_http_boundaries(
+    out: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    http_boundaries::run(out)
+}
+
+pub(super) fn run_capture_recovery(
+    out: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    recovery::run(out)
+}
+
+pub(super) fn run_capture_load(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    load::run(out)
+}
+
+pub(super) fn run_capture_stream(
+    out: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    stream::run(out, false)
+}
+
+pub(super) fn run_capture_runtime(
+    out: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    stream::run(out, true)
+}
+
+struct Pins(PathBuf, Option<OwnedFd>);
 impl Pins {
     fn new() -> Result<Self, ValidationError> {
         let nonce = SystemTime::now()
@@ -35,7 +69,18 @@ impl Pins {
         let path = Path::new("/sys/fs/bpf")
             .join(format!("gewyvern-capture-{}-{nonce}", std::process::id()));
         fs::create_dir(&path)?;
-        Ok(Self(path))
+        Ok(Self(path, None))
+    }
+    fn own_trace_link(&mut self) -> Result<(), ValidationError> {
+        let path = self.0.join("link");
+        self.1 = Some(bpf_link::open_pinned(&path)?);
+        // No persistent link remains once setup finishes: even SIGKILL closes
+        // the process-owned descriptor and detaches the tracepoint.
+        fs::remove_file(path)?;
+        Ok(())
+    }
+    fn detach(&mut self) {
+        self.1.take();
     }
     fn cleanup(&self) -> Result<(), ValidationError> {
         fs::remove_dir_all(&self.0)?;
@@ -44,6 +89,7 @@ impl Pins {
 }
 impl Drop for Pins {
     fn drop(&mut self) {
+        self.detach();
         if self.0.exists()
             && let Err(error) = fs::remove_dir_all(&self.0)
         {
@@ -100,7 +146,7 @@ fn map_entries<T: serde::de::DeserializeOwned>(
         })
         .collect())
 }
-#[derive(Clone, Copy, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 struct Counts {
     total: u64,
     dropped: u64,
@@ -131,6 +177,22 @@ fn snapshot(
     name: &str,
 ) -> Result<(Vec<CaptureEvent>, Counts), ValidationError> {
     let before = counts(pins, out)?;
+    if before.total > 128 || before.dropped > 0 {
+        let code = if before.total > 128 {
+            "capacity_exceeded"
+        } else {
+            "reported_loss"
+        };
+        fs::write(
+            out.join("tcp-rejection.json"),
+            serde_json::to_vec_pretty(&json!({
+                "schema_version":1,"accepted":false,"code":code,"counts":before,"tcp_export_produced":false
+            }))?,
+        )?;
+        return Err(ValidationError::new(format!(
+            "TCP capture rejected: {code}"
+        )));
+    }
     let bytes = map_dump(pins, "events", out)?;
     fs::write(out.join(format!("{name}-raw.json")), &bytes)?;
     let after = counts(pins, out)?;
@@ -368,7 +430,7 @@ fn attach_capture_at(
             .arg(&object),
         out,
     )?;
-    let pins = Pins::new()?;
+    let mut pins = Pins::new()?;
     fs::create_dir(pins.0.join("maps"))?;
     tool(
         Command::new("bpftool")
@@ -380,6 +442,7 @@ fn attach_capture_at(
             .arg("autoattach"),
         out,
     )?;
+    pins.own_trace_link()?;
     tool(
         Command::new("bpftool")
             .args(["map", "update", "pinned"])
@@ -410,7 +473,7 @@ pub(super) fn run(out_dir: Option<PathBuf>) -> Result<ValidationReport, Validati
         (cookies[0], port(&client)?, target.port(), netns_id),
         (cookies[1], port(&refused)?, port(&reserved)?, netns_id),
     ];
-    let (pins, clock) = attach_capture(cookies, &out)?;
+    let (mut pins, clock) = attach_capture(cookies, &out)?;
 
     client.connect_timeout(&target.into(), Duration::from_secs(2))?;
     let mut stream: TcpStream = client.into();
@@ -468,7 +531,7 @@ pub(super) fn run(out_dir: Option<PathBuf>) -> Result<ValidationReport, Validati
             "refused connect missing kernel SYN_SENT -> CLOSE evidence",
         ));
     }
-    fs::remove_file(pins.0.join("link"))?;
+    pins.detach();
     let (events, stats) = snapshot(&pins, &out, "final")?;
     let export = export_stage(&events, stats, &expected, clock, &out, "final")?;
     expect_lifecycle(&export, cookies[0], 7, true)?;

@@ -33,15 +33,15 @@ pub(super) struct PacketEvent {
 
 const RULES: &str = include_str!("../../../ebpf/validation/http_prefix.gewy");
 
-pub(super) fn classified_statuses(
+pub(super) fn packet_status_candidates(
     export: &ExportBundle,
 ) -> Result<Vec<(u64, u16)>, ValidationError> {
     let mut result = Vec::new();
     for flow in &export.program_flows {
         for stage in &flow.stages {
             let status = match stage.phase.as_deref() {
-                Some("http_403") => 403,
-                Some("http_500") => 500,
+                Some("http_403_candidate") => 403,
+                Some("http_500_candidate") => 500,
                 _ => continue,
             };
             let cookie = export
@@ -51,18 +51,12 @@ pub(super) fn classified_statuses(
                     FactKind::PacketMeta(packet) if fact.id == stage.at => packet.sk_cookie,
                     _ => None,
                 })
-                .ok_or_else(|| {
-                    ValidationError::new("HTTP classification has no packet evidence")
-                })?;
-            if result.iter().any(|(seen, _)| *seen == cookie) {
-                return Err(ValidationError::new(
-                    "ambiguous HTTP classification for captured socket",
-                ));
-            }
+                .ok_or_else(|| ValidationError::new("HTTP candidate has no packet evidence"))?;
             result.push((cookie, status));
         }
     }
     result.sort_unstable();
+    result.dedup();
     Ok(result)
 }
 
@@ -75,8 +69,18 @@ pub(super) fn reconstruct_packets(
     if packets.is_empty() || packets.len() > 128 || states.len() != tcp.facts.len() {
         return Err(ValidationError::new("invalid packet evidence count"));
     }
+    let remote_port = states
+        .first()
+        .map(|s| s.dport)
+        .ok_or_else(|| ValidationError::new("packet capture has no TCP states"))?;
+    if states.iter().any(|s| s.dport != remote_port) {
+        return Err(ValidationError::new(
+            "packet fixture requires one owned server port",
+        ));
+    }
+    let rules = RULES.replace("remote:3000:", &format!("remote:{remote_port}:"));
     let binding =
-        crate::dsl::compile_str(RULES).map_err(|e| ValidationError::new(format!("{e:?}")))?;
+        crate::dsl::compile_str(&rules).map_err(|e| ValidationError::new(format!("{e:?}")))?;
     let mut config =
         SessionConfig::for_binding(binding).map_err(|e| ValidationError::new(e.to_string()))?;
     let mut registry = FragmentRegistry::new();
@@ -126,6 +130,27 @@ pub(super) fn reconstruct_packets(
             .find(|s| s.cookie == packet.cookie)
             .ok_or_else(|| ValidationError::new("packet has no captured TCP socket identity"))?;
         let header_len = u16::from(packet.ip_header_len) + u16::from(packet.tcp_header_len);
+        let syn_ack = packet.flags & 0x17 == 0x12;
+        let in_lifetime = if syn_ack {
+            packet.payload_len == 0
+                && states.iter().any(|s| {
+                    s.cookie == packet.cookie
+                        && s.new_state == 2
+                        && s.monotonic_ns <= packet.monotonic_ns
+                })
+                && states.iter().any(|s| {
+                    s.cookie == packet.cookie
+                        && s.new_state == 1
+                        && s.monotonic_ns >= packet.monotonic_ns
+                })
+        } else {
+            packet.payload_len > 0
+                && states.iter().any(|s| {
+                    s.cookie == packet.cookie
+                        && s.new_state == 1
+                        && s.monotonic_ns <= packet.monotonic_ns
+                })
+        };
         if packet.sequence != index as u64 + 1
             || packet.source != u32::from_be_bytes(state.daddr)
             || packet.destination != u32::from_be_bytes(state.saddr)
@@ -136,7 +161,7 @@ pub(super) fn reconstruct_packets(
             || !(20..=60).contains(&packet.tcp_header_len)
             || packet.tcp_header_len % 4 != 0
             || packet.total_len.checked_sub(header_len) != Some(packet.payload_len)
-            || packet.payload_len == 0
+            || !in_lifetime
             || packet.prefix_len != packet.payload_len.min(64)
             || packet.prefix.len() != 64
             || packet.prefix[usize::from(packet.prefix_len)..]
@@ -144,11 +169,6 @@ pub(super) fn reconstruct_packets(
                 .any(|b| *b != 0)
             || packet.monotonic_ns < clock.0
             || packet.monotonic_ns - clock.0 > 30_000_000_000
-            || !states.iter().any(|s| {
-                s.cookie == packet.cookie
-                    && s.new_state == 1
-                    && s.monotonic_ns <= packet.monotonic_ns
-            })
             || !states.iter().any(|s| {
                 s.cookie == packet.cookie
                     && s.new_state == 7
@@ -318,7 +338,7 @@ mod tests {
         let export =
             reconstruct_packets(&tcp, &states, &packets, (0, SystemTime::UNIX_EPOCH)).unwrap();
         assert_eq!(
-            classified_statuses(&export).unwrap(),
+            packet_status_candidates(&export).unwrap(),
             vec![(1, 403), (2, 500)]
         );
         assert_eq!(export.facts.len(), 6);
@@ -363,11 +383,11 @@ mod tests {
         packets[0].prefix[0] = b'X';
         let export =
             reconstruct_packets(&tcp, &states, &packets, (0, SystemTime::UNIX_EPOCH)).unwrap();
-        assert_eq!(classified_statuses(&export).unwrap(), vec![(2, 500)]);
+        assert_eq!(packet_status_candidates(&export).unwrap(), vec![(2, 500)]);
         packets[1].prefix[9..12].copy_from_slice(b"200");
         let export =
             reconstruct_packets(&tcp, &states, &packets, (0, SystemTime::UNIX_EPOCH)).unwrap();
-        assert!(classified_statuses(&export).unwrap().is_empty());
+        assert!(packet_status_candidates(&export).unwrap().is_empty());
     }
 
     #[test]
@@ -401,8 +421,75 @@ mod tests {
         let export = reconstruct_packets(&tcp, &states, &packets, clock).unwrap();
         let statuses: Vec<(u64, u16)> =
             serde_json::from_value(summary["kernel_dsl_http_statuses"].clone()).unwrap();
-        assert_eq!(classified_statuses(&export).unwrap(), statuses);
+        assert_eq!(packet_status_candidates(&export).unwrap(), statuses);
         assert_eq!(export.facts.len(), 12);
         assert_eq!(export.flows.len(), 2);
+        let prefixes = super::super::response_prefix::verified_replay(&export).unwrap();
+        assert!(
+            prefixes
+                .iter()
+                .all(|p| p.outcome == super::super::response_prefix::Outcome::MissingOrigin)
+        );
+    }
+
+    #[test]
+    fn recorded_split_and_body_decoy_replay_without_promoting_packet_candidates() {
+        use super::super::response_prefix::{ResponsePrefix, verified_replay, verified_statuses};
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../docs/fixtures/gewyvern_http_boundaries_linux_x86_64_20261104.json"
+        ))
+        .unwrap();
+        let sample = &fixture["capture_sample"];
+        let summary = &sample["summary"];
+        let states: Vec<CaptureEvent> = serde_json::from_value(sample["events"].clone()).unwrap();
+        let packets: Vec<PacketEvent> = serde_json::from_value(sample["packets"].clone()).unwrap();
+        let expected = serde_json::from_value::<Vec<(u64, u16, u16, u32)>>(
+            summary["selected_sockets"].clone(),
+        )
+        .unwrap();
+        let anchor = summary["clock_anchor_unix_ns"]
+            .as_str()
+            .unwrap()
+            .parse::<u128>()
+            .unwrap();
+        let clock = (
+            summary["clock_anchor_monotonic_ns"].as_u64().unwrap(),
+            SystemTime::UNIX_EPOCH
+                + Duration::new(
+                    (anchor / 1_000_000_000) as u64,
+                    (anchor % 1_000_000_000) as u32,
+                ),
+        );
+        let tcp = reconstruct_at(
+            &states,
+            &expected,
+            states.len() as u64,
+            0,
+            clock,
+            ([127, 0, 0, 1], [127, 0, 0, 1]),
+        )
+        .unwrap();
+        let export = reconstruct_packets(&tcp, &states, &packets, clock).unwrap();
+        let prefixes = verified_replay(&export).unwrap();
+        assert_eq!(
+            prefixes,
+            serde_json::from_value::<Vec<ResponsePrefix>>(sample["prefixes"].clone()).unwrap()
+        );
+        assert_eq!(
+            verified_statuses(&prefixes),
+            serde_json::from_value::<Vec<(u64, u16)>>(summary["verified_http_statuses"].clone())
+                .unwrap()
+        );
+        assert_eq!(
+            packet_status_candidates(&export).unwrap(),
+            vec![(expected[1].0, 500)]
+        );
+        assert_eq!(export.facts.len(), 16);
+        let mut bad = packets.clone();
+        bad[0].monotonic_ns = bad[1].monotonic_ns;
+        assert!(
+            reconstruct_packets(&tcp, &states, &bad, clock).is_err(),
+            "late SYN-ACK cannot supply a fabricated origin"
+        );
     }
 }

@@ -33,7 +33,7 @@ use self::program_codec::{
     parse_program_flow, program_finding_json, program_flow_json,
 };
 pub use self::protocol_ir::ProtocolIr;
-pub(crate) use self::protocol_ir::infer_protocol_ir;
+pub(crate) use self::protocol_ir::{infer_protocol_ir, infer_protocol_ir_with_summaries};
 use self::protocol_ir::{parse_protocol_ir, protocol_ir_json};
 use self::reason_codec::{parse_reason, parse_reason_profile, reason_json, reason_profile_json};
 
