@@ -14799,7 +14799,7 @@ fn assert_runtime_deletion_retry_post_recovery_write(
 }
 
 #[test]
-fn etragon_stays_deferred_until_the_deep_learning_stack_is_proven() {
+fn etragon_stays_optional_while_external_provider_integration_is_proven() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     let etragon = catalog
         .cells
@@ -14811,9 +14811,56 @@ fn etragon_stays_deferred_until_the_deep_learning_stack_is_proven() {
     assert_eq!(etragon.priority, Priority::Deferred);
     assert!(etragon.completion <= 45);
     assert!(etragon.blockers.iter().any(|blocker| {
-        blocker.id == "deep-learning-stack-not-integrated"
+        blocker.id == "external-provider-integration-and-evaluation"
             && blocker.summary.contains("inference evidence")
     }));
+    assert!(
+        !etragon
+            .blockers
+            .iter()
+            .any(|blocker| blocker.id == "deep-learning-stack-not-integrated")
+    );
+    assert!(
+        etragon
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "external-provider-cli")
+    );
+    assert!(
+        etragon
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "external-provider-single-source-resident")
+    );
+    assert!(
+        etragon
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "external-provider-target-index-resident")
+    );
+    for expected in [
+        "external-provider-one-shot-url",
+        "external-provider-bounded-target-batch",
+        "etragon-provider-batch-v1",
+        "explicit-partial-batch-exit",
+    ] {
+        assert!(
+            etragon
+                .contract
+                .surfaces
+                .iter()
+                .any(|surface| surface == expected)
+        );
+    }
+    assert!(
+        etragon
+            .blockers
+            .iter()
+            .any(|blocker| blocker.summary.contains("watch/federation/UI"))
+    );
 }
 
 #[test]

@@ -1,6 +1,6 @@
 use super::*;
 
-const USAGE: &str = "usage: etragon analyze-json <path|-> [--state <path>] | etragon train-json <path|-> --label <label> [--weight <n>] [--state <path>] | etragon memory-info|memory-model-info|memory-versions|memory-snapshot|clear-memory [--state <path>] | etragon save-memory-slot|load-memory-slot|delete-memory-slot <slot> [options] [--state <path>] | etragon memory-transfer-plan|import-memory <path> [--merge|--replace] [--state <path>] | etragon analyze-url|watch-url|serve-url <url> [options] | etragon analyze-targets-url|train-targets-url|watch-targets-url|serve-targets-url <url> [options] | etragon analyze-federation-json <path> [options] | etragon train-federation-json <path> --label <label> [options] | etragon training-labels | etragon protocol-capabilities; Python compatibility commands: analyze-python-json, train-python-json, python-memory-info, python-memory-model-info, python-protocol-capabilities, watch-python-url, watch-python-targets-url, serve-python-url, serve-python-targets-url";
+const USAGE: &str = "usage: etragon analyze-json <path|-> [--state <path> | --provider <config.json>] | etragon train-json <path|-> --label <label> [--weight <n>] [--state <path>] | etragon memory-info|memory-model-info|memory-versions|memory-snapshot|clear-memory [--state <path>] | etragon save-memory-slot|load-memory-slot|delete-memory-slot <slot> [options] [--state <path>] | etragon memory-transfer-plan|import-memory <path> [--merge|--replace] [--state <path>] | etragon analyze-url|watch-url|serve-url <url> [options] | etragon analyze-targets-url|train-targets-url|watch-targets-url|serve-targets-url <url> [options] | etragon analyze-federation-json <path> [options] | etragon train-federation-json <path> --label <label> [options] | etragon training-labels | etragon protocol-capabilities; Python compatibility commands: analyze-python-json, train-python-json, python-memory-info, python-memory-model-info, python-protocol-capabilities, watch-python-url, watch-python-targets-url, serve-python-url, serve-python-targets-url";
 
 pub(super) fn analyze_input_with_native_backend(
     input: &str,
@@ -470,8 +470,33 @@ fn serve_targets_url_with_backend(
     Ok(String::new())
 }
 
+pub(super) struct CliOutput {
+    pub output: String,
+    pub exit_code: u8,
+}
+
+pub(super) fn execute_cli(args: &[String]) -> Result<CliOutput, String> {
+    if let [cmd, url, rest @ ..] = args
+        && matches!(cmd.as_str(), "analyze-url" | "analyze-targets-url")
+        && rest.iter().any(|arg| arg == "--provider")
+    {
+        return super::cli_provider::analyze_provider_url(url, rest, cmd == "analyze-targets-url");
+    }
+    run_cli(args).map(|output| CliOutput {
+        output,
+        exit_code: 0,
+    })
+}
+
 pub(super) fn run_cli(args: &[String]) -> Result<String, String> {
     match args {
+        [cmd, flag, path] if cmd == "protocol-capabilities" && flag == "--provider" => {
+            let config = super::cli_provider::load_provider_config(path)?;
+            Ok(super::provider_daemon::provider_capabilities(&config))
+        }
+        [cmd, path, flag, config] if cmd == "analyze-json" && flag == "--provider" => {
+            super::cli_provider::analyze_provider_json(path, config)
+        }
         [cmd] if cmd == "training-labels" => Ok(training_labels_json()),
         [cmd, path, rest @ ..] if cmd == "analyze-json" => {
             let (config, consumed) = parse_native_options(rest)?;
@@ -661,6 +686,10 @@ pub(super) fn run_cli(args: &[String]) -> Result<String, String> {
             watch_native_targets_url(url, interval_ms, cycles, filter_prefix.as_deref(), config)
         }
         [cmd, url, rest @ ..] if cmd == "serve-url" => {
+            if rest.iter().any(|arg| arg == "--provider") {
+                let options = super::provider_daemon::parse_provider_daemon_options(rest)?;
+                return super::provider_daemon::serve_provider_url(url, options);
+            }
             let (bind_addr, interval_ms, _filter_prefix, config, daemon_state_file) =
                 parse_native_daemon_options(rest)?;
             serve_native_url(
@@ -672,6 +701,10 @@ pub(super) fn run_cli(args: &[String]) -> Result<String, String> {
             )
         }
         [cmd, url, rest @ ..] if cmd == "serve-targets-url" => {
+            if rest.iter().any(|arg| arg == "--provider") {
+                let options = super::provider_daemon::targets::parse_options(rest)?;
+                return super::provider_daemon::targets::serve(url, options);
+            }
             let (bind_addr, interval_ms, filter_prefix, config, daemon_state_file) =
                 parse_native_daemon_options(rest)?;
             serve_native_targets_url(

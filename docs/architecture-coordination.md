@@ -246,5 +246,5 @@ coordination therefore prioritizes:
 5. community integrations that consume protocols without becoming new truth
    owners
 
-Etragon deep learning, Windows native parity, production signing, and hosted
+Etragon external-provider integration, Windows native parity, production signing, and hosted
 services remain independent tracks. They must not distort the four-plane core.

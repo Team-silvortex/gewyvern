@@ -36,7 +36,7 @@
       {
         "id": "etragon",
         "label": "Etragon",
-        "summary": "Optional, temporarily downweighted advisory-learning sidecar; the deep-learning stack is not integrated yet."
+        "summary": "Optional API/local-model analysis with CLI, single-source and bounded target-index residents; no in-house model/training stack. Legacy memory remains compatible; UI/federation integration, provider persistence and evaluation are open."
       },
       {
         "id": "shared-foundation",
@@ -162,8 +162,8 @@
       },
       {
         "id": "learning-sidecar",
-        "label": "Learning Sidecar",
-        "summary": "Advisory analysis, online memory, and daemon collaboration."
+        "label": "External Analysis Sidecar",
+        "summary": "API/local-model inference, evidence-linked advice, and legacy online-memory compatibility; stable ID retained."
       },
       {
         "id": "bounded-io",
@@ -359,8 +359,8 @@
       },
       {
         "id": "advisory-learning",
-        "label": "Advisory Learning",
-        "summary": "Optional learning and recommendation enrichment."
+        "label": "External Advisory Analysis",
+        "summary": "Optional externally driven auxiliary analysis without in-house model training; stable ID retained."
       },
       {
         "id": "bounded-native-io",
@@ -484,7 +484,7 @@
       "id": "boundary-etragon-learning-sidecar",
       "architecture": "etragon",
       "kind": "ownership-boundary",
-      "summary": "Etragon owns optional advisory learning without replacing Gewyvern diagnosis or Leserpent orchestration authority.",
+      "summary": "Etragon owns optional external API/local-model advisory analysis without replacing Gewyvern diagnosis or Leserpent orchestration authority; no self-developed model stack is required.",
       "source": "docs/sidecar-collaboration.md",
       "cells": ["etragon/learning-sidecar/advisory-learning"]
     },
@@ -5828,15 +5828,15 @@
       "independence": "standalone-service",
       "contract": {
         "id": "etragon-advisory-contract",
-        "version": "1.0.1",
+        "version": "1.1.0",
         "stability": "evolving",
-        "surfaces": ["analysis", "recommendations", "online-memory", "daemon-api", "bounded-atomic-daemon-state"]
+        "surfaces": ["analysis", "recommendations", "online-memory", "daemon-api", "bounded-atomic-daemon-state", "external-provider-cli", "etragon-advisory-v1", "bounded-chat-completions-http-https", "operator-review-only-provenance", "external-provider-single-source-resident", "pre-inference-canonical-evidence-cache", "bounded-provider-failure-backoff", "read-only-provider-capabilities", "cold-restart-provider-isolation", "external-provider-target-index-resident", "bounded-round-robin-inference", "target-incarnation-cache-isolation", "same-origin-target-discovery", "target-advice-freshness-fence", "external-provider-one-shot-url", "external-provider-bounded-target-batch", "etragon-provider-batch-v1", "explicit-partial-batch-exit"]
       },
       "depends_on": ["gewyvern-core/runtime-evidence/evidence-reconstruction"],
       "blockers": [
         {
-          "id": "deep-learning-stack-not-integrated",
-          "summary": "No production deep-learning runtime, model artifact pipeline, training/evaluation loop, or reproducible inference evidence is integrated; current learning behavior is a dependency-light advisory baseline."
+          "id": "external-provider-integration-and-evaluation",
+          "summary": "Native library/CLI, bounded one-shot URL/target batches, single-source and bounded target-index residents are present; watch/federation/UI selection, reviewed provider persistence and retained real-provider inference evidence for quality, failure behavior, privacy and cost remain open. Self-developed models and training are no longer prerequisites."
         },
         {
           "id": "non-core-maturity",
@@ -5848,9 +5848,21 @@
         { "kind": "source", "path": "apps/etragon/src", "state": "present" },
         { "kind": "test", "path": "apps/etragon/tests", "state": "present" },
         { "kind": "test", "path": "apps/etragon/src/tests/daemon/persistence.rs", "state": "present" },
+        { "kind": "source", "path": "apps/etragon/src/provider.rs", "state": "present" },
+        { "kind": "source", "path": "apps/etragon/src/provider_daemon.rs", "state": "present" },
+        { "kind": "source", "path": "apps/etragon/src/provider/targets.rs", "state": "present" },
+        { "kind": "source", "path": "apps/etragon/src/provider/batch.rs", "state": "present" },
+        { "kind": "test", "path": "apps/etragon/src/provider/batch/tests.rs", "state": "present" },
+        { "kind": "source", "path": "apps/etragon/src/cli_provider.rs", "state": "present" },
+        { "kind": "source", "path": "apps/etragon/src/provider_daemon/targets.rs", "state": "present" },
+        { "kind": "test", "path": "apps/etragon/src/provider_daemon/targets/tests.rs", "state": "present" },
+        { "kind": "test", "path": "apps/etragon/src/provider_daemon/tests.rs", "state": "present" },
+        { "kind": "test", "path": "apps/etragon/tests/provider_resident_end_to_end.rs", "state": "present" },
+        { "kind": "test", "path": "apps/etragon/tests/provider_integration.rs", "state": "present" },
+        { "kind": "documentation", "path": "apps/etragon/docs/external-providers.md", "state": "present" },
         { "kind": "documentation", "path": "docs/sidecar-collaboration.md", "state": "present" }
       ],
-      "next_gate": "Keep the advisory boundary additive while integrating a reproducible deep-learning runtime, versioned model artifacts, training/evaluation gates, and retained inference evidence."
+      "next_gate": "Keep advice optional and operator-reviewed; integrate UI/federation selection and reviewed persistence beyond the bounded single-index target resident, retain real-provider inference quality/failure/privacy/cost evidence, and migrate legacy memory contracts without deleting saved data. No in-house model training or automatic execution authority. Stable tensor IDs remain for compatibility; completion/maturity are not promoted by simulated-provider transport/lifecycle tests."
     },
     {
       "id": "project-governance/status-governance/status-tensor",

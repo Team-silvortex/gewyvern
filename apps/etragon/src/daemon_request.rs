@@ -12,13 +12,17 @@ pub(super) fn read_daemon_request(stream: &mut TcpStream) -> Result<DaemonReques
     stream
         .set_nonblocking(false)
         .map_err(|err| format!("failed to configure daemon request blocking mode: {err}"))?;
-    stream
-        .set_read_timeout(Some(Duration::from_millis(250)))
-        .map_err(|err| format!("failed to configure daemon request timeout: {err}"))?;
-
+    let deadline = std::time::Instant::now() + Duration::from_secs(1);
     let mut request = Vec::new();
     let mut chunk = [0u8; 2048];
     loop {
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        if remaining.is_zero() {
+            return Ok(DaemonRequestRead::Invalid);
+        }
+        stream
+            .set_read_timeout(Some(remaining.min(Duration::from_millis(250))))
+            .map_err(|err| format!("failed to configure daemon request timeout: {err}"))?;
         match stream.read(&mut chunk) {
             Ok(0) => break,
             Ok(size) => {
@@ -48,9 +52,13 @@ pub(super) fn read_daemon_request(stream: &mut TcpStream) -> Result<DaemonReques
         }
     }
 
-    Ok(DaemonRequestRead::Complete(
-        String::from_utf8_lossy(&request).to_string(),
-    ))
+    if !daemon_request_is_complete(&request) {
+        return Ok(DaemonRequestRead::Invalid);
+    }
+    Ok(match String::from_utf8(request) {
+        Ok(request) => DaemonRequestRead::Complete(request),
+        Err(_) => DaemonRequestRead::Invalid,
+    })
 }
 
 fn daemon_request_is_complete(request: &[u8]) -> bool {
@@ -80,6 +88,9 @@ fn parse_content_length(header_bytes: &[u8]) -> Result<Option<usize>, ()> {
         let Some((name, value)) = line.split_once(':') else {
             continue;
         };
+        if name.trim().eq_ignore_ascii_case("transfer-encoding") {
+            return Err(());
+        }
         if !name.trim().eq_ignore_ascii_case("content-length") {
             continue;
         }

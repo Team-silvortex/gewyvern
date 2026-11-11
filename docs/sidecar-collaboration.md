@@ -4,10 +4,12 @@ This note explains how `gewyvern` currently collaborates with a nearby
 diagnosis-partner sidecar such as `etragon`.
 
 Etragon is currently an incubating, deliberately downweighted participant in
-this relationship. Its protocol and dependency-light advisory baseline are
-available, but no production deep-learning stack or model lifecycle is
-integrated. Gewyvern therefore remains authoritative even when Etragon is
-enabled.
+this relationship. It is moving to externally driven inference through remote
+APIs or local model services, not an in-house deep-learning stack. The explicit
+Rust library/CLI, bounded one-shot batches, single-source and target-index resident paths are
+available; UI/federation integration and real-model
+quality evidence remain open. Gewyvern remains authoritative even when Etragon
+is enabled. See [external providers](../apps/etragon/docs/external-providers.md).
 
 It is intentionally narrower than orchestration. The goal is:
 
@@ -51,10 +53,9 @@ The nearby-sidecar story also sits inside a broader three-part stack:
   - single-runtime authority for facts, protocol/runtime analysis, and the
     conservative diagnosis spine
 - `etragon`
-  - optional, incubating near-runtime diagnosis partner that enriches evidence
-    chains and may emit a more direct `diagnostic_opinion` only when its
-    baseline learned state is stable; it remains downweighted until the
-    deep-learning and model-evaluation stack is integrated
+  - optional, incubating near-runtime analysis partner driven by existing models
+    through API/local-service adapters; advice is evidence-linked and review-only,
+    not a new diagnosis or execution authority
 - `leserpent`
   - multi-instance control plane above both, responsible for orchestration,
     policy, UI, and fleet browsing

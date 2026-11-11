@@ -612,8 +612,12 @@ dependencies = [
 name = "etragon"
 version = "2.5.0"
 dependencies = [
+ "http",
+ "rcgen",
+ "rustls",
  "serde",
  "serde_json",
+ "silvortex-bounded-io",
 ]
 
 [[package]]

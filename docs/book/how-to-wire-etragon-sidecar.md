@@ -9,6 +9,12 @@ Use this guide when the question is:
 This guide is task-first.
 It assumes you already understand the broad stack shape.
 
+For the explicit API/local-model inference CLI, bounded one-shot batches and single/target-index residents, start with
+[external provider setup](../../apps/etragon/docs/external-providers.md).
+The process/resident examples below still use the legacy online-memory baseline;
+they do not automatically select an external model. Etragon no longer requires
+development of an in-house model or training stack.
+
 For the collaboration boundary itself, see:
 
 - [docs/sidecar-collaboration.md](docs/sidecar-collaboration.md)

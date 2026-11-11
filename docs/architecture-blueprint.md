@@ -122,10 +122,12 @@ no magical automatic compatibility claim.
 
 Etragon is deliberately outside the four-plane authority chain.
 
-It may consume sanitized Gewyvern analysis, learn, rank, or append advice. It
+It may consume minimized Gewyvern analysis, rank, or append external-model advice. It
 cannot replace evidence, rewrite the base diagnosis, authorize an effect, or
-become required for ordinary operation. Until its reproducible deep-learning
-stack exists, it remains a deferred optional sidecar.
+become required for ordinary operation. API/local-model drivers replace the old
+in-house deep-learning roadmap. It remains an incubating optional sidecar until
+UI/federation integration and reproducible provider evaluation are proven; legacy
+online-memory data is preserved, not a model-training requirement.
 
 ### Shared Native Foundation
 

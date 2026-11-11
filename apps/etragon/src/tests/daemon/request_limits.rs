@@ -1,6 +1,52 @@
 use super::*;
 
 #[test]
+fn daemon_request_reader_rejects_incomplete_and_ambiguous_framing() {
+    for request in [
+        "POST /v1/train/latest HTTP/1.1\r\nContent-Length: 20\r\n\r\n{}",
+        "GET /health HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n",
+        "GET /health HTTP/1.1\r\nHost: unfinished",
+    ] {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            assert!(matches!(
+                read_daemon_request(&mut stream).unwrap(),
+                DaemonRequestRead::Invalid
+            ));
+        });
+        let mut client = TcpStream::connect(address).unwrap();
+        client.write_all(request.as_bytes()).unwrap();
+        client.shutdown(std::net::Shutdown::Write).unwrap();
+        server.join().unwrap();
+    }
+}
+
+#[test]
+fn daemon_request_deadline_is_not_renewed_by_trickled_bytes() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let start = std::time::Instant::now();
+        assert!(matches!(
+            read_daemon_request(&mut stream).unwrap(),
+            DaemonRequestRead::Invalid
+        ));
+        assert!(start.elapsed() < Duration::from_secs(2));
+    });
+    let mut client = TcpStream::connect(address).unwrap();
+    for byte in b"GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n" {
+        if client.write_all(&[*byte]).is_err() {
+            break;
+        }
+        thread::sleep(Duration::from_millis(75));
+    }
+    server.join().unwrap();
+}
+
+#[test]
 fn daemon_request_reader_rejects_oversized_bodies() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
     let addr = listener.local_addr().expect("listener should have addr");

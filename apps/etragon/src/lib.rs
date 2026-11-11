@@ -3,6 +3,7 @@ pub mod contract;
 pub mod engine;
 pub mod learning_backend;
 pub mod native_learning;
+pub mod provider;
 pub mod python_worker;
 
 pub use advisory::{MockMlAdvisoryEngine, MockRecommendationAugmenter, MockScoreRerankPass};

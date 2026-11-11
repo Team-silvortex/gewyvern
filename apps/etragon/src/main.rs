@@ -19,6 +19,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 mod cli_commands;
 mod cli_memory;
 mod cli_options;
+mod cli_provider;
 mod daemon_auth;
 mod daemon_capabilities;
 mod daemon_memory_routes;
@@ -32,6 +33,7 @@ mod json_support;
 mod learning_hints;
 mod learning_output;
 mod memory_transfer;
+mod provider_daemon;
 mod recommendation;
 
 use cli_commands::*;
@@ -52,17 +54,18 @@ use learning_output::*;
 use memory_transfer::*;
 use recommendation::*;
 
-fn main() {
+fn main() -> std::process::ExitCode {
     let args = env::args().skip(1).collect::<Vec<_>>();
-    match run_cli(&args) {
-        Ok(output) => {
-            if !output.is_empty() {
-                println!("{}", output);
+    match execute_cli(&args) {
+        Ok(result) => {
+            if !result.output.is_empty() {
+                println!("{}", result.output);
             }
+            std::process::ExitCode::from(result.exit_code)
         }
         Err(message) => {
             eprintln!("{}", message);
-            std::process::exit(2);
+            std::process::ExitCode::from(2)
         }
     }
 }

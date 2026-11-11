@@ -31,7 +31,12 @@ fn token_equals(supplied: &str, expected: &str) -> bool {
 
 fn request_header_value<'a>(request_text: &'a str, header_name: &str) -> Option<&'a str> {
     let mut matched = None;
-    for line in request_text.lines().skip(1) {
+    let headers = request_text
+        .split_once("\r\n\r\n")
+        .or_else(|| request_text.split_once("\n\n"))
+        .map(|(head, _)| head)
+        .unwrap_or(request_text);
+    for line in headers.lines().skip(1) {
         let Some((name, value)) = line.split_once(':') else {
             continue;
         };

@@ -112,42 +112,22 @@ pub fn analyze_gewyvern_analysis_json(
 }
 
 pub fn engine_output_json(output: &EngineOutput) -> String {
-    format!(
-        "{{\"augmentations\":[{}]}}",
-        output
-            .augmentations
-            .iter()
-            .map(augmentation_json)
-            .collect::<Vec<_>>()
-            .join(",")
-    )
+    serde_json::json!({
+        "augmentations": output.augmentations.iter().map(augmentation_json).collect::<Vec<_>>()
+    })
+    .to_string()
 }
 
-fn augmentation_json(item: &AnalysisAugmentation) -> String {
-    let producer_stage = item
-        .producer_stage
-        .as_deref()
-        .map(|value| format!("\"{}\"", escape_json_string(value)))
-        .unwrap_or_else(|| "null".into());
-    let producer_pass = item
-        .producer_pass
-        .as_deref()
-        .map(|value| format!("\"{}\"", escape_json_string(value)))
-        .unwrap_or_else(|| "null".into());
-    format!(
-        "{{\"kind\":\"{}\",\"name\":\"{}\",\"summary\":\"{}\",\"confidence\":\"{}\",\"producer_stage\":{},\"producer_pass\":{},\"data\":{}}}",
-        escape_json_string(&item.kind),
-        escape_json_string(&item.name),
-        escape_json_string(&item.summary),
-        escape_json_string(&item.confidence),
-        producer_stage,
-        producer_pass,
-        item.data_json.clone().unwrap_or_else(|| "null".into()),
-    )
-}
-
-fn escape_json_string(input: &str) -> String {
-    input.replace('\\', "\\\\").replace('"', "\\\"")
+fn augmentation_json(item: &AnalysisAugmentation) -> serde_json::Value {
+    serde_json::json!({
+        "kind": item.kind,
+        "name": item.name,
+        "summary": item.summary,
+        "confidence": item.confidence,
+        "producer_stage": item.producer_stage,
+        "producer_pass": item.producer_pass,
+        "data": item.data_json.as_deref().and_then(|data| serde_json::from_str::<serde_json::Value>(data).ok()),
+    })
 }
 
 #[cfg(test)]

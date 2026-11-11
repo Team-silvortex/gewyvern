@@ -1,12 +1,38 @@
 # etragon
 
-`etragon` is the diagnosis-partner sidecar of the `gewyvern` stack.
+`etragon` is the optional externally driven analysis sidecar of the `gewyvern` stack.
 
-> **Current maturity:** temporarily downweighted and incubating. The daemon,
-> protocol, persistence, and dependency-light online-memory baseline are usable,
-> but the production deep-learning runtime, model artifact pipeline, and
-> training/evaluation loop are not integrated. Treat its output as optional
-> advisory context, never as a replacement for Gewyvern's diagnosis spine.
+> **Direction:** use existing models through remote APIs or local model services;
+> do not build an in-house model, trainer, or checkpoint lifecycle. Etragon owns
+> evidence preparation, bounded provider calls, response validation and advisory
+> provenance. Gewyvern retains diagnosis authority; Leserpent retains execution.
+>
+> **Current maturity:** incubating and optional. Rust library/CLI, single-source and
+> target-index resident and bounded one-shot batch paths are separate from the legacy online-memory baseline. Real-model
+> evaluation, UI selection, federation and provider persistence remain open. None is
+> a prerequisite for ordinary Gewyvern use.
+
+## External Provider Entry
+
+```bash
+cargo run -p etragon -- analyze-json analysis.json --provider provider.json
+cargo run -p etragon -- analyze-targets-url http://127.0.0.1:9910/v1/latest/targets --provider provider.json --filter scan: --max-inferences 4
+```
+
+The same native driver supports a loopback model service or an explicitly
+authorized HTTPS API using non-streaming chat-completions JSON. It never starts
+or downloads a model and requires no Python/Node runtime. See
+[external provider setup and safety contract](docs/external-providers.md).
+
+`serve-url <url> --provider provider.json` enables a read-only resident analysis
+service with pre-inference caching and bounded failure backoff.
+`serve-targets-url <index-url> --provider provider.json` adds independently cached
+targets, bounded round-robin inference, removal/reappearance handling and per-target
+readiness. `analyze-url` and `analyze-targets-url` also accept `--provider`; batches
+return a per-target report and exit 2 on partial coverage, including budget skips.
+Calls without `--provider`, the process hook and watch/federation commands still
+select the legacy baseline. Existing training/memory commands and data are
+preserved for compatibility, not an obligation to develop our own ML stack.
 
 Its default deployment shape is close and local:
 
@@ -14,7 +40,7 @@ Its default deployment shape is close and local:
 - it consumes `gewyvern` analysis snapshots
 - it adds higher-level evidence-chain enrichments and, when stable enough, more direct diagnostic opinions
 
-It can also work as a small federated learning node for multiple nearby
+The legacy baseline can also work as a small federated learning node for multiple nearby
 `gewyvern` runtimes. In that mode, `etragon` aggregates analysis/training across
 a set of runtime target indexes, while `leserpent` still owns fleet
 orchestration, UI, and policy.
@@ -27,10 +53,13 @@ Its first job is deliberately small:
 
 ## Current shape
 
-This first scaffold is contract-first and dependency-light.
+The inference boundary is contract-first and independent of training/memory.
 
 It provides:
 
+- `provider::AnalysisProvider`, a stateless fallible inference boundary
+- `provider::ChatCompletionsProvider`, a bounded Rust HTTP/HTTPS driver
+- `provider::AdvisoryRequest` / `AdvisoryResponse`, versioned evidence/advice data
 - `AnalysisSnapshotInput`
 - `AnalysisAugmentation`
 - `EngineOutput`
@@ -43,10 +72,10 @@ It provides:
 - `MockRecommendationAugmenter`
 - `MockScoreRerankPass`
 
-The mock engine is not a real model. The production CLI and resident paths now
-use the Rust-native online learner; the Python worker remains only as an
-explicit compatibility baseline. These components prove the intended
-single-runtime diagnosis-partner shape for later deep-learning or rerank passes:
+The mock engine is not a real model. CLI and resident calls without `--provider`
+retain the Rust-native online-memory baseline; the Python worker remains
+an explicit legacy compatibility baseline. Their deterministic candidate labels
+remain compatible but do not demonstrate external-model reasoning quality:
 
 - ambiguous mixed hypotheses -> `ml_candidate_multi_hypothesis`
 - medium-confidence missing transition -> `ml_candidate_observe_longer`
@@ -282,7 +311,7 @@ cargo run -p etragon -- watch-targets-url http://127.0.0.1:9910/v1/latest/target
 
 Use `--cycles <n>` during tests or local dry runs when you want the watch command to stop after a fixed number of polling rounds.
 
-`--state <path>` also works with `watch-*` and `serve-*`, so a resident
+In legacy mode, `--state <path>` also works with `watch-*` and `serve-*`, so a resident
 daemon can keep learning-specific memory across restarts without changing the Rust
 side interface.
 
@@ -317,7 +346,7 @@ reported. Symlinks, non-regular files, and files replaced during opening are
 rejected rather than followed; malformed state remains a fail-closed startup
 error so learned state is never silently discarded.
 
-The resident daemon exposes:
+The legacy resident daemon (without `--provider`) exposes:
 
 - `/health`
 - `/v1/training-labels.json`

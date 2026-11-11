@@ -47,6 +47,18 @@ It should not be interpreted as:
 
 ## Current Priorities
 
+### Optional External Analysis
+
+Etragon uses existing models through API/local-service drivers rather than an
+in-house model or training stack. Its native provider entry, evidence allowlist,
+response validation and advisory-only provenance now include single-source and
+target-index read-only residents with per-target pre-inference caching and bounded
+round-robin budgets, plus bounded one-shot URL/target batches with explicit partial
+coverage and nonzero partial exit status. UI/federation integration,
+provider persistence and real-provider evaluation remain open; legacy memory
+data stays compatible. See [provider setup](apps/etragon/docs/external-providers.md).
+Etragon must never become a prerequisite for Gewyvern diagnosis or Leserpent control.
+
 ### 1. `v2.5.x`: Release Maintenance And Operating Confidence
 
 - keep release-gate, remote-Linux, and target-lab validation paths easy to rerun

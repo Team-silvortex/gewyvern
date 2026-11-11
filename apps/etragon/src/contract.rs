@@ -48,7 +48,7 @@ impl SnapshotParseError {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize)]
 pub struct AnalysisSnapshotInput {
     pub primary_module_kind: String,
     pub primary_failure_mode: String,
@@ -57,6 +57,7 @@ pub struct AnalysisSnapshotInput {
     pub primary_failure_basis: String,
     pub ambiguous: bool,
     pub competing_hypotheses: Vec<String>,
+    #[serde(skip)]
     pub augmentations: Vec<AnalysisAugmentation>,
 }
 
@@ -81,19 +82,8 @@ impl AnalysisSnapshotInput {
     }
 
     pub fn from_gewyvern_analysis_json(input: &str) -> Result<Self, SnapshotParseError> {
-        Ok(Self {
-            primary_module_kind: extract_required_json_string(input, "primary_module_kind")?,
-            primary_failure_mode: extract_required_json_string(input, "primary_failure_mode")?,
-            primary_failure_detail: extract_required_json_string(input, "primary_failure_detail")?,
-            primary_failure_confidence: extract_required_json_string(
-                input,
-                "primary_failure_confidence",
-            )?,
-            primary_failure_basis: extract_required_json_string(input, "primary_failure_basis")?,
-            ambiguous: extract_required_json_bool(input, "ambiguous")?,
-            competing_hypotheses: extract_json_string_array(input, "competing_hypotheses")?,
-            augmentations: Vec::new(),
-        })
+        serde_json::from_str(input)
+            .map_err(|_| SnapshotParseError::new("invalid analysis snapshot JSON"))
     }
 }
 
@@ -108,58 +98,6 @@ impl EngineOutput {
             augmentations: vec![augmentation],
         }
     }
-}
-
-fn extract_required_json_string(input: &str, key: &str) -> Result<String, SnapshotParseError> {
-    let needle = format!("\"{}\":\"", key);
-    let start = input
-        .find(&needle)
-        .ok_or_else(|| SnapshotParseError::new(format!("missing string field '{}'", key)))?
-        + needle.len();
-    let rest = &input[start..];
-    let end = rest
-        .find('"')
-        .ok_or_else(|| SnapshotParseError::new(format!("unterminated string field '{}'", key)))?;
-    Ok(rest[..end].to_string())
-}
-
-fn extract_required_json_bool(input: &str, key: &str) -> Result<bool, SnapshotParseError> {
-    let needle = format!("\"{}\":", key);
-    let start = input
-        .find(&needle)
-        .ok_or_else(|| SnapshotParseError::new(format!("missing bool field '{}'", key)))?
-        + needle.len();
-    let rest = &input[start..];
-    if rest.starts_with("true") {
-        Ok(true)
-    } else if rest.starts_with("false") {
-        Ok(false)
-    } else {
-        Err(SnapshotParseError::new(format!(
-            "invalid bool field '{}'",
-            key
-        )))
-    }
-}
-
-fn extract_json_string_array(input: &str, key: &str) -> Result<Vec<String>, SnapshotParseError> {
-    let needle = format!("\"{}\":[", key);
-    let start = input
-        .find(&needle)
-        .ok_or_else(|| SnapshotParseError::new(format!("missing array field '{}'", key)))?
-        + needle.len();
-    let rest = &input[start..];
-    let end = rest
-        .find(']')
-        .ok_or_else(|| SnapshotParseError::new(format!("unterminated array field '{}'", key)))?;
-    let inner = &rest[..end];
-    if inner.trim().is_empty() {
-        return Ok(Vec::new());
-    }
-    Ok(inner
-        .split(',')
-        .map(|item| item.trim().trim_matches('"').to_string())
-        .collect())
 }
 
 #[cfg(test)]
