@@ -132,6 +132,24 @@ fn container_capture_rejects_ambiguous_targets_before_any_lab_effects() {
         vec![
             "--json",
             "linux-tcp-capture",
+            "--capture-mixed",
+            "--capture-mixed",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--capture-mixed",
+            "--capture-runtime",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--capture-runtime",
+            "--capture-mixed",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
             "--capture-runtime",
             "--capture-runtime",
         ],

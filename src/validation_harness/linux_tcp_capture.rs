@@ -135,6 +135,20 @@ pub fn run_linux_capture_runtime_validation(
     }
 }
 
+pub fn run_linux_capture_mixed_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_capture_mixed(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "linux-tcp-capture --capture-mixed requires Linux, libbpf and BPF privileges",
+        ))
+    }
+}
+
 // The validation adapter consumes only kernel observations. It never invents
 // packet bytes, process lineage, HTTP semantics or missing TCP transitions.
 #[cfg(test)]

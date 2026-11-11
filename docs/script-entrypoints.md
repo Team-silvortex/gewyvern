@@ -1418,7 +1418,7 @@ reads each response piece before sending the next, and checks the actual BPF
 events rather than assuming write boundaries equal packet boundaries. The raw
 DSL must expose the body candidate; the origin-checked result must remain 200,
 while the split response becomes 403. `--juice-shop`, `--http-boundaries`,
-`--capture-recovery`, `--capture-load`, `--capture-stream` and `--capture-runtime` are mutually exclusive and reject mixed/duplicate flags
+`--capture-recovery`, `--capture-load`, `--capture-stream`, `--capture-runtime` and `--capture-mixed` are mutually exclusive and reject mixed/duplicate flags
 before creating resources.
 
 To inject bounded collection faults and verify recovery, without Docker:
@@ -1547,9 +1547,11 @@ One caller-owned `RuntimeExportContext` per capture phase fixes protocol metadat
 for its independent batches and sampled reanalysis, rather than rescanning the
 protocol directory on every export. `stage_profile` records bounded aggregates
 for one-time catalog discovery, conversion, ingestion, rotation, analysis,
-validation, sampled replay and release. These are consumer-thread wall times,
-including setup/warmup and scheduling delays, not isolated CPU time. No
-per-event timing history is retained. Existing export callers are unchanged;
+validation, sampled replay and release. These include consumer-thread wall time
+and paired `CLOCK_THREAD_CPUTIME_ID` samples: every batch stage and every 257th
+conversion/ingestion call. Setup/warmup and timer overhead remain included;
+wall-minus-CPU is not a quota-only wait counter, and sampled totals are not
+extrapolated. No per-event timing history is retained. Existing export callers are unchanged;
 they must opt into an explicit context to reuse a catalog snapshot.
 
 For repeatable hotspot diagnosis without BPF or live traffic, run on Linux:
@@ -1575,6 +1577,37 @@ explicitly incomplete. Runtime batch analysis is not a continuous stateful
 session: TCP context does not cross batch boundaries. Full-stream serialization,
 durable storage, generic-adapter offline replay and long-duration memory behavior
 remain separate acceptance work.
+
+To vary packetization and connection identities, rather than equating each
+64-byte echo with one kernel event, use the separate finite campaign:
+
+```bash
+sudo target/debug/gewyvern_validate --json linux-tcp-capture --capture-mixed --out-dir target/validation/capture-mixed-new
+```
+
+Four fresh-socket epochs exercise 1/7/8/63/64/65/511/4096-byte logical messages,
+split server writes, four-message coalesced exchanges, and repeated variable
+traffic. Every client half-closes after its final request and still verifies the
+complete final response and EOF. Each epoch owns two selected clients plus one
+unselected neighbor in the same cgroup and at the same listener endpoint.
+The neighbor must complete its own full-byte echo without entering the capture.
+
+The oracle checks contiguous per-cookie TCP payload sequence ranges, including
+32-bit wraparound, and each actual captured prefix against its expected stream
+offset. It reconciles selected application byte totals with captured payload
+ranges and kernel/consumer/runtime event totals, **not message counts with
+packet counts**. This follows TCP's byte-stream semantics in
+[RFC 9293](https://www.rfc-editor.org/rfc/rfc9293.html#section-3.7).
+Full-byte application checks do not make the 64-byte-prefix capture a full-payload
+archive. Retransmission, overlap, gaps, foreign cookies, malformed framing or
+wrong bytes fail closed; there is no generalized reassembly hidden in this oracle.
+
+The 1-MiB ring, 256-fact runtime batches, two-core/512-MiB/32-task limits and
+sampled same-adapter reanalysis remain. Each epoch has a 45-second bound and
+checks owned link/pin/cgroup cleanup before the next fresh identity set. A final
+HTTP boundary/replay scenario checks continued usability. This finite correctness
+campaign is not a saturated throughput benchmark, protocol/vulnerability detector,
+multi-host matrix or long-duration memory acceptance test.
 
 The validator verifies ownership labels and removes resources by ID, including
 on normal error unwinding. Check stderr after a cleanup failure; abrupt process

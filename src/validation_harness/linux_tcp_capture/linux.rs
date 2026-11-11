@@ -59,6 +59,10 @@ pub(super) fn run_capture_runtime(
     stream::run(out, true)
 }
 
+pub(super) fn run_capture_mixed(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    stream::mixed::run(out)
+}
+
 struct Pins(PathBuf, Option<OwnedFd>);
 impl Pins {
     fn new() -> Result<Self, ValidationError> {

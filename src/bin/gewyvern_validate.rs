@@ -23,16 +23,17 @@ use gewyvern::validation_harness::{
     run_leserpent_aot_validation, run_leserpent_benchmark_validation,
     run_leserpent_parity_recovery_validation, run_leserpent_schema_freeze_validation,
     run_leserpent_transport_validation, run_linux_attach_smoke, run_linux_capture_load_validation,
-    run_linux_capture_recovery_validation, run_linux_capture_runtime_validation,
-    run_linux_capture_stream_validation, run_linux_http_boundaries_validation,
-    run_linux_kprobe_smoke, run_linux_tc_smoke, run_linux_tcp_capture_validation,
-    run_linux_tcp_juice_shop_validation, run_package_install_smoke,
-    run_pathological_container_validation, run_registry_validation, run_release_container_check,
-    run_release_gate, run_remote_linux_host_validation, run_resilience_bundle_validation,
-    run_resilience_drive_bad_json_validation, run_resilience_emit_helper_validation,
-    run_resilience_log_evidence_validation, run_resilience_roundtrip_validation,
-    run_runtime_lifecycle_validation, run_runtime_operator_validation, run_socket_roundtrip_demo,
-    run_three_module_stack_smoke, run_training_dataset_roundtrip_demo, set_validation_json_mode,
+    run_linux_capture_mixed_validation, run_linux_capture_recovery_validation,
+    run_linux_capture_runtime_validation, run_linux_capture_stream_validation,
+    run_linux_http_boundaries_validation, run_linux_kprobe_smoke, run_linux_tc_smoke,
+    run_linux_tcp_capture_validation, run_linux_tcp_juice_shop_validation,
+    run_package_install_smoke, run_pathological_container_validation, run_registry_validation,
+    run_release_container_check, run_release_gate, run_remote_linux_host_validation,
+    run_resilience_bundle_validation, run_resilience_drive_bad_json_validation,
+    run_resilience_emit_helper_validation, run_resilience_log_evidence_validation,
+    run_resilience_roundtrip_validation, run_runtime_lifecycle_validation,
+    run_runtime_operator_validation, run_socket_roundtrip_demo, run_three_module_stack_smoke,
+    run_training_dataset_roundtrip_demo, set_validation_json_mode,
     validate_leserpent_control_plane_aot_evidence,
     validate_leserpent_language_pack_local_orchestra_aot_evidence,
 };
@@ -546,7 +547,7 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
         "linux-tcp-capture" => {
             if wants_subcommand_help(&rest) {
                 println!(
-                    "Usage: gewyvern_validate linux-tcp-capture [--juice-shop | --http-boundaries | --capture-recovery | --capture-load | --capture-stream | --capture-runtime] [--out-dir <new-path>]"
+                    "Usage: gewyvern_validate linux-tcp-capture [--juice-shop | --http-boundaries | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed] [--out-dir <new-path>]"
                 );
                 println!(
                     "Default mode captures only owned IPv4 loopback socket cookies, reconstructs real TCP states, and verifies half-close/refusal/decoy behavior. Requires Linux, BTF, clang, bpftool and BPF privileges. No payload capture or PID attribution."
@@ -569,6 +570,9 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
                 println!(
                     "--capture-runtime runs the same bounded campaign through real RuntimeSession ingest and analysis in independent 256-fact batches. Reports batch-completion latency and sampled replay. No cross-batch session context, full-stream archive or durability claim."
                 );
+                println!(
+                    "--capture-mixed runs bounded variable-size, split/coalesced-write and half-close cases on fresh owned sockets, with a same-endpoint unselected neighbor. Reconciles TCP byte ranges rather than equating messages with packets. Not general retransmission reassembly or a throughput benchmark."
+                );
                 return Ok(());
             }
             let (mode, out_dir) = parse_tcp_capture_options(rest)?;
@@ -579,6 +583,7 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
                 TcpCaptureMode::Load => run_linux_capture_load_validation(out_dir)?,
                 TcpCaptureMode::Stream => run_linux_capture_stream_validation(out_dir)?,
                 TcpCaptureMode::Runtime => run_linux_capture_runtime_validation(out_dir)?,
+                TcpCaptureMode::Mixed => run_linux_capture_mixed_validation(out_dir)?,
                 TcpCaptureMode::Loopback => run_linux_tcp_capture_validation(out_dir)?,
             };
             print_validation_report(
@@ -1246,6 +1251,7 @@ enum TcpCaptureMode {
     Load,
     Stream,
     Runtime,
+    Mixed,
 }
 
 fn parse_tcp_capture_options(
@@ -1268,6 +1274,7 @@ fn parse_tcp_capture_options(
             "--capture-runtime" if mode == TcpCaptureMode::Loopback => {
                 mode = TcpCaptureMode::Runtime
             }
+            "--capture-mixed" if mode == TcpCaptureMode::Loopback => mode = TcpCaptureMode::Mixed,
             "--out-dir" if out_dir.is_none() => {
                 let path = iter
                     .next()
@@ -1371,7 +1378,7 @@ fn print_help() {
     println!("  linux-attach-smoke [--hookpoint <category/event>] [--out-dir <path>]");
     println!("  linux-kprobe-smoke [--symbol <kernel-symbol>] [--out-dir <path>]");
     println!(
-        "  linux-tcp-capture [--juice-shop | --http-boundaries | --capture-recovery | --capture-load | --capture-stream | --capture-runtime] [--out-dir <new-path>]"
+        "  linux-tcp-capture [--juice-shop | --http-boundaries | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed] [--out-dir <new-path>]"
     );
     println!("  linux-tc-smoke --dev <netdev> [--out-dir <path>]");
     println!("  package-install-smoke [--deb|--rpm]");
@@ -3156,6 +3163,10 @@ mod tests {
     #[test]
     fn tcp_capture_options_keep_target_selection_explicit_and_reject_ambiguity() {
         assert_eq!(
+            parse_tcp_capture_options(vec!["--capture-mixed".into()]).unwrap(),
+            (TcpCaptureMode::Mixed, None)
+        );
+        assert_eq!(
             parse_tcp_capture_options(vec![]).unwrap(),
             (TcpCaptureMode::Loopback, None)
         );
@@ -3189,6 +3200,9 @@ mod tests {
             (TcpCaptureMode::JuiceShop, Some(PathBuf::from("evidence")))
         );
         for args in [
+            vec!["--capture-mixed", "--capture-mixed"],
+            vec!["--capture-mixed", "--capture-runtime"],
+            vec!["--capture-runtime", "--capture-mixed"],
             vec!["--juice-shop", "--juice-shop"],
             vec!["--juice-shop", "--http-boundaries"],
             vec!["--http-boundaries", "--juice-shop"],

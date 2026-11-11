@@ -1,5 +1,5 @@
 //! Bounded independent runtime batches, not a rolling connection/session window.
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, SystemTime};
 
 use serde_json::{Value, json};
 
@@ -15,6 +15,7 @@ use super::ValidationError;
 use super::consumer::monotonic_ns;
 use super::ring::Record;
 
+mod payload_pool;
 mod timing;
 
 const BATCH_LIMIT: usize = 256;
@@ -41,6 +42,7 @@ pub(super) struct RuntimeSink {
     max_pending: usize,
     profile: timing::Profile,
     export_context: RuntimeExportContext,
+    payload_pool: payload_pool::PayloadPool,
 }
 
 impl RuntimeSink {
@@ -82,9 +84,9 @@ impl RuntimeSink {
         let empty =
             RuntimeSession::start(config).map_err(|e| ValidationError::new(e.to_string()))?;
         let mut profile = timing::Profile::default();
-        let started = Instant::now();
+        let started = profile.catalog_discovery.start(1)?;
         let export_context = RuntimeExportContext::discover();
-        profile.catalog_discovery.record(started.elapsed());
+        profile.catalog_discovery.record(started)?;
         Ok(Self {
             session: empty.clone(),
             empty,
@@ -98,6 +100,7 @@ impl RuntimeSink {
             max_pending: 0,
             profile,
             export_context,
+            payload_pool: payload_pool::PayloadPool::default(),
         })
     }
 
@@ -111,12 +114,19 @@ impl RuntimeSink {
             .ingested
             .checked_add(1)
             .ok_or_else(|| ValidationError::new("runtime fact id overflow"))?;
-        let started = Instant::now();
-        let fact = packet_fact(record, netns, self.clock, id, self.batches + 1)?;
-        self.profile.conversion.record(started.elapsed());
-        let started = Instant::now();
+        let started = self.profile.conversion.start(257)?;
+        let fact = packet_fact(
+            record,
+            netns,
+            self.clock,
+            id,
+            self.batches + 1,
+            &mut self.payload_pool,
+        )?;
+        self.profile.conversion.record(started)?;
+        let started = self.profile.ingest.start(257)?;
         self.session.ingest(fact);
-        self.profile.ingest.record(started.elapsed());
+        self.profile.ingest.record(started)?;
         self.pending.push((record.monotonic_ns, measured));
         self.ingested = id;
         self.max_pending = self.max_pending.max(self.pending.len());
@@ -130,13 +140,13 @@ impl RuntimeSink {
         if self.pending.is_empty() {
             return Ok(());
         }
-        let started = Instant::now();
+        let started = self.profile.rotation.start(1)?;
         let session = std::mem::replace(&mut self.session, self.empty.clone());
-        self.profile.rotation.record(started.elapsed());
-        let started = Instant::now();
+        self.profile.rotation.record(started)?;
+        let started = self.profile.analysis.start(1)?;
         let mut export = session.into_export_bundle_with_context(&self.export_context);
-        self.profile.analysis.record(started.elapsed());
-        let started = Instant::now();
+        self.profile.analysis.record(started)?;
+        let started = self.profile.validation.start(1)?;
         export.ingest_trust_mode = "unverified-local".into();
         let count = self.pending.len();
         if export.facts.len() != count
@@ -168,17 +178,23 @@ impl RuntimeSink {
                 ));
             }
         }
-        self.profile.validation.record(started.elapsed());
+        self.profile.validation.record(started)?;
         // Roundtrip representative batches, not an unbounded on-disk export archive.
         if replay || self.batches == 0 {
-            let started = Instant::now();
+            let started = self.profile.replay.start(1)?;
             verify_replay(&export, &self.empty, &self.export_context)?;
-            self.profile.replay.record(started.elapsed());
+            self.profile.replay.record(started)?;
             self.replayed += 1;
         }
-        let started = Instant::now();
+        let started = self.profile.release.start(1)?;
+        for fact in &mut export.facts {
+            if let FactKind::PacketMeta(packet) = &mut fact.kind {
+                self.payload_pool
+                    .recycle(std::mem::take(&mut packet.payload_bytes));
+            }
+        }
         drop(export);
-        self.profile.release.record(started.elapsed());
+        self.profile.release.record(started)?;
         self.analyzed += count as u64;
         self.batches += 1;
         self.pending.clear();
@@ -197,6 +213,7 @@ impl RuntimeSink {
             "batch_limit":BATCH_LIMIT,"max_pending_facts":self.max_pending,
             "measured_analyzed_facts":self.latency.count(),"analysis_completion_latency":self.latency.report(),
             "stage_profile":self.profile.report(),
+            "payload_buffer_pool":self.payload_pool.report(),
             "scope":"independent-packet-only-batches-no-cross-batch-session-context",
             "analysis":"RuntimeSession-ingest-flow-program-reason-and-export-analysis",
             "replay_scope":"JSON-roundtrip-and-fresh-session-with-same-capture-adapter-and-rules",
@@ -238,6 +255,7 @@ fn packet_fact(
     clock: (u64, SystemTime),
     id: u64,
     session: u64,
+    payload_pool: &mut payload_pool::PayloadPool,
 ) -> Result<FactEnvelope, ValidationError> {
     let header = u16::from(record.ip_header_len) + u16::from(record.tcp_header_len);
     if !(20..=60).contains(&record.ip_header_len)
@@ -258,14 +276,17 @@ fn packet_fact(
         .and_then(|ms| SystemTime::UNIX_EPOCH.checked_add(Duration::from_millis(ms)))
         .ok_or_else(|| ValidationError::new("runtime capture timestamp overflow"))?;
     let bytes = &record.prefix[..usize::from(record.prefix_len)];
+    let cpu = CpuId(
+        u16::try_from(record.cpu)
+            .map_err(|_| ValidationError::new("capture CPU exceeds fact ABI"))?,
+    );
+    // Only take a reusable buffer after every fallible record check has passed.
+    let payload_bytes = payload_pool.take(bytes);
     let at = |n| bytes.get(n).copied();
     Ok(FactEnvelope {
         id: FactId(id),
         ts,
-        cpu: CpuId(
-            u16::try_from(record.cpu)
-                .map_err(|_| ValidationError::new("capture CPU exceeds fact ABI"))?,
-        ),
+        cpu,
         ifindex: Some(record.ifindex),
         session: SessionId(session),
         fragment_id: "tcp_packet_meta_fragment".into(),
@@ -286,11 +307,7 @@ fn packet_fact(
             payload_byte9: at(9),
             payload_byte10: at(10),
             payload_byte13: at(13),
-            payload_bytes: bytes
-                .iter()
-                .enumerate()
-                .map(|(i, b)| (i as u16, *b))
-                .collect(),
+            payload_bytes,
             l3_proto: 0x0800,
             l4_proto: 6,
             tot_len: u32::from(record.total_len),
@@ -305,6 +322,7 @@ fn packet_fact(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Instant;
     fn record(ns: u64) -> Record {
         Record {
             sequence: 1,
@@ -378,10 +396,49 @@ mod tests {
     }
 
     #[test]
+    fn recycled_payloads_preserve_batch_evidence_and_invalid_inputs_leave_pool_unchanged() {
+        let mut sink = RuntimeSink::new().unwrap();
+        for value in [1, 77, 255] {
+            for _ in 0..BATCH_LIMIT {
+                let mut input = record(monotonic_ns().unwrap());
+                input.prefix.fill(value);
+                sink.accept(&input, 42, false).unwrap();
+            }
+            assert_eq!(sink.payload_pool.report()["retained_buffers"], BATCH_LIMIT);
+        }
+        let pool = sink.payload_pool.report();
+        let mut bad = record(monotonic_ns().unwrap());
+        bad.cpu = u32::MAX;
+        assert!(sink.accept(&bad, 42, false).is_err());
+        assert_eq!(sink.payload_pool.report(), pool);
+        let mut input = record(monotonic_ns().unwrap());
+        input.prefix.fill(99);
+        sink.accept(&input, 43, false).unwrap();
+        let export = sink
+            .session
+            .clone()
+            .into_export_bundle_with_context(&sink.export_context);
+        let FactKind::PacketMeta(packet) = &export.facts[0].kind else {
+            panic!("expected packet")
+        };
+        assert_eq!(packet.netns, 43);
+        assert_eq!(packet.payload_byte0, Some(99));
+        assert!(packet.payload_bytes.values().all(|b| *b == 99));
+        sink.flush(true).unwrap();
+        assert_eq!(
+            sink.report().unwrap()["payload_buffer_pool"]["reused_buffers"],
+            BATCH_LIMIT * 2 + 1
+        );
+    }
+
+    #[test]
     #[ignore = "fixed synthetic input stage profile, not live capture throughput"]
     fn profile_runtime_sink_stages() {
+        let _allocations = timing::allocations::enable();
         let mut sink = RuntimeSink::new().unwrap();
+        let cgroup_before = std::fs::read_to_string("/sys/fs/cgroup/cpu.stat").unwrap();
         let start = Instant::now();
+        let cpu_start = timing::thread_cpu_ns().unwrap();
         for index in 0..(BATCH_LIMIT * 128) {
             let mut input = record(monotonic_ns().unwrap());
             input.cookie = 123 + (index % 2) as u64;
@@ -389,8 +446,29 @@ mod tests {
             sink.accept(std::hint::black_box(&input), 42, true).unwrap();
         }
         sink.flush(true).unwrap();
+        let cpu_ns = timing::thread_cpu_ns().unwrap() - cpu_start;
+        let elapsed = start.elapsed();
+        let cgroup_after = std::fs::read_to_string("/sys/fs/cgroup/cpu.stat").unwrap();
         let mut report = sink.report().unwrap();
-        report["fixture_elapsed_seconds"] = json!(start.elapsed().as_secs_f64());
+        report["fixture_elapsed_seconds"] = json!(elapsed.as_secs_f64());
+        report["fixture_thread_cpu_seconds"] = json!(cpu_ns as f64 / 1e9);
+        report["fixture_cgroup_cpu_stat_before"] = json!(cgroup_before);
+        report["fixture_cgroup_cpu_stat_after"] = json!(cgroup_after);
+        report["allocation_scope"] = json!(
+            "test-only-thread-local-System-calls;requested-bytes-not-RSS;includes-counter-overhead"
+        );
+        let mut teardown = timing::Timing::default();
+        let started = teardown.start(1).unwrap();
+        drop(sink);
+        teardown.record(started).unwrap();
+        report["fixture_sink_teardown"] = teardown.report();
+        report["fixture_sink_teardown_excluded_from_timed_region"] = json!(true);
+        let mut empty_timer = timing::Timing::default();
+        for _ in 0..1000 {
+            let start = empty_timer.start(1).unwrap();
+            empty_timer.record(start).unwrap();
+        }
+        report["empty_timer_calibration"] = empty_timer.report();
         report["fixture_source"] =
             json!("synthetic-two-cookie-64-byte-packets-not-kernel-evidence");
         report["fixture_elapsed_excludes_setup"] = json!(true);
@@ -402,7 +480,8 @@ mod tests {
         let clock = (100, SystemTime::UNIX_EPOCH + Duration::from_secs(1));
         let mut value = record(101);
         value.prefix[0] = 42;
-        let fact = packet_fact(&value, 321, clock, 7, 2).unwrap();
+        let mut pool = payload_pool::PayloadPool::default();
+        let fact = packet_fact(&value, 321, clock, 7, 2, &mut pool).unwrap();
         assert_eq!(fact.id, FactId(7));
         assert_eq!(fact.session, SessionId(2));
         let FactKind::PacketMeta(packet) = fact.kind else {
@@ -413,15 +492,15 @@ mod tests {
         assert_eq!(packet.payload_bytes.len(), 64);
         assert_eq!(packet.payload_byte0, Some(42));
         value.cpu = u32::MAX;
-        assert!(packet_fact(&value, 321, clock, 7, 2).is_err());
+        assert!(packet_fact(&value, 321, clock, 7, 2, &mut pool).is_err());
         value.cpu = 0;
         value.monotonic_ns = 99;
-        assert!(packet_fact(&value, 321, clock, 7, 2).is_err());
+        assert!(packet_fact(&value, 321, clock, 7, 2, &mut pool).is_err());
         value.monotonic_ns = 101;
         value.prefix_len = 65;
-        assert!(packet_fact(&value, 321, clock, 7, 2).is_err());
+        assert!(packet_fact(&value, 321, clock, 7, 2, &mut pool).is_err());
         value.prefix_len = 64;
         value.total_len = 40;
-        assert!(packet_fact(&value, 321, clock, 7, 2).is_err());
+        assert!(packet_fact(&value, 321, clock, 7, 2, &mut pool).is_err());
     }
 }

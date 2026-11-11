@@ -43,6 +43,20 @@ pub(super) struct Fixture {
 }
 
 pub(super) fn fixture() -> Result<Fixture, ValidationError> {
+    Ok(build_fixture(false)?.0)
+}
+
+type Neighbor = (TcpStream, TcpStream, u64);
+
+pub(super) fn fixture_with_neighbor() -> Result<(Fixture, Neighbor), ValidationError> {
+    let (fixture, neighbor) = build_fixture(true)?;
+    Ok((
+        fixture,
+        neighbor.ok_or_else(|| ValidationError::new("missing negative-control socket"))?,
+    ))
+}
+
+fn build_fixture(with_neighbor: bool) -> Result<(Fixture, Option<Neighbor>), ValidationError> {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))?;
     listener.set_nonblocking(true)?;
     let target = listener.local_addr()?;
@@ -82,11 +96,29 @@ pub(super) fn fixture() -> Result<Fixture, ValidationError> {
         }
         pairs.push((client, peer));
     }
-    Ok(Fixture {
-        scope,
-        pairs,
-        expected,
-    })
+    let neighbor = if with_neighbor {
+        let socket = owned_socket()?;
+        let cookie = socket.cookie()?;
+        let local = port(&socket)?;
+        socket.connect_timeout(&target.into(), Duration::from_secs(2))?;
+        let (peer, address) = listener.accept()?;
+        if address.port() != local || expected.iter().any(|entry| entry.0 == cookie) {
+            return Err(ValidationError::new(
+                "negative-control socket identity mismatch",
+            ));
+        }
+        Some((socket.into(), peer, cookie))
+    } else {
+        None
+    };
+    Ok((
+        Fixture {
+            scope,
+            pairs,
+            expected,
+        },
+        neighbor,
+    ))
 }
 
 pub(super) fn phase(out: &Path, enabled: bool) -> Result<Value, ValidationError> {

@@ -11,6 +11,7 @@ use super::packet_capture::Capture;
 use super::{ValidationError, ValidationReport, prepare_output, tool};
 
 mod consumer;
+pub(super) mod mixed;
 mod ring;
 mod runtime_sink;
 

@@ -43,6 +43,110 @@ For those, use:
 - [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
 - [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 
+## `2026-11-11` Mixed Packetization Validates Byte Ranges Beyond Fixed Echoes
+
+The native `linux-tcp-capture --capture-mixed` campaign extends the owned-loopback
+checks beyond the fixed 64-byte echo shape. Two physical Linux runs each completed
+four fresh-socket epochs: variable logical sizes (1/7/8/63/64/65/511/4096 bytes),
+split writes, four-message coalesced exchanges, and a repeated variable case.
+Every epoch includes a same-cgroup, same-listener unselected neighbor, plus
+client write-half-close before the final response is read and verified.
+See the [source-bound mixed-capture proof](fixtures/gewyvern_capture_mixed_linux_x86_64_20261111.json).
+
+For the two selected clients, each epoch has 2,048 logical messages and
+1,232,640 response bytes. Both runs observed these different event counts:
+
+| Write Pattern | Logical Messages | Captured Events |
+| --- | ---: | ---: |
+| Variable-size writes | 2,048 | 2,048 |
+| Split writes | 2,048 | 6,144 |
+| Four-message coalesced exchanges | 2,048 | 512 |
+
+The acceptance oracle uses per-cookie TCP sequence and payload byte ranges,
+not message/event equality. Across both runs, 21,504 actual kernel events were
+analyzed in 84 bounded runtime batches, with eight same-adapter JSON reanalyses.
+Kernel output failures and malformed events were zero. The selected response
+ranges total 9,861,120 bytes; only 645,120 prefix bytes were actually captured
+and checked. Full-byte application integrity is independently verified and must
+not be presented as full-payload capture. The eight unselected neighbors echoed
+another 4,930,560 bytes without entering the capture. All 24 socket identities
+were distinct across both campaigns.
+
+Wrong prefixes, foreign identities, framing errors, gaps and overlaps are
+rejected rather than silently repaired. TCP sequence wraparound and rejection
+atomicity have unit coverage; the live runs did not deliberately force a wrap
+or introduce retransmissions. Fresh post-campaign HTTP boundary capture/replay
+passed twice. No new correctness failure was observed within this scope.
+
+The sampled process RSS high-water was 26.42 MiB and the largest observed
+kernel-to-batch-analysis completion latency was 33.20 ms. These short fixtures
+include setup/replay and batch-fill effects: they do not establish sustained
+throughput, resolve the previous long-run RSS question, or prove generic TCP
+reassembly, vulnerability detection, cross-batch sessions or multi-host support.
+Linux regression passed 1,331 functional/contract tests, including explicit
+Unix/TCP inputs. Strict Clippy and formatting passed. Owned BPF links, pins and
+cgroups were cleaned, temporary containers removed, and the administrative
+session closed. Other running services were left unchanged; macOS received
+reports only and performed no compilation or container-image pull.
+
+## `2026-11-11` Separate Release CPU From Quota Wait Before Reusing Payload Buffers
+
+The capture adapter now pairs stage wall time with consumer-thread CPU time.
+In the two instrumented pre-optimization normal windows, release accumulated
+7.79/7.39 s of wall time but 5.02/5.19 s of CPU time, including warmup.
+The remainder is a non-CPU residual, not a direct quota-wait measurement.
+Fixed-input runs under a quarter-core quota took 0.412-0.587 s of wall time
+but 0.110-0.137 s of CPU; cgroup throttling increased by 0.301-0.447 s.
+The same input under a two-core quota recorded no new throttling. Clock overhead
+is explicit, and short conversion/ingest CPU samples are not extrapolated.
+See the [source-bound CPU/allocation proof](fixtures/gewyvern_runtime_allocation_profile_linux_x86_64_20261111.json).
+
+Allocation accounting identified repeated payload-index construction/destruction.
+The private capture adapter now reuses at most 256 maps with at most 64 payload
+entries each, without changing public facts or export formats. Values are fully
+overwritten; length/offset mismatches rebuild the map. Invalid inputs cannot
+consume a cached buffer. Recycling happens only after batch checks and sampled
+reanalysis; cached values are freed when the sink is dropped.
+
+For three 32,768-record fixed-input runs per version, conversion allocations
+fell from 294,912 to 34,816 (88.19%), and batch-release deallocations from
+303,488 to 74,112 (75.58%). Median release CPU fell from 30.763 to 1.077 ms;
+whole timed-region CPU fell from 106.420 to 75.652 ms (28.91%). These are
+test-only System call counts, not memory-residency measurements. Setup and
+teardown are outside that timed region. Separate final sink teardown measured
+0.367-0.387 ms of CPU and 6,360 deallocations, releasing 1,085,939 requested
+bytes, including its catalog and histogram as well as retained payload maps.
+
+The first optimized physical Linux campaign retained the same two clients,
+two-core quota, 1-MiB ring and 256-fact batches. Its two normal windows analyzed
+5,003,184 and 5,142,345 measured events with zero loss. Average release CPU per
+batch fell from 297.55 to 13.36 us. Mean throughput rose from 70,758 to 84,519
+events/s, but the no-capture baseline also rose from 92,970 to 103,343 requests/s.
+Therefore the raw 19.45% gain is not wholly attributed to this patch: the
+capture/baseline ratio changed from 0.7611 to 0.8179. This is a sequential
+comparison, not a randomized causal estimate. Analysis p99 upper bounds changed
+from 26.633/26.725 ms to 22.713/22.819 ms; quota-driven tails remain visible.
+
+The later normal-window RSS peak rose from 35.52 to 44.25 MiB, despite bounded
+pool occupancy. Do not call this a memory optimization or infer long-run leak
+freedom from short samples. Per-phase cgroup memory charges and process RSS
+have different scopes. Intentional pause still caused 200,396 output failures,
+exactly matching sequence gaps; the following normal phase was complete, and
+fresh post-pressure HTTP capture/replay passed. No transport, payload-integrity
+or OOM/limit failure occurred. Linux functional/contract regression passed 1,328
+tests; the profiling fixture passed 15 runs. Strict Clippy and formatting passed.
+
+A final-source confirmation campaign delivered another 5,198,639/5,192,261
+normal-window events without loss, averaging 86,573 events/s against its own
+104,336 requests/s baseline. Release CPU remained 12.67/12.82 us per batch.
+The later RSS peak was again higher, at 44.43 MiB, with 604 KiB growth within
+that sixty-second window. This confirms the high-water observation, not its
+cause or long-term stability. Pause loss reconciled at 198,560 events and fresh
+capture/replay passed again. All three campaigns cleaned their owned BPF links,
+pins and cgroups; temporary containers were removed, seven unrelated running
+containers were unchanged, and the administrative session was closed. macOS
+received reports only, without compiling or pulling container images.
+
 ## `2026-11-11` Explicit Catalog Reuse Removes The Runtime Batch Hotspot
 
 Bounded stage timing identified repeated protocol-directory discovery inside

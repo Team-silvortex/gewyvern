@@ -294,6 +294,17 @@ rediscovery behavior. A snapshot can also be supplied through
 `RuntimeExportContext::from_protocol_catalog` to share an already discovered
 `ProtocolCatalogSnapshot` within an operation.
 
+The opt-in Linux continuous-capture validation adapter also reuses payload-index
+buffers after a batch has been checked and its representative replay completed.
+This private pool retains at most 256 maps of at most 64 payload-byte entries; every value
+is overwritten before reuse, and length/offset mismatches rebuild the index.
+Invalid record framing, clocks or CPU identifiers are rejected before taking a
+buffer. The pool is dropped with its sink. Public `PacketMetaFact`/export formats
+and ordinary runtime callers are unchanged; this is not a global allocator,
+an unbounded session cache or cross-batch analysis. Cached payload values remain
+in owned memory until overwritten or the sink is dropped; they are not prior
+facts available to subsequent analysis.
+
 ## Current Limits
 
 - eBPF programs are still hand-written C, not generated from IR

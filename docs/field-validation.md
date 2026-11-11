@@ -29,6 +29,27 @@ parallel harness. The next campaign should cover these ordered layers:
 7. Use `linux-tcp-capture --capture-load` for a bounded baseline/capture/capture/baseline pressure comparison: four sixty-second phases, cgroup CPU and memory, application RTT, explicit capacity rejection, and a fresh post-pressure capture. The 128-slot snapshot control saturates during warmup; this measures the discard path, not continuous capture delivery.
 8. Use `linux-tcp-capture --capture-stream` for the bounded 1-MiB ring-to-Rust path: baseline, continuous consumption, paused-consumer overflow/resume, repeated consumption and final baseline. Preserve counter reconciliation, per-phase completeness and actual kernel-to-sink latency. A successful fault campaign does not turn the intentionally lossy phase into complete evidence. Full runtime-ledger ingest, durable storage, arbitrary-network loss and open-loop tails remain separate acceptance work.
 9. Use `linux-tcp-capture --capture-runtime` to add actual runtime ingestion and analysis in independent, bounded 256-fact sessions. Reconcile analyzed facts with deliveries, verify representative JSON samples through fresh-session reanalysis, and preserve explicit incompleteness under a slow consumer. Batch completion latency is distinct from sink acceptance; cross-batch session state, full-stream exports and durability are not covered.
+10. Use `linux-tcp-capture --capture-mixed` for variable payloads, split/coalesced writes, half-close completion, fresh socket identities and a same-endpoint unselected neighbor. Check contiguous TCP byte ranges and actual prefixes independently of application message counts. Reject gaps/retransmission/overlap rather than claiming generalized reassembly; keep full-byte application checks separate from prefix-only capture. This is a finite correctness campaign, not a throughput or vulnerability-detection claim.
+
+For runtime batch profiling, compare wall time with `CLOCK_THREAD_CPUTIME_ID`.
+Batch stages sample every call; conversion and ingestion sample every 257th
+call, avoiding a fixed position in the 256-fact batch. Only paired samples are
+compared: sampled CPU totals must not be treated as whole-stage totals. Timers
+include their own overhead, which dominates very short operations. The ignored
+`profile_runtime_sink_stages` fixture includes an empty-timer calibration and
+test-only thread-local allocation counts (requested bytes, not RSS).
+It separately measures sink teardown, including the final retained buffers;
+that one-time cleanup is outside the fixed-input timed region.
+
+Use identical fixed input under separate CPU quotas before attributing long
+release times to allocation work. Wall-minus-thread-CPU is a non-CPU residual,
+not a direct quota-wait counter; it can include preemption, blocking and timer
+overhead. Cgroup `cpu.stat` covers the whole group, not one consumer or stage.
+Preserve both the CPU/wall pairs and cgroup counter deltas, then confirm any
+optimization in real capture without the test allocation counter. Do not run
+builds or regression tests concurrently with live performance measurements.
+The measurement semantics follow the Linux [thread CPU clock documentation](https://man7.org/linux/man-pages/man3/clock_gettime.3.html)
+and [cgroup CPU controller documentation](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html).
 
 See the [native command map](script-entrypoints.md) for command arguments and
 evidence paths. Record source revision, target identity, kernel, configuration
