@@ -1,4 +1,5 @@
 # gewyvern stable-subset protocol path
+# Conservative canonical English ErrorResponse prefix, not a general frame decoder.
 
 fn postgres_query_error_rules() =
   let module_name = :postgres_query_error_path
@@ -14,15 +15,16 @@ fn postgres_query_error_rules() =
   |> program_rule pred: "socket_state_observed:remote:postgres", stage: :socket_state_transition, narr: "static:program initiated or advanced a PostgreSQL socket state transition", dedupe: false, mod: $module_name, phase: :connect
   |> program_rule pred: "socket_state_observed:remote:postgres:established", stage: :socket_state_transition, narr: "static:program reached an established PostgreSQL socket state", dedupe: true, mod: $module_name, phase: :establish
   |> program_rule pred: "packet_observed:tcp:remote:postgres:local_to_remote:byte0_mask:0xff:0x51", stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_query
-  |> program_rule pred: "packet_observed:tcp:remote:postgres:remote_to_local:byte0_mask:0xff:0x45", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_error
+  |> program_rule pred: "packet_observed:tcp:remote:postgres:remote_to_local:byte0_mask:0xff:0x45:bytes_at:5:0x53,0x45,0x52,0x52,0x4f,0x52,0x00,0x56,0x45,0x52,0x52,0x4f,0x52,0x00,0x43:byte_at:25:0x00:0x00", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_error
   |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
   |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_upstream
   |> reason_rule pred: "socket_state_observed:remote:postgres", event: :state_change, narr: :tcp_state_transition, dedupe: false, mod: $module_name, phase: :connect
   |> reason_rule pred: "socket_state_observed:remote:postgres:established", event: :state_change, narr: :tcp_state_transition, dedupe: true, mod: $module_name, phase: :establish
   |> reason_rule pred: "packet_observed:tcp:remote:postgres:local_to_remote:byte0_mask:0xff:0x51", event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_query
-  |> reason_rule pred: "packet_observed:tcp:remote:postgres:remote_to_local:byte0_mask:0xff:0x45", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_error
+  |> reason_rule pred: "packet_observed:tcp:remote:postgres:remote_to_local:byte0_mask:0xff:0x45:bytes_at:5:0x53,0x45,0x52,0x52,0x4f,0x52,0x00,0x56,0x45,0x52,0x52,0x4f,0x52,0x00,0x43:byte_at:25:0x00:0x00", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_error
 
 template :postgres_query_error_path
 |> window(duration_ms: 5000, lateness_ms: 200)
 |> use :postgres_query_error_rules
 |> param :sock_lineage_fragment.capture_comm, true
+|> param :tcp_packet_meta_fragment.sample_payload_offsets, "5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,25"

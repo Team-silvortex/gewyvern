@@ -78,6 +78,20 @@ pub(super) fn reconstruct_packets_with_rules(
     clock: (u64, SystemTime),
     rules: &str,
 ) -> Result<ExportBundle, ValidationError> {
+    reconstruct_with_prefix(tcp, states, packets, clock, rules, 64)
+}
+
+pub(super) fn reconstruct_with_prefix(
+    tcp: &ExportBundle,
+    states: &[CaptureEvent],
+    packets: &[PacketEvent],
+    clock: (u64, SystemTime),
+    rules: &str,
+    prefix_size: u16,
+) -> Result<ExportBundle, ValidationError> {
+    if ![64, 1024].contains(&prefix_size) {
+        return Err(ValidationError::new("invalid bounded packet prefix size"));
+    }
     if packets.is_empty() || packets.len() > 128 || states.len() != tcp.facts.len() {
         return Err(ValidationError::new("invalid packet evidence count"));
     }
@@ -105,7 +119,7 @@ pub(super) fn reconstruct_packets_with_rules(
         .clone();
         if id == "tcp_packet_meta_fragment" {
             descriptor.hookpoints = vec![HookPoint::CgroupSkbIngress];
-            descriptor.sampled_payload_offsets = (0..64).collect();
+            descriptor.sampled_payload_offsets = (0..prefix_size).collect();
             descriptor.maps = vec![
                 MapSpec {
                     name: "events".into(),
@@ -118,6 +132,13 @@ pub(super) fn reconstruct_packets_with_rules(
                     max_entries: 1,
                 },
             ];
+            if prefix_size == 1024 {
+                descriptor.maps.push(MapSpec {
+                    name: "scratch".into(),
+                    kind: MapKind::PerCpuArray,
+                    max_entries: 1,
+                });
+            }
             descriptor
                 .emits
                 .retain(|kind| *kind == crate::ledger::FactKindTag::PacketMeta);
@@ -183,8 +204,8 @@ pub(super) fn reconstruct_packets_with_rules(
             || packet.tcp_header_len % 4 != 0
             || packet.total_len.checked_sub(header_len) != Some(packet.payload_len)
             || !in_lifetime
-            || packet.prefix_len != packet.payload_len.min(64)
-            || packet.prefix.len() != 64
+            || packet.prefix_len != packet.payload_len.min(prefix_size)
+            || packet.prefix.len() != usize::from(prefix_size)
             || packet.prefix[usize::from(packet.prefix_len)..]
                 .iter()
                 .any(|b| *b != 0)
@@ -372,6 +393,50 @@ mod tests {
                 .unwrap()
                 .hookpoints,
             vec![HookPoint::CgroupSkbIngress]
+        );
+    }
+
+    #[test]
+    fn large_finite_prefix_is_explicit_and_does_not_change_streaming_abi() {
+        let (tcp, states, mut packets) = sample();
+        for packet in &mut packets {
+            packet.prefix.resize(1024, 0);
+        }
+        assert!(reconstruct_packets(&tcp, &states, &packets, (0, SystemTime::UNIX_EPOCH)).is_err());
+        let export = reconstruct_with_prefix(
+            &tcp,
+            &states,
+            &packets,
+            (0, SystemTime::UNIX_EPOCH),
+            RULES,
+            1024,
+        )
+        .unwrap();
+        assert!(
+            export
+                .attach_plan
+                .fragments
+                .iter()
+                .flat_map(|f| &f.maps)
+                .any(|m| m.kind == MapKind::PerCpuArray && m.max_entries == 1)
+        );
+        assert_eq!(
+            ExportBundle::from_json(&export.to_json())
+                .unwrap()
+                .attach_plan,
+            export.attach_plan
+        );
+        packets[0].prefix[1023] = 1;
+        assert!(
+            reconstruct_with_prefix(
+                &tcp,
+                &states,
+                &packets,
+                (0, SystemTime::UNIX_EPOCH),
+                RULES,
+                1024
+            )
+            .is_err()
         );
     }
 

@@ -22,6 +22,7 @@
     "linux-kprobe-smoke",
     "linux-tc-smoke",
     "linux-tcp-capture",
+    "linux-udp-capture",
     "package-install-smoke",
     "pathological-container-validation",
     "registry",

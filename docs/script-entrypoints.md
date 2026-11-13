@@ -1430,7 +1430,7 @@ reads each response piece before sending the next, and checks the actual BPF
 events rather than assuming write boundaries equal packet boundaries. The raw
 DSL must expose the body candidate; the origin-checked result must remain 200,
 while the split response becomes 403. `--juice-shop`, `--http-boundaries`,
-`--auth-breadth`, `--capture-recovery`, `--capture-load`, `--capture-stream`, `--capture-runtime`, `--capture-mixed`, `--capture-soak`, `--capture-soak-hour` and `--capture-memory-control` are mutually exclusive and reject mixed/duplicate flags
+`--auth-breadth`, `--data-breadth`, `--capture-recovery`, `--capture-load`, `--capture-stream`, `--capture-runtime`, `--capture-mixed`, `--capture-soak`, `--capture-soak-hour` and `--capture-memory-control` are mutually exclusive and reject mixed/duplicate flags
 before creating resources.
 
 To cross-check existing packages against real text/binary authentication protocols:
@@ -1467,6 +1467,73 @@ inferred. After both targets, fresh HTTP capture/replay must pass again.
 This is bounded plaintext authentication diagnosis, not vulnerability detection,
 arbitrary protocol identification, generic TCP reassembly, FTP data transfer,
 LDAP search/modify/SASL, TLS decryption, IPv6 or UDP coverage.
+
+To validate real PostgreSQL and Redis responses:
+
+```bash
+sudo target/debug/gewyvern_validate --json linux-tcp-capture --data-breadth --out-dir target/validation/data-breadth-new
+```
+
+This mode requires the cached digest-pinned official PostgreSQL and Redis images
+named in `data_breadth.rs`. Targets run on fresh internal networks with no
+published ports or host data mounts. Only disposable fixture credentials are
+used; database/cache data is held in size-limited tmpfs. Each target has a
+one-core/512-MiB/128-task limit. The runner never pulls images or prunes unrelated
+resources. `--data-breadth` is mutually exclusive with other TCP capture modes.
+
+Native bounded clients validate PostgreSQL v3 password authentication, text rows,
+SQLSTATE errors and recovery, and Redis RESP2 authentication, SET/GET, nil keys,
+WRONGTYPE/ERR, error-looking bulk values and recovery. Server streams must be
+complete from the observed SYN-ACK origin and match the client byte-for-byte.
+This finite mode uses 1024-byte packet prefixes and a per-CPU scratch map to
+avoid the BPF stack limit; the existing 64-byte streaming ABI remains unchanged.
+Truncated prefixes, holes, conflicting overlaps, losses and the 4-KiB stream
+limit reject evidence rather than filling gaps from the client.
+
+Each real stream is projected through three existing protocol packages, with
+unobserved process/route hooks explicitly unavailable and deterministic replay.
+The framed client/kernel comparison is distinct from packet-local candidates;
+packets are not fabricated at application frame boundaries. Requests are not
+captured, and the fixture does not prove general TCP reassembly, TLS/SCRAM,
+PostgreSQL extended queries, Redis RESP3/cluster/persistence, SQL-injection
+detection, arbitrary process attribution or database/cache performance.
+
+`receive_auth` is an authentication-message observation, not login success;
+`receive_bulk` includes nil bulk replies, not proof that a key exists. The
+bounded framed results carry those distinctions separately.
+
+To validate real DNS datagrams rather than TCP state transitions:
+
+```bash
+sudo target/debug/gewyvern_validate --json linux-udp-capture --out-dir target/validation/udp-dns-new
+```
+
+This separate native entry requires the digest-pinned CoreDNS image named in
+`src/validation_harness/linux_tcp_capture/linux/udp_dns.rs`, preloaded on Linux.
+It never pulls images or publishes ports. The fixed
+`ebpf/validation/dns.Corefile` uses CoreDNS [template](https://coredns.io/plugins/template/)
+and [erratic](https://coredns.io/plugins/erratic/) responses on a fresh internal
+network; it does not modify the host resolver or forward public DNS queries.
+Target limits are one CPU, 256 MiB and 128 tasks, with no host mounts.
+
+Two selected sockets reuse one DNS ID across nine queries. The expected results
+are three normal A answers, four distinct RCODEs, one TC reply and one timeout,
+followed by a successful query on the same socket. An unselected neighbor queries
+the same target. Owned cgroup ingress/egress probes retain actual datagrams;
+capture loss, sequence gaps, foreign identities, invalid framing and truncated
+128-byte payload captures fail validation instead of being repaired from client
+bytes. The bounded client parser checks the question and complete message extent.
+It does not implement a general resolver, EDNS, DNSSEC or TCP fallback.
+
+Existing DNS packages run on the captured facts with unavailable process/route
+attachments explicitly marked. Export/replay must preserve facts, flows, reasons,
+stages and IR; no TCP state or PID is invented. Error rules are packet-local
+candidates, independently cross-checked against this fixture's complete DNS
+messages. A TC response is not a completed resolution, and an observed timeout
+does not imply NXDOMAIN or SERVFAIL. Cleanup removes only owned links, pins,
+cgroup, container and network, then a fresh HTTP capture checks continued use.
+This is finite correctness coverage, not a UDP performance benchmark or IPv6,
+fragment reassembly, recursive-cache, DoH/DoT or full-catalog acceptance.
 
 To inject bounded collection faults and verify recovery, without Docker:
 

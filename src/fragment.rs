@@ -63,6 +63,7 @@ pub enum HookPoint {
     TCIngress,
     TCEgress,
     CgroupSkbIngress,
+    CgroupSkbEgress,
 }
 
 impl HookPoint {
@@ -73,6 +74,7 @@ impl HookPoint {
             Self::TCIngress => "tc:ingress".into(),
             Self::TCEgress => "tc:egress".into(),
             Self::CgroupSkbIngress => "cgroup_skb:ingress".into(),
+            Self::CgroupSkbEgress => "cgroup_skb:egress".into(),
         }
     }
 }
@@ -89,6 +91,7 @@ pub enum MapKind {
     RingBuf,
     Hash,
     LruHash,
+    PerCpuArray,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -145,6 +148,7 @@ pub fn summarize_attach_failures(
             Some(("tc", "ingress")) => "tc_ingress",
             Some(("tc", "egress")) => "tc_egress",
             Some(("cgroup_skb", "ingress")) => "cgroup_skb_ingress",
+            Some(("cgroup_skb", "egress")) => "cgroup_skb_egress",
             Some(("tracepoint", _)) => "tracepoint",
             Some(("kprobe", _)) => "kprobe",
             _ => "unknown",
@@ -583,4 +587,43 @@ fn validate_binding_rule_coverage(diagnostics: &BindingDiagnostics) -> Result<()
         validate_model_diagnostics("reason_model", model)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::export::AttachFailureSummaryItem;
+
+    #[test]
+    fn cgroup_hookpoint_failure_summary_keeps_directions_distinct() {
+        let registry = builtin_registry();
+        let plan = registry.plan(["udp_packet_meta_fragment"]).unwrap();
+        let report = registry.attach_report_with_failures(
+            &plan,
+            [
+                "first@cgroup_skb:egress".into(),
+                "second@cgroup_skb:egress".into(),
+                "first@cgroup_skb:ingress".into(),
+                "first@tc:egress".into(),
+            ],
+        );
+
+        assert_eq!(
+            summarize_attach_failures(&report),
+            vec![
+                AttachFailureSummaryItem {
+                    hookpoint_kind: "cgroup_skb_egress".into(),
+                    count: 2,
+                },
+                AttachFailureSummaryItem {
+                    hookpoint_kind: "cgroup_skb_ingress".into(),
+                    count: 1,
+                },
+                AttachFailureSummaryItem {
+                    hookpoint_kind: "tc_egress".into(),
+                    count: 1,
+                },
+            ]
+        );
+    }
 }

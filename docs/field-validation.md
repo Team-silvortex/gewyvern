@@ -32,6 +32,9 @@ parallel harness. The next campaign should cover these ordered layers:
 10. Use `linux-tcp-capture --capture-mixed` for variable payloads, split/coalesced writes, half-close completion, fresh socket identities and a same-endpoint unselected neighbor. Check contiguous TCP byte ranges and actual prefixes independently of application message counts. Reject gaps/retransmission/overlap rather than claiming generalized reassembly; keep full-byte application checks separate from prefix-only capture. This is a finite correctness campaign, not a throughput or vulnerability-detection claim.
 11. Use `linux-tcp-capture --auth-breadth` to connect real FTP control and LDAP simple-bind targets to the same kernel evidence path. For each protocol, compare selected success/denial with an unselected denied neighbor, reconstruct only complete bounded server bytes, and run the existing protocol packages with JSON replay. Unsupported process/route probes remain explicitly unavailable. This does not certify the whole protocol catalog, TLS decryption, request-side payloads, FTP data transfer or LDAP search/modify/SASL.
 
+12. Use `linux-udp-capture` for private CoreDNS queries with two owned IPv4 UDP sockets: success, FORMERR/SERVFAIL/NXDOMAIN/REFUSED, a truncated reply, a dropped reply with bounded timeout and subsequent recovery. Reconcile both captured directions byte-for-byte against native client I/O, exclude a same-target neighbor, and replay packet-only DNS packages. Shared DNS transaction IDs must not merge socket identities. TC is not successful resolution, timeout is not a DNS error code, and transport phases are not full DNS parsing.
+13. Use `linux-tcp-capture --data-breadth` for private PostgreSQL/Redis targets: authentication refusal, successful queries/reads, query/command errors, same-connection recovery, missing keys and error-looking normal values. Compare complete SYN-ACK-anchored server streams with bounded native client I/O and replay six existing packages, excluding same-target neighbors. The finite 1024-byte prefix does not change the 64-byte streaming ABI. PostgreSQL error candidates use a conservative English field layout, not a full decoder; authentication-message/ReadyForQuery/bulk stages alone do not prove login/query/key success.
+
 ### Breadth Acceptance
 
 Count a capability by its evidence chain, not by the number of package files:
@@ -40,11 +43,16 @@ package stages -> replay -> negative controls -> cleanup and fresh capture.
 Keep packet-local candidates separate from framed, origin-checked conclusions.
 Client responses and target logs are independent oracles, never replacement facts.
 
-The HTTP and FTP/LDAP fixtures cover different response framing on IPv4 TCP.
-Next breadth work should target UDP/DNS, IPv6, encrypted-transport observability,
-and a database/cache exchange with real implementations. Those are separate
-gates: neither the hour-scale load proof nor the protocol registry count closes
-them. A failed or unsupported row stays visible rather than becoming a skip-pass.
+The HTTP and FTP/LDAP fixtures cover different response framing on IPv4 TCP;
+the UDP/DNS fixture adds bounded bidirectional datagram correctness, and the
+PostgreSQL/Redis fixture adds real database/cache errors and subsequent recovery.
+Next breadth work should target IPv6, broader UDP, encrypted-transport
+observability and additional database/cache protocols or advanced exchanges.
+General TCP reassembly, localized/reordered PostgreSQL errors, TLS/SCRAM,
+extended queries, RESP3/cluster/persistence and database/cache performance remain
+separate gates: neither the hour-scale load proof nor the protocol registry
+count closes them. A failed or unsupported row stays visible rather than
+becoming a skip-pass.
 
 For runtime batch profiling, compare wall time with `CLOCK_THREAD_CPUTIME_ID`.
 Batch stages sample every call; conversion and ingestion sample every 257th

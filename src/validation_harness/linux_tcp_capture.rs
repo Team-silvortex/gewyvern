@@ -19,6 +19,22 @@ mod linux;
 mod packet_evidence;
 #[cfg(any(target_os = "linux", test))]
 mod response_prefix;
+#[cfg(any(target_os = "linux", test))]
+mod udp_evidence;
+
+pub fn run_linux_udp_dns_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_udp_dns(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "linux-udp-capture requires Linux, cgroup v2 and BPF privileges",
+        ))
+    }
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -75,6 +91,20 @@ pub fn run_linux_auth_breadth_validation(
         let _ = out_dir;
         Err(ValidationError::new(
             "linux-tcp-capture --auth-breadth requires Linux and BPF privileges",
+        ))
+    }
+}
+
+pub fn run_linux_data_breadth_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_data_breadth(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "linux-tcp-capture --data-breadth requires Linux and BPF privileges",
         ))
     }
 }

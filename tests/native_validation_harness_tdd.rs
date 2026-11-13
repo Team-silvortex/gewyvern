@@ -33,6 +33,8 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("\"linux-attach-smoke\""));
     assert!(binary.contains("\"linux-kprobe-smoke\""));
     assert!(binary.contains("\"linux-tcp-capture\""));
+    assert!(binary.contains("\"linux-udp-capture\""));
+    assert!(mod_file.contains("run_linux_udp_dns_validation"));
     assert!(binary.contains("\"linux-tc-smoke\""));
     assert!(binary.contains("evidence-index.json"));
     assert!(binary.contains("\"field-smoke\""));
@@ -837,6 +839,211 @@ fn real_authentication_breadth_proof_keeps_oracles_packages_and_missing_evidence
         read_repo_file("src/validation_harness/linux_tcp_capture/linux/docker_target.rs")
             .contains("[\"--force\", \"--volumes\"]")
     );
+}
+
+#[test]
+fn udp_dns_breadth_proof_preserves_multiple_responses_and_socket_identity() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_udp_dns_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    assert_eq!(proof["execution"]["host_count"], 1);
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let mut cookies = std::collections::BTreeSet::new();
+    let mut targets = std::collections::BTreeSet::new();
+    for run in runs {
+        assert_eq!(run["ok"], true);
+        assert_eq!(run["internal_network"], true);
+        assert_eq!(run["published_ports"], false);
+        assert_eq!(run["owned_resources_removed"], true);
+        assert_eq!(
+            run["ingress_counts"],
+            serde_json::json!({"total":10,"dropped":0})
+        );
+        assert_eq!(
+            run["egress_counts"],
+            serde_json::json!({"total":9,"dropped":0})
+        );
+        assert!(targets.insert(run["container_id"].as_str().unwrap()));
+        let selected = run["selected_sockets"].as_array().unwrap();
+        assert_eq!(selected.len(), 2);
+        for identity in selected {
+            assert!(cookies.insert(identity[0].as_u64().unwrap()));
+        }
+        assert!(cookies.insert(run["unselected_neighbor_cookie"].as_u64().unwrap()));
+        assert_eq!(run["unselected_neighbor_reply"]["rcode"], 3);
+        let observations = run["observations"].as_array().unwrap();
+        assert_eq!(observations.len(), 9);
+        for (index, observation) in observations.iter().enumerate() {
+            assert_eq!(observation["cookie"], selected[usize::from(index == 8)][0]);
+            assert_eq!(
+                observation["query_sha256"],
+                observation["captured_query_sha256"]
+            );
+            assert_eq!(
+                observation["client_response_sha256"],
+                observation["captured_response_sha256"]
+            );
+            assert_eq!(observation["client_reply"], observation["captured_reply"]);
+            assert_eq!(observation["timeout"], index == 6);
+            if index == 6 {
+                assert!(observation["client_reply"].is_null());
+                assert_eq!(observation["response_count"], 0);
+                assert!(observation["elapsed_us"].as_u64().unwrap() >= 300_000);
+            } else {
+                assert_eq!(observation["client_reply"]["id"], 0x4411);
+                assert_eq!(
+                    observation["client_reply"]["rcode"],
+                    [0, 1, 2, 3, 5, 0, 0, 0, 0][index]
+                );
+                assert_eq!(observation["client_reply"]["truncated"], index == 5);
+                assert_eq!(
+                    observation["response_count"],
+                    if [1, 4].contains(&index) { 2 } else { 1 }
+                );
+            }
+        }
+        for package in run["packages"].as_array().unwrap() {
+            assert_eq!(package["facts"], 19);
+            assert_eq!(package["flows"], 2);
+            assert_eq!(package["replay_identical"], true);
+            assert_eq!(package["packet_only"], true);
+            assert_eq!(package["process_attribution"], false);
+        }
+    }
+    assert_eq!(cookies.len(), 9);
+    assert_eq!(proof["totals"]["captured_datagrams"], 57);
+    for field in [
+        "existing_container_identities_unchanged",
+        "existing_network_identities_unchanged",
+        "existing_volume_inventory_unchanged",
+    ] {
+        assert_eq!(proof["cleanup"][field], true);
+    }
+    assert_eq!(proof["cleanup"]["global_prune_used"], false);
+}
+
+#[test]
+fn database_cache_proof_cross_checks_framed_values_and_negative_packages() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_data_breadth_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    assert_eq!(proof["execution"]["packet_prefix_bytes"], 1024);
+    assert_eq!(proof["execution"]["existing_stream_event_bytes"], 128);
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let mut cookies = std::collections::BTreeSet::new();
+    let mut packets = 0;
+    let mut states = 0;
+    for run in runs {
+        assert_eq!(run["ok"], true);
+        let phases = run["phases"].as_array().unwrap();
+        assert_eq!(phases.len(), 2);
+        for phase in phases {
+            for field in [
+                "internal_network",
+                "owned_resources_removed",
+                "anonymous_volumes_removed_with_container",
+            ] {
+                assert_eq!(phase[field], true);
+            }
+            assert_eq!(phase["published_ports"], false);
+            assert!(phase["anonymous_volume_ids"].as_array().unwrap().is_empty());
+            assert_eq!(phase["packet_counts"]["dropped"], 0);
+            assert_eq!(phase["tcp_state_counts"]["dropped"], 0);
+            packets += phase["packet_counts"]["total"].as_u64().unwrap();
+            states += phase["tcp_state_counts"]["total"].as_u64().unwrap();
+            let selected = phase["selected_cookies"].as_array().unwrap();
+            assert_eq!(selected.len(), 2);
+            for cookie in selected {
+                assert!(cookies.insert(cookie.as_u64().unwrap()));
+            }
+            assert!(cookies.insert(phase["unselected_neighbor_cookie"].as_u64().unwrap()));
+            let observations = phase["observations"].as_array().unwrap();
+            assert_eq!(observations.len(), 2);
+            for (index, observation) in observations.iter().enumerate() {
+                assert_eq!(observation["cookie"], selected[index]);
+                assert_eq!(observation["client_result"], observation["captured_result"]);
+                assert_eq!(
+                    observation["captured_sha256"],
+                    observation["response_sha256"]
+                );
+                assert!(observation["response_bytes"].as_u64().unwrap() > 0);
+            }
+            if phase["protocol"] == "postgres" {
+                assert_eq!(
+                    observations[0]["client_result"]["sqlstates"],
+                    serde_json::json!(["28P01"])
+                );
+                assert_eq!(
+                    observations[1]["client_result"]["sqlstates"],
+                    serde_json::json!(["22012"])
+                );
+                assert_eq!(
+                    observations[1]["client_result"]["rows"],
+                    serde_json::json!(["42", "43"])
+                );
+                assert_eq!(observations[1]["client_result"]["ready"], 4);
+            } else {
+                let replies = &observations[0]["client_result"]["replies"];
+                for (index, code) in [
+                    (0, "NOAUTH"),
+                    (1, "WRONGPASS"),
+                    (5, "WRONGTYPE"),
+                    (6, "ERR"),
+                ] {
+                    assert_eq!(replies[index]["code"], code);
+                }
+                assert_eq!(replies[7]["value"], "42");
+                assert_eq!(
+                    observations[1]["client_result"]["replies"][1]["kind"],
+                    "nil"
+                );
+                assert_eq!(
+                    observations[1]["client_result"]["replies"][3]["kind"],
+                    "bulk"
+                );
+                assert_eq!(
+                    observations[1]["client_result"]["replies"][3]["value"],
+                    "-ERR not-an-error"
+                );
+            }
+            let packages = phase["packages"].as_array().unwrap();
+            assert_eq!(packages.len(), 3);
+            assert_eq!(
+                packages[0]["matched_cookies"],
+                serde_json::json!([selected[0]])
+            );
+            assert_eq!(
+                packages[1]["matched_cookies"],
+                serde_json::json!([selected[usize::from(phase["protocol"] == "postgres")]])
+            );
+            assert_eq!(packages[2]["matched_cookies"], serde_json::json!(selected));
+            for package in packages {
+                assert_eq!(package["replay_identical"], true);
+                assert_eq!(package["unobserved_fragments_explicit"], true);
+                assert_eq!(package["process_attribution"], false);
+                assert_eq!(package["request_payload_observed"], false);
+            }
+        }
+    }
+    assert_eq!(cookies.len(), 18);
+    assert_eq!(proof["totals"]["packet_events"], packets);
+    assert_eq!(proof["totals"]["tcp_state_events"], states);
+    for field in [
+        "existing_container_identities_unchanged",
+        "existing_network_identities_unchanged",
+        "existing_volume_inventory_unchanged",
+    ] {
+        assert_eq!(proof["cleanup"][field], true);
+    }
+    assert_eq!(proof["cleanup"]["global_prune_used"], false);
 }
 
 #[test]

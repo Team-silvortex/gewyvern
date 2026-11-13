@@ -43,6 +43,94 @@ For those, use:
 - [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
 - [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 
+## `2026-11-13` PostgreSQL/Redis Expose And Fix An Error Classification Bug
+
+Three physical-Linux `linux-tcp-capture --data-breadth` runs used fresh internal
+PostgreSQL 16 and Redis 8 targets on kernel `7.0.0-42-generic`. Twelve selected
+connections retained 78 packet events and 60 TCP state events with zero reported
+loss. Six same-target unselected neighbors were excluded. Complete server streams
+totaled 2,985 bytes and matched native client I/O byte-for-byte from observed
+SYN-ACK origins. See the [source-bound database/cache proof](fixtures/gewyvern_data_breadth_linux_x86_64_20261113.json).
+Three development runs are excluded from these final totals.
+
+The real PostgreSQL target exposed a production false positive: the old
+authentication-denial predicate matched any `E` message, including a successful
+login's later division-by-zero query error. Framed responses distinguish SQLSTATE
+`28P01` from `22012`. The authentication and query-error package/standalone rules
+now require different conservative English severity/SQLSTATE prefixes; crossed
+errors, a lone `E` and missing sampled end bytes have regression coverage.
+This is not a general decoder: reordered/localized fields, split prefixes and
+fatal query failures can remain unmatched.
+
+PostgreSQL returned rows `42` and `43` around the failed query on the same
+connection. Redis exercised NOAUTH, WRONGPASS, authenticated SET/GET, missing-key
+nil, WRONGTYPE, unknown-command ERR, successful GET after errors, and a normal
+bulk value whose text begins `-ERR`. Across the final runs the selected clients
+issued nine PostgreSQL queries and 42 Redis commands; request payloads were not
+captured. Authentication-message, ReadyForQuery and bulk-response candidates
+must not be promoted to login success, query success or key existence.
+
+Six existing packages produced eighteen identical JSON replays. The bounded
+parser is shared between independent client and kernel byte sources, not an
+independent-parser oracle. Raw packet facts are not resegmented at message
+boundaries; missing process/route probes stay explicitly unavailable. The new
+finite 1,024-byte prefix uses a per-CPU scratch map, retaining the existing
+64-byte streaming prefix and 128-byte event ABI. Streams exceeding 4 KiB,
+truncated prefixes, gaps, conflicting overlaps and reported loss fail closed.
+
+All six owned targets and networks were removed. Container/network/54-volume
+inventories were unchanged, with no published ports or host data mounts. Redis
+was preloaded on Linux during preparation; the runner never pulls images. Data
+uses bounded tmpfs and disposable fixture credentials. Fresh 64-byte HTTP
+capture passed after every campaign. Builds and images stayed off the Mac.
+
+This closes bounded plaintext database/cache correctness and same-connection
+recovery, not throughput, generalized TCP reassembly, TLS/SCRAM, extended queries,
+RESP3/cluster/persistence, SQL-injection detection, arbitrary process attribution
+or independent-host/kernel acceptance.
+
+## `2026-11-13` UDP/DNS Adds Real Bidirectional Datagram Evidence
+
+Three physical-Linux `linux-udp-capture` runs on kernel `7.0.0-42-generic`
+used fresh internal CoreDNS targets and six selected UDP sockets. Across 27
+queries, all 27 request and 30 response datagrams were captured with zero
+reported loss. Three same-target unselected neighbors were excluded. Each run
+covered A-answer success, FORMERR/SERVFAIL/NXDOMAIN/REFUSED, a TC reply and a
+bounded dropped-response timeout followed by success on the same socket.
+See the [source-bound UDP/DNS proof](fixtures/gewyvern_udp_dns_linux_x86_64_20261113.json).
+
+The real target exposed an incorrect one-response-per-query assumption in the
+new fixture: its FORMERR and REFUSED templates each emitted two datagrams.
+The client now retains up to four responses in a fixed 50-ms observation window;
+every response must match the captured bytes and question. No datagram is
+silently dropped or replaced from client data. This behavior follows the target's
+[template response path](https://github.com/coredns/coredns/blob/v1.15.0/plugin/template/template.go)
+and [error-return convention](https://github.com/coredns/coredns/blob/v1.15.0/plugin/plugin.go).
+The recorded elapsed time includes that observation window and is not RTT.
+Three development runs are excluded from the final totals.
+
+Three production gaps were fixed: short UDP payloads could match DNS error
+codes without an observed header end, only NXDOMAIN opened DNS-error IR, and
+alternative RCODEs could be treated as missing sequential stages. The package
+and standalone DSL example now declare/check offsets 2, 3 and 11; each RCODE
+independently produces IR without missing-alternative findings. Regression
+tests cover payload lengths 0-11, missing sampled bytes, QR=0, NOERROR, wrong
+port/direction/transport, and unrelated operations/modules. These predicates
+remain packet-local candidates, not a general DNS decoder.
+
+The same captured facts produced six DNS package projections with deterministic
+JSON replay. Only packet metadata was supplied: no TCP transitions, process
+identity or route facts were invented. Two sockets sharing one DNS ID stayed
+separate; nine queries per run are not nine runtime flows. TC and timeout were
+not promoted to successful resolution or an invented RCODE. All owned resources
+were removed, the container/network/54-volume inventories were unchanged, and
+fresh HTTP capture passed after each run. The official image was preloaded only
+on Linux; the runner never pulls images or changes the host resolver.
+
+This closes a bounded IPv4 DNS correctness slice, not general UDP load, recursive
+resolution/cache behavior, IPv6/fragment reassembly, EDNS/DNSSEC/DoH/DoT, TCP
+fallback, arbitrary process attribution or independent-host/kernel acceptance.
+
 ## `2026-11-13` Real FTP/LDAP Responses Close A Protocol Breadth Gap
 
 Three independent physical-Linux `--auth-breadth` campaigns used fresh private
@@ -77,8 +165,9 @@ This is evidence of bounded plaintext authentication diagnosis across text and
 binary protocols, not arbitrary protocol recognition or exploit detection.
 Responses must fit the complete captured ranges; truncated packet prefixes,
 gaps, conflicts, malformed frames and unsupported extensions are rejected.
-UDP/DNS, IPv6, encrypted-transport observability, real database/cache exchanges,
-FTP data channels and LDAP search/modify/SASL remain separate breadth gates.
+Beyond the later bounded UDP/DNS and PostgreSQL/Redis slices above, IPv6,
+encrypted-transport observability, additional database/cache protocols, FTP data
+channels and LDAP search/modify/SASL remain separate breadth gates.
 
 ## `2026-11-13` Hour-Scale Soak Separates Live Objects From Observer And Cache Retention
 

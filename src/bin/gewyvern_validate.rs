@@ -27,15 +27,15 @@ use gewyvern::validation_harness::{
     run_linux_capture_mixed_validation, run_linux_capture_recovery_validation,
     run_linux_capture_runtime_validation, run_linux_capture_soak_hour_validation,
     run_linux_capture_soak_validation, run_linux_capture_stream_validation,
-    run_linux_http_boundaries_validation, run_linux_kprobe_smoke, run_linux_tc_smoke,
-    run_linux_tcp_capture_validation, run_linux_tcp_juice_shop_validation,
-    run_package_install_smoke, run_pathological_container_validation, run_registry_validation,
-    run_release_container_check, run_release_gate, run_remote_linux_host_validation,
-    run_resilience_bundle_validation, run_resilience_drive_bad_json_validation,
-    run_resilience_emit_helper_validation, run_resilience_log_evidence_validation,
-    run_resilience_roundtrip_validation, run_runtime_lifecycle_validation,
-    run_runtime_operator_validation, run_socket_roundtrip_demo, run_three_module_stack_smoke,
-    run_training_dataset_roundtrip_demo, set_validation_json_mode,
+    run_linux_data_breadth_validation, run_linux_http_boundaries_validation,
+    run_linux_kprobe_smoke, run_linux_tc_smoke, run_linux_tcp_capture_validation,
+    run_linux_tcp_juice_shop_validation, run_linux_udp_dns_validation, run_package_install_smoke,
+    run_pathological_container_validation, run_registry_validation, run_release_container_check,
+    run_release_gate, run_remote_linux_host_validation, run_resilience_bundle_validation,
+    run_resilience_drive_bad_json_validation, run_resilience_emit_helper_validation,
+    run_resilience_log_evidence_validation, run_resilience_roundtrip_validation,
+    run_runtime_lifecycle_validation, run_runtime_operator_validation, run_socket_roundtrip_demo,
+    run_three_module_stack_smoke, run_training_dataset_roundtrip_demo, set_validation_json_mode,
     validate_leserpent_control_plane_aot_evidence,
     validate_leserpent_language_pack_local_orchestra_aot_evidence,
 };
@@ -64,6 +64,7 @@ const TOP_LEVEL_COMMANDS: &[&str] = &[
     "linux-kprobe-smoke",
     "linux-tc-smoke",
     "linux-tcp-capture",
+    "linux-udp-capture",
     "list",
     "package-install-smoke",
     "pathological-container-validation",
@@ -552,10 +553,29 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
             );
             Ok(())
         }
+        "linux-udp-capture" => {
+            if wants_subcommand_help(&rest) {
+                println!("Usage: gewyvern_validate linux-udp-capture [--out-dir <new-path>]");
+                println!(
+                    "Uses a cached digest-pinned CoreDNS image on an owned internal network without published ports. Captures two selected IPv4 UDP sockets in both directions, checks four RCODEs, truncation, timeout/recovery and an excluded neighbor. Requires Linux, BTF, clang, bpftool, cgroup v2 and BPF privileges. Packet-only evidence; no recursive DNS, TCP fallback or PID attribution."
+                );
+                return Ok(());
+            }
+            let out = parse_udp_capture_options(rest)?;
+            let report = run_linux_udp_dns_validation(out)?;
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
+            Ok(())
+        }
         "linux-tcp-capture" => {
             if wants_subcommand_help(&rest) {
                 println!(
-                    "Usage: gewyvern_validate linux-tcp-capture [--juice-shop | --http-boundaries | --auth-breadth | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed | --capture-soak | --capture-soak-hour | --capture-memory-control] [--out-dir <new-path>]"
+                    "Usage: gewyvern_validate linux-tcp-capture [--juice-shop | --http-boundaries | --auth-breadth | --data-breadth | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed | --capture-soak | --capture-soak-hour | --capture-memory-control] [--out-dir <new-path>]"
                 );
                 println!(
                     "Default mode captures only owned IPv4 loopback socket cookies, reconstructs real TCP states, and verifies half-close/refusal/decoy behavior. Requires Linux, BTF, clang, bpftool and BPF privileges. No payload capture or PID attribution."
@@ -585,6 +605,9 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
                     "--auth-breadth uses cached digest-pinned FTP/LDAP images on private internal networks. Checks selected success/denial, an unselected denied neighbor, complete bounded ingress bytes, existing package rules and replay. No published ports, image pulls, request payload or process attribution; anonymous volumes are removed with owned targets."
                 );
                 println!(
+                    "--data-breadth uses private cached PostgreSQL/Redis targets, bounded 1024-byte ingress snapshots and native framed clients. Tests denial, successful values, errors and same-connection recovery; keeps packet candidates separate from full response semantics. No host data, public ports, egress payload or PID attribution."
+                );
+                println!(
                     "--capture-soak runs three 300-second runtime load cycles; --capture-soak-hour runs three 1200-second cycles and requires --features capture-allocation-audit. Each has teardown and 30 seconds idle, constant-space journals and report-free checkpoints. Records glibc/RSS/thread/FD observations and one final diagnostic-only malloc_trim. --capture-memory-control requires the same audit feature but no BPF privilege: 256 observer-only checkpoints on each of main/worker threads, with no traffic. No indefinite leak-freedom or production allocator policy change. Audit counters affect throughput and are not C/RSS measurements."
                 );
                 return Ok(());
@@ -596,6 +619,7 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
                 TcpCaptureMode::Recovery => run_linux_capture_recovery_validation(out_dir)?,
                 TcpCaptureMode::Load => run_linux_capture_load_validation(out_dir)?,
                 TcpCaptureMode::AuthBreadth => run_linux_auth_breadth_validation(out_dir)?,
+                TcpCaptureMode::DataBreadth => run_linux_data_breadth_validation(out_dir)?,
                 TcpCaptureMode::Stream => run_linux_capture_stream_validation(out_dir)?,
                 TcpCaptureMode::Runtime => run_linux_capture_runtime_validation(out_dir)?,
                 TcpCaptureMode::Soak => run_linux_capture_soak_validation(out_dir)?,
@@ -1264,6 +1288,7 @@ fn parse_linux_ebpf_smoke_options(
 
 #[derive(Debug, PartialEq, Eq)]
 enum TcpCaptureMode {
+    DataBreadth,
     AuthBreadth,
     Loopback,
     JuiceShop,
@@ -1296,6 +1321,9 @@ fn parse_tcp_capture_options(
             "--capture-recovery" if mode == TcpCaptureMode::Loopback => {
                 mode = TcpCaptureMode::Recovery
             }
+            "--data-breadth" if mode == TcpCaptureMode::Loopback => {
+                mode = TcpCaptureMode::DataBreadth
+            }
             "--capture-load" if mode == TcpCaptureMode::Loopback => mode = TcpCaptureMode::Load,
             "--capture-stream" if mode == TcpCaptureMode::Loopback => mode = TcpCaptureMode::Stream,
             "--capture-runtime" if mode == TcpCaptureMode::Loopback => {
@@ -1327,6 +1355,19 @@ fn parse_tcp_capture_options(
         }
     }
     Ok((mode, out_dir))
+}
+
+fn parse_udp_capture_options(args: Vec<String>) -> Result<Option<PathBuf>, ValidationError> {
+    match args.as_slice() {
+        [] => Ok(None),
+        [flag, path] if flag == "--out-dir" && !path.is_empty() && !path.starts_with('-') => {
+            Ok(Some(PathBuf::from(path)))
+        }
+        [flag] if flag == "--out-dir" => Err(ValidationError::new("--out-dir requires a path")),
+        _ => Err(ValidationError::new(
+            "unknown or repeated linux-udp-capture option `expected --out-dir <new-path>`",
+        )),
+    }
 }
 
 fn parse_optional_out_dir(
@@ -1385,6 +1426,7 @@ fn print_help() {
     );
     println!();
     println!("Commands:");
+    println!("  linux-udp-capture [--out-dir <new-path>] (real private DNS, bounded UDP capture)");
     println!("  list");
     println!("  container-operator-path-validation [--deb|--rpm]");
     println!("  container-protocol-validation [--deb|--rpm]");
@@ -1412,7 +1454,7 @@ fn print_help() {
     println!("  linux-attach-smoke [--hookpoint <category/event>] [--out-dir <path>]");
     println!("  linux-kprobe-smoke [--symbol <kernel-symbol>] [--out-dir <path>]");
     println!(
-        "  linux-tcp-capture [--juice-shop | --http-boundaries | --auth-breadth | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed | --capture-soak | --capture-soak-hour | --capture-memory-control] [--out-dir <new-path>]"
+        "  linux-tcp-capture [--juice-shop | --http-boundaries | --auth-breadth | --data-breadth | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed | --capture-soak | --capture-soak-hour | --capture-memory-control] [--out-dir <new-path>]"
     );
     println!("  linux-tc-smoke --dev <netdev> [--out-dir <path>]");
     println!("  package-install-smoke [--deb|--rpm]");
@@ -1731,6 +1773,7 @@ fn classify_failure(message: &str) -> Option<(FailureClass, &'static str)> {
         || message.contains("unknown linux smoke option `")
         || message.contains("unknown pathological-container-validation option `")
         || message.contains("unknown or repeated linux-tcp-capture option `")
+        || message.contains("unknown or repeated linux-udp-capture option `")
     {
         return Some((FailureClass::Input, "invalid_cli_input"));
     }
@@ -1877,6 +1920,7 @@ fn failure_guidance_lines(message: &str) -> Vec<&'static str> {
         || message.contains("unknown linux smoke option `")
         || message.contains("unknown pathological-container-validation option `")
         || message.contains("unknown or repeated linux-tcp-capture option `")
+        || message.contains("unknown or repeated linux-udp-capture option `")
     {
         guidance.push(
             "next-step: rerun with `gewyvern_validate help` or the subcommand `--help` output and correct the missing or invalid CLI option",

@@ -5,6 +5,11 @@
 #ifndef CAPTURE_MAP_CAPACITY
 #define CAPTURE_MAP_CAPACITY 128
 #endif
+#ifdef CAPTURE_DATA_BREADTH
+#define PREFIX_BYTES 1024
+#else
+#define PREFIX_BYTES 64
+#endif
 #if CAPTURE_MAP_CAPACITY < 1 || CAPTURE_MAP_CAPACITY > 128
 #error Invalid validation map capacity
 #endif
@@ -13,8 +18,17 @@ struct packet_event {
     __u32 cpu, ifindex, source, destination, seq, ack;
     __u16 sport, dport, total_len, window, payload_len, prefix_len;
     __u8 flags, ip_header_len, tcp_header_len;
-    __u8 prefix[64];
+    __u8 prefix[PREFIX_BYTES];
 };
+#ifdef CAPTURE_DATA_BREADTH
+/* The larger, finite protocol fixture must not consume the BPF stack. */
+struct {
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, __u32);
+    __type(value, struct packet_event);
+} scratch SEC(".maps");
+#endif
 #ifdef CAPTURE_STREAMING
 struct capture_counts { __u64 total, dropped, malformed; };
 struct {
@@ -78,7 +92,18 @@ int capture_http_prefix(struct __sk_buff *ctx) {
         goto malformed;
     if (!payload && !syn_ack)
         return 1;
+#ifdef CAPTURE_DATA_BREADTH
+    struct packet_event *storage = bpf_map_lookup_elem(&scratch, &zero);
+    if (!storage)
+        goto malformed;
+    /* Volatile stores prevent LLVM from emitting an unsupported large memset. */
+#pragma clang loop unroll(full)
+    for (__u32 i = 0; i < sizeof(*storage) / sizeof(__u64); i++)
+        ((__u64 volatile *)storage)[i] = 0;
+#define value (*storage)
+#else
     struct packet_event value = {};
+#endif
     value.monotonic_ns = bpf_ktime_get_ns();
     value.cookie = cookie;
     value.cpu = bpf_get_smp_processor_id();
@@ -95,12 +120,12 @@ int capture_http_prefix(struct __sk_buff *ctx) {
     value.ip_header_len = ihl;
     value.tcp_header_len = thl;
     value.payload_len = payload;
-    __u32 length = payload > 64 ? 64 : payload;
+    __u32 length = payload > PREFIX_BYTES ? PREFIX_BYTES : payload;
     /* Keep a local nonzero bound visible to the verifier after LLVM folding. */
     __asm__ volatile("" : "+r"(length));
     value.prefix_len = length;
     if (payload) {
-        if (length == 0 || length > 64)
+        if (length == 0 || length > PREFIX_BYTES)
             goto malformed;
         if (bpf_skb_load_bytes(ctx, ihl + thl, value.prefix, length))
             goto malformed;

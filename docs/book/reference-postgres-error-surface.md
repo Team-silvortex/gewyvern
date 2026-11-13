@@ -24,7 +24,23 @@ Coarse response shape:
 - route resolution
 - socket connect and establish
 - query send
-- error receive (`E`)
+- canonical nonfatal ErrorResponse candidate (`E` with `SERROR`/`VERROR` fields)
+
+The first `E` byte alone cannot distinguish authentication refusal from query
+failure. The current TCP packet predicates deliberately use a
+conservative canonical English field layout: `auth-denied` requires FATAL and
+SQLSTATE class 28; `error` requires the nonfatal ERROR prefix. Both require the
+observed SQLSTATE end byte. Different field order, localized severity text,
+split prefixes or fatal query failures can remain unmatched, not mislabeled.
+These are packet-local candidates, not a full PostgreSQL decoder.
+
+The real `linux-tcp-capture --data-breadth` fixture independently checks complete
+length-framed server messages, SQLSTATE, row values, command completion and
+ReadyForQuery. It distinguishes `28P01` authentication refusal from `22012`
+division by zero and verifies a later query on the same connection. No request
+payload or process identity is synthesized. A raw `receive_auth` stage only
+means an authentication message was seen, not login succeeded; a ready message
+alone is also not proof that the preceding query succeeded.
 
 ## Machine-Readable Surface Semantics
 

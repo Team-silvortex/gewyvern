@@ -165,6 +165,24 @@ fn container_capture_rejects_ambiguous_targets_before_any_lab_effects() {
         vec![
             "--json",
             "linux-tcp-capture",
+            "--data-breadth",
+            "--auth-breadth",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--data-breadth",
+            "--data-breadth",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--capture-stream",
+            "--data-breadth",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
             "--auth-breadth",
             "--auth-breadth",
         ],
@@ -365,6 +383,30 @@ fn container_capture_rejects_ambiguous_targets_before_any_lab_effects() {
                 .unwrap()
                 .contains("unknown or repeated linux-tcp-capture option")
         );
+    }
+}
+
+#[test]
+fn udp_capture_rejects_ambiguous_options_before_lab_effects() {
+    for options in [
+        vec!["--host", "192.0.2.1"],
+        vec!["--out-dir", "one", "--out-dir", "two"],
+        vec!["--out-dir"],
+        vec!["--out-dir", "--target"],
+        vec!["--auth-breadth"],
+        vec!["one", "two"],
+    ] {
+        let mut args = vec!["--json", "linux-udp-capture"];
+        args.extend(options);
+        let (ok, stdout, stderr) = run_validate_json(&args);
+        assert!(!ok);
+        let report = parse_single_json(if stdout.trim().is_empty() {
+            &stderr
+        } else {
+            &stdout
+        });
+        assert_eq!(report["failure_class"], "input");
+        assert_eq!(report["failure_code"], "invalid_cli_input");
     }
 }
 

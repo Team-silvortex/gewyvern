@@ -333,7 +333,7 @@ fn dns_error_runtime_path_materializes_name_resolution_failure_ir() {
         "dig",
         53000,
         53,
-        &[(PacketDir::Ingress, &[(2, 0x80), (3, 0x03)][..])],
+        &[(PacketDir::Ingress, &[(2, 0x80), (3, 0x03), (11, 0)][..])],
     );
 
     assert_operation(&export, "dns_error");

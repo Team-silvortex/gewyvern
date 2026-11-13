@@ -113,8 +113,7 @@ fn required_protocol_ir_phases(operation: &str) -> Option<RequiredProtocolPhases
         "dhcp_discover" => Some(RequiredProtocolPhases::All(&["receive_offer"])),
         "dhcp_nak" => Some(RequiredProtocolPhases::All(&["receive_nak"])),
         "dhcp_request" => Some(RequiredProtocolPhases::All(&["receive_ack"])),
-        "dns_error" => Some(RequiredProtocolPhases::All(&["receive_nxdomain"])),
-        "dns_tcp_error" => Some(RequiredProtocolPhases::Any(&[
+        "dns_error" | "dns_tcp_error" => Some(RequiredProtocolPhases::Any(&[
             "receive_formerr",
             "receive_servfail",
             "receive_nxdomain",

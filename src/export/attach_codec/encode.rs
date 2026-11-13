@@ -96,6 +96,7 @@ pub(crate) fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                                                             MapKind::RingBuf => "ringbuf",
                                                             MapKind::Hash => "hash",
                                                             MapKind::LruHash => "lru_hash",
+                                                            MapKind::PerCpuArray => "per_cpu_array",
                                                         }
                                                         .into(),
                                                     ),

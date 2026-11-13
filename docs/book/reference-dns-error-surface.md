@@ -48,6 +48,19 @@ This page is intentionally a debugger surface, not a full DNS decoder. It is
 meant to answer “did resolution fail at the DNS response layer?” before deeper
 resolver-specific analysis.
 
+For UDP, these four codes are alternative outcomes, not four successive
+requirements. Any one can produce DNS-error IR. The packet-local predicate
+requires an ingress packet from remote port 53, QR/RCODE bytes, and an observed
+byte at header offset 11; IP packet length alone does not prove the DNS header
+was captured. This is still a candidate, not validation of the question, record
+counts, compressed names or complete message. Missing process/route evidence
+must remain unavailable rather than being inferred from a packet.
+
+The native `linux-udp-capture` validation entry cross-checks these candidates
+against complete, bounded CoreDNS datagrams and independent client reads. It
+also keeps TC replies and timeouts separate from successful resolution and
+DNS RCODE failures. See [the validation entrypoints](../script-entrypoints.md).
+
 ## Operator Reading Order
 
 Read this page after the DNS family hub when:

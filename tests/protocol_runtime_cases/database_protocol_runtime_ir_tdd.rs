@@ -180,6 +180,7 @@ fn mysql_query_error_runtime_ir_does_not_materialize_for_ok_packet() {
 
 #[test]
 fn postgres_auth_denied_runtime_path_materializes_auth_failure_ir() {
+    let denied = pg_error_prefix(true);
     let export = run_database_path(
         "postgres_auth_denied_path.gewy",
         0x7074,
@@ -188,7 +189,7 @@ fn postgres_auth_denied_runtime_path_materializes_auth_failure_ir() {
         &[
             (PacketDir::Ingress, &[(0, 0x52)][..]),
             (PacketDir::Egress, &[(0, 0x70)][..]),
-            (PacketDir::Ingress, &[(0, 0x45)][..]),
+            (PacketDir::Ingress, &denied),
         ],
     );
 
@@ -228,6 +229,7 @@ fn postgres_auth_denied_runtime_ir_does_not_materialize_for_auth_ok() {
 
 #[test]
 fn postgres_query_error_runtime_path_materializes_error_ir() {
+    let error = pg_error_prefix(false);
     let export = run_database_path(
         "postgres_query_error_path.gewy",
         0x7076,
@@ -235,7 +237,7 @@ fn postgres_query_error_runtime_path_materializes_error_ir() {
         "psql",
         &[
             (PacketDir::Egress, &[(0, 0x51)][..]),
-            (PacketDir::Ingress, &[(0, 0x45)][..]),
+            (PacketDir::Ingress, &error),
         ],
     );
 
@@ -272,6 +274,51 @@ fn postgres_query_error_runtime_ir_does_not_materialize_for_ready_message() {
     assert_json_replay(&export);
 }
 
+fn pg_error_prefix(auth: bool) -> Vec<(u16, u8)> {
+    let mut bytes = vec![b'E', 0, 0, 0, 64];
+    bytes.extend_from_slice(if auth {
+        b"SFATAL\0VFATAL\0C28P01\0"
+    } else {
+        b"SERROR\0VERROR\0C22012\0"
+    });
+    bytes
+        .into_iter()
+        .enumerate()
+        .map(|(i, b)| (i as u16, b))
+        .collect()
+}
+
+#[test]
+fn postgres_error_candidates_do_not_cross_auth_and_query_or_accept_short_e() {
+    for (fixture, phase, wrong) in [
+        (
+            "postgres_auth_denied_path.gewy",
+            "receive_auth_denied",
+            false,
+        ),
+        ("postgres_query_error_path.gewy", "receive_error", true),
+    ] {
+        for bytes in [
+            pg_error_prefix(wrong),
+            vec![(0, b'E')],
+            pg_error_prefix(!wrong)
+                .into_iter()
+                .filter(|(offset, _)| *offset != 25)
+                .collect(),
+        ] {
+            let export = run_database_path(
+                fixture,
+                0x7078,
+                5432,
+                "psql",
+                &[(PacketDir::Ingress, &bytes)],
+            );
+            assert_no_stage(&export, phase);
+            assert_json_replay(&export);
+        }
+    }
+}
+
 fn run_database_path(
     fixture: &str,
     cookie: u64,
@@ -280,7 +327,7 @@ fn run_database_path(
     packets: &[(PacketDir, &[(u16, u8)])],
 ) -> ExportBundle {
     let binding = compile_file(&dsl_fixture_path(fixture)).unwrap();
-    let config = SessionConfig::for_template(binding.template).unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, cookie, 7800, process_name));
     session.ingest(tcp_state_fact_with_ports(

@@ -396,6 +396,7 @@ fn parse_map_spec(value: &JsonValue) -> Result<MapSpec, ExportError> {
             "ringbuf" => MapKind::RingBuf,
             "hash" => MapKind::Hash,
             "lru_hash" => MapKind::LruHash,
+            "per_cpu_array" => MapKind::PerCpuArray,
             _ => return Err(ExportError::InvalidValue("unknown map kind".into())),
         },
         max_entries: object

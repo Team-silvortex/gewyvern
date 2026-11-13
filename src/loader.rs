@@ -225,6 +225,11 @@ pub fn linux_probe_kernel_hooks(plan: &AttachPlan) -> Result<Vec<AttachFailure>,
                 hookpoint: binding.hookpoint.clone(),
                 error: "cgroup ingress capture requires an explicitly owned cgroup".into(),
             }),
+            HookPoint::CgroupSkbEgress => failures.push(AttachFailure {
+                fragment_id: binding.fragment_id.clone(),
+                hookpoint: binding.hookpoint.clone(),
+                error: "cgroup egress capture requires an explicitly owned cgroup".into(),
+            }),
         }
     }
 
@@ -302,15 +307,33 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn cgroup_probe_without_owned_scope_is_an_explicit_failure() {
-        use crate::fragment::{HookBinding, HookPoint, builtin_registry};
-        let mut plan = builtin_registry().plan(["tcp_state_fragment"]).unwrap();
-        plan.hook_graph = vec![HookBinding {
-            fragment_id: "packet_capture".into(),
-            hookpoint: HookPoint::CgroupSkbIngress,
-        }];
+        use crate::fragment::{FragmentRegistry, HookPoint, builtin_registry};
+        let mut descriptor = builtin_registry()
+            .descriptor("udp_packet_meta_fragment")
+            .unwrap()
+            .clone();
+        descriptor.hookpoints = vec![HookPoint::CgroupSkbIngress, HookPoint::CgroupSkbEgress];
+        let mut registry = FragmentRegistry::new();
+        registry.register(descriptor).unwrap();
+        let plan = registry.plan(["udp_packet_meta_fragment"]).unwrap();
         let failures = super::linux_probe_kernel_hooks(&plan).unwrap();
-        assert_eq!(failures.len(), 1);
-        assert_eq!(failures[0].hookpoint, HookPoint::CgroupSkbIngress);
-        assert!(failures[0].error.contains("explicitly owned cgroup"));
+        assert_eq!(
+            failures,
+            vec![
+                AttachFailure {
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    hookpoint: HookPoint::CgroupSkbIngress,
+                    error: "cgroup ingress capture requires an explicitly owned cgroup".into(),
+                },
+                AttachFailure {
+                    fragment_id: "udp_packet_meta_fragment".into(),
+                    hookpoint: HookPoint::CgroupSkbEgress,
+                    error: "cgroup egress capture requires an explicitly owned cgroup".into(),
+                },
+            ]
+        );
+        let report = registry.attach_report_with_failure_records(&plan, failures);
+        assert!(report.hookpoints_attached.is_empty());
+        assert!(report.fragments_loaded.is_empty());
     }
 }

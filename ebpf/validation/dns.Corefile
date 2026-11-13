@@ -1,0 +1,35 @@
+ok.test:53 {
+    template IN A {
+        answer "{{ .Name }} 60 IN A 192.0.2.7"
+    }
+}
+form.test:53 {
+    template IN A {
+        rcode FORMERR
+    }
+}
+fail.test:53 {
+    template IN A {
+        rcode SERVFAIL
+    }
+}
+nx.test:53 {
+    template IN A {
+        rcode NXDOMAIN
+    }
+}
+deny.test:53 {
+    template IN A {
+        rcode REFUSED
+    }
+}
+cut.test:53 {
+    erratic {
+        truncate 1
+    }
+}
+drop.test:53 {
+    erratic {
+        drop 1
+    }
+}

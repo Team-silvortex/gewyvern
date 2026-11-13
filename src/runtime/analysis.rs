@@ -100,6 +100,9 @@ pub(super) fn build_program_findings(
                 {
                     return None;
                 }
+                if dns_error_alternative_observed(model, rule, flow) {
+                    return None;
+                }
                 if !prior_phase_requirements_satisfied(model, finding_rule.rule_index, flow) {
                     return None;
                 }
@@ -149,6 +152,35 @@ pub(super) fn build_program_findings(
             })
         })
         .collect()
+}
+
+fn dns_error_alternative_observed(
+    model: &crate::program::ProgramModel,
+    rule: &crate::program::ProgramRule,
+    flow: &ProgramFlow,
+) -> bool {
+    if !matches!(&model.operation, crate::flow::ProgramOperation::Custom(operation) if operation == "dns_error")
+        || !is_dns_error_phase(rule.phase.as_deref())
+    {
+        return false;
+    }
+
+    // UDP DNS RCODEs are alternative outcomes, not successive required replies.
+    model.rules.iter().any(|alternative| {
+        alternative.module == rule.module
+            && alternative.signal == rule.signal
+            && is_dns_error_phase(alternative.phase.as_deref())
+            && flow.stages.iter().any(|stage| {
+                Some(&stage.kind) == alternative.signal.as_ref() && stage.phase == alternative.phase
+            })
+    })
+}
+
+fn is_dns_error_phase(phase: Option<&str>) -> bool {
+    matches!(
+        phase,
+        Some("receive_formerr" | "receive_servfail" | "receive_nxdomain" | "receive_refused")
+    )
 }
 
 pub(super) fn summarize_module_findings(program_findings: &[ProgramFinding]) -> Vec<ModuleFinding> {

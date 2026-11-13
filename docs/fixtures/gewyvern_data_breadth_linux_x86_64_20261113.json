@@ -1,0 +1,1417 @@
+{
+  "schema_version": 1,
+  "proof": "linux-real-postgres-redis-capture-breadth",
+  "captured_on": "2026-11-13",
+  "source_base_revision": "6924098b698744938d5a6fc56bc4a171c30bc49f",
+  "working_tree_changes": true,
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "execution": {
+    "kernel": "7.0.0-42-generic",
+    "arch": "x86_64",
+    "host_count": 1,
+    "kernel_count": 1,
+    "live_capture": "physical host, not build container",
+    "build_toolchain": "Rust 1.98.0",
+    "optimization": "gewyvern dev opt-level 2, no allocation audit",
+    "packet_prefix_bytes": 1024,
+    "existing_stream_prefix_bytes": 64,
+    "existing_stream_event_bytes": 128,
+    "max_capture_events": 128,
+    "max_server_stream_bytes": 4096,
+    "exchange_absolute_deadline_seconds": 12,
+    "postgres_target": "cached official postgres:16-alpine, digest-pinned",
+    "redis_target": "official redis:8-alpine, digest-pinned",
+    "target_cpu_cores": 1,
+    "target_memory_bytes": 536870912,
+    "target_pids": 128,
+    "postgres_data_tmpfs_bytes": 134217728,
+    "redis_data_tmpfs_bytes": 33554432,
+    "redis_image_pulled_during_preparation": true,
+    "automatic_image_pulls_by_runner": false,
+    "ports_published": false,
+    "host_data_mounted": false,
+    "disposable_credentials_only": true,
+    "macos_builds": false,
+    "macos_image_pulls": false,
+    "remote_evidence": "/home/chiharukiryu/.cache/gewyvern/evidence/20261113-data-breadth",
+    "local_evidence": "target/validation/data-breadth-20261113",
+    "final_campaign_directories": [
+      "run-1",
+      "run-2",
+      "run-3"
+    ],
+    "development_campaigns_excluded_from_totals": 3
+  },
+  "artifact_bindings": {
+    "build": {
+      "target/debug/gewyvern_validate": "c6e00737505b667a8eac93d650282b472cb84736d595b5019b99005cbdb5a507",
+      "ebpf/validation/http_prefix.bpf.c": "ca9eb8c99aee4f3d3ccddfed18d13592ad610d4010cfc32b65aab4d4630aac74",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth.rs": "9cca79603708c5d6761d84b954734884ce1da4ab086f292e24288a94b39fc7e4",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/wire.rs": "2809245864f6f38041e2bd09f20c0c8de316918cbf24290813b297aa2365aa39",
+      "src/validation_harness/linux_tcp_capture/linux/bounded_stream.rs": "196519549fc1eab62991e386d01f3264955b5558d9052b065722f2e7fab86314",
+      "src/validation_harness/linux_tcp_capture/linux/packet_capture.rs": "d74c0831739f3e587fe0cc6f1696d97011a6524b261eb013086f359e9ec275ee",
+      "src/validation_harness/linux_tcp_capture/packet_evidence.rs": "ce64ea1adef21ed01e2e43c2ecc8da1f4aa02e48394febfb4cf89a449603ffee",
+      "protocols/postgres/auth-denied/main.gewy": "8eac0b4ed1c4e73f55cb318d4fc864a909d79d2f718ab5800633718890ca770a",
+      "protocols/postgres/error/main.gewy": "211a7d2bc4d15642b878243e63dac844a8df791a08d4ce830091cbb96cf84f21",
+      "protocols/postgres/auth/main.gewy": "4cd13df0f49c7a21587b4f1464c2a695b9ef6ea64f5344e98c7744a433927084",
+      "protocols/redis/auth-denied/main.gewy": "4dd11db6ddfb6e9d23515f7423f70206d5f4e2908dc92bc7640500cec9dc4ecc",
+      "protocols/redis/error/main.gewy": "ffad0645b9b8ee570c3fde77318008ed4b983afbc7c090d54db8c2f7b56526eb",
+      "protocols/redis/get/main.gewy": "7dfe57a644f4f6cd574ebb14d5cc9d57ea8873d0fac91b6d58edde585de4ff16",
+      "src/fragment.rs": "ef5f6566a48192a6b9ec15352ad5a553e92c9872bf7f71d8532fbf53ea21387b",
+      "src/export/attach_codec/encode.rs": "7ff8ddafe90f8ea1be560f7f189e29b86e17f04efa4ace8b2277edeb2b2958a4",
+      "src/export/attach_codec/decode.rs": "3a959c6c1137c45600c7317d62f7e8e0792bd42f70d2e57474cace02718f54ee"
+    },
+    "reports": {
+      "run-1/summary.json": "4921de9dd010e6b4a138400e600c3faa62f6ea4510fb0f025b3ca0a656a9fc27",
+      "run-2/summary.json": "2d5f9d5539541236dae1d29eafee1d8c49bdc75cfb795dd36c59c4f23ae96792",
+      "run-3/summary.json": "cd357ea96a2d192c3e0cb70af27883876d1e671add1bcb889bee1be9f9ffce3a"
+    }
+  },
+  "runs": [
+    {
+      "checks": [
+        "real_PostgreSQL_and_Redis",
+        "auth_denial_query_error_then_recovery",
+        "same_target_unselected_denial_excluded",
+        "kernel_bytes_match_independent_client",
+        "existing_protocol_packages_and_replay",
+        "unobserved_process_route_and_egress_not_invented",
+        "owned_internal_network_and_anonymous_volume_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "data-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "container_id": "a1db3d19fd97edde263f3462db2774edac74f17b0d1133f18b1d3a22979683f0",
+          "image": "postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777",
+          "image_id": "sha256:de3a4eab8fdfa507ea92aac488b916b08089e515db49b055fe71dfa271ba3a28",
+          "internal_network": true,
+          "network_id": "b4e529469f8564b130040d4906a1610523fc740dbc7fad586fa85f4c44d654cb",
+          "observations": [
+            {
+              "captured_result": {
+                "auth": [
+                  3
+                ],
+                "completed_queries": 0,
+                "ready": 0,
+                "rows": [],
+                "sqlstates": [
+                  "28P01"
+                ]
+              },
+              "captured_sha256": "98f547a4143c9d5be1e9faba09e7899a0eb90c2ae448bd977de550902159bf38",
+              "client_result": {
+                "auth": [
+                  3
+                ],
+                "completed_queries": 0,
+                "ready": 0,
+                "rows": [],
+                "sqlstates": [
+                  "28P01"
+                ]
+              },
+              "control": false,
+              "cookie": 4154,
+              "response_bytes": 110,
+              "response_sha256": "98f547a4143c9d5be1e9faba09e7899a0eb90c2ae448bd977de550902159bf38"
+            },
+            {
+              "captured_result": {
+                "auth": [
+                  3,
+                  0
+                ],
+                "completed_queries": 2,
+                "ready": 4,
+                "rows": [
+                  "42",
+                  "43"
+                ],
+                "sqlstates": [
+                  "22012"
+                ]
+              },
+              "captured_sha256": "280104a1032bf01ec1009e988bdeeba15a17cf144912060c0adc845c5e674c23",
+              "client_result": {
+                "auth": [
+                  3,
+                  0
+                ],
+                "completed_queries": 2,
+                "ready": 4,
+                "rows": [
+                  "42",
+                  "43"
+                ],
+                "sqlstates": [
+                  "22012"
+                ]
+              },
+              "control": true,
+              "cookie": 4155,
+              "response_bytes": 611,
+              "response_sha256": "280104a1032bf01ec1009e988bdeeba15a17cf144912060c0adc845c5e674c23"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "facts": 20,
+              "matched_cookies": [
+                4154
+              ],
+              "path": "protocols/postgres/auth-denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "8eac0b4ed1c4e73f55cb318d4fc864a909d79d2f718ab5800633718890ca770a",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                4155
+              ],
+              "path": "protocols/postgres/error/main.gewy",
+              "phase": "receive_error",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "211a7d2bc4d15642b878243e63dac844a8df791a08d4ce830091cbb96cf84f21",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                4154,
+                4155
+              ],
+              "path": "protocols/postgres/auth/main.gewy",
+              "phase": "receive_auth",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "4cd13df0f49c7a21587b4f1464c2a695b9ef6ea64f5344e98c7744a433927084",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "protocol": "postgres",
+          "published_ports": false,
+          "schema_version": 1,
+          "selected_cookies": [
+            4154,
+            4155
+          ],
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 65,
+          "unselected_neighbor_result": {
+            "auth": [
+              3
+            ],
+            "completed_queries": 0,
+            "ready": 0,
+            "rows": [],
+            "sqlstates": [
+              "28P01"
+            ]
+          }
+        },
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "container_id": "e70386b420523cc39f5a81fd5fd0736098778ab70cce2c28efb77da7049a4521",
+          "image": "redis@sha256:7958cfbb9d152f87dadfbc89f1b0b15938f0b81ff8982feb327476f4911935c3",
+          "image_id": "sha256:d8642290c6a46f22d8ba0de16c5006b66a63b13412e5b8624912aaeecbc7f525",
+          "internal_network": true,
+          "network_id": "bdf15c167cf22019e80d619f44f1e89140ae83908396eff0e2e339362d0c4eaa",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "code": "NOAUTH",
+                    "kind": "error"
+                  },
+                  {
+                    "code": "WRONGPASS",
+                    "kind": "error"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "42"
+                  },
+                  {
+                    "code": "WRONGTYPE",
+                    "kind": "error"
+                  },
+                  {
+                    "code": "ERR",
+                    "kind": "error"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "42"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  }
+                ]
+              },
+              "captured_sha256": "5333258b7d40a6817298372e459bcfd8e8a7c39343b6e075017528d4634fb5f1",
+              "client_result": {
+                "replies": [
+                  {
+                    "code": "NOAUTH",
+                    "kind": "error"
+                  },
+                  {
+                    "code": "WRONGPASS",
+                    "kind": "error"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "42"
+                  },
+                  {
+                    "code": "WRONGTYPE",
+                    "kind": "error"
+                  },
+                  {
+                    "code": "ERR",
+                    "kind": "error"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "42"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 45106,
+              "response_bytes": 230,
+              "response_sha256": "5333258b7d40a6817298372e459bcfd8e8a7c39343b6e075017528d4634fb5f1"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "nil"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "-ERR not-an-error"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  }
+                ]
+              },
+              "captured_sha256": "f79fcd9a662333eeb6edd7868e891872cbdba6b2d308f543961e4bef8f9440bc",
+              "client_result": {
+                "replies": [
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "nil"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "-ERR not-an-error"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 45107,
+              "response_bytes": 44,
+              "response_sha256": "f79fcd9a662333eeb6edd7868e891872cbdba6b2d308f543961e4bef8f9440bc"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "facts": 26,
+              "matched_cookies": [
+                45106
+              ],
+              "path": "protocols/redis/auth-denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "4dd11db6ddfb6e9d23515f7423f70206d5f4e2908dc92bc7640500cec9dc4ecc",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 26,
+              "matched_cookies": [
+                45106
+              ],
+              "path": "protocols/redis/error/main.gewy",
+              "phase": "receive_error",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "ffad0645b9b8ee570c3fde77318008ed4b983afbc7c090d54db8c2f7b56526eb",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 26,
+              "matched_cookies": [
+                45106,
+                45107
+              ],
+              "path": "protocols/redis/get/main.gewy",
+              "phase": "receive_bulk",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "7dfe57a644f4f6cd574ebb14d5cc9d57ea8873d0fac91b6d58edde585de4ff16",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 16
+          },
+          "protocol": "redis",
+          "published_ports": false,
+          "schema_version": 1,
+          "selected_cookies": [
+            45106,
+            45107
+          ],
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 32816,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "code": "NOAUTH",
+                "kind": "error"
+              },
+              {
+                "code": "WRONGPASS",
+                "kind": "error"
+              },
+              {
+                "kind": "simple",
+                "value": "OK"
+              },
+              {
+                "kind": "simple",
+                "value": "OK"
+              },
+              {
+                "kind": "bulk",
+                "value": "42"
+              },
+              {
+                "code": "WRONGTYPE",
+                "kind": "error"
+              },
+              {
+                "code": "ERR",
+                "kind": "error"
+              },
+              {
+                "kind": "bulk",
+                "value": "42"
+              },
+              {
+                "kind": "simple",
+                "value": "OK"
+              }
+            ]
+          }
+        }
+      ],
+      "schema_version": 1
+    },
+    {
+      "checks": [
+        "real_PostgreSQL_and_Redis",
+        "auth_denial_query_error_then_recovery",
+        "same_target_unselected_denial_excluded",
+        "kernel_bytes_match_independent_client",
+        "existing_protocol_packages_and_replay",
+        "unobserved_process_route_and_egress_not_invented",
+        "owned_internal_network_and_anonymous_volume_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "data-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "container_id": "3e6b64688bccbed397fefca0ef679e3b1c3c437b663ea037dc6f4155838cf618",
+          "image": "postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777",
+          "image_id": "sha256:de3a4eab8fdfa507ea92aac488b916b08089e515db49b055fe71dfa271ba3a28",
+          "internal_network": true,
+          "network_id": "598591427d173665ee5cae8ee76bc7d98513ac2a234f567014768841a6a91a5a",
+          "observations": [
+            {
+              "captured_result": {
+                "auth": [
+                  3
+                ],
+                "completed_queries": 0,
+                "ready": 0,
+                "rows": [],
+                "sqlstates": [
+                  "28P01"
+                ]
+              },
+              "captured_sha256": "98f547a4143c9d5be1e9faba09e7899a0eb90c2ae448bd977de550902159bf38",
+              "client_result": {
+                "auth": [
+                  3
+                ],
+                "completed_queries": 0,
+                "ready": 0,
+                "rows": [],
+                "sqlstates": [
+                  "28P01"
+                ]
+              },
+              "control": false,
+              "cookie": 32817,
+              "response_bytes": 110,
+              "response_sha256": "98f547a4143c9d5be1e9faba09e7899a0eb90c2ae448bd977de550902159bf38"
+            },
+            {
+              "captured_result": {
+                "auth": [
+                  3,
+                  0
+                ],
+                "completed_queries": 2,
+                "ready": 4,
+                "rows": [
+                  "42",
+                  "43"
+                ],
+                "sqlstates": [
+                  "22012"
+                ]
+              },
+              "captured_sha256": "d65b4e7b72b583813cc9932e5048cc72930fd504ed085190f26dc1cb8e7a2ba0",
+              "client_result": {
+                "auth": [
+                  3,
+                  0
+                ],
+                "completed_queries": 2,
+                "ready": 4,
+                "rows": [
+                  "42",
+                  "43"
+                ],
+                "sqlstates": [
+                  "22012"
+                ]
+              },
+              "control": true,
+              "cookie": 32818,
+              "response_bytes": 611,
+              "response_sha256": "d65b4e7b72b583813cc9932e5048cc72930fd504ed085190f26dc1cb8e7a2ba0"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "facts": 20,
+              "matched_cookies": [
+                32817
+              ],
+              "path": "protocols/postgres/auth-denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "8eac0b4ed1c4e73f55cb318d4fc864a909d79d2f718ab5800633718890ca770a",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                32818
+              ],
+              "path": "protocols/postgres/error/main.gewy",
+              "phase": "receive_error",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "211a7d2bc4d15642b878243e63dac844a8df791a08d4ce830091cbb96cf84f21",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                32817,
+                32818
+              ],
+              "path": "protocols/postgres/auth/main.gewy",
+              "phase": "receive_auth",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "4cd13df0f49c7a21587b4f1464c2a695b9ef6ea64f5344e98c7744a433927084",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "protocol": "postgres",
+          "published_ports": false,
+          "schema_version": 1,
+          "selected_cookies": [
+            32817,
+            32818
+          ],
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 32819,
+          "unselected_neighbor_result": {
+            "auth": [
+              3
+            ],
+            "completed_queries": 0,
+            "ready": 0,
+            "rows": [],
+            "sqlstates": [
+              "28P01"
+            ]
+          }
+        },
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "container_id": "b7084c0ecd72ceb2276c8194b2c40a7dbd14522e74fe99ac1802dd7acff9fc7b",
+          "image": "redis@sha256:7958cfbb9d152f87dadfbc89f1b0b15938f0b81ff8982feb327476f4911935c3",
+          "image_id": "sha256:d8642290c6a46f22d8ba0de16c5006b66a63b13412e5b8624912aaeecbc7f525",
+          "internal_network": true,
+          "network_id": "2055c48ea4245ec111a7055c061395afc27a4518eba0e794230e653d39ce0f91",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "code": "NOAUTH",
+                    "kind": "error"
+                  },
+                  {
+                    "code": "WRONGPASS",
+                    "kind": "error"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "42"
+                  },
+                  {
+                    "code": "WRONGTYPE",
+                    "kind": "error"
+                  },
+                  {
+                    "code": "ERR",
+                    "kind": "error"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "42"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  }
+                ]
+              },
+              "captured_sha256": "5333258b7d40a6817298372e459bcfd8e8a7c39343b6e075017528d4634fb5f1",
+              "client_result": {
+                "replies": [
+                  {
+                    "code": "NOAUTH",
+                    "kind": "error"
+                  },
+                  {
+                    "code": "WRONGPASS",
+                    "kind": "error"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "42"
+                  },
+                  {
+                    "code": "WRONGTYPE",
+                    "kind": "error"
+                  },
+                  {
+                    "code": "ERR",
+                    "kind": "error"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "42"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 32820,
+              "response_bytes": 230,
+              "response_sha256": "5333258b7d40a6817298372e459bcfd8e8a7c39343b6e075017528d4634fb5f1"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "nil"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "-ERR not-an-error"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  }
+                ]
+              },
+              "captured_sha256": "f79fcd9a662333eeb6edd7868e891872cbdba6b2d308f543961e4bef8f9440bc",
+              "client_result": {
+                "replies": [
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "nil"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "-ERR not-an-error"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 32821,
+              "response_bytes": 44,
+              "response_sha256": "f79fcd9a662333eeb6edd7868e891872cbdba6b2d308f543961e4bef8f9440bc"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "facts": 26,
+              "matched_cookies": [
+                32820
+              ],
+              "path": "protocols/redis/auth-denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "4dd11db6ddfb6e9d23515f7423f70206d5f4e2908dc92bc7640500cec9dc4ecc",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 26,
+              "matched_cookies": [
+                32820
+              ],
+              "path": "protocols/redis/error/main.gewy",
+              "phase": "receive_error",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "ffad0645b9b8ee570c3fde77318008ed4b983afbc7c090d54db8c2f7b56526eb",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 26,
+              "matched_cookies": [
+                32820,
+                32821
+              ],
+              "path": "protocols/redis/get/main.gewy",
+              "phase": "receive_bulk",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "7dfe57a644f4f6cd574ebb14d5cc9d57ea8873d0fac91b6d58edde585de4ff16",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 16
+          },
+          "protocol": "redis",
+          "published_ports": false,
+          "schema_version": 1,
+          "selected_cookies": [
+            32820,
+            32821
+          ],
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 57356,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "code": "NOAUTH",
+                "kind": "error"
+              },
+              {
+                "code": "WRONGPASS",
+                "kind": "error"
+              },
+              {
+                "kind": "simple",
+                "value": "OK"
+              },
+              {
+                "kind": "simple",
+                "value": "OK"
+              },
+              {
+                "kind": "bulk",
+                "value": "42"
+              },
+              {
+                "code": "WRONGTYPE",
+                "kind": "error"
+              },
+              {
+                "code": "ERR",
+                "kind": "error"
+              },
+              {
+                "kind": "bulk",
+                "value": "42"
+              },
+              {
+                "kind": "simple",
+                "value": "OK"
+              }
+            ]
+          }
+        }
+      ],
+      "schema_version": 1
+    },
+    {
+      "checks": [
+        "real_PostgreSQL_and_Redis",
+        "auth_denial_query_error_then_recovery",
+        "same_target_unselected_denial_excluded",
+        "kernel_bytes_match_independent_client",
+        "existing_protocol_packages_and_replay",
+        "unobserved_process_route_and_egress_not_invented",
+        "owned_internal_network_and_anonymous_volume_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "data-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "container_id": "6edf10dac8003af34a9cf9d7433c4f7e05ee5a7e2f2a7d1d24fcde8a7b13e154",
+          "image": "postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777",
+          "image_id": "sha256:de3a4eab8fdfa507ea92aac488b916b08089e515db49b055fe71dfa271ba3a28",
+          "internal_network": true,
+          "network_id": "5ba94049653b7e7b9b4ab6c6d9fe1f67ea769a8566eb4e951dccc00c7b6335b6",
+          "observations": [
+            {
+              "captured_result": {
+                "auth": [
+                  3
+                ],
+                "completed_queries": 0,
+                "ready": 0,
+                "rows": [],
+                "sqlstates": [
+                  "28P01"
+                ]
+              },
+              "captured_sha256": "98f547a4143c9d5be1e9faba09e7899a0eb90c2ae448bd977de550902159bf38",
+              "client_result": {
+                "auth": [
+                  3
+                ],
+                "completed_queries": 0,
+                "ready": 0,
+                "rows": [],
+                "sqlstates": [
+                  "28P01"
+                ]
+              },
+              "control": false,
+              "cookie": 8230,
+              "response_bytes": 110,
+              "response_sha256": "98f547a4143c9d5be1e9faba09e7899a0eb90c2ae448bd977de550902159bf38"
+            },
+            {
+              "captured_result": {
+                "auth": [
+                  3,
+                  0
+                ],
+                "completed_queries": 2,
+                "ready": 4,
+                "rows": [
+                  "42",
+                  "43"
+                ],
+                "sqlstates": [
+                  "22012"
+                ]
+              },
+              "captured_sha256": "88fbc05e3540d7d10603f12ab3c20713be26cd9a26480873309b7ab3b3423e71",
+              "client_result": {
+                "auth": [
+                  3,
+                  0
+                ],
+                "completed_queries": 2,
+                "ready": 4,
+                "rows": [
+                  "42",
+                  "43"
+                ],
+                "sqlstates": [
+                  "22012"
+                ]
+              },
+              "control": true,
+              "cookie": 8231,
+              "response_bytes": 611,
+              "response_sha256": "88fbc05e3540d7d10603f12ab3c20713be26cd9a26480873309b7ab3b3423e71"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "facts": 20,
+              "matched_cookies": [
+                8230
+              ],
+              "path": "protocols/postgres/auth-denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "8eac0b4ed1c4e73f55cb318d4fc864a909d79d2f718ab5800633718890ca770a",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                8231
+              ],
+              "path": "protocols/postgres/error/main.gewy",
+              "phase": "receive_error",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "211a7d2bc4d15642b878243e63dac844a8df791a08d4ce830091cbb96cf84f21",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                8230,
+                8231
+              ],
+              "path": "protocols/postgres/auth/main.gewy",
+              "phase": "receive_auth",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "4cd13df0f49c7a21587b4f1464c2a695b9ef6ea64f5344e98c7744a433927084",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "protocol": "postgres",
+          "published_ports": false,
+          "schema_version": 1,
+          "selected_cookies": [
+            8230,
+            8231
+          ],
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 32822,
+          "unselected_neighbor_result": {
+            "auth": [
+              3
+            ],
+            "completed_queries": 0,
+            "ready": 0,
+            "rows": [],
+            "sqlstates": [
+              "28P01"
+            ]
+          }
+        },
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "container_id": "c3a441e8421dbb4d7719ba9bcc1cdb6cb1a0a26d1c24b9705e48b2f092f2230f",
+          "image": "redis@sha256:7958cfbb9d152f87dadfbc89f1b0b15938f0b81ff8982feb327476f4911935c3",
+          "image_id": "sha256:d8642290c6a46f22d8ba0de16c5006b66a63b13412e5b8624912aaeecbc7f525",
+          "internal_network": true,
+          "network_id": "ee0c766e554a9f6b99089172c3be6f1dcbf78ca40df2083c24162ec315d6fccb",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "code": "NOAUTH",
+                    "kind": "error"
+                  },
+                  {
+                    "code": "WRONGPASS",
+                    "kind": "error"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "42"
+                  },
+                  {
+                    "code": "WRONGTYPE",
+                    "kind": "error"
+                  },
+                  {
+                    "code": "ERR",
+                    "kind": "error"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "42"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  }
+                ]
+              },
+              "captured_sha256": "5333258b7d40a6817298372e459bcfd8e8a7c39343b6e075017528d4634fb5f1",
+              "client_result": {
+                "replies": [
+                  {
+                    "code": "NOAUTH",
+                    "kind": "error"
+                  },
+                  {
+                    "code": "WRONGPASS",
+                    "kind": "error"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "42"
+                  },
+                  {
+                    "code": "WRONGTYPE",
+                    "kind": "error"
+                  },
+                  {
+                    "code": "ERR",
+                    "kind": "error"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "42"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 4157,
+              "response_bytes": 230,
+              "response_sha256": "5333258b7d40a6817298372e459bcfd8e8a7c39343b6e075017528d4634fb5f1"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "nil"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "-ERR not-an-error"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  }
+                ]
+              },
+              "captured_sha256": "f79fcd9a662333eeb6edd7868e891872cbdba6b2d308f543961e4bef8f9440bc",
+              "client_result": {
+                "replies": [
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "nil"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  },
+                  {
+                    "kind": "bulk",
+                    "value": "-ERR not-an-error"
+                  },
+                  {
+                    "kind": "simple",
+                    "value": "OK"
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 4158,
+              "response_bytes": 44,
+              "response_sha256": "f79fcd9a662333eeb6edd7868e891872cbdba6b2d308f543961e4bef8f9440bc"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "facts": 26,
+              "matched_cookies": [
+                4157
+              ],
+              "path": "protocols/redis/auth-denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "4dd11db6ddfb6e9d23515f7423f70206d5f4e2908dc92bc7640500cec9dc4ecc",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 26,
+              "matched_cookies": [
+                4157
+              ],
+              "path": "protocols/redis/error/main.gewy",
+              "phase": "receive_error",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "ffad0645b9b8ee570c3fde77318008ed4b983afbc7c090d54db8c2f7b56526eb",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 26,
+              "matched_cookies": [
+                4157,
+                4158
+              ],
+              "path": "protocols/redis/get/main.gewy",
+              "phase": "receive_bulk",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "7dfe57a644f4f6cd574ebb14d5cc9d57ea8873d0fac91b6d58edde585de4ff16",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 16
+          },
+          "protocol": "redis",
+          "published_ports": false,
+          "schema_version": 1,
+          "selected_cookies": [
+            4157,
+            4158
+          ],
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 8232,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "code": "NOAUTH",
+                "kind": "error"
+              },
+              {
+                "code": "WRONGPASS",
+                "kind": "error"
+              },
+              {
+                "kind": "simple",
+                "value": "OK"
+              },
+              {
+                "kind": "simple",
+                "value": "OK"
+              },
+              {
+                "kind": "bulk",
+                "value": "42"
+              },
+              {
+                "code": "WRONGTYPE",
+                "kind": "error"
+              },
+              {
+                "code": "ERR",
+                "kind": "error"
+              },
+              {
+                "kind": "bulk",
+                "value": "42"
+              },
+              {
+                "kind": "simple",
+                "value": "OK"
+              }
+            ]
+          }
+        }
+      ],
+      "schema_version": 1
+    }
+  ],
+  "totals": {
+    "selected_connections": 12,
+    "unselected_connections_excluded": 6,
+    "packet_events": 78,
+    "tcp_state_events": 60,
+    "reported_loss": 0,
+    "complete_server_streams": 12,
+    "server_response_bytes": 2985,
+    "package_replays": 18,
+    "selected_postgres_queries": 9,
+    "selected_redis_commands": 42,
+    "post_data_http_restarts": 3
+  },
+  "before_fix": {
+    "run": "dev-2/postgres",
+    "authentication_candidate_cookies": [
+      63,
+      64
+    ],
+    "expected_authentication_cookie": 63,
+    "actual_client_and_kernel_sqlstates": {
+      "63": "28P01",
+      "64": "22012"
+    },
+    "finding": "A bare E tag mislabeled a nonfatal query error as authentication denial; canonical field/SQLSTATE-class guards now separate the candidates."
+  },
+  "cleanup": {
+    "existing_container_identities_unchanged": true,
+    "existing_network_identities_unchanged": true,
+    "existing_volume_inventory_unchanged": true,
+    "container_inventory_count_including_temporary_build_container": 16,
+    "network_inventory_count": 6,
+    "volume_inventory_count": 54,
+    "global_prune_used": false
+  },
+  "interpretation": {
+    "packet_candidates_are_full_protocol_decoding": false,
+    "postgres_receive_auth_is_login_success": false,
+    "postgres_ready_means_query_succeeded": false,
+    "redis_receive_bulk_proves_key_exists": false,
+    "request_payload_observed": false,
+    "process_attribution": false,
+    "raw_packets_resegmented_to_force_rule_matches": false,
+    "canonical_postgres_rule_scope": "Conservative English S/V severity and SQLSTATE prefix layout; reordered/localized/split headers and fatal query errors can remain unmatched.",
+    "framing_scope": "Native bounded parser on independently obtained client and SYN-ACK-anchored kernel bytes; no substitution, no independent-parser claim.",
+    "recovery_scope": "PostgreSQL SELECT succeeds after division-by-zero; Redis GET succeeds after WRONGTYPE and ERR on the same connection."
+  },
+  "remaining_gates": [
+    "general TCP reassembly and arbitrary segmentation",
+    "PostgreSQL TLS/SCRAM/extended query",
+    "Redis RESP3/cluster/persistence",
+    "database and cache throughput",
+    "localized or reordered PostgreSQL error fields",
+    "arbitrary process attribution",
+    "multiple independent physical hosts/kernels",
+    "other database/cache protocols"
+  ]
+}

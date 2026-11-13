@@ -154,7 +154,16 @@ impl Capture {
         if !(1..=128).contains(&capacity) {
             return Err(ValidationError::new("invalid validation map capacity"));
         }
-        Self::load(scope, expected, addresses, out, capacity, false)
+        Self::load(scope, expected, addresses, out, capacity, false, false)
+    }
+
+    pub(super) fn attach_data_breadth(
+        scope: &Scope,
+        expected: &[(u64, u16, u16, u32); 2],
+        addresses: ([u8; 4], [u8; 4]),
+        out: &Path,
+    ) -> Result<Self, ValidationError> {
+        Self::load(scope, expected, addresses, out, 128, false, true)
     }
 
     pub(super) fn attach_stream(
@@ -169,6 +178,7 @@ impl Capture {
             out,
             128,
             true,
+            false,
         )
     }
 
@@ -179,6 +189,7 @@ impl Capture {
         out: &Path,
         capacity: u32,
         streaming: bool,
+        data_breadth: bool,
     ) -> Result<Self, ValidationError> {
         let pins = Pins::new()?;
         let object = out.join("http-prefix.bpf.o");
@@ -196,6 +207,11 @@ impl Capture {
                 .arg(format!("-DREMOTE_PORT_A={}", expected[0].2))
                 .arg(format!("-DREMOTE_PORT_B={}", expected[1].2))
                 .arg(format!("-DCAPTURE_MAP_CAPACITY={capacity}"))
+                .args(if data_breadth {
+                    vec!["-DCAPTURE_DATA_BREADTH=1"]
+                } else {
+                    vec![]
+                })
                 .args(if streaming {
                     vec!["-DCAPTURE_STREAMING=1"]
                 } else {

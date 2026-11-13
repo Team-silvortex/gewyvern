@@ -150,16 +150,21 @@ fn postgres_query_error_path_materializes_query_and_error_phases() {
         None,
         None,
     ));
-    session.ingest(packet_fact_with_dir_and_payload(
+    let mut bytes = vec![b'E', 0, 0, 0, 64];
+    bytes.extend_from_slice(b"SERROR\0VERROR\0C22012\0");
+    let payload: Vec<_> = bytes
+        .into_iter()
+        .enumerate()
+        .map(|(i, b)| (i as u16, b))
+        .collect();
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
         6,
         510,
         0,
         PacketDir::Ingress,
         Some(43129),
         Some(5432),
-        Some(0x45),
-        None,
-        None,
+        &payload,
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
 

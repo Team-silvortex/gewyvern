@@ -56,6 +56,21 @@ pub(super) fn open_pinned(path: &Path) -> Result<OwnedFd, ValidationError> {
 }
 
 pub(super) fn attach_cgroup(program: &Path, cgroup: &Path) -> Result<OwnedFd, ValidationError> {
+    attach_cgroup_direction(program, cgroup, 0)
+}
+
+pub(super) fn attach_cgroup_egress(
+    program: &Path,
+    cgroup: &Path,
+) -> Result<OwnedFd, ValidationError> {
+    attach_cgroup_direction(program, cgroup, 1)
+}
+
+fn attach_cgroup_direction(
+    program: &Path,
+    cgroup: &Path,
+    attach_type: u32,
+) -> Result<OwnedFd, ValidationError> {
     let program = open_pinned(program)?;
     let cgroup = File::open(cgroup)?;
     owned_fd(
@@ -63,7 +78,7 @@ pub(super) fn attach_cgroup(program: &Path, cgroup: &Path) -> Result<OwnedFd, Va
         &mut LinkCreate {
             prog_fd: program.as_raw_fd() as u32,
             target_fd: cgroup.as_raw_fd() as u32,
-            attach_type: 0,
+            attach_type,
             flags: 0,
         },
     )

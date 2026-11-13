@@ -18,6 +18,12 @@ use crate::validation_harness::command::{default_out_dir, repo_root};
 const TOOL_TIMEOUT: Duration = Duration::from_secs(20);
 
 mod auth_breadth;
+mod bounded_stream;
+mod data_breadth;
+
+pub(super) fn run_data_breadth(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    data_breadth::run(out)
+}
 mod bpf_link;
 mod docker_target;
 mod http_boundaries;
@@ -27,6 +33,11 @@ mod load;
 mod packet_capture;
 mod recovery;
 mod stream;
+mod udp_dns;
+
+pub(super) fn run_udp_dns(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    udp_dns::run(out)
+}
 
 pub(super) fn run_auth_breadth(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
     auth_breadth::run(out)

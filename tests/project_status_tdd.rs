@@ -15968,7 +15968,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(linux_attach.maturity, Maturity::Mature);
     assert_eq!(linux_attach.priority, Priority::Maintenance);
     assert_eq!(linux_attach.completion, 100);
-    assert_eq!(linux_attach.contract.version, "1.13.0");
+    assert_eq!(linux_attach.contract.version, "1.15.0");
     for surface in [
         "artifact-embedded-fixed-smoke-sources",
         "exclusive-private-smoke-source-materialization",
@@ -15981,6 +15981,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "report-free-rust-live-allocation-checkpoints",
         "traffic-free-observer-thread-exit-control",
         "real-ftp-ldap-authentication-capture",
+        "real-bidirectional-udp-dns-capture",
+        "dns-multiple-response-byte-reconciliation",
+        "dns-timeout-truncation-and-socket-identity-boundaries",
+        "real-postgres-redis-framed-capture",
+        "database-cache-error-recovery-and-negative-values",
+        "bounded-large-prefix-with-stable-streaming-abi",
         "existing-package-wire-evidence-cross-validation",
         "unobserved-package-fragment-availability-fence",
         "owned-target-anonymous-volume-cleanup",
@@ -15997,6 +16003,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(linux_attach.blockers.is_empty());
     assert!(linux_attach.evidence.iter().any(|item| {
         item.path == "docs/fixtures/gewyvern_capture_memory_hour_linux_x86_64_20261113.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(linux_attach.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/gewyvern_data_breadth_linux_x86_64_20261113.json"
             && item.state == EvidenceState::Present
     }));
     for remaining_gate in [
