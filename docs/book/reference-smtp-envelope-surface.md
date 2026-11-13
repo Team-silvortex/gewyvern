@@ -56,9 +56,16 @@ All envelope entries currently share the same broad staging model:
 The current success-oriented models distinguish the envelope stages by the SMTP
 reply family they terminate on:
 
-- `mail` stops at sender acceptance (`250 2.1.x`)
+- `mail` stops at sender acceptance (`250 2.1.0 `)
 - `rcpt` stops at recipient acceptance (`250 2.1.5`)
-- `rcpt-denied` stops at recipient denial (`550`)
+- `rcpt-denied` recognizes address-failure candidates (`550 5.1.0 ` or `550 5.1.1 `)
+
+The SMTP packet predicates are conservative candidates, not command/reply
+correlation. Sender acceptance must not match the recipient's `2.1.5` status;
+EHLO candidates require an observed `250-` continuation prefix rather than a
+later generic `250 ` success. This omits single-line EHLO and alternative reply
+formats rather than guessing. A generic `550`, including policy failure `5.7.1`,
+does not identify the envelope phase. Full dialog context is still required.
 
 ## Machine-Readable Surface Semantics
 
@@ -70,7 +77,7 @@ Current denial semantics:
 
 - `category = failure-path`
 - `operator_focus = recipient rejection during SMTP envelope construction`
-- `typical_signal = 550`
+- `typical_signal = 550 5.1.0 / 550 5.1.1`
 - `primary_failure_mode = server_denied`
 - `primary_failure_detail = access_denied`
 - `primary_failure_basis = direct_protocol_signal`

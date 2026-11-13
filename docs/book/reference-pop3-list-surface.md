@@ -29,8 +29,9 @@ with mailbox enumeration:
 8. send `LIST`
 9. receive mailbox list readiness
 
-This is the narrowest POP3 page to use when you want to prove that the
-conversation progressed past authentication and into mailbox listing posture.
+These are reference stages, not proof of command/reply ordering. The response
+candidate recognizes `+OK <1-3 decimal digits> messages (` at the start of an
+observed packet. It is not a full list parser or proof of authenticated access.
 
 ## Operator Reading Order
 
@@ -42,9 +43,19 @@ Read this page after the POP3 family hub when:
 
 ## Stability Notes
 
-The current entry is intentionally narrow. It models mailbox listing readiness,
-not later retrieval or deletion commands that are not yet represented in this
-family.
+The current entry is intentionally narrow. STAT counts, UIDL metadata, RETR
+octet counts, deletion acknowledgements and bare `+OK` do not become list
+readiness. Counts above three digits, alternate server text and status lines
+split across packets may remain unmatched. Body data that exactly mimics a
+signature at a packet boundary still needs stream/dialogue context; these
+packet-local predicates do not provide it.
+
+The real Linux fixture separately retrieves two seeded messages, checks LIST,
+STAT and UIDL, dot-unstuffs bodies, marks a message deleted, resets and verifies
+the restored list. Mailpit 1.33.0 appends an extra CRLF to each RETR body while
+advertising the stored size. The fixture reports this known server discrepancy
+explicitly and retains every raw captured byte; it does not certify server
+conformance or deletion durability after QUIT.
 
 For the broader family map, see
 [docs/book/reference-pop3-surface.md](docs/book/reference-pop3-surface.md).

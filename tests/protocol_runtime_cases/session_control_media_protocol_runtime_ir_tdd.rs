@@ -479,21 +479,18 @@ fn prefix4(bytes: [u8; 4]) -> &'static [(u16, u8)] {
 }
 
 fn rtsp_response_with_header(header: [u8; 4]) -> &'static [(u16, u8)] {
-    let mut bytes = vec![
-        (0, b'R'),
-        (1, b'T'),
-        (2, b'S'),
-        (3, b'P'),
-        (9, b'2'),
-        (10, b'0'),
-        (11, b'0'),
-    ];
-    bytes.extend(
-        header
-            .into_iter()
-            .enumerate()
-            .map(|(offset, value)| (17 + offset as u16, value)),
-    );
+    let fields = match &header {
+        b"Publ" => "Public: DESCRIBE, SETUP, PLAY\r\n",
+        b"Cont" => "Content-Type: application/sdp\r\nContent-Length: 148\r\n",
+        b"Sess" => "Session: a7f981\r\nTransport: RTP/AVP/TCP;unicast\r\n",
+        b"Rang" => "Session: a7f981\r\nRTP-Info: url=rtsp://test/track\r\n",
+        _ => panic!("unknown fixture header"),
+    };
+    let bytes: Vec<_> = format!("RTSP/1.0 200 OK\r\nCSeq: 1\r\n{fields}\r\n")
+        .bytes()
+        .enumerate()
+        .map(|(i, b)| (i as u16, b))
+        .collect();
     Box::leak(bytes.into_boxed_slice())
 }
 

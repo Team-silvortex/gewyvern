@@ -87,20 +87,11 @@ fn pop3_auth_denied_runtime_path_materializes_auth_failure_ir() {
         110,
         "pop3-client",
         &[
-            (
-                PacketDir::Ingress,
-                bytes(&[b'+', b'O', b'K', b' ', b' ', b'P', b'O', b'P', b'3']),
-            ),
+            (PacketDir::Ingress, bytes(b"+OK Mailpit POP3 server\r\n")),
             (PacketDir::Egress, bytes(&[b'U', b'S', b'E', b'R'])),
-            (
-                PacketDir::Ingress,
-                bytes(&[b'+', b'O', b'K', b' ', b' ', b'U', b's', b'e', b'r']),
-            ),
+            (PacketDir::Ingress, bytes(b"+OK\r\n")),
             (PacketDir::Egress, bytes(&[b'P', b'A', b'S', b'S'])),
-            (
-                PacketDir::Ingress,
-                bytes(&[b'-', b'E', b'R', b'R', b' ', b'a', b'u', b't', b'h']),
-            ),
+            (PacketDir::Ingress, bytes(b"-ERR invalid password\r\n")),
         ],
     );
 
@@ -122,20 +113,11 @@ fn pop3_auth_denied_runtime_ir_does_not_materialize_for_auth_ok() {
         110,
         "pop3-client",
         &[
-            (
-                PacketDir::Ingress,
-                bytes(&[b'+', b'O', b'K', b' ', b' ', b'P', b'O', b'P', b'3']),
-            ),
+            (PacketDir::Ingress, bytes(b"+OK Mailpit POP3 server\r\n")),
             (PacketDir::Egress, bytes(&[b'U', b'S', b'E', b'R'])),
-            (
-                PacketDir::Ingress,
-                bytes(&[b'+', b'O', b'K', b' ', b' ', b'U', b's', b'e', b'r']),
-            ),
+            (PacketDir::Ingress, bytes(b"+OK\r\n")),
             (PacketDir::Egress, bytes(&[b'P', b'A', b'S', b'S'])),
-            (
-                PacketDir::Ingress,
-                bytes(&[b'+', b'O', b'K', b' ', b' ', b'M', b'a', b'i', b'l']),
-            ),
+            (PacketDir::Ingress, bytes(b"+OK signed in\r\n")),
         ],
     );
 

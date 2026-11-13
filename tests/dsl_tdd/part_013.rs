@@ -15,16 +15,11 @@ fn pop3_auth_path_does_not_treat_denied_response_as_auth_ok() {
         PacketDir::Ingress,
         Some(53037),
         Some(110),
-        &[
-            (0, 0x2b),
-            (1, 0x4f),
-            (2, 0x4b),
-            (3, 0x20),
-            (5, 0x50),
-            (6, 0x4f),
-            (7, 0x50),
-            (8, 0x33),
-        ],
+        &b"+OK Mailpit POP3 server\r\n"
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (i as u16, *b))
+            .collect::<Vec<_>>(),
     ));
     session.ingest(packet_fact_with_dir_and_payload_bytes(
         5,
@@ -42,16 +37,11 @@ fn pop3_auth_path_does_not_treat_denied_response_as_auth_ok() {
         PacketDir::Ingress,
         Some(53037),
         Some(110),
-        &[
-            (0, 0x2b),
-            (1, 0x4f),
-            (2, 0x4b),
-            (3, 0x20),
-            (5, 0x55),
-            (6, 0x73),
-            (7, 0x65),
-            (8, 0x72),
-        ],
+        &b"+OK User accepted\r\n"
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (i as u16, *b))
+            .collect::<Vec<_>>(),
     ));
     session.ingest(packet_fact_with_dir_and_payload_bytes(
         7,
@@ -69,16 +59,11 @@ fn pop3_auth_path_does_not_treat_denied_response_as_auth_ok() {
         PacketDir::Ingress,
         Some(53037),
         Some(110),
-        &[
-            (0, 0x2d),
-            (1, 0x45),
-            (2, 0x52),
-            (3, 0x52),
-            (5, 0x61),
-            (6, 0x75),
-            (7, 0x74),
-            (8, 0x68),
-        ],
+        &b"-ERR invalid password\r\n"
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (i as u16, *b))
+            .collect::<Vec<_>>(),
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
 
@@ -106,16 +91,11 @@ fn pop3_list_path_does_not_treat_auth_ok_as_list_ready() {
         PacketDir::Ingress,
         Some(53038),
         Some(110),
-        &[
-            (0, 0x2b),
-            (1, 0x4f),
-            (2, 0x4b),
-            (3, 0x20),
-            (5, 0x50),
-            (6, 0x4f),
-            (7, 0x50),
-            (8, 0x33),
-        ],
+        &b"+OK Mailpit POP3 server\r\n"
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (i as u16, *b))
+            .collect::<Vec<_>>(),
     ));
     session.ingest(packet_fact_with_dir_and_payload_bytes(
         5,
@@ -133,16 +113,11 @@ fn pop3_list_path_does_not_treat_auth_ok_as_list_ready() {
         PacketDir::Ingress,
         Some(53038),
         Some(110),
-        &[
-            (0, 0x2b),
-            (1, 0x4f),
-            (2, 0x4b),
-            (3, 0x20),
-            (5, 0x55),
-            (6, 0x73),
-            (7, 0x65),
-            (8, 0x72),
-        ],
+        &b"+OK User accepted\r\n"
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (i as u16, *b))
+            .collect::<Vec<_>>(),
     ));
     session.ingest(packet_fact_with_dir_and_payload_bytes(
         7,
@@ -160,16 +135,11 @@ fn pop3_list_path_does_not_treat_auth_ok_as_list_ready() {
         PacketDir::Ingress,
         Some(53038),
         Some(110),
-        &[
-            (0, 0x2b),
-            (1, 0x4f),
-            (2, 0x4b),
-            (3, 0x20),
-            (5, 0x4d),
-            (6, 0x61),
-            (7, 0x69),
-            (8, 0x6c),
-        ],
+        &b"+OK signed in\r\n"
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (i as u16, *b))
+            .collect::<Vec<_>>(),
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
 
@@ -334,19 +304,11 @@ fn rtsp_setup_path_materializes_options_describe_and_setup_phases() {
         PacketDir::Ingress,
         Some(53047),
         Some(554),
-        &[
-            (0, 0x52),
-            (1, 0x54),
-            (2, 0x53),
-            (3, 0x50),
-            (9, 0x32),
-            (10, 0x30),
-            (11, 0x30),
-            (17, 0x50),
-            (18, 0x75),
-            (19, 0x62),
-            (20, 0x6c),
-        ],
+        &b"RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: DESCRIBE, SETUP, PLAY\r\n\r\n"
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (i as u16, *b))
+            .collect::<Vec<_>>(),
     ));
     session.ingest(packet_fact_with_dir_and_payload_bytes(
         6,
@@ -364,19 +326,7 @@ fn rtsp_setup_path_materializes_options_describe_and_setup_phases() {
         PacketDir::Ingress,
         Some(53047),
         Some(554),
-        &[
-            (0, 0x52),
-            (1, 0x54),
-            (2, 0x53),
-            (3, 0x50),
-            (9, 0x32),
-            (10, 0x30),
-            (11, 0x30),
-            (17, 0x43),
-            (18, 0x6f),
-            (19, 0x6e),
-            (20, 0x74),
-        ],
+        &b"RTSP/1.0 200 OK\r\nCSeq: 1\r\nContent-Type: application/sdp\r\nContent-Length: 148\r\n\r\n".iter().enumerate().map(|(i,b)|(i as u16,*b)).collect::<Vec<_>>(),
     ));
     session.ingest(packet_fact_with_dir_and_payload_bytes(
         8,
@@ -394,19 +344,11 @@ fn rtsp_setup_path_materializes_options_describe_and_setup_phases() {
         PacketDir::Ingress,
         Some(53047),
         Some(554),
-        &[
-            (0, 0x52),
-            (1, 0x54),
-            (2, 0x53),
-            (3, 0x50),
-            (9, 0x32),
-            (10, 0x30),
-            (11, 0x30),
-            (17, 0x53),
-            (18, 0x65),
-            (19, 0x73),
-            (20, 0x73),
-        ],
+        &b"RTSP/1.0 200 OK\r\nCSeq: 1\r\nSession: a7f981\r\nTransport: RTP/AVP/TCP;unicast\r\n\r\n"
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (i as u16, *b))
+            .collect::<Vec<_>>(),
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(90));
 
@@ -457,19 +399,11 @@ fn rtsp_setup_path_does_not_treat_describe_ok_as_setup_ok() {
         PacketDir::Ingress,
         Some(53048),
         Some(554),
-        &[
-            (0, 0x52),
-            (1, 0x54),
-            (2, 0x53),
-            (3, 0x50),
-            (9, 0x32),
-            (10, 0x30),
-            (11, 0x30),
-            (17, 0x50),
-            (18, 0x75),
-            (19, 0x62),
-            (20, 0x6c),
-        ],
+        &b"RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: DESCRIBE, SETUP, PLAY\r\n\r\n"
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (i as u16, *b))
+            .collect::<Vec<_>>(),
     ));
     session.ingest(packet_fact_with_dir_and_payload_bytes(
         6,
@@ -487,19 +421,7 @@ fn rtsp_setup_path_does_not_treat_describe_ok_as_setup_ok() {
         PacketDir::Ingress,
         Some(53048),
         Some(554),
-        &[
-            (0, 0x52),
-            (1, 0x54),
-            (2, 0x53),
-            (3, 0x50),
-            (9, 0x32),
-            (10, 0x30),
-            (11, 0x30),
-            (17, 0x43),
-            (18, 0x6f),
-            (19, 0x6e),
-            (20, 0x74),
-        ],
+        &b"RTSP/1.0 200 OK\r\nCSeq: 1\r\nContent-Type: application/sdp\r\nContent-Length: 148\r\n\r\n".iter().enumerate().map(|(i,b)|(i as u16,*b)).collect::<Vec<_>>(),
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
 

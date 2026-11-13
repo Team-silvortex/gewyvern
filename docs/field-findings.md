@@ -43,6 +43,150 @@ For those, use:
 - [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
 - [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 
+## `2026-11-13` RTSP Control Requires Real Header Semantics
+
+Three fresh physical-Linux `--rtsp-breadth` campaigns passed against
+digest-pinned MediaMTX 1.21.3. Six selected connections retained 39 packet
+events, 30 TCP state events and 4,434 server-response bytes with zero reported
+loss. All 33 selected commands, 12 package replays, three excluded same-target
+neighbors and three post-cleanup HTTP captures passed. A separate POP3 control
+passed. See the [source-bound RTSP proof](fixtures/gewyvern_rtsp_linux_x86_64_20261113.json).
+
+The old four RTSP packages missed every terminal response: their header-name
+fragments assumed a fixed byte offset, but real CSeq/Content-Base fields change
+that layout. Merely broadening to `200` or `Session` would be unsafe: the real
+461 SETUP refusal also carries Session, while keepalive and PAUSE return 200.
+The new bounded packet-local predicate parses a complete header within 512
+bytes, independently of field order/case, then requires Public, SDP content
+metadata, Session+Transport, or Session+RTP-Info for the respective candidate.
+Duplicate/malformed/truncated headers, wrong direction/port, body-only decoys
+and ambiguous successes are rejected. Export/replay preserves the new predicate
+and rejects invalid ports, unknown kinds and unsupported extra fields.
+
+An uncaptured native Rust publisher provides private SDP before capture. The
+client verifies OPTIONS, missing-path DESCRIBE (404 then EOF), fresh-connection
+SDP lookup, UDP SETUP refusal followed by TCP SETUP, PLAY, GET_PARAMETER, PAUSE,
+resumed PLAY and TEARDOWN. Client CSeq/session checks do not become product
+dialogue-correlation claims. Every emitted receive stage is independently
+checked against its actual source packet, and every server byte is reconciled.
+The initial fixture's assumption that MediaMTX keeps a 404 connection open was
+corrected; that development run and the old-rule failure are excluded from totals.
+
+Existing 15 containers, six networks and 54 volumes were preserved. One pinned
+MediaMTX image was pulled only on Linux; no Mac build/image work or global prune
+was used. Broader API testing also found and fixed a stale SMTP signal assertion.
+Core/protocol regressions passed 1,572 tests, API semantics 23, and evidence/status
+closure 348, for 1,943 passes with one existing ignored test. Strict clippy and
+formatting passed. The temporary build container was removed; the small local
+archive excludes build objects and Docker configuration. These checks do not
+count as additional media capability.
+
+This is RTSP/1.0 plaintext control evidence, not RTSP/2.0, authentication/TLS,
+UDP media, RTP delivery quality, throughput or general TCP reconstruction.
+Default sparse collectors still report unsupported offsets. A signature-shaped
+body beginning at a packet boundary needs context this predicate does not have.
+The catalog now has real exchanges for 43 packages, not full-catalog validation;
+no maturity or product version is promoted.
+
+## `2026-11-13` POP3 Mailbox Retrieval And Recovery
+
+Three final physical-Linux `--pop3-breadth` campaigns passed against fresh
+digest-pinned Mailpit 1.33.0 targets. Six selected connections retained 111
+packet events, 30 TCP state events and 3,789 complete server-response bytes,
+with zero reported loss. Sixty selected commands, nine package replays,
+three excluded same-target neighbors and three fresh HTTP captures passed.
+A separate SMTP control passed. See the
+[source-bound POP3 proof](fixtures/gewyvern_pop3_linux_x86_64_20261113.json).
+
+Real responses exposed three missed package outcomes: signed-in success,
+invalid-password denial and counted LIST readiness. Old fixtures had sparse,
+misaligned text bytes and did not represent the real server. Package rules,
+standalone DSL, API semantics and regression fixtures now agree on conservative
+English signatures. Bare `+OK` is deliberately unclassified: USER, NOOP and RSET
+share it. Unauthorized STAT and missing/deleted-message errors are not password
+denial. LIST counts accept one to three decimal digits, not a hard-coded two.
+
+The larger multiline exchange also exposed a validation-tool limit: bpftool's
+raw plus decoded event JSON exceeded the generic 256-KiB stdout cap at only 37
+events. The fixed 128-slot breadth map now has a dedicated 2-MiB export budget;
+ordinary tool limits, stderr limits, deadlines and loss rejection remain intact.
+An intermediate LIST fix incorrectly used flow-wide `all` conditions; the actual
+packet cross-check caught STAT being used as LIST provenance. Final alternatives
+each contain all byte checks in one packet predicate. A multi-packet regression
+preserves the correct source fact; no global IR semantics were changed.
+
+Native SMTP setup seeds two messages before capture. The selected POP3 dialogue
+checks authentication refusal, unauthorized STAT, LIST/UIDL/RETR, dot-stuffed
+lines and status-looking body text, missing messages, DELE refusal on later
+RETR, and RSET restoring both counts and list. Complete raw server streams match
+the independently received bytes; the setup is not captured request evidence.
+
+The pinned server has a separate length discrepancy: RETR advertises stored raw
+length, then its sendData helper adds another CRLF. Every retrieved message is
+two bytes longer after unstuffing. This is explicitly reported with
+`size_conformant:false` and exact declared/actual lengths, not hidden by trimming
+capture data. LIST/STAT agree with the declared lengths; bodies equal the seeded
+content plus that exact extra CRLF. Unexpected sizes or content still fail.
+The [upstream RETR code](https://github.com/axllent/mailpit/blob/v1.33.0/internal/pop3/server.go)
+and [sendData helper](https://github.com/axllent/mailpit/blob/v1.33.0/internal/pop3/functions.go)
+explain the observed target behavior. Passing this fixture does not certify
+Mailpit's POP3 conformance.
+
+Failed development runs `dev-1`, `dev-2`, `dev-3` and `run-1` are excluded from
+the final `final-1`/`final-2`/`final-3` totals. Existing 15 containers, six networks
+and 54 volumes were preserved; owned targets/networks were removed, with no
+global pruning or Mac image/build work. This is bounded plaintext mailbox
+evidence, not TLS/APOP/SASL, arbitrary stream/dialogue decoding, alternative
+server coverage, external delivery, deletion-commit durability or throughput.
+An exact signature-shaped body at a packet boundary still needs context that
+these packet-local product rules do not supply. Maturity remains unchanged.
+Final Linux regression, API and evidence/status suites passed 1,906 tests with
+one existing ignored test. Strict clippy and formatting checks passed. The
+temporary build container was removed; the local evidence archive is about 7.1 MiB.
+
+## `2026-11-13` SMTP Separates Command Replies From Message Outcomes
+
+Three final physical-Linux `--smtp-breadth` campaigns passed against fresh
+digest-pinned Mailpit 1.33.0 targets. Six selected connections retained 69 packet
+events, 30 TCP state events and 3,078 complete server-response bytes with zero
+reported loss. Three same-target neighbors were excluded; 24 package replays
+and three fresh HTTP captures passed. See the
+[source-bound SMTP proof](fixtures/gewyvern_smtp_linux_x86_64_20261113.json).
+The failed `dev-1` capture is retained separately, not included in final totals.
+
+Real responses exposed two production false positives: an unauthenticated
+connection's NOOP `250 2.0.0 Ok` became message-queue success, and recipient
+rejection `550 5.1.0` became post-body message rejection. Regression checks also
+exposed generic `250` being used as EHLO success and recipient `2.1.5` being
+used as sender acceptance. The reverse message/recipient-denial ambiguity is
+now guarded too. Package and standalone rules were updated together, and every
+emitted receive stage is checked against its actual packet rather than only
+checking the package's terminal cookie set.
+
+EHLO candidates now require `250-`, sender acceptance requires `250 2.1.0 `,
+and queue candidates require the explicit English `250 2.0.0 Ok: queued as `
+prefix. Recipient candidates use address failures `550 5.1.0 `/`550 5.1.1 `;
+message-rejection candidates use `550 5.7.1 Message rejected`. These signatures
+are intentionally conservative, not general command/reply correlation or proof
+of transaction completion. Single-line EHLO, alternative/localized text and
+split prefixes may remain unmatched. Real post-body denial was not triggered;
+that package's real coverage is negative-only, with synthetic positive regression.
+
+Across final runs the selected clients made 57 commands/body submissions,
+including six accepted messages after command-order and recipient errors.
+The native client checks multiline EHLO, invalid credentials, unauthenticated
+MAIL refusal, NOOP, DATA-before-envelope, recipient rejection, two transactions
+separated by RSET, a null sender, dot-stuffed body input and QUIT. Server reply
+bytes are independently reconciled with captured bytes. Message bodies remain
+uncaptured client input; acceptance does not prove mailbox delivery or persistence.
+
+Targets used internal networks, disposable plaintext credentials, bounded tmpfs,
+no published ports, no host data mounts and no external forwarding. Existing
+container/network/54-volume inventories stayed unchanged after owned cleanup.
+A separate MQTT/NATS control passed. No images were pulled or built on Mac.
+TLS, external delivery, IMAP/POP3, other SMTP implementations, arbitrary stream
+decoding, throughput and independent-host/kernel qualification remain open gates.
+
 ## `2026-11-13` MQTT/NATS Extend Real Broker Coverage
 
 Three final physical-Linux `--messaging-breadth` campaigns passed against fresh

@@ -39,7 +39,7 @@ fn smtp_data_path_does_not_treat_failed_queue_response_as_message_queued() {
         Some(25),
         Some(0x32),
         Some(0x3235),
-        Some(0x32353020),
+        Some(0x3235302d),
     ));
     session.ingest(packet_fact_with_dir_and_payload(
         7,
@@ -90,6 +90,8 @@ fn smtp_data_path_does_not_treat_failed_queue_response_as_message_queued() {
             (5, 0x2e),
             (6, 0x31),
             (7, 0x2e),
+            (8, 0x30),
+            (9, 0x20),
         ],
     ));
     session.ingest(packet_fact_with_dir_and_payload(

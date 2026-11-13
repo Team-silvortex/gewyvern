@@ -1578,6 +1578,99 @@ NATS headers/JetStream/clusters, or general TCP stream reconstruction. See the
 [MQTT specification](https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html)
 and [NATS core protocol](https://docs.nats.io/reference/protocols/client).
 
+To exercise a different protocol class, SMTP submission:
+
+```bash
+sudo target/debug/gewyvern_validate --json linux-tcp-capture --smtp-breadth --out-dir target/validation/smtp-new
+```
+
+This mutually exclusive mode uses the cached digest-pinned Mailpit image in
+`data_breadth/smtp.rs`. A fresh internal network, one-CPU/512-MiB container and
+32-MiB temporary database keep the fixture separate from existing mail services.
+No published ports, host data mounts, relaying, forwarding or automatic pulls are
+enabled; the HTTP interface binds container loopback only. Disposable PLAIN
+credentials over plaintext are solely an isolated testing configuration, not a
+production recommendation. See [Mailpit SMTP settings](https://mailpit.axllent.org/docs/configuration/smtp/).
+
+The bounded native client validates multiline EHLO, invalid credentials, refused
+unauthenticated MAIL, NOOP, a pre-envelope DATA error, denied/accepted recipients,
+two complete DATA submissions with a reset between them, null reverse-path and
+QUIT. The first body includes dot-stuffed and reply-looking text. Bodies are
+client input only, not captured request evidence or mailbox-content validation.
+All server bytes are reconciled independently, and every emitted receive-stage
+candidate is checked against its actual packet. Eight packages are replayed;
+`data-denied` has negative real-target coverage only. Complete replies are bounded
+to 512 bytes per line, 16 lines per reply and 4 KiB per stream, under a 12-second
+exchange deadline. Partial client reads do not force TCP segmentation.
+
+The package rules deliberately use conservative prefixes instead of classifying
+generic `250`/`550` replies as message outcomes. This does not prove general SMTP
+command/reply correlation, single-line EHLO handling, TLS, external delivery,
+other mail servers, IMAP/POP3, or durable storage. A fresh HTTP capture follows
+cleanup to check that capture attachment still works.
+
+To test POP3 retrieval on a new isolated Mailpit instance:
+
+```bash
+sudo target/debug/gewyvern_validate --json linux-tcp-capture --pop3-breadth --out-dir target/validation/pop3-new
+```
+
+This mutually exclusive mode reuses the pinned cached Mailpit image and SMTP
+isolation limits above. A native SMTP setup seeds two messages before capture;
+that setup is not eBPF request evidence. Two selected POP3 connections exercise
+password rejection, unauthorized STAT, authenticated LIST/UIDL/RETR, missing
+messages, NOOP, DELE, deleted-message refusal, RSET and restored counts/list.
+Dot-stuffed lines and status-looking message body text are checked as body data.
+The three POP3 packages replay against the same captured facts, with all emitted
+receive stages checked against their source packets. A same-target unselected
+neighbor must stay excluded, and a fresh HTTP capture follows owned cleanup.
+
+POP3 status lines are limited to 512 bytes; multiline data to 64 lines, 1024
+bytes per line and 2048 unstuffed bytes. The entire server stream remains capped
+at 4096 bytes and 12 seconds. The 128-slot, 1024-byte-prefix event map has a
+dedicated 2-MiB diagnostic JSON allowance for bpftool's raw plus decoded output;
+ordinary capture tools retain their 256-KiB stdout and 64-KiB stderr limits.
+
+Mailpit 1.33.0 adds CRLF after stored RETR data but advertises the stored length.
+`retrievals` explicitly reports declared/actual lengths, `size_conformant:false`
+and the exact known two-byte discrepancy. No captured bytes are removed or
+silently normalized. Success means this bounded Gewyvern capture fixture passed,
+not that Mailpit is a conformant POP3 server. See the
+[upstream RETR implementation](https://github.com/axllent/mailpit/blob/v1.33.0/internal/pop3/server.go)
+and [sendData helper](https://github.com/axllent/mailpit/blob/v1.33.0/internal/pop3/functions.go).
+TLS, APOP/SASL, external delivery, deletion commit durability, alternate servers
+and general stream decoding are not proven.
+
+To validate RTSP/1.0 media-control exchanges on an isolated MediaMTX target:
+
+```bash
+sudo target/debug/gewyvern_validate --json linux-tcp-capture --rtsp-breadth --out-dir target/validation/rtsp-new
+```
+
+Pre-cache the digest-pinned MediaMTX 1.21.3 image declared in
+`src/validation_harness/linux_tcp_capture/linux/data_breadth/rtsp.rs` on Linux.
+The harness never pulls automatically. The target is read-only, limited to one
+CPU/512 MiB/128 PIDs, with an internal bridge, no published ports or host data
+mounts, and unrelated media/API listeners disabled. The anonymous fixture is
+not a production authentication configuration.
+
+A native Rust publisher sends private PCMU SDP and one synthetic packet before
+capture. Selected clients validate OPTIONS, missing-path DESCRIBE (404 then
+EOF), a fresh successful DESCRIBE, UDP transport refusal (461) followed by TCP
+SETUP, PLAY, keepalive, PAUSE, resumed PLAY and TEARDOWN. Client CSeq/session
+checks are independent of product predicates. All response bytes must equal
+kernel evidence; every emitted receive stage is checked against its actual
+source packet and all four packages must replay identically. A same-target
+unselected neighbor must remain absent; a fresh HTTP capture follows cleanup.
+
+Product rules require complete headers within one packet's first 512 bytes;
+they reject generic 200, failed SETUP with Session, and session-only keepalive.
+The fixture independently bounds headers to 2048 bytes/24 fields, SDP bodies
+to 1024 bytes, total response streams to 4096 bytes and exchange time to 12
+seconds. Small client reads do not imply forced TCP segmentation. This proves
+bounded plaintext control candidates, not RTSP/2.0, TLS/authentication, UDP media,
+RTP delivery quality, full dialogue correlation or arbitrary stream reassembly.
+
 To validate real DNS datagrams rather than TCP state transitions:
 
 ```bash

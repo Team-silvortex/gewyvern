@@ -1,0 +1,3275 @@
+{
+  "schema_version": 1,
+  "proof": "linux-real-pop3-mailbox-retrieval-and-reset",
+  "captured_on": "2026-11-13",
+  "source_base_revision": "17c28d073cdfa6b70d9ca27318e7664c4062922d",
+  "working_tree_changes": true,
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "execution": {
+    "kernel": "7.0.0-42-generic",
+    "architecture": "x86_64",
+    "host_count": 1,
+    "kernel_count": 1,
+    "live_capture": "physical Linux; digest-pinned Mailpit 1.33.0 on fresh owned internal Docker bridges",
+    "toolchain": "Rust 1.98; temporary two-CPU/four-GiB build container",
+    "packet_prefix_bytes": 1024,
+    "max_capture_events": 128,
+    "breadth_event_dump_stdout_limit": 2097152,
+    "ordinary_tool_stdout_limit": 262144,
+    "tool_stderr_limit": 65536,
+    "max_server_stream_bytes": 4096,
+    "max_status_line_bytes": 512,
+    "max_multiline_line_bytes": 1024,
+    "max_multiline_lines_including_terminator": 64,
+    "max_unstuffed_body_bytes": 2048,
+    "exchange_absolute_deadline_seconds": 12,
+    "client_read_chunk_max_bytes": 7,
+    "forced_tcp_packet_segmentation": false,
+    "target_cpu_limit": 1,
+    "target_memory_mib": 512,
+    "target_pids_limit": 128,
+    "target_database_tmpfs_mib": 32,
+    "published_ports": false,
+    "host_data_mounted": false,
+    "http_interface": "container loopback only",
+    "smtp_seed": "native client submits two messages before capture; not captured request evidence",
+    "pop3_authentication": "disposable plaintext credentials on isolated test network only",
+    "all_emitted_receive_stages_packet_checked": true,
+    "full_dialogue_correlation_in_product": false,
+    "image_pulls_during_campaign": false,
+    "macos_builds": false,
+    "macos_image_pulls": false,
+    "remote_evidence": "/home/chiharukiryu/.cache/gewyvern/evidence/20261113-pop3",
+    "local_evidence": "target/validation/pop3-20261113",
+    "final_campaign_directories": [
+      "final-1",
+      "final-2",
+      "final-3"
+    ],
+    "excluded_development_campaign_directories": [
+      "dev-1",
+      "dev-2",
+      "dev-3",
+      "run-1"
+    ],
+    "excluded_development_checks": [
+      "dev-1 rejected upstream extra RETR CRLF before packet export; positive response was in error output, not retained as a response artifact",
+      "dev-2 hit the 256-KiB diagnostic stdout limit at 37 events with zero reported loss",
+      "dev-3 preserved three production-rule misses after byte reconciliation",
+      "run-1 rejected an intermediate flow-wide all predicate: LIST used the earlier STAT packet as provenance; final rules use only packet-local alternatives",
+      "intermediate-tests.log includes one old sparse POP3 denial fixture failure, fixed before final-tests.log"
+    ]
+  },
+  "target_quirk": {
+    "name": "Mailpit 1.33.0 RETR extra CRLF",
+    "server_conformance_claimed": false,
+    "raw_capture_bytes_removed": false,
+    "expected_extra_octets_per_message": 2,
+    "policy": "LIST/STAT and RETR declared lengths agree; each unstuffed body is exactly declared+2 and seeded body plus one extra CRLF. Every raw client byte must equal kernel evidence.",
+    "sources": [
+      "https://github.com/axllent/mailpit/blob/v1.33.0/internal/pop3/server.go",
+      "https://github.com/axllent/mailpit/blob/v1.33.0/internal/pop3/functions.go"
+    ]
+  },
+  "artifact_bindings": {
+    "build": {
+      "src/bin/gewyvern_validate.rs": "e8f064f780e08d3b375c5af4d77d5400d660ebaad74da29ec54159e6c3515f54",
+      "src/validation_harness.rs": "f0a6f1583c03f87c15eeb2941c8ff4d482de52b66b7eb986fdd6fccece1c79c9",
+      "src/validation_harness/linux_tcp_capture.rs": "8cb3f236f9a36eb90866f1088fcf055cfc2c6ec770aff9c14b6a8ef45e1f0945",
+      "src/validation_harness/linux_tcp_capture/linux.rs": "7692c1a45d8cb98de3ab55151882529d9138a70aaac624cee89f19ebe866bab6",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth.rs": "d751303035a2213054fac77ba8cb8ffa9ede55414967bfd965e091018270093f",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/wire.rs": "48254d9ad048048cb59ee0751215ab309d22157e79b6465424ba92c267822528",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/smtp.rs": "0cfc9b315a2aa7050d024e81e6471c78f4e19e56a4fe70e9d3a156b6722e221f",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/pop3.rs": "5e24f92d63cad2c4a6812629d1c45355fa175c7f0595640b9500672887dc8486",
+      "tests/gewyvern_validate_json_snapshot_tdd.rs": "1f11ad0cb28e50ea47e4b7812dc1406cb85c73caa701601e50752566b5eac2be",
+      "src/validation_harness/linux_tcp_capture/linux/packet_capture.rs": "f365869ea3569429902bca76a7a0298e69a79edd2b7b4ffda13811380cb19460",
+      "tests/pop3_protocol_runtime_tdd.rs": "8552776759cd7a66d178625aec7357be14b9c96b12684f8cbd61c3708908d97e",
+      "protocols/pop3/auth/main.gewy": "789f850f9440ea0e997e648b20c3ce8093f94cac5671f9073ee9465555f5043c",
+      "dsl/pop3_auth_path.gewy": "789f850f9440ea0e997e648b20c3ce8093f94cac5671f9073ee9465555f5043c",
+      "protocols/pop3/auth-denied/main.gewy": "9318566c5221c2515043e74258d9ef8a69afbef900d64e04c24d2b4526f32c13",
+      "dsl/pop3_auth_denied_path.gewy": "9318566c5221c2515043e74258d9ef8a69afbef900d64e04c24d2b4526f32c13",
+      "protocols/pop3/list/main.gewy": "56cd395315815fec98eccdff5972dd3ba89329dd6c15161ee55258533c7ab8d9",
+      "dsl/pop3_list_path.gewy": "56cd395315815fec98eccdff5972dd3ba89329dd6c15161ee55258533c7ab8d9",
+      "tests/dsl_tdd/part_012.rs": "323a1cd49927f27d5b768d556df60b10eaef6879584d6383b04e378c59e1ff69",
+      "tests/dsl_tdd/part_013.rs": "06218d5c3958d1537b4b67dac0c8a5430e88384069613a0cfb339cb355d53863",
+      "tests/protocol_runtime_cases/mail_protocol_runtime_ir_tdd.rs": "e9d3ca867bde756cc9e34882820186889698b23a8b61657841fd4d6f827474de",
+      "src/protocol_profiles/semantics/identity.rs": "d596e134f03dec39eee26f385cb1097e3c85461583133fad7628019231a16c2f",
+      "src/protocol_profiles/tests_semantics/identity.rs": "52243c786eed83337667a4248b45e79804b86d86278ddedff08cd7bdd6013d97",
+      "tests/protocol_runtime_cases/mailbox_auth_protocol_runtime_ir_tdd.rs": "38e918acc4cb355e3fee72b4fbd603f5923dbd6b9724cca142c10a5f6bd2c3a9",
+      "src/main/tests/api_protocol_surface_semantics.rs": "af4b43eb14505ae7d2a18e7f3176acfb9c0eb134db4bc566356d78a14cea8b03",
+      "src/validation_harness/linux_tcp_capture/linux/bounded_stream.rs": "196519549fc1eab62991e386d01f3264955b5558d9052b065722f2e7fab86314",
+      "src/validation_harness/linux_tcp_capture/packet_evidence.rs": "ce64ea1adef21ed01e2e43c2ecc8da1f4aa02e48394febfb4cf89a449603ffee",
+      "ebpf/validation/http_prefix.bpf.c": "ca9eb8c99aee4f3d3ccddfed18d13592ad610d4010cfc32b65aab4d4630aac74",
+      "target/debug/gewyvern_validate": "bae352cf37c7053d3d5526c78c3c97966624ec0d1ddc01538729aeba86412ff5"
+    },
+    "reports": {
+      "final-1/summary.json": "7e3c395aab3296314968fdbacc42636125b2929ad6f48103c3b2b4b98687cef7",
+      "final-2/summary.json": "e9d10509ce34164bb42d392c519b98e36a1e5a0c6c3ef2427e06fb126a27c05e",
+      "final-3/summary.json": "f163c1864c463d7085263bec8542b1effa109bb6a6ca77d784e10eb8a84b663e",
+      "final-1/after-data-restart/summary.json": "533672e1d7e477887febc9fd48d0bf3ed227b1ebfb4a1872287c84ef70dac44a",
+      "final-2/after-data-restart/summary.json": "5cbd9fae55338746444060920e0b99ad43bd2f4f6b2c4e6d732fe7249a9725ab",
+      "final-3/after-data-restart/summary.json": "a965c6c534bac699ccb175e383fd7142483209bcc6b412601d37d5cadf1a702a",
+      "dev-3/pop3/result.json": "c921f3b131c7fafb150cbca9aabb19f0683fd4e804569ac0f24b4041a01cfd74",
+      "run-1/pop3/result.json": "267e2d7fdb2ee7fdc418fd4f39e33224dead90ee7a73436ef90d8fea81ad1228",
+      "smtp-control/summary.json": "c67085ae166ef185ddc74524526474799126af94c5fe18752bea5acd07d72cd8",
+      "final-tests.log": "1fb437d72418f30b643f794c9b7296d9ab2ed18689345ca42d995cbcf1e97fdb",
+      "clippy.log": "c17bdbfcfee7cc6c96df4106e7d056f9f76378af0125ef1156c4914da1961fab",
+      "api-test.log": "d541674dabbe6f8b1e48f43bee1702882b007c8b1e5d1ad8bab48e2c6e1f2ae2",
+      "final-build.log": "661235b6d81f4537fa4dc4f55bc8b514aa60e2d3837578c6430d73f52e6316c5",
+      "rules-before.log": "1ce40fa86a848ac28fc1f3dcaeb3781629afb9dc3cae4403ab72766765960e3b",
+      "intermediate-tests.log": "41194a8797266a1c576d9b1e32658df3d9a6cdb19f430deb0296e10e125fbf6c",
+      "final-source-sha256.txt": "2272d4a76ac91d6bf43cf1129f6761e85ad6a346ddf9ae5e531e2d1e182749bb",
+      "containers-before.txt": "b9ca4b012a943f034828ac2487fb81f4f5d861dd43aec586c3f8434c148c9e12",
+      "containers-after.txt": "c1e1a41013374cb313c673c3679f5542988b1b00cb6d02e5330e42a96eee755d",
+      "networks-before.txt": "f98139f9bb03180978aa454394c2878925b39e2af8b87cab2a18f098ddd71380",
+      "networks-after.txt": "f98139f9bb03180978aa454394c2878925b39e2af8b87cab2a18f098ddd71380",
+      "volumes-before.txt": "5c1c0b9e58eebd4845fe45ac0bac191ded288364af691a6caee9d5910dfd17e6",
+      "volumes-after.txt": "5c1c0b9e58eebd4845fe45ac0bac191ded288364af691a6caee9d5910dfd17e6",
+      "final-1/pop3/packet-events.json": "2413d8213693eb8193821d23085ae0f7751fd31d5c929acc3e80f622ca522ee5",
+      "final-1/pop3/client-response-0.bin": "86f96f1d2143e204bab6df35cfa19461e8b7df9e1e5af5129cedac683fc5a283",
+      "final-1/pop3/client-response-1.bin": "21e08545c8d037c5173f19df143eb8e1d753c9023d56e06408c20f8a91d66d07",
+      "final-2/pop3/packet-events.json": "420bcd9906aa0919114591e4a5779e2d5e2d16ccbf0f13fd0e254c1c425c771b",
+      "final-2/pop3/client-response-0.bin": "86f96f1d2143e204bab6df35cfa19461e8b7df9e1e5af5129cedac683fc5a283",
+      "final-2/pop3/client-response-1.bin": "489d864f4b47f63af36efb54df46c68af73c379c200f41a6fa89afd1ad78bd81",
+      "final-3/pop3/packet-events.json": "6c5ab58d298f31e0b3fc0f4c1ad0044c6bfa3a0c4f44abf2376893ac1309d095",
+      "final-3/pop3/client-response-0.bin": "86f96f1d2143e204bab6df35cfa19461e8b7df9e1e5af5129cedac683fc5a283",
+      "final-3/pop3/client-response-1.bin": "e84bc5478331355d018cd1c16bd8bc5f9105a59b9b570f9de56a04a97843baef",
+      "closure-tests.log": "05a5d8a874fa384fa36b572215d50e55ca2f1b27b361b9aad544bc1b6dcc07d3",
+      "closure-clippy.log": "b193457d689613e08e7fc234de908f4d0e706c1036f6110ac3cb7a4219b5fc17",
+      "containers-final.txt": "b9ca4b012a943f034828ac2487fb81f4f5d861dd43aec586c3f8434c148c9e12"
+    },
+    "verification": {
+      "tests/native_validation_harness_tdd.rs": "2b263b5d74924c2c49bc1e2dc0d8a78655d82fc0592076d4bd42ecb4a3ae6b55",
+      "tests/project_status_tdd.rs": "23ddd9a13921c888c20ea7d2448f83e7a6d86b308d8298bb77529caefa2416df",
+      "project/status/catalog.json": "5bea9333a9521453e4ce04a8bb2b5b5b616a1b4f666b62cc9c801b9dd6d91760",
+      "docs/book/reference-pop3-auth-surface.md": "29317f4fc10b140c1d19a7eaff3524c607a2c5458385f37e35362d81cb60d602",
+      "docs/book/reference-pop3-list-surface.md": "e445410bd8c84b1a2dae68303e2aaa621d06032c7b78173a1d525a13fa2fe82d",
+      "docs/field-findings.md": "52b04c15b1bccae89447937343d44e0ba71e4e2dd1de8966884c59f120616a2c",
+      "docs/field-validation.md": "d020f215b15027b29fe10440e6b6b7f6633d6ab954a478c35e49991cbb22d8f6",
+      "docs/script-entrypoints.md": "0c7f302caee3bd731d283b08a6267cd2ef8c9e1fdf7c37c5a0c9ed023ab333d4"
+    }
+  },
+  "before_fix": {
+    "anonymous_volume_ids": [],
+    "anonymous_volumes_removed_with_container": true,
+    "client_read_chunk_bytes": 7,
+    "client_reads_are_packet_boundaries": false,
+    "container_id": "63fc99c6a42b5c2436d1945488508aa1c498e1cb8b95b4a90563b067f5d7e405",
+    "image": "axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231",
+    "image_id": "sha256:580a202b5088e9c651a8e8b4e461e3213fbd3a3aacaa3d2251892a546a734116",
+    "internal_network": true,
+    "network_id": "e94a127d45d94787ed4706a27c459e87df0cfd658121c5094a466a2917661d61",
+    "observations": [
+      {
+        "captured_result": {
+          "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+          "replies": [
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK Mailpit POP3 server"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR invalid password"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR user not authenticated"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK goodbye"
+            }
+          ],
+          "retrievals": []
+        },
+        "captured_sha256": "86f96f1d2143e204bab6df35cfa19461e8b7df9e1e5af5129cedac683fc5a283",
+        "client_result": {
+          "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+          "replies": [
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK Mailpit POP3 server"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR invalid password"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR user not authenticated"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK goodbye"
+            }
+          ],
+          "retrievals": []
+        },
+        "control": false,
+        "cookie": 20534,
+        "response_bytes": 95,
+        "response_sha256": "86f96f1d2143e204bab6df35cfa19461e8b7df9e1e5af5129cedac683fc5a283"
+      },
+      {
+        "captured_result": {
+          "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+          "replies": [
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK Mailpit POP3 server"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK signed in"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK 2 768"
+            },
+            {
+              "body_bytes": 14,
+              "body_hex": "31203335350d0a32203431330d0a",
+              "ok": true,
+              "status": "+OK 2 messages (768 octets)"
+            },
+            {
+              "body_bytes": 52,
+              "body_hex": "3120316157686845436a64756e6943517a53324b5a6f6a510d0a3220313646557065794733697534384c6d734d5a5a7647410d0a",
+              "ok": true,
+              "status": "+OK unique-id listing follows"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR no such message"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK"
+            },
+            {
+              "body_bytes": 357,
+              "body_hex": "4d6573736167652d49443a203c355641393246436d716e33484d416d4a3373554a3579406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792036336663393963366134326220284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a34343a3438202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d310d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a7365636f6e640d0a0d0a",
+              "ok": true,
+              "status": "+OK 355 octets"
+            },
+            {
+              "body_bytes": 415,
+              "body_hex": "4d6573736167652d49443a203c306d7645504f4c6238383757706272723534354f4743406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792036336663393963366134326220284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a34343a3438202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d300d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a66697273740d0a2e20646f740d0a2e0d0a2d4552522061757468656e7469636174696f6e2074657874206f6e6c790d0a2b4f4b206e6f742061207374617475730d0a0d0a",
+              "ok": true,
+              "status": "+OK 413 octets"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK message marked for deletion"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK 1 413"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR no such message"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK 2 768"
+            },
+            {
+              "body_bytes": 14,
+              "body_hex": "31203335350d0a32203431330d0a",
+              "ok": true,
+              "status": "+OK 2 messages (768 octets)"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK goodbye"
+            }
+          ],
+          "retrievals": [
+            {
+              "declared_octets": 355,
+              "known_mailpit_extra_crlf": true,
+              "reply_index": 8,
+              "size_conformant": false,
+              "unstuffed_octets": 357
+            },
+            {
+              "declared_octets": 413,
+              "known_mailpit_extra_crlf": true,
+              "reply_index": 9,
+              "size_conformant": false,
+              "unstuffed_octets": 415
+            }
+          ]
+        },
+        "captured_sha256": "03713047084215da89cedcae207c8493ecb55a468e36ca4769b139896efb0841",
+        "client_result": {
+          "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+          "replies": [
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK Mailpit POP3 server"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK signed in"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK 2 768"
+            },
+            {
+              "body_bytes": 14,
+              "body_hex": "31203335350d0a32203431330d0a",
+              "ok": true,
+              "status": "+OK 2 messages (768 octets)"
+            },
+            {
+              "body_bytes": 52,
+              "body_hex": "3120316157686845436a64756e6943517a53324b5a6f6a510d0a3220313646557065794733697534384c6d734d5a5a7647410d0a",
+              "ok": true,
+              "status": "+OK unique-id listing follows"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR no such message"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK"
+            },
+            {
+              "body_bytes": 357,
+              "body_hex": "4d6573736167652d49443a203c355641393246436d716e33484d416d4a3373554a3579406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792036336663393963366134326220284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a34343a3438202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d310d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a7365636f6e640d0a0d0a",
+              "ok": true,
+              "status": "+OK 355 octets"
+            },
+            {
+              "body_bytes": 415,
+              "body_hex": "4d6573736167652d49443a203c306d7645504f4c6238383757706272723534354f4743406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792036336663393963366134326220284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a34343a3438202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d300d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a66697273740d0a2e20646f740d0a2e0d0a2d4552522061757468656e7469636174696f6e2074657874206f6e6c790d0a2b4f4b206e6f742061207374617475730d0a0d0a",
+              "ok": true,
+              "status": "+OK 413 octets"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK message marked for deletion"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK 1 413"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR no such message"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK 2 768"
+            },
+            {
+              "body_bytes": 14,
+              "body_hex": "31203335350d0a32203431330d0a",
+              "ok": true,
+              "status": "+OK 2 messages (768 octets)"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK goodbye"
+            }
+          ],
+          "retrievals": [
+            {
+              "declared_octets": 355,
+              "known_mailpit_extra_crlf": true,
+              "reply_index": 8,
+              "size_conformant": false,
+              "unstuffed_octets": 357
+            },
+            {
+              "declared_octets": 413,
+              "known_mailpit_extra_crlf": true,
+              "reply_index": 9,
+              "size_conformant": false,
+              "unstuffed_octets": 415
+            }
+          ]
+        },
+        "control": true,
+        "cookie": 20535,
+        "response_bytes": 1168,
+        "response_sha256": "03713047084215da89cedcae207c8493ecb55a468e36ca4769b139896efb0841"
+      }
+    ],
+    "ok": false,
+    "owned_resources_removed": true,
+    "package_failures": [
+      "data package protocols/pop3/auth/main.gewy phase receive_auth_ok: observed {}, expected {20535}; check packet candidates versus framed response",
+      "data package protocols/pop3/auth-denied/main.gewy phase receive_auth_denied: observed {}, expected {20534}; check packet candidates versus framed response",
+      "data package protocols/pop3/list/main.gewy phase receive_list_ready: observed {}, expected {20535}; check packet candidates versus framed response"
+    ],
+    "packages": [
+      {
+        "facts": 47,
+        "matched_cookies": [],
+        "path": "protocols/pop3/auth/main.gewy",
+        "phase": "receive_auth_ok",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "48b1791606c6dedecb9fa4ce2437d4af0b77bc415c5c53ead399c7bb046a0b79",
+        "unobserved_fragments_explicit": true
+      },
+      {
+        "facts": 47,
+        "matched_cookies": [],
+        "path": "protocols/pop3/auth-denied/main.gewy",
+        "phase": "receive_auth_denied",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "655a6a3dd1501b4c08efadae148643a639c2dcabaab4958b9c279cfea0388ab5",
+        "unobserved_fragments_explicit": true
+      },
+      {
+        "facts": 47,
+        "matched_cookies": [],
+        "path": "protocols/pop3/list/main.gewy",
+        "phase": "receive_list_ready",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "d18e5652f1c62daf3bec2578b8e3346a557b126284e739bc456be5d63b14ba67",
+        "unobserved_fragments_explicit": true
+      }
+    ],
+    "packet_counts": {
+      "dropped": 0,
+      "total": 37
+    },
+    "protocol": "pop3",
+    "published_ports": false,
+    "redis_pipeline_commands": 0,
+    "schema_version": 2,
+    "selected_cookies": [
+      20534,
+      20535
+    ],
+    "selected_query_or_command_count": 20,
+    "tcp_state_counts": {
+      "dropped": 0,
+      "total": 10
+    },
+    "unselected_neighbor_cookie": 57364,
+    "unselected_neighbor_result": {
+      "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+      "replies": [
+        {
+          "body_bytes": 0,
+          "body_hex": "",
+          "ok": true,
+          "status": "+OK Mailpit POP3 server"
+        },
+        {
+          "body_bytes": 0,
+          "body_hex": "",
+          "ok": true,
+          "status": "+OK"
+        },
+        {
+          "body_bytes": 0,
+          "body_hex": "",
+          "ok": false,
+          "status": "-ERR invalid password"
+        },
+        {
+          "body_bytes": 0,
+          "body_hex": "",
+          "ok": false,
+          "status": "-ERR user not authenticated"
+        },
+        {
+          "body_bytes": 0,
+          "body_hex": "",
+          "ok": true,
+          "status": "+OK goodbye"
+        }
+      ],
+      "retrievals": []
+    }
+  },
+  "intermediate_packet_provenance_refusal": {
+    "anonymous_volume_ids": [],
+    "anonymous_volumes_removed_with_container": true,
+    "client_read_chunk_bytes": 7,
+    "client_reads_are_packet_boundaries": false,
+    "container_id": "963a0d9f8a06c6c9cf2ff9a3dc3de8dd6f37f8691791485209c86571d490197d",
+    "image": "axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231",
+    "image_id": "sha256:580a202b5088e9c651a8e8b4e461e3213fbd3a3aacaa3d2251892a546a734116",
+    "internal_network": true,
+    "network_id": "ea1408a63d91b51799758143ce4cf3156242e6c37a583696d79a42da345e05b1",
+    "observations": [
+      {
+        "captured_result": {
+          "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+          "replies": [
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK Mailpit POP3 server"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR invalid password"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR user not authenticated"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK goodbye"
+            }
+          ],
+          "retrievals": []
+        },
+        "captured_sha256": "86f96f1d2143e204bab6df35cfa19461e8b7df9e1e5af5129cedac683fc5a283",
+        "client_result": {
+          "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+          "replies": [
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK Mailpit POP3 server"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR invalid password"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR user not authenticated"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK goodbye"
+            }
+          ],
+          "retrievals": []
+        },
+        "control": false,
+        "cookie": 83,
+        "response_bytes": 95,
+        "response_sha256": "86f96f1d2143e204bab6df35cfa19461e8b7df9e1e5af5129cedac683fc5a283"
+      },
+      {
+        "captured_result": {
+          "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+          "replies": [
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK Mailpit POP3 server"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK signed in"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK 2 768"
+            },
+            {
+              "body_bytes": 14,
+              "body_hex": "31203335350d0a32203431330d0a",
+              "ok": true,
+              "status": "+OK 2 messages (768 octets)"
+            },
+            {
+              "body_bytes": 52,
+              "body_hex": "312035317933374b35653076377435397858746b504a74770d0a3220324d56394438574f317a4959356f6e3364307848715a0d0a",
+              "ok": true,
+              "status": "+OK unique-id listing follows"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR no such message"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK"
+            },
+            {
+              "body_bytes": 357,
+              "body_hex": "4d6573736167652d49443a203c32684c5554456a735439566969486e31703641694a6b406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792039363361306439663861303620284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a35303a3031202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d310d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a7365636f6e640d0a0d0a",
+              "ok": true,
+              "status": "+OK 355 octets"
+            },
+            {
+              "body_bytes": 415,
+              "body_hex": "4d6573736167652d49443a203c313951586e4a36773049646254316258524d3573416f406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792039363361306439663861303620284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a35303a3031202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d300d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a66697273740d0a2e20646f740d0a2e0d0a2d4552522061757468656e7469636174696f6e2074657874206f6e6c790d0a2b4f4b206e6f742061207374617475730d0a0d0a",
+              "ok": true,
+              "status": "+OK 413 octets"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK message marked for deletion"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK 1 413"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR no such message"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK 2 768"
+            },
+            {
+              "body_bytes": 14,
+              "body_hex": "31203335350d0a32203431330d0a",
+              "ok": true,
+              "status": "+OK 2 messages (768 octets)"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK goodbye"
+            }
+          ],
+          "retrievals": [
+            {
+              "declared_octets": 355,
+              "known_mailpit_extra_crlf": true,
+              "reply_index": 8,
+              "size_conformant": false,
+              "unstuffed_octets": 357
+            },
+            {
+              "declared_octets": 413,
+              "known_mailpit_extra_crlf": true,
+              "reply_index": 9,
+              "size_conformant": false,
+              "unstuffed_octets": 415
+            }
+          ]
+        },
+        "captured_sha256": "03199c767024051e92d4cbc15e2ba546e5a5a87ddd91e58047b8cc4501517d62",
+        "client_result": {
+          "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+          "replies": [
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK Mailpit POP3 server"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK signed in"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK 2 768"
+            },
+            {
+              "body_bytes": 14,
+              "body_hex": "31203335350d0a32203431330d0a",
+              "ok": true,
+              "status": "+OK 2 messages (768 octets)"
+            },
+            {
+              "body_bytes": 52,
+              "body_hex": "312035317933374b35653076377435397858746b504a74770d0a3220324d56394438574f317a4959356f6e3364307848715a0d0a",
+              "ok": true,
+              "status": "+OK unique-id listing follows"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR no such message"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK"
+            },
+            {
+              "body_bytes": 357,
+              "body_hex": "4d6573736167652d49443a203c32684c5554456a735439566969486e31703641694a6b406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792039363361306439663861303620284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a35303a3031202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d310d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a7365636f6e640d0a0d0a",
+              "ok": true,
+              "status": "+OK 355 octets"
+            },
+            {
+              "body_bytes": 415,
+              "body_hex": "4d6573736167652d49443a203c313951586e4a36773049646254316258524d3573416f406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792039363361306439663861303620284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a35303a3031202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d300d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a66697273740d0a2e20646f740d0a2e0d0a2d4552522061757468656e7469636174696f6e2074657874206f6e6c790d0a2b4f4b206e6f742061207374617475730d0a0d0a",
+              "ok": true,
+              "status": "+OK 413 octets"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK message marked for deletion"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK 1 413"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR no such message"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK 2 768"
+            },
+            {
+              "body_bytes": 14,
+              "body_hex": "31203335350d0a32203431330d0a",
+              "ok": true,
+              "status": "+OK 2 messages (768 octets)"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK goodbye"
+            }
+          ],
+          "retrievals": [
+            {
+              "declared_octets": 355,
+              "known_mailpit_extra_crlf": true,
+              "reply_index": 8,
+              "size_conformant": false,
+              "unstuffed_octets": 357
+            },
+            {
+              "declared_octets": 413,
+              "known_mailpit_extra_crlf": true,
+              "reply_index": 9,
+              "size_conformant": false,
+              "unstuffed_octets": 415
+            }
+          ]
+        },
+        "control": true,
+        "cookie": 84,
+        "response_bytes": 1168,
+        "response_sha256": "03199c767024051e92d4cbc15e2ba546e5a5a87ddd91e58047b8cc4501517d62"
+      }
+    ],
+    "ok": false,
+    "owned_resources_removed": true,
+    "package_failures": [
+      "pop3 receive_list_ready matched the wrong actual packet at fact FactId(18), cookie Some(84), bytes [(0, 43), (1, 79), (2, 75), (3, 32), (4, 50), (5, 32), (6, 55), (7, 54), (8, 56), (9, 13), (10, 10)]",
+      "data package protocols/pop3/list/main.gewy phase receive_list_ready: observed {}, expected {84}; check packet candidates versus framed response"
+    ],
+    "packages": [
+      {
+        "facts": 47,
+        "matched_cookies": [
+          84
+        ],
+        "path": "protocols/pop3/auth/main.gewy",
+        "phase": "receive_auth_ok",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "789f850f9440ea0e997e648b20c3ce8093f94cac5671f9073ee9465555f5043c",
+        "unobserved_fragments_explicit": true
+      },
+      {
+        "facts": 47,
+        "matched_cookies": [
+          83
+        ],
+        "path": "protocols/pop3/auth-denied/main.gewy",
+        "phase": "receive_auth_denied",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "9318566c5221c2515043e74258d9ef8a69afbef900d64e04c24d2b4526f32c13",
+        "unobserved_fragments_explicit": true
+      },
+      {
+        "facts": 47,
+        "matched_cookies": [],
+        "path": "protocols/pop3/list/main.gewy",
+        "phase": "receive_list_ready",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "776d0634b5b16107fe2cc537bd39afe7b45d012968af53f1fd34d0d62d3620e7",
+        "unobserved_fragments_explicit": true
+      }
+    ],
+    "packet_counts": {
+      "dropped": 0,
+      "total": 37
+    },
+    "protocol": "pop3",
+    "published_ports": false,
+    "redis_pipeline_commands": 0,
+    "schema_version": 2,
+    "selected_cookies": [
+      83,
+      84
+    ],
+    "selected_query_or_command_count": 20,
+    "tcp_state_counts": {
+      "dropped": 0,
+      "total": 10
+    },
+    "unselected_neighbor_cookie": 16440,
+    "unselected_neighbor_result": {
+      "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+      "replies": [
+        {
+          "body_bytes": 0,
+          "body_hex": "",
+          "ok": true,
+          "status": "+OK Mailpit POP3 server"
+        },
+        {
+          "body_bytes": 0,
+          "body_hex": "",
+          "ok": true,
+          "status": "+OK"
+        },
+        {
+          "body_bytes": 0,
+          "body_hex": "",
+          "ok": false,
+          "status": "-ERR invalid password"
+        },
+        {
+          "body_bytes": 0,
+          "body_hex": "",
+          "ok": false,
+          "status": "-ERR user not authenticated"
+        },
+        {
+          "body_bytes": 0,
+          "body_hex": "",
+          "ok": true,
+          "status": "+OK goodbye"
+        }
+      ],
+      "retrievals": []
+    }
+  },
+  "runs": [
+    {
+      "checks": [
+        "real_Mailpit_POP3",
+        "uncaptured_SMTP_seed_then_captured_mailbox_retrieval",
+        "auth_denial_and_unauthorized_STAT",
+        "LIST_STAT_and_RETR_declared_sizes_agree",
+        "Mailpit_extra_CRLF_disclosed_and_raw_bytes_preserved",
+        "UIDL_unique_and_RETR_bodies_match_seed",
+        "matched_packet_status_cross_check",
+        "missing_and_deleted_message_errors",
+        "dot_unstuffed_body_not_status_lines",
+        "delete_mark_reset_and_restored_list",
+        "kernel_bytes_match_independent_client",
+        "same_target_unselected_neighbor_excluded",
+        "existing_protocol_packages_and_replay",
+        "owned_internal_network_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "pop3-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "MySQL_caching_sha2_auth_switch_prepared_statements",
+        "Memcached_text_meta_SASL_UDP",
+        "MQTT5_authentication_TLS_offline_delivery_or_crash_durability",
+        "NATS_JetStream_cluster_headers_TLS",
+        "SMTP_STARTTLS_delivery_to_external_mailbox_or_crash_durability",
+        "POP3_TLS_APOP_SASL_external_delivery_or_delete_commit_durability",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "7c22e89d05f685e00f6840790f1d5b29765c564d811be3a577757dc26fee172f",
+          "image": "axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231",
+          "image_id": "sha256:580a202b5088e9c651a8e8b4e461e3213fbd3a3aacaa3d2251892a546a734116",
+          "internal_network": true,
+          "network_id": "6b2830305628a3c2351a682c37c4a286da4a3d2703ea2236e2a4c1fcaf9533cc",
+          "observations": [
+            {
+              "captured_result": {
+                "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK Mailpit POP3 server"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR invalid password"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR user not authenticated"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK goodbye"
+                  }
+                ],
+                "retrievals": []
+              },
+              "captured_sha256": "86f96f1d2143e204bab6df35cfa19461e8b7df9e1e5af5129cedac683fc5a283",
+              "client_result": {
+                "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK Mailpit POP3 server"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR invalid password"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR user not authenticated"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK goodbye"
+                  }
+                ],
+                "retrievals": []
+              },
+              "control": false,
+              "cookie": 57365,
+              "response_bytes": 95,
+              "response_sha256": "86f96f1d2143e204bab6df35cfa19461e8b7df9e1e5af5129cedac683fc5a283"
+            },
+            {
+              "captured_result": {
+                "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK Mailpit POP3 server"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK signed in"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 2 768"
+                  },
+                  {
+                    "body_bytes": 14,
+                    "body_hex": "31203335350d0a32203431330d0a",
+                    "ok": true,
+                    "status": "+OK 2 messages (768 octets)"
+                  },
+                  {
+                    "body_bytes": 52,
+                    "body_hex": "31203445566a30584a61676c4b3966524631476d565555730d0a3220365339705a6d7074687748704468767a43467046646b0d0a",
+                    "ok": true,
+                    "status": "+OK unique-id listing follows"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR no such message"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 357,
+                    "body_hex": "4d6573736167652d49443a203c3747646c586761516b6c705037694e767a3079715455406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792037633232653839643035663620284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a35333a3331202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d310d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a7365636f6e640d0a0d0a",
+                    "ok": true,
+                    "status": "+OK 355 octets"
+                  },
+                  {
+                    "body_bytes": 415,
+                    "body_hex": "4d6573736167652d49443a203c3479656a6572773272516f4d6445665546456f553247406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792037633232653839643035663620284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a35333a3331202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d300d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a66697273740d0a2e20646f740d0a2e0d0a2d4552522061757468656e7469636174696f6e2074657874206f6e6c790d0a2b4f4b206e6f742061207374617475730d0a0d0a",
+                    "ok": true,
+                    "status": "+OK 413 octets"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK message marked for deletion"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 1 413"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR no such message"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 2 768"
+                  },
+                  {
+                    "body_bytes": 14,
+                    "body_hex": "31203335350d0a32203431330d0a",
+                    "ok": true,
+                    "status": "+OK 2 messages (768 octets)"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK goodbye"
+                  }
+                ],
+                "retrievals": [
+                  {
+                    "declared_octets": 355,
+                    "known_mailpit_extra_crlf": true,
+                    "reply_index": 8,
+                    "size_conformant": false,
+                    "unstuffed_octets": 357
+                  },
+                  {
+                    "declared_octets": 413,
+                    "known_mailpit_extra_crlf": true,
+                    "reply_index": 9,
+                    "size_conformant": false,
+                    "unstuffed_octets": 415
+                  }
+                ]
+              },
+              "captured_sha256": "21e08545c8d037c5173f19df143eb8e1d753c9023d56e06408c20f8a91d66d07",
+              "client_result": {
+                "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK Mailpit POP3 server"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK signed in"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 2 768"
+                  },
+                  {
+                    "body_bytes": 14,
+                    "body_hex": "31203335350d0a32203431330d0a",
+                    "ok": true,
+                    "status": "+OK 2 messages (768 octets)"
+                  },
+                  {
+                    "body_bytes": 52,
+                    "body_hex": "31203445566a30584a61676c4b3966524631476d565555730d0a3220365339705a6d7074687748704468767a43467046646b0d0a",
+                    "ok": true,
+                    "status": "+OK unique-id listing follows"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR no such message"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 357,
+                    "body_hex": "4d6573736167652d49443a203c3747646c586761516b6c705037694e767a3079715455406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792037633232653839643035663620284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a35333a3331202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d310d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a7365636f6e640d0a0d0a",
+                    "ok": true,
+                    "status": "+OK 355 octets"
+                  },
+                  {
+                    "body_bytes": 415,
+                    "body_hex": "4d6573736167652d49443a203c3479656a6572773272516f4d6445665546456f553247406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792037633232653839643035663620284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a35333a3331202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d300d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a66697273740d0a2e20646f740d0a2e0d0a2d4552522061757468656e7469636174696f6e2074657874206f6e6c790d0a2b4f4b206e6f742061207374617475730d0a0d0a",
+                    "ok": true,
+                    "status": "+OK 413 octets"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK message marked for deletion"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 1 413"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR no such message"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 2 768"
+                  },
+                  {
+                    "body_bytes": 14,
+                    "body_hex": "31203335350d0a32203431330d0a",
+                    "ok": true,
+                    "status": "+OK 2 messages (768 octets)"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK goodbye"
+                  }
+                ],
+                "retrievals": [
+                  {
+                    "declared_octets": 355,
+                    "known_mailpit_extra_crlf": true,
+                    "reply_index": 8,
+                    "size_conformant": false,
+                    "unstuffed_octets": 357
+                  },
+                  {
+                    "declared_octets": 413,
+                    "known_mailpit_extra_crlf": true,
+                    "reply_index": 9,
+                    "size_conformant": false,
+                    "unstuffed_octets": 415
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 57366,
+              "response_bytes": 1168,
+              "response_sha256": "21e08545c8d037c5173f19df143eb8e1d753c9023d56e06408c20f8a91d66d07"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 47,
+              "matched_cookies": [
+                57366
+              ],
+              "path": "protocols/pop3/auth/main.gewy",
+              "phase": "receive_auth_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "789f850f9440ea0e997e648b20c3ce8093f94cac5671f9073ee9465555f5043c",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 47,
+              "matched_cookies": [
+                57365
+              ],
+              "path": "protocols/pop3/auth-denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "9318566c5221c2515043e74258d9ef8a69afbef900d64e04c24d2b4526f32c13",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 47,
+              "matched_cookies": [
+                57366
+              ],
+              "path": "protocols/pop3/list/main.gewy",
+              "phase": "receive_list_ready",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "56cd395315815fec98eccdff5972dd3ba89329dd6c15161ee55258533c7ab8d9",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 37
+          },
+          "protocol": "pop3",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            57365,
+            57366
+          ],
+          "selected_query_or_command_count": 20,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 4185,
+          "unselected_neighbor_result": {
+            "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+            "replies": [
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "ok": true,
+                "status": "+OK Mailpit POP3 server"
+              },
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "ok": true,
+                "status": "+OK"
+              },
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "ok": false,
+                "status": "-ERR invalid password"
+              },
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "ok": false,
+                "status": "-ERR user not authenticated"
+              },
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "ok": true,
+                "status": "+OK goodbye"
+              }
+            ],
+            "retrievals": []
+          }
+        }
+      ],
+      "schema_version": 2
+    },
+    {
+      "checks": [
+        "real_Mailpit_POP3",
+        "uncaptured_SMTP_seed_then_captured_mailbox_retrieval",
+        "auth_denial_and_unauthorized_STAT",
+        "LIST_STAT_and_RETR_declared_sizes_agree",
+        "Mailpit_extra_CRLF_disclosed_and_raw_bytes_preserved",
+        "UIDL_unique_and_RETR_bodies_match_seed",
+        "matched_packet_status_cross_check",
+        "missing_and_deleted_message_errors",
+        "dot_unstuffed_body_not_status_lines",
+        "delete_mark_reset_and_restored_list",
+        "kernel_bytes_match_independent_client",
+        "same_target_unselected_neighbor_excluded",
+        "existing_protocol_packages_and_replay",
+        "owned_internal_network_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "pop3-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "MySQL_caching_sha2_auth_switch_prepared_statements",
+        "Memcached_text_meta_SASL_UDP",
+        "MQTT5_authentication_TLS_offline_delivery_or_crash_durability",
+        "NATS_JetStream_cluster_headers_TLS",
+        "SMTP_STARTTLS_delivery_to_external_mailbox_or_crash_durability",
+        "POP3_TLS_APOP_SASL_external_delivery_or_delete_commit_durability",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "7934ffe4e4afdc54963165b99d95ddd38fce2548a78efe5fc26d728276c6c4cd",
+          "image": "axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231",
+          "image_id": "sha256:580a202b5088e9c651a8e8b4e461e3213fbd3a3aacaa3d2251892a546a734116",
+          "internal_network": true,
+          "network_id": "24f54bf978c8a9411e88982be663965ea41142537165486415eb55a68570457e",
+          "observations": [
+            {
+              "captured_result": {
+                "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK Mailpit POP3 server"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR invalid password"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR user not authenticated"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK goodbye"
+                  }
+                ],
+                "retrievals": []
+              },
+              "captured_sha256": "86f96f1d2143e204bab6df35cfa19461e8b7df9e1e5af5129cedac683fc5a283",
+              "client_result": {
+                "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK Mailpit POP3 server"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR invalid password"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR user not authenticated"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK goodbye"
+                  }
+                ],
+                "retrievals": []
+              },
+              "control": false,
+              "cookie": 12346,
+              "response_bytes": 95,
+              "response_sha256": "86f96f1d2143e204bab6df35cfa19461e8b7df9e1e5af5129cedac683fc5a283"
+            },
+            {
+              "captured_result": {
+                "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK Mailpit POP3 server"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK signed in"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 2 768"
+                  },
+                  {
+                    "body_bytes": 14,
+                    "body_hex": "31203335350d0a32203431330d0a",
+                    "ok": true,
+                    "status": "+OK 2 messages (768 octets)"
+                  },
+                  {
+                    "body_bytes": 52,
+                    "body_hex": "312030345562376255616274316b31655653666f673361610d0a32203166646d76584c4253783858494c664975586158554a0d0a",
+                    "ok": true,
+                    "status": "+OK unique-id listing follows"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR no such message"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 357,
+                    "body_hex": "4d6573736167652d49443a203c31634b75456e3569656f694d4c38357641434b617153406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792037393334666665346534616620284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a35343a3031202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d310d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a7365636f6e640d0a0d0a",
+                    "ok": true,
+                    "status": "+OK 355 octets"
+                  },
+                  {
+                    "body_bytes": 415,
+                    "body_hex": "4d6573736167652d49443a203c366f754b7375306a5a6a76547043526f546d64457a6f406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792037393334666665346534616620284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a35343a3031202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d300d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a66697273740d0a2e20646f740d0a2e0d0a2d4552522061757468656e7469636174696f6e2074657874206f6e6c790d0a2b4f4b206e6f742061207374617475730d0a0d0a",
+                    "ok": true,
+                    "status": "+OK 413 octets"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK message marked for deletion"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 1 413"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR no such message"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 2 768"
+                  },
+                  {
+                    "body_bytes": 14,
+                    "body_hex": "31203335350d0a32203431330d0a",
+                    "ok": true,
+                    "status": "+OK 2 messages (768 octets)"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK goodbye"
+                  }
+                ],
+                "retrievals": [
+                  {
+                    "declared_octets": 355,
+                    "known_mailpit_extra_crlf": true,
+                    "reply_index": 8,
+                    "size_conformant": false,
+                    "unstuffed_octets": 357
+                  },
+                  {
+                    "declared_octets": 413,
+                    "known_mailpit_extra_crlf": true,
+                    "reply_index": 9,
+                    "size_conformant": false,
+                    "unstuffed_octets": 415
+                  }
+                ]
+              },
+              "captured_sha256": "489d864f4b47f63af36efb54df46c68af73c379c200f41a6fa89afd1ad78bd81",
+              "client_result": {
+                "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK Mailpit POP3 server"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK signed in"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 2 768"
+                  },
+                  {
+                    "body_bytes": 14,
+                    "body_hex": "31203335350d0a32203431330d0a",
+                    "ok": true,
+                    "status": "+OK 2 messages (768 octets)"
+                  },
+                  {
+                    "body_bytes": 52,
+                    "body_hex": "312030345562376255616274316b31655653666f673361610d0a32203166646d76584c4253783858494c664975586158554a0d0a",
+                    "ok": true,
+                    "status": "+OK unique-id listing follows"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR no such message"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 357,
+                    "body_hex": "4d6573736167652d49443a203c31634b75456e3569656f694d4c38357641434b617153406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792037393334666665346534616620284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a35343a3031202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d310d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a7365636f6e640d0a0d0a",
+                    "ok": true,
+                    "status": "+OK 355 octets"
+                  },
+                  {
+                    "body_bytes": 415,
+                    "body_hex": "4d6573736167652d49443a203c366f754b7375306a5a6a76547043526f546d64457a6f406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792037393334666665346534616620284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a35343a3031202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d300d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a66697273740d0a2e20646f740d0a2e0d0a2d4552522061757468656e7469636174696f6e2074657874206f6e6c790d0a2b4f4b206e6f742061207374617475730d0a0d0a",
+                    "ok": true,
+                    "status": "+OK 413 octets"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK message marked for deletion"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 1 413"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR no such message"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 2 768"
+                  },
+                  {
+                    "body_bytes": 14,
+                    "body_hex": "31203335350d0a32203431330d0a",
+                    "ok": true,
+                    "status": "+OK 2 messages (768 octets)"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK goodbye"
+                  }
+                ],
+                "retrievals": [
+                  {
+                    "declared_octets": 355,
+                    "known_mailpit_extra_crlf": true,
+                    "reply_index": 8,
+                    "size_conformant": false,
+                    "unstuffed_octets": 357
+                  },
+                  {
+                    "declared_octets": 413,
+                    "known_mailpit_extra_crlf": true,
+                    "reply_index": 9,
+                    "size_conformant": false,
+                    "unstuffed_octets": 415
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 12347,
+              "response_bytes": 1168,
+              "response_sha256": "489d864f4b47f63af36efb54df46c68af73c379c200f41a6fa89afd1ad78bd81"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 47,
+              "matched_cookies": [
+                12347
+              ],
+              "path": "protocols/pop3/auth/main.gewy",
+              "phase": "receive_auth_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "789f850f9440ea0e997e648b20c3ce8093f94cac5671f9073ee9465555f5043c",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 47,
+              "matched_cookies": [
+                12346
+              ],
+              "path": "protocols/pop3/auth-denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "9318566c5221c2515043e74258d9ef8a69afbef900d64e04c24d2b4526f32c13",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 47,
+              "matched_cookies": [
+                12347
+              ],
+              "path": "protocols/pop3/list/main.gewy",
+              "phase": "receive_list_ready",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "56cd395315815fec98eccdff5972dd3ba89329dd6c15161ee55258533c7ab8d9",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 37
+          },
+          "protocol": "pop3",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            12346,
+            12347
+          ],
+          "selected_query_or_command_count": 20,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 57369,
+          "unselected_neighbor_result": {
+            "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+            "replies": [
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "ok": true,
+                "status": "+OK Mailpit POP3 server"
+              },
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "ok": true,
+                "status": "+OK"
+              },
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "ok": false,
+                "status": "-ERR invalid password"
+              },
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "ok": false,
+                "status": "-ERR user not authenticated"
+              },
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "ok": true,
+                "status": "+OK goodbye"
+              }
+            ],
+            "retrievals": []
+          }
+        }
+      ],
+      "schema_version": 2
+    },
+    {
+      "checks": [
+        "real_Mailpit_POP3",
+        "uncaptured_SMTP_seed_then_captured_mailbox_retrieval",
+        "auth_denial_and_unauthorized_STAT",
+        "LIST_STAT_and_RETR_declared_sizes_agree",
+        "Mailpit_extra_CRLF_disclosed_and_raw_bytes_preserved",
+        "UIDL_unique_and_RETR_bodies_match_seed",
+        "matched_packet_status_cross_check",
+        "missing_and_deleted_message_errors",
+        "dot_unstuffed_body_not_status_lines",
+        "delete_mark_reset_and_restored_list",
+        "kernel_bytes_match_independent_client",
+        "same_target_unselected_neighbor_excluded",
+        "existing_protocol_packages_and_replay",
+        "owned_internal_network_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "pop3-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "MySQL_caching_sha2_auth_switch_prepared_statements",
+        "Memcached_text_meta_SASL_UDP",
+        "MQTT5_authentication_TLS_offline_delivery_or_crash_durability",
+        "NATS_JetStream_cluster_headers_TLS",
+        "SMTP_STARTTLS_delivery_to_external_mailbox_or_crash_durability",
+        "POP3_TLS_APOP_SASL_external_delivery_or_delete_commit_durability",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "2615f0d69a17cb5f50f46f5ff001840669a63caab0a985d6ba5531c2ae72b0e6",
+          "image": "axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231",
+          "image_id": "sha256:580a202b5088e9c651a8e8b4e461e3213fbd3a3aacaa3d2251892a546a734116",
+          "internal_network": true,
+          "network_id": "39c0b504f34d1bbb52653faeeb3879479c08e64b387dd807025676e59600a918",
+          "observations": [
+            {
+              "captured_result": {
+                "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK Mailpit POP3 server"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR invalid password"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR user not authenticated"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK goodbye"
+                  }
+                ],
+                "retrievals": []
+              },
+              "captured_sha256": "86f96f1d2143e204bab6df35cfa19461e8b7df9e1e5af5129cedac683fc5a283",
+              "client_result": {
+                "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK Mailpit POP3 server"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR invalid password"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR user not authenticated"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK goodbye"
+                  }
+                ],
+                "retrievals": []
+              },
+              "control": false,
+              "cookie": 4186,
+              "response_bytes": 95,
+              "response_sha256": "86f96f1d2143e204bab6df35cfa19461e8b7df9e1e5af5129cedac683fc5a283"
+            },
+            {
+              "captured_result": {
+                "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK Mailpit POP3 server"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK signed in"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 2 768"
+                  },
+                  {
+                    "body_bytes": 14,
+                    "body_hex": "31203335350d0a32203431330d0a",
+                    "ok": true,
+                    "status": "+OK 2 messages (768 octets)"
+                  },
+                  {
+                    "body_bytes": 52,
+                    "body_hex": "3120316e4d4449686f6e37564a734f4b376e5741624d67470d0a32203479774b3342357746426937666778525141744a42690d0a",
+                    "ok": true,
+                    "status": "+OK unique-id listing follows"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR no such message"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 357,
+                    "body_hex": "4d6573736167652d49443a203c365231334f775a6c4965534a4b6b726a533644394866406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792032363135663064363961313720284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a35343a3330202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d310d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a7365636f6e640d0a0d0a",
+                    "ok": true,
+                    "status": "+OK 355 octets"
+                  },
+                  {
+                    "body_bytes": 415,
+                    "body_hex": "4d6573736167652d49443a203c35377854356c44517a6d735069303765354f57736a39406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792032363135663064363961313720284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a35343a3330202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d300d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a66697273740d0a2e20646f740d0a2e0d0a2d4552522061757468656e7469636174696f6e2074657874206f6e6c790d0a2b4f4b206e6f742061207374617475730d0a0d0a",
+                    "ok": true,
+                    "status": "+OK 413 octets"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK message marked for deletion"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 1 413"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR no such message"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 2 768"
+                  },
+                  {
+                    "body_bytes": 14,
+                    "body_hex": "31203335350d0a32203431330d0a",
+                    "ok": true,
+                    "status": "+OK 2 messages (768 octets)"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK goodbye"
+                  }
+                ],
+                "retrievals": [
+                  {
+                    "declared_octets": 355,
+                    "known_mailpit_extra_crlf": true,
+                    "reply_index": 8,
+                    "size_conformant": false,
+                    "unstuffed_octets": 357
+                  },
+                  {
+                    "declared_octets": 413,
+                    "known_mailpit_extra_crlf": true,
+                    "reply_index": 9,
+                    "size_conformant": false,
+                    "unstuffed_octets": 415
+                  }
+                ]
+              },
+              "captured_sha256": "e84bc5478331355d018cd1c16bd8bc5f9105a59b9b570f9de56a04a97843baef",
+              "client_result": {
+                "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK Mailpit POP3 server"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK signed in"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 2 768"
+                  },
+                  {
+                    "body_bytes": 14,
+                    "body_hex": "31203335350d0a32203431330d0a",
+                    "ok": true,
+                    "status": "+OK 2 messages (768 octets)"
+                  },
+                  {
+                    "body_bytes": 52,
+                    "body_hex": "3120316e4d4449686f6e37564a734f4b376e5741624d67470d0a32203479774b3342357746426937666778525141744a42690d0a",
+                    "ok": true,
+                    "status": "+OK unique-id listing follows"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR no such message"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 357,
+                    "body_hex": "4d6573736167652d49443a203c365231334f775a6c4965534a4b6b726a533644394866406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792032363135663064363961313720284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a35343a3330202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d310d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a7365636f6e640d0a0d0a",
+                    "ok": true,
+                    "status": "+OK 355 octets"
+                  },
+                  {
+                    "body_bytes": 415,
+                    "body_hex": "4d6573736167652d49443a203c35377854356c44517a6d735069303765354f57736a39406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792032363135663064363961313720284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030373a35343a3330202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d300d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a66697273740d0a2e20646f740d0a2e0d0a2d4552522061757468656e7469636174696f6e2074657874206f6e6c790d0a2b4f4b206e6f742061207374617475730d0a0d0a",
+                    "ok": true,
+                    "status": "+OK 413 octets"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK message marked for deletion"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 1 413"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": false,
+                    "status": "-ERR no such message"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK 2 768"
+                  },
+                  {
+                    "body_bytes": 14,
+                    "body_hex": "31203335350d0a32203431330d0a",
+                    "ok": true,
+                    "status": "+OK 2 messages (768 octets)"
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "ok": true,
+                    "status": "+OK goodbye"
+                  }
+                ],
+                "retrievals": [
+                  {
+                    "declared_octets": 355,
+                    "known_mailpit_extra_crlf": true,
+                    "reply_index": 8,
+                    "size_conformant": false,
+                    "unstuffed_octets": 357
+                  },
+                  {
+                    "declared_octets": 413,
+                    "known_mailpit_extra_crlf": true,
+                    "reply_index": 9,
+                    "size_conformant": false,
+                    "unstuffed_octets": 415
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 4187,
+              "response_bytes": 1168,
+              "response_sha256": "e84bc5478331355d018cd1c16bd8bc5f9105a59b9b570f9de56a04a97843baef"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 47,
+              "matched_cookies": [
+                4187
+              ],
+              "path": "protocols/pop3/auth/main.gewy",
+              "phase": "receive_auth_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "789f850f9440ea0e997e648b20c3ce8093f94cac5671f9073ee9465555f5043c",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 47,
+              "matched_cookies": [
+                4186
+              ],
+              "path": "protocols/pop3/auth-denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "9318566c5221c2515043e74258d9ef8a69afbef900d64e04c24d2b4526f32c13",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 47,
+              "matched_cookies": [
+                4187
+              ],
+              "path": "protocols/pop3/list/main.gewy",
+              "phase": "receive_list_ready",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "56cd395315815fec98eccdff5972dd3ba89329dd6c15161ee55258533c7ab8d9",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 37
+          },
+          "protocol": "pop3",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            4186,
+            4187
+          ],
+          "selected_query_or_command_count": 20,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 8259,
+          "unselected_neighbor_result": {
+            "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+            "replies": [
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "ok": true,
+                "status": "+OK Mailpit POP3 server"
+              },
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "ok": true,
+                "status": "+OK"
+              },
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "ok": false,
+                "status": "-ERR invalid password"
+              },
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "ok": false,
+                "status": "-ERR user not authenticated"
+              },
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "ok": true,
+                "status": "+OK goodbye"
+              }
+            ],
+            "retrievals": []
+          }
+        }
+      ],
+      "schema_version": 2
+    }
+  ],
+  "fresh_http_captures": [
+    {
+      "cgroup_removed": true,
+      "checks": [
+        "captured_syn_ack_origins",
+        "real_split_status_line",
+        "body_prefix_candidate_not_promoted",
+        "derived_prefix_provenance",
+        "raw_packets_unchanged",
+        "export_and_derived_replay",
+        "decoy_exclusion",
+        "zero_reported_capture_loss",
+        "owned_pins_and_cgroup_removed"
+      ],
+      "clock_anchor_monotonic_ns": 58884460660944,
+      "clock_anchor_unix_ns": "1794556412604034298",
+      "decoy_cookie": 32841,
+      "decoy_events": 0,
+      "derived_prefix_limit": 13,
+      "dropped_events": 0,
+      "flows": 2,
+      "ingest_trust_mode": "unverified-local",
+      "kernel": "7.0.0-42-generic",
+      "kernel_events": 10,
+      "mode": "http-boundaries",
+      "not_proven": [
+        "general-TCP-stream-reassembly",
+        "subsequent-HTTP-responses",
+        "HTTP-informational-responses",
+        "TLS",
+        "TCP-Fast-Open",
+        "vulnerability-detection"
+      ],
+      "ok": true,
+      "packet_dropped_events": 0,
+      "packet_dsl_status_candidates": [
+        [
+          57368,
+          500
+        ]
+      ],
+      "packet_events": 6,
+      "pins_removed": true,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          57367,
+          57691,
+          34579,
+          4026531833
+        ],
+        [
+          57368,
+          53229,
+          34579,
+          4026531833
+        ]
+      ],
+      "verified_http_statuses": [
+        [
+          57367,
+          403
+        ],
+        [
+          57368,
+          200
+        ]
+      ]
+    },
+    {
+      "cgroup_removed": true,
+      "checks": [
+        "captured_syn_ack_origins",
+        "real_split_status_line",
+        "body_prefix_candidate_not_promoted",
+        "derived_prefix_provenance",
+        "raw_packets_unchanged",
+        "export_and_derived_replay",
+        "decoy_exclusion",
+        "zero_reported_capture_loss",
+        "owned_pins_and_cgroup_removed"
+      ],
+      "clock_anchor_monotonic_ns": 58914472624210,
+      "clock_anchor_unix_ns": "1794556442615997725",
+      "decoy_cookie": 40975,
+      "decoy_events": 0,
+      "derived_prefix_limit": 13,
+      "dropped_events": 0,
+      "flows": 2,
+      "ingest_trust_mode": "unverified-local",
+      "kernel": "7.0.0-42-generic",
+      "kernel_events": 10,
+      "mode": "http-boundaries",
+      "not_proven": [
+        "general-TCP-stream-reassembly",
+        "subsequent-HTTP-responses",
+        "HTTP-informational-responses",
+        "TLS",
+        "TCP-Fast-Open",
+        "vulnerability-detection"
+      ],
+      "ok": true,
+      "packet_dropped_events": 0,
+      "packet_dsl_status_candidates": [
+        [
+          8258,
+          500
+        ]
+      ],
+      "packet_events": 6,
+      "pins_removed": true,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          8257,
+          40655,
+          40221,
+          4026531833
+        ],
+        [
+          8258,
+          42239,
+          40221,
+          4026531833
+        ]
+      ],
+      "verified_http_statuses": [
+        [
+          8257,
+          403
+        ],
+        [
+          8258,
+          200
+        ]
+      ]
+    },
+    {
+      "cgroup_removed": true,
+      "checks": [
+        "captured_syn_ack_origins",
+        "real_split_status_line",
+        "body_prefix_candidate_not_promoted",
+        "derived_prefix_provenance",
+        "raw_packets_unchanged",
+        "export_and_derived_replay",
+        "decoy_exclusion",
+        "zero_reported_capture_loss",
+        "owned_pins_and_cgroup_removed"
+      ],
+      "clock_anchor_monotonic_ns": 58943767632575,
+      "clock_anchor_unix_ns": "1794556471911005990",
+      "decoy_cookie": 45135,
+      "decoy_events": 0,
+      "derived_prefix_limit": 13,
+      "dropped_events": 0,
+      "flows": 2,
+      "ingest_trust_mode": "unverified-local",
+      "kernel": "7.0.0-42-generic",
+      "kernel_events": 10,
+      "mode": "http-boundaries",
+      "not_proven": [
+        "general-TCP-stream-reassembly",
+        "subsequent-HTTP-responses",
+        "HTTP-informational-responses",
+        "TLS",
+        "TCP-Fast-Open",
+        "vulnerability-detection"
+      ],
+      "ok": true,
+      "packet_dropped_events": 0,
+      "packet_dsl_status_candidates": [
+        [
+          45134,
+          500
+        ]
+      ],
+      "packet_events": 6,
+      "pins_removed": true,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          45133,
+          39911,
+          37211,
+          4026531833
+        ],
+        [
+          45134,
+          37479,
+          37211,
+          4026531833
+        ]
+      ],
+      "verified_http_statuses": [
+        [
+          45133,
+          403
+        ],
+        [
+          45134,
+          200
+        ]
+      ]
+    }
+  ],
+  "smtp_control": {
+    "checks": [
+      "real_Mailpit_SMTP",
+      "auth_denial_and_unauthenticated_submission_refusal",
+      "multiline_EHLO_and_bounded_CRLF_replies",
+      "bad_sequence_and_recipient_rejection_then_same_connection_submission",
+      "dot_stuffed_body_and_second_transaction",
+      "matched_packet_status_cross_check",
+      "kernel_bytes_match_independent_client",
+      "same_target_unselected_neighbor_excluded",
+      "existing_protocol_packages_and_replay",
+      "owned_internal_network_cleanup",
+      "fresh_HTTP_capture_after_data"
+    ],
+    "ingest_trust_mode": "unverified-local",
+    "mode": "smtp-breadth",
+    "not_proven": [
+      "TLS_decryption",
+      "arbitrary_protocol_detection",
+      "general_TCP_reassembly",
+      "vulnerability_exploitation_detection",
+      "PostgreSQL_TLS_SCRAM_extended_query",
+      "Redis_cluster_RESP3",
+      "MySQL_caching_sha2_auth_switch_prepared_statements",
+      "Memcached_text_meta_SASL_UDP",
+      "MQTT5_authentication_TLS_offline_delivery_or_crash_durability",
+      "NATS_JetStream_cluster_headers_TLS",
+      "SMTP_STARTTLS_delivery_to_external_mailbox_or_crash_durability",
+      "POP3_TLS_APOP_SASL_external_delivery_or_delete_commit_durability",
+      "PID_or_container_process_attribution",
+      "request_payload_capture",
+      "IPv6_or_UDP",
+      "multiple_hosts_or_kernels"
+    ],
+    "ok": true,
+    "phases": [
+      {
+        "anonymous_volume_ids": [],
+        "anonymous_volumes_removed_with_container": true,
+        "client_read_chunk_bytes": 7,
+        "client_reads_are_packet_boundaries": false,
+        "container_id": "6ae5966f0d9dc8e7c343b039442650df4e6b6697bb7a3600ec4ce9ff2c7e1b61",
+        "image": "axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231",
+        "image_id": "sha256:580a202b5088e9c651a8e8b4e461e3213fbd3a3aacaa3d2251892a546a734116",
+        "internal_network": true,
+        "network_id": "04542e4e0d22ee497205b0b2f42221127c5e46fa613ca9653e5746d1a7ad9765",
+        "observations": [
+          {
+            "captured_result": {
+              "replies": [
+                {
+                  "code": 220,
+                  "lines": [
+                    "6ae5966f0d9d Mailpit ESMTP Service ready"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "6ae5966f0d9d greets gewy.test",
+                    "SIZE 1048576",
+                    "AUTH LOGIN PLAIN",
+                    "ENHANCEDSTATUSCODES",
+                    "8BITMIME",
+                    "SMTPUTF8"
+                  ]
+                },
+                {
+                  "code": 535,
+                  "lines": [
+                    "5.7.8 Authentication credentials invalid"
+                  ]
+                },
+                {
+                  "code": 530,
+                  "lines": [
+                    "5.7.0 Authentication required"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "2.0.0 Ok"
+                  ]
+                },
+                {
+                  "code": 221,
+                  "lines": [
+                    "2.0.0 6ae5966f0d9d Mailpit ESMTP Service closing transmission channel"
+                  ]
+                }
+              ]
+            },
+            "captured_sha256": "7340214e65a4916aa9ec3c8b211c5ae71ce13eb78edb9d472f72edb97991c720",
+            "client_result": {
+              "replies": [
+                {
+                  "code": 220,
+                  "lines": [
+                    "6ae5966f0d9d Mailpit ESMTP Service ready"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "6ae5966f0d9d greets gewy.test",
+                    "SIZE 1048576",
+                    "AUTH LOGIN PLAIN",
+                    "ENHANCEDSTATUSCODES",
+                    "8BITMIME",
+                    "SMTPUTF8"
+                  ]
+                },
+                {
+                  "code": 535,
+                  "lines": [
+                    "5.7.8 Authentication credentials invalid"
+                  ]
+                },
+                {
+                  "code": 530,
+                  "lines": [
+                    "5.7.0 Authentication required"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "2.0.0 Ok"
+                  ]
+                },
+                {
+                  "code": 221,
+                  "lines": [
+                    "2.0.0 6ae5966f0d9d Mailpit ESMTP Service closing transmission channel"
+                  ]
+                }
+              ]
+            },
+            "control": false,
+            "cookie": 20536,
+            "response_bytes": 344,
+            "response_sha256": "7340214e65a4916aa9ec3c8b211c5ae71ce13eb78edb9d472f72edb97991c720"
+          },
+          {
+            "captured_result": {
+              "replies": [
+                {
+                  "code": 220,
+                  "lines": [
+                    "6ae5966f0d9d Mailpit ESMTP Service ready"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "6ae5966f0d9d greets gewy.test",
+                    "SIZE 1048576",
+                    "AUTH PLAIN LOGIN",
+                    "ENHANCEDSTATUSCODES",
+                    "8BITMIME",
+                    "SMTPUTF8"
+                  ]
+                },
+                {
+                  "code": 235,
+                  "lines": [
+                    "2.7.0 Authentication successful"
+                  ]
+                },
+                {
+                  "code": 503,
+                  "lines": [
+                    "5.5.1 Bad sequence of commands (MAIL & RCPT required before DATA)"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "2.1.0 Ok"
+                  ]
+                },
+                {
+                  "code": 550,
+                  "lines": [
+                    "5.1.0 Requested action not taken: mailbox unavailable"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "2.1.5 Ok"
+                  ]
+                },
+                {
+                  "code": 354,
+                  "lines": [
+                    "Start mail input; end with <CR><LF>.<CR><LF>"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "2.0.0 Ok: queued as 0A5pJv80HDloTrzfuyEFU7"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "2.0.0 Ok"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "2.1.0 Ok"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "2.1.5 Ok"
+                  ]
+                },
+                {
+                  "code": 354,
+                  "lines": [
+                    "Start mail input; end with <CR><LF>.<CR><LF>"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "2.0.0 Ok: queued as 1swZ3b80KTzovGMJxU0ty2"
+                  ]
+                },
+                {
+                  "code": 221,
+                  "lines": [
+                    "2.0.0 6ae5966f0d9d Mailpit ESMTP Service closing transmission channel"
+                  ]
+                }
+              ]
+            },
+            "captured_sha256": "e7a401f79210c02a71cab1c55b7134fd4997faa4ada763f3368f58764397a296",
+            "client_result": {
+              "replies": [
+                {
+                  "code": 220,
+                  "lines": [
+                    "6ae5966f0d9d Mailpit ESMTP Service ready"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "6ae5966f0d9d greets gewy.test",
+                    "SIZE 1048576",
+                    "AUTH PLAIN LOGIN",
+                    "ENHANCEDSTATUSCODES",
+                    "8BITMIME",
+                    "SMTPUTF8"
+                  ]
+                },
+                {
+                  "code": 235,
+                  "lines": [
+                    "2.7.0 Authentication successful"
+                  ]
+                },
+                {
+                  "code": 503,
+                  "lines": [
+                    "5.5.1 Bad sequence of commands (MAIL & RCPT required before DATA)"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "2.1.0 Ok"
+                  ]
+                },
+                {
+                  "code": 550,
+                  "lines": [
+                    "5.1.0 Requested action not taken: mailbox unavailable"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "2.1.5 Ok"
+                  ]
+                },
+                {
+                  "code": 354,
+                  "lines": [
+                    "Start mail input; end with <CR><LF>.<CR><LF>"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "2.0.0 Ok: queued as 0A5pJv80HDloTrzfuyEFU7"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "2.0.0 Ok"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "2.1.0 Ok"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "2.1.5 Ok"
+                  ]
+                },
+                {
+                  "code": 354,
+                  "lines": [
+                    "Start mail input; end with <CR><LF>.<CR><LF>"
+                  ]
+                },
+                {
+                  "code": 250,
+                  "lines": [
+                    "2.0.0 Ok: queued as 1swZ3b80KTzovGMJxU0ty2"
+                  ]
+                },
+                {
+                  "code": 221,
+                  "lines": [
+                    "2.0.0 6ae5966f0d9d Mailpit ESMTP Service closing transmission channel"
+                  ]
+                }
+              ]
+            },
+            "control": true,
+            "cookie": 20537,
+            "response_bytes": 682,
+            "response_sha256": "e7a401f79210c02a71cab1c55b7134fd4997faa4ada763f3368f58764397a296"
+          }
+        ],
+        "ok": true,
+        "owned_resources_removed": true,
+        "package_failures": [],
+        "packages": [
+          {
+            "facts": 33,
+            "matched_cookies": [
+              20536,
+              20537
+            ],
+            "path": "protocols/smtp/session/main.gewy",
+            "phase": "receive_banner",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "1fb2f707f1d1ce17b1f8f3fba9667c239109675ebf4fd0171de0a88ef0924b96",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 33,
+            "matched_cookies": [
+              20537
+            ],
+            "path": "protocols/smtp/auth/main.gewy",
+            "phase": "receive_auth_ok",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "7aab7aa83f1550fafeee15a69e6cb881e12d6645079599248f4a62ec97632875",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 33,
+            "matched_cookies": [
+              20536
+            ],
+            "path": "protocols/smtp/auth-denied/main.gewy",
+            "phase": "receive_auth_denied",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "869ecbc081856b37c1d24bdfd7437531488b8c19bcd60bc646ffb575361781ee",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 33,
+            "matched_cookies": [
+              20537
+            ],
+            "path": "protocols/smtp/mail/main.gewy",
+            "phase": "receive_mail_ok",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "1726b242be8c8e5e68221029f901fdcfe3ea523d16c9dbad4022daa7e6ff153f",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 33,
+            "matched_cookies": [
+              20537
+            ],
+            "path": "protocols/smtp/rcpt/main.gewy",
+            "phase": "receive_rcpt_ok",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "9c4d764323be16267e676d4009e10748d5401874ba19431429b4a5915aa1a3b9",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 33,
+            "matched_cookies": [
+              20537
+            ],
+            "path": "protocols/smtp/rcpt-denied/main.gewy",
+            "phase": "receive_rcpt_denied",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "d7e33c5ec142da258dc9d4e95899e1b06c29d360a2587174ea891e70bddc3a25",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 33,
+            "matched_cookies": [
+              20537
+            ],
+            "path": "protocols/smtp/data/main.gewy",
+            "phase": "receive_message_queued",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "acb613fbc95420256166dfe62ef087fe3e72934f099646b104661f2e3597acd2",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 33,
+            "matched_cookies": [],
+            "path": "protocols/smtp/data-denied/main.gewy",
+            "phase": "receive_message_denied",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "5eb6187c5af65c6ced5124d901ad83bdbea8ed07df8bd4b05cc0681b5927f242",
+            "unobserved_fragments_explicit": true
+          }
+        ],
+        "packet_counts": {
+          "dropped": 0,
+          "total": 23
+        },
+        "protocol": "smtp",
+        "published_ports": false,
+        "redis_pipeline_commands": 0,
+        "schema_version": 2,
+        "selected_cookies": [
+          20536,
+          20537
+        ],
+        "selected_query_or_command_count": 19,
+        "tcp_state_counts": {
+          "dropped": 0,
+          "total": 10
+        },
+        "unselected_neighbor_cookie": 12348,
+        "unselected_neighbor_result": {
+          "replies": [
+            {
+              "code": 220,
+              "lines": [
+                "6ae5966f0d9d Mailpit ESMTP Service ready"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "6ae5966f0d9d greets gewy.test",
+                "SIZE 1048576",
+                "AUTH LOGIN PLAIN",
+                "ENHANCEDSTATUSCODES",
+                "8BITMIME",
+                "SMTPUTF8"
+              ]
+            },
+            {
+              "code": 535,
+              "lines": [
+                "5.7.8 Authentication credentials invalid"
+              ]
+            },
+            {
+              "code": 530,
+              "lines": [
+                "5.7.0 Authentication required"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "2.0.0 Ok"
+              ]
+            },
+            {
+              "code": 221,
+              "lines": [
+                "2.0.0 6ae5966f0d9d Mailpit ESMTP Service closing transmission channel"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "schema_version": 2
+  },
+  "totals": {
+    "packet_events": 111,
+    "tcp_state_events": 30,
+    "server_response_bytes": 3789,
+    "package_replays": 9,
+    "selected_commands": 60
+  },
+  "regression": {
+    "final_related_tests_passed": 1558,
+    "final_related_tests_failed": 0,
+    "final_related_tests_ignored": 1,
+    "api_semantics_tests_passed": 1,
+    "clippy_warnings_denied": true,
+    "evidence_status_tests_passed": 347,
+    "all_final_tests_passed": 1906,
+    "closure_clippy_warnings_denied": true,
+    "cargo_fmt_all_check_passed": true,
+    "git_diff_check_passed": true
+  },
+  "cleanup": {
+    "existing_container_identities_unchanged": true,
+    "existing_network_identities_unchanged": true,
+    "existing_volume_inventory_unchanged": true,
+    "baseline_containers": 15,
+    "baseline_networks": 6,
+    "baseline_volumes": 54,
+    "owned_targets_removed": true,
+    "owned_build_container_id": "9ebf49f0efcf79ecf09b656575e458cd56cc93552f4c3fb128caf87286f98d14",
+    "build_container_removed": true,
+    "global_prune_used": false,
+    "no_capture_pin_or_cgroup_directories_remain": true
+  },
+  "not_proven": [
+    "general POP3 server conformance",
+    "TLS/APOP/SASL",
+    "other POP3 servers or alternative/localized reply text",
+    "status lines split across packets",
+    "signature-shaped message body at packet boundary without dialogue context",
+    "general TCP reassembly",
+    "external mail delivery",
+    "delete commit or crash durability",
+    "request payload capture",
+    "process attribution",
+    "throughput",
+    "independent physical hosts or kernels"
+  ]
+}

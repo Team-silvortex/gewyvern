@@ -21,6 +21,9 @@ mod memcached;
 mod mqtt;
 mod mysql;
 mod nats;
+mod pop3;
+mod rtsp;
+mod smtp;
 mod wire;
 
 #[derive(Clone, Copy)]
@@ -31,6 +34,9 @@ enum Protocol {
     Memcached,
     Mqtt,
     Nats,
+    Smtp,
+    Pop3,
+    Rtsp,
 }
 impl Protocol {
     fn name(self) -> &'static str {
@@ -41,6 +47,9 @@ impl Protocol {
             Self::Memcached => "memcached",
             Self::Mqtt => "mqtt",
             Self::Nats => "nats",
+            Self::Smtp => "smtp",
+            Self::Pop3 => "pop3",
+            Self::Rtsp => "rtsp",
         }
     }
     fn port(self) -> u16 {
@@ -51,10 +60,15 @@ impl Protocol {
             Self::Memcached => 11211,
             Self::Mqtt => 1883,
             Self::Nats => 4222,
+            Self::Smtp => 25,
+            Self::Pop3 => 110,
+            Self::Rtsp => 554,
         }
     }
     fn image(self) -> &'static str {
         match self {
+            Self::Rtsp => rtsp::IMAGE,
+            Self::Smtp | Self::Pop3 => smtp::IMAGE,
             Self::Mqtt => {
                 "eclipse-mosquitto@sha256:75d6662dee52c947dc9dd9c29f1d8d7ffef78ddaf38001caa09755681e8bbc98"
             }
@@ -75,6 +89,102 @@ impl Protocol {
     }
     fn rules(self) -> Vec<(&'static str, &'static str, &'static str, [bool; 2])> {
         match self {
+            Self::Rtsp => vec![
+                (
+                    "protocols/rtsp/options/main.gewy",
+                    include_str!("../../../../protocols/rtsp/options/main.gewy"),
+                    "receive_options_ok",
+                    [true, true],
+                ),
+                (
+                    "protocols/rtsp/describe/main.gewy",
+                    include_str!("../../../../protocols/rtsp/describe/main.gewy"),
+                    "receive_describe_ok",
+                    [false, true],
+                ),
+                (
+                    "protocols/rtsp/setup/main.gewy",
+                    include_str!("../../../../protocols/rtsp/setup/main.gewy"),
+                    "receive_setup_ok",
+                    [false, true],
+                ),
+                (
+                    "protocols/rtsp/play/main.gewy",
+                    include_str!("../../../../protocols/rtsp/play/main.gewy"),
+                    "receive_play_ok",
+                    [false, true],
+                ),
+            ],
+            Self::Pop3 => vec![
+                (
+                    "protocols/pop3/auth/main.gewy",
+                    include_str!("../../../../protocols/pop3/auth/main.gewy"),
+                    "receive_auth_ok",
+                    [false, true],
+                ),
+                (
+                    "protocols/pop3/auth-denied/main.gewy",
+                    include_str!("../../../../protocols/pop3/auth-denied/main.gewy"),
+                    "receive_auth_denied",
+                    [true, false],
+                ),
+                (
+                    "protocols/pop3/list/main.gewy",
+                    include_str!("../../../../protocols/pop3/list/main.gewy"),
+                    "receive_list_ready",
+                    [false, true],
+                ),
+            ],
+            Self::Smtp => vec![
+                (
+                    "protocols/smtp/session/main.gewy",
+                    include_str!("../../../../protocols/smtp/session/main.gewy"),
+                    "receive_banner",
+                    [true, true],
+                ),
+                (
+                    "protocols/smtp/auth/main.gewy",
+                    include_str!("../../../../protocols/smtp/auth/main.gewy"),
+                    "receive_auth_ok",
+                    [false, true],
+                ),
+                (
+                    "protocols/smtp/auth-denied/main.gewy",
+                    include_str!("../../../../protocols/smtp/auth-denied/main.gewy"),
+                    "receive_auth_denied",
+                    [true, false],
+                ),
+                (
+                    "protocols/smtp/mail/main.gewy",
+                    include_str!("../../../../protocols/smtp/mail/main.gewy"),
+                    "receive_mail_ok",
+                    [false, true],
+                ),
+                (
+                    "protocols/smtp/rcpt/main.gewy",
+                    include_str!("../../../../protocols/smtp/rcpt/main.gewy"),
+                    "receive_rcpt_ok",
+                    [false, true],
+                ),
+                (
+                    "protocols/smtp/rcpt-denied/main.gewy",
+                    include_str!("../../../../protocols/smtp/rcpt-denied/main.gewy"),
+                    "receive_rcpt_denied",
+                    [false, true],
+                ),
+                (
+                    "protocols/smtp/data/main.gewy",
+                    include_str!("../../../../protocols/smtp/data/main.gewy"),
+                    "receive_message_queued",
+                    [false, true],
+                ),
+                (
+                    "protocols/smtp/data-denied/main.gewy",
+                    include_str!("../../../../protocols/smtp/data-denied/main.gewy"),
+                    "receive_message_denied",
+                    [false, false],
+                ),
+            ],
             Self::Mqtt => vec![
                 (
                     "protocols/mqtt/connect/main.gewy",
@@ -235,6 +345,56 @@ fn valid_candidate(
             .find_map(|(at, value)| (*at == offset).then_some(*value))
     };
     match protocol {
+        Protocol::Rtsp => rtsp::candidate(packet, phase),
+        Protocol::Pop3 => {
+            let starts = |offset: u16, text: &[u8]| {
+                text.iter()
+                    .enumerate()
+                    .all(|(i, b)| at(offset + i as u16) == Some(*b))
+            };
+            let text: &[u8] = match phase {
+                "receive_banner" => b"+OK Mailpit POP3 server\r\n",
+                "receive_user_ok" => b"+OK User accepted\r\n",
+                "receive_auth_ok" => b"+OK signed in\r\n",
+                "receive_auth_denied" => b"-ERR invalid password\r\n",
+                "receive_list_ready" => {
+                    return starts(0, b"+OK ")
+                        && (1..=3).any(|digits| {
+                            (4..4 + digits)
+                                .all(|offset| at(offset).is_some_and(|b| b.is_ascii_digit()))
+                                && starts(4 + digits, b" messages (")
+                        });
+                }
+                _ => return false,
+            };
+            starts(0, text)
+        }
+        Protocol::Smtp => {
+            if phase == "receive_rcpt_denied" {
+                return [b"550 5.1.0 ", b"550 5.1.1 "].iter().any(|prefix| {
+                    prefix
+                        .iter()
+                        .enumerate()
+                        .all(|(offset, value)| at(offset as u16) == Some(*value))
+                });
+            }
+            let prefix: &[u8] = match phase {
+                "receive_banner" => b"220 ",
+                "receive_ehlo_ok" => b"250-",
+                "receive_auth_ok" => b"235 ",
+                "receive_auth_denied" => b"535 ",
+                "receive_mail_ok" => b"250 2.1.0 ",
+                "receive_rcpt_ok" => b"250 2.1.5 ",
+                "receive_data_ready" => b"354 ",
+                "receive_message_queued" => b"250 2.0.0 Ok: queued as ",
+                "receive_message_denied" => b"550 5.7.1 Message rejected",
+                _ => return false,
+            };
+            prefix
+                .iter()
+                .enumerate()
+                .all(|(offset, value)| at(offset as u16) == Some(*value))
+        }
         Protocol::Mqtt => match phase {
             "receive_connack" => {
                 at(0) == Some(32)
@@ -313,7 +473,14 @@ fn stage_cookies(
         .program_flows
         .iter()
         .flat_map(|flow| &flow.stages)
-        .filter(|stage| stage.phase.as_deref() == Some(phase))
+        .filter(|stage| {
+            stage.phase.as_deref() == Some(phase)
+                || (matches!(protocol, Protocol::Smtp | Protocol::Pop3 | Protocol::Rtsp)
+                    && stage
+                        .phase
+                        .as_deref()
+                        .is_some_and(|p| p.starts_with("receive_")))
+        })
     {
         let packet = export
             .facts
@@ -323,9 +490,10 @@ fn stage_cookies(
                 _ => None,
             })
             .ok_or_else(|| ValidationError::new("database/cache stage has no packet provenance"))?;
-        if !valid_candidate(protocol, phase, packet) {
+        let actual_phase = stage.phase.as_deref().unwrap_or(phase);
+        if !valid_candidate(protocol, actual_phase, packet) {
             return Err(ValidationError::new(format!(
-                "{} {phase} matched the wrong actual packet at fact {:?}, cookie {:?}, bytes {:?}",
+                "{} {actual_phase} matched the wrong actual packet at fact {:?}, cookie {:?}, bytes {:?}",
                 protocol.name(),
                 stage.at,
                 packet.sk_cookie,
@@ -335,7 +503,9 @@ fn stage_cookies(
         let cookie = packet
             .sk_cookie
             .ok_or_else(|| ValidationError::new("candidate has no owned cookie"))?;
-        cookies.insert(cookie);
+        if actual_phase == phase {
+            cookies.insert(cookie);
+        }
     }
     Ok(cookies)
 }
@@ -386,7 +556,44 @@ fn phase(out: &Path, protocol: Protocol) -> Result<Value, ValidationError> {
     let password = format!("POSTGRES_PASSWORD={}", wire::PASSWORD);
     let mysql_password = format!("MYSQL_PASSWORD={}", wire::PASSWORD);
     let mysql_root_password = format!("MYSQL_ROOT_PASSWORD={}", wire::PASSWORD);
+    let smtp_password = format!("MP_SMTP_AUTH=gewy:{}", wire::PASSWORD);
+    let pop3_password = format!("MP_POP3_AUTH=gewy:{}", wire::PASSWORD);
     match protocol {
+        Protocol::Rtsp => args.extend([
+            "--read-only",
+            "--env",
+            "MTX_RTSPADDRESS=:554",
+            "--env",
+            "MTX_RTSPTRANSPORTS=tcp",
+            "--env",
+            "MTX_RTMP=false",
+            "--env",
+            "MTX_HLS=false",
+            "--env",
+            "MTX_WEBRTC=false",
+            "--env",
+            "MTX_SRT=false",
+            "--env",
+            "MTX_MOQ=false",
+            "--env",
+            "MTX_API=false",
+            "--env",
+            "MTX_METRICS=false",
+            "--env",
+            "MTX_PPROF=false",
+            "--env",
+            "MTX_PLAYBACK=false",
+            "--env",
+            "MTX_WRITEQUEUESIZE=16",
+            "--env",
+            "MTX_PATHDEFAULTS_RECORD=false",
+        ]),
+        Protocol::Smtp | Protocol::Pop3 => args.extend([
+            "--env",
+            &smtp_password,
+            "--tmpfs",
+            "/tmp:rw,nosuid,nodev,size=32m",
+        ]),
         Protocol::Postgres => args.extend([
             "--env",
             "POSTGRES_USER=gewy",
@@ -416,8 +623,29 @@ fn phase(out: &Path, protocol: Protocol) -> Result<Value, ValidationError> {
         ]),
         Protocol::Memcached | Protocol::Mqtt | Protocol::Nats => (),
     }
+    if matches!(protocol, Protocol::Pop3) {
+        args.extend(["--env", &pop3_password]);
+    }
     args.push(protocol.image());
     match protocol {
+        Protocol::Rtsp => (),
+        Protocol::Smtp | Protocol::Pop3 => args.extend([
+            "--smtp",
+            "0.0.0.0:25",
+            "--listen",
+            "127.0.0.1:8025",
+            "--database",
+            "/tmp/mailpit.db",
+            "--smtp-auth-allow-insecure",
+            "--smtp-allowed-recipients",
+            "@gewy[.]test$",
+            "--smtp-disable-rdns",
+            "--max",
+            "16",
+            "--max-message-size",
+            "1",
+            "--disable-version-check",
+        ]),
         Protocol::Mqtt => args.extend(["mosquitto", "-c", "/tmp/gewyvern.conf"]),
         Protocol::Nats => args.extend(["-c", "/tmp/gewyvern.conf"]),
         Protocol::Mysql => args.extend([
@@ -463,6 +691,9 @@ fn phase(out: &Path, protocol: Protocol) -> Result<Value, ValidationError> {
             "--requirepass",
             wire::PASSWORD,
         ]),
+    }
+    if matches!(protocol, Protocol::Pop3) {
+        args.extend(["--pop3", "0.0.0.0:110"]);
     }
     let mut container = OwnedResource::create("container", &token, &args, &out)?;
     let broker_config = match protocol {
@@ -517,6 +748,10 @@ fn phase(out: &Path, protocol: Protocol) -> Result<Value, ValidationError> {
     loop {
         let ready = if matches!(protocol, Protocol::Mqtt) {
             mqtt::probe(owned_socket_on(source)?, target)
+        } else if matches!(protocol, Protocol::Pop3) {
+            pop3::probe(owned_socket_on(source)?, target)
+        } else if matches!(protocol, Protocol::Rtsp) {
+            rtsp::probe(owned_socket_on(source)?, target)
         } else {
             wire::exchange(owned_socket_on(source)?, target, protocol, true).map(|_| ())
         };
@@ -541,6 +776,17 @@ fn phase(out: &Path, protocol: Protocol) -> Result<Value, ValidationError> {
     if matches!(protocol, Protocol::Mqtt) {
         mqtt::seed(owned_socket_on(source)?, target)?;
     }
+    if matches!(protocol, Protocol::Pop3) {
+        smtp::seed_pop3(
+            owned_socket_on(source)?,
+            SocketAddr::from((destination, 25)),
+        )?;
+    }
+    let publisher = if matches!(protocol, Protocol::Rtsp) {
+        Some(rtsp::publish(owned_socket_on(source)?, target)?)
+    } else {
+        None
+    };
     let mut scope = Scope::enter(&token)?;
     let sockets = [owned_socket_on(source)?, owned_socket_on(source)?];
     let cookies = [sockets[0].cookie()?, sockets[1].cookie()?];
@@ -572,6 +818,7 @@ fn phase(out: &Path, protocol: Protocol) -> Result<Value, ValidationError> {
     let neighbor = owned_socket_on(source)?;
     let neighbor_cookie = neighbor.cookie()?;
     let (_, neighbor_code) = wire::exchange(neighbor, target, protocol, false)?;
+    drop(publisher);
     states_capture.detach();
     let (states, state_counts) = snapshot(&states_capture, &out, "final")?;
     let tcp = export_stage_at(
@@ -710,7 +957,7 @@ fn phase(out: &Path, protocol: Protocol) -> Result<Value, ValidationError> {
         "internal_network":true,"published_ports":false,"selected_cookies":cookies,
         "unselected_neighbor_cookie":neighbor_cookie,"unselected_neighbor_result":neighbor_code,
         "client_read_chunk_bytes":wire::READ_CHUNK,"client_reads_are_packet_boundaries":false,
-        "selected_query_or_command_count":match protocol { Protocol::Postgres => 10, Protocol::Redis => 21, Protocol::Mysql => 5, Protocol::Memcached => 13, Protocol::Mqtt=>9, Protocol::Nats=>16 },
+        "selected_query_or_command_count":match protocol { Protocol::Postgres => 10, Protocol::Redis => 21, Protocol::Mysql => 5, Protocol::Memcached => 13, Protocol::Mqtt=>9, Protocol::Nats=>16, Protocol::Smtp=>19, Protocol::Pop3=>20, Protocol::Rtsp=>11 },
         "redis_pipeline_commands":if matches!(protocol, Protocol::Redis) {3} else {0},
         "observations":observations,"packages":packages,"packet_counts":packet_counts,
         "tcp_state_counts":state_counts,"owned_resources_removed":true,"anonymous_volume_ids":volumes,
@@ -739,22 +986,87 @@ enum Group {
     Data,
     MysqlMemcached,
     Messaging,
+    Smtp,
+    Pop3,
+    Rtsp,
+}
+
+pub(super) fn run_smtp(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    run_group(out, Group::Smtp)
+}
+
+pub(super) fn run_pop3(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    run_group(out, Group::Pop3)
+}
+
+pub(super) fn run_rtsp(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    run_group(out, Group::Rtsp)
 }
 
 fn run_group(out: Option<PathBuf>, group: Group) -> Result<ValidationReport, ValidationError> {
-    let (mode, protocols) = match group {
-        Group::MysqlMemcached => ("mysql-memcached", [Protocol::Mysql, Protocol::Memcached]),
-        Group::Messaging => ("messaging-breadth", [Protocol::Mqtt, Protocol::Nats]),
-        Group::Data => ("data-breadth", [Protocol::Postgres, Protocol::Redis]),
+    let (mode, protocols): (&str, &[Protocol]) = match group {
+        Group::MysqlMemcached => ("mysql-memcached", &[Protocol::Mysql, Protocol::Memcached]),
+        Group::Messaging => ("messaging-breadth", &[Protocol::Mqtt, Protocol::Nats]),
+        Group::Data => ("data-breadth", &[Protocol::Postgres, Protocol::Redis]),
+        Group::Smtp => ("smtp-breadth", &[Protocol::Smtp]),
+        Group::Pop3 => ("pop3-breadth", &[Protocol::Pop3]),
+        Group::Rtsp => ("rtsp-breadth", &[Protocol::Rtsp]),
     };
     let out = prepare_output(out, "linux-data-breadth")?;
     let mut phases = Vec::new();
-    for protocol in protocols {
-        eprintln!("capture database/cache breadth: {}", protocol.name());
+    for &protocol in protocols {
+        eprintln!("capture protocol breadth: {}", protocol.name());
         phases.push(phase(&out.join(protocol.name()), protocol)?);
     }
     super::http_boundaries::run(Some(out.join("after-data-restart")))?;
-    let checks = if matches!(group, Group::Messaging) {
+    let checks = if matches!(group, Group::Rtsp) {
+        vec![
+            "real_MediaMTX_RTSP_1_0",
+            "uncaptured_native_publisher_and_synthetic_PCMU_seed",
+            "OPTIONS_and_missing_DESCRIBE_recovery",
+            "SDP_and_content_length_checked",
+            "unsupported_UDP_then_TCP_SETUP",
+            "PLAY_keepalive_PAUSE_resume_TEARDOWN",
+            "CSeq_and_session_identity_checked",
+            "kernel_bytes_match_independent_client",
+            "same_target_unselected_neighbor_excluded",
+            "existing_protocol_packages_and_replay",
+            "owned_internal_network_cleanup",
+            "fresh_HTTP_capture_after_data",
+        ]
+    } else if matches!(group, Group::Pop3) {
+        vec![
+            "real_Mailpit_POP3",
+            "uncaptured_SMTP_seed_then_captured_mailbox_retrieval",
+            "auth_denial_and_unauthorized_STAT",
+            "LIST_STAT_and_RETR_declared_sizes_agree",
+            "Mailpit_extra_CRLF_disclosed_and_raw_bytes_preserved",
+            "UIDL_unique_and_RETR_bodies_match_seed",
+            "matched_packet_status_cross_check",
+            "missing_and_deleted_message_errors",
+            "dot_unstuffed_body_not_status_lines",
+            "delete_mark_reset_and_restored_list",
+            "kernel_bytes_match_independent_client",
+            "same_target_unselected_neighbor_excluded",
+            "existing_protocol_packages_and_replay",
+            "owned_internal_network_cleanup",
+            "fresh_HTTP_capture_after_data",
+        ]
+    } else if matches!(group, Group::Smtp) {
+        vec![
+            "real_Mailpit_SMTP",
+            "auth_denial_and_unauthenticated_submission_refusal",
+            "multiline_EHLO_and_bounded_CRLF_replies",
+            "bad_sequence_and_recipient_rejection_then_same_connection_submission",
+            "dot_stuffed_body_and_second_transaction",
+            "matched_packet_status_cross_check",
+            "kernel_bytes_match_independent_client",
+            "same_target_unselected_neighbor_excluded",
+            "existing_protocol_packages_and_replay",
+            "owned_internal_network_cleanup",
+            "fresh_HTTP_capture_after_data",
+        ]
+    } else if matches!(group, Group::Messaging) {
         vec![
             "real_Mosquitto_and_NATS",
             "MQTT_identifier_refusal_persistent_session_resume_and_QoS_acks",
@@ -801,6 +1113,9 @@ fn run_group(out: Option<PathBuf>, group: Group) -> Result<ValidationReport, Val
         "not_proven":["TLS_decryption","arbitrary_protocol_detection","general_TCP_reassembly",
             "vulnerability_exploitation_detection","PostgreSQL_TLS_SCRAM_extended_query","Redis_cluster_RESP3","MySQL_caching_sha2_auth_switch_prepared_statements","Memcached_text_meta_SASL_UDP",
             "MQTT5_authentication_TLS_offline_delivery_or_crash_durability","NATS_JetStream_cluster_headers_TLS",
+            "SMTP_STARTTLS_delivery_to_external_mailbox_or_crash_durability",
+            "POP3_TLS_APOP_SASL_external_delivery_or_delete_commit_durability",
+            "RTSP_TLS_authentication_RTP_delivery_quality_UDP_multicast_or_general_stream_decoding",
             "PID_or_container_process_attribution","request_payload_capture","IPv6_or_UDP","multiple_hosts_or_kernels"]}))?,
     )?;
     Ok(ValidationReport {

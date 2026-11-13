@@ -42,8 +42,13 @@ Read this page after the RTSP family hub when:
 
 ## Stability Notes
 
-The current entry stops at successful `SETUP`. It does not attempt to collapse
-setup and playback into one surface.
+The receive stage requires a packet-local RTSP/1.0 `200`, decimal `CSeq`,
+nonempty `Session` and RTP `Transport`. A session on a `461` refusal or a generic
+session-only keepalive is not success. Header names are case-insensitive and
+order-independent; the complete header must fit within 512 bytes of one packet.
+Sparse capture may report unsupported offsets. This does not correlate requests,
+validate negotiated transport parameters, or prove later media delivery.
+See the [real Linux proof](../fixtures/gewyvern_rtsp_linux_x86_64_20261113.json).
 
 For the broader family map, see
 [docs/book/reference-rtsp-surface.md](docs/book/reference-rtsp-surface.md).

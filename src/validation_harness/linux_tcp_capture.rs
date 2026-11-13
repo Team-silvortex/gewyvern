@@ -109,6 +109,48 @@ pub fn run_linux_data_breadth_validation(
     }
 }
 
+pub fn run_linux_rtsp_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_rtsp(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "RTSP capture validation requires Linux",
+        ))
+    }
+}
+
+pub fn run_linux_pop3_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_pop3(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "POP3 capture validation requires Linux",
+        ))
+    }
+}
+
+pub fn run_linux_smtp_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_smtp(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "SMTP capture validation requires Linux",
+        ))
+    }
+}
+
 pub fn run_linux_messaging_validation(
     out_dir: Option<PathBuf>,
 ) -> Result<ValidationReport, ValidationError> {

@@ -39,7 +39,7 @@ fn smtp_auth_path_materializes_banner_ehlo_and_auth_phases() {
         Some(25),
         Some(0x32),
         Some(0x3235),
-        Some(0x32353020),
+        Some(0x3235302d),
     ));
     session.ingest(packet_fact_with_dir_and_payload(
         7,
@@ -288,16 +288,11 @@ fn pop3_auth_path_materializes_banner_and_auth_phases() {
         PacketDir::Ingress,
         Some(53035),
         Some(110),
-        &[
-            (0, 0x2b),
-            (1, 0x4f),
-            (2, 0x4b),
-            (3, 0x20),
-            (5, 0x50),
-            (6, 0x4f),
-            (7, 0x50),
-            (8, 0x33),
-        ],
+        &b"+OK Mailpit POP3 server\r\n"
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (i as u16, *b))
+            .collect::<Vec<_>>(),
     ));
     session.ingest(packet_fact_with_dir_and_payload_bytes(
         5,
@@ -315,16 +310,11 @@ fn pop3_auth_path_materializes_banner_and_auth_phases() {
         PacketDir::Ingress,
         Some(53035),
         Some(110),
-        &[
-            (0, 0x2b),
-            (1, 0x4f),
-            (2, 0x4b),
-            (3, 0x20),
-            (5, 0x55),
-            (6, 0x73),
-            (7, 0x65),
-            (8, 0x72),
-        ],
+        &b"+OK User accepted\r\n"
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (i as u16, *b))
+            .collect::<Vec<_>>(),
     ));
     session.ingest(packet_fact_with_dir_and_payload_bytes(
         7,
@@ -342,16 +332,11 @@ fn pop3_auth_path_materializes_banner_and_auth_phases() {
         PacketDir::Ingress,
         Some(53035),
         Some(110),
-        &[
-            (0, 0x2b),
-            (1, 0x4f),
-            (2, 0x4b),
-            (3, 0x20),
-            (5, 0x4d),
-            (6, 0x61),
-            (7, 0x69),
-            (8, 0x6c),
-        ],
+        &b"+OK signed in\r\n"
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (i as u16, *b))
+            .collect::<Vec<_>>(),
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(80));
 
@@ -392,16 +377,11 @@ fn pop3_list_path_materializes_auth_and_list_phases() {
         PacketDir::Ingress,
         Some(53036),
         Some(110),
-        &[
-            (0, 0x2b),
-            (1, 0x4f),
-            (2, 0x4b),
-            (3, 0x20),
-            (5, 0x50),
-            (6, 0x4f),
-            (7, 0x50),
-            (8, 0x33),
-        ],
+        &b"+OK Mailpit POP3 server\r\n"
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (i as u16, *b))
+            .collect::<Vec<_>>(),
     ));
     session.ingest(packet_fact_with_dir_and_payload_bytes(
         5,
@@ -419,16 +399,11 @@ fn pop3_list_path_materializes_auth_and_list_phases() {
         PacketDir::Ingress,
         Some(53036),
         Some(110),
-        &[
-            (0, 0x2b),
-            (1, 0x4f),
-            (2, 0x4b),
-            (3, 0x20),
-            (5, 0x55),
-            (6, 0x73),
-            (7, 0x65),
-            (8, 0x72),
-        ],
+        &b"+OK User accepted\r\n"
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (i as u16, *b))
+            .collect::<Vec<_>>(),
     ));
     session.ingest(packet_fact_with_dir_and_payload_bytes(
         7,
@@ -446,16 +421,11 @@ fn pop3_list_path_materializes_auth_and_list_phases() {
         PacketDir::Ingress,
         Some(53036),
         Some(110),
-        &[
-            (0, 0x2b),
-            (1, 0x4f),
-            (2, 0x4b),
-            (3, 0x20),
-            (5, 0x4d),
-            (6, 0x61),
-            (7, 0x69),
-            (8, 0x6c),
-        ],
+        &b"+OK signed in\r\n"
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (i as u16, *b))
+            .collect::<Vec<_>>(),
     ));
     session.ingest(packet_fact_with_dir_and_payload_bytes(
         9,
@@ -473,16 +443,11 @@ fn pop3_list_path_materializes_auth_and_list_phases() {
         PacketDir::Ingress,
         Some(53036),
         Some(110),
-        &[
-            (0, 0x2b),
-            (1, 0x4f),
-            (2, 0x4b),
-            (3, 0x20),
-            (5, 0x6d),
-            (6, 0x65),
-            (7, 0x73),
-            (8, 0x73),
-        ],
+        &b"+OK 2 messages (768 octets)\r\n"
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (i as u16, *b))
+            .collect::<Vec<_>>(),
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(90));
 

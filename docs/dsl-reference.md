@@ -235,6 +235,7 @@ Current predicate families are:
 - `route_resolved`
 - `datagram_observed:<proto>`
 - `packet_observed:<proto>`
+- `rtsp_response_observed:remote:<port|name>:<options_ok|describe_ok|setup_ok|play_ok>`
 - `quic_packet_observed:...`
 - `quic_frame_observed:...`
 - `all(...)`
@@ -253,6 +254,20 @@ any(route_resolved,socket_state_observed)
 
 This vocabulary is shared by both `rule=` program-flow rules and
 `reason.rule=` declarative reason rules.
+
+`rtsp_response_observed` is an ingress TCP response candidate, not a dialogue
+decoder. It requires a complete RTSP/1.0 `200` header at packet offset zero,
+ending within 512 bytes, with a decimal `CSeq`. Header names are case-insensitive
+and order-independent; duplicate, folded, malformed or truncated headers are
+rejected. It never scans the body or combines packets. Options requires a
+`Public` method list, describe requires SDP content type and a positive content
+length, setup requires `Session` plus RTP transport, and play requires `Session`
+plus `RTP-Info`. Generic `200`, session-only and range-only replies are insufficient.
+The predicate declares required payload offsets `0..511`; a sparse collector
+reports unsupported offsets rather than claiming live support. A supplied
+complete prefix can match a shorter header without requiring body bytes.
+This does not correlate requests by CSeq, validate SDP bodies, prove media
+delivery, or handle TLS, RTSP/2.0 or TCP stream reassembly.
 
 `packet_observed` supports compact TCP or UDP payload fingerprints. The common
 scope qualifiers shared by packet, datagram, and QUIC predicates are:

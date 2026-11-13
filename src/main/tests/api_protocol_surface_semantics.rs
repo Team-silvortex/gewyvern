@@ -1,6 +1,34 @@
 use super::*;
 
 #[test]
+fn protocol_entry_surface_endpoint_labels_bounded_rtsp_candidates() {
+    let snapshot = ApiSnapshot::default();
+    for (entry, signal) in [
+        ("options", "200 + CSeq + Public methods"),
+        (
+            "describe",
+            "200 + CSeq + application/sdp + positive Content-Length",
+        ),
+        ("setup", "200 + CSeq + Session + Transport"),
+        ("play", "200 + CSeq + Session + RTP-Info"),
+    ] {
+        let (status, _, body) = api_response_for_request(
+            &format!("/v1/protocols/rtsp/entries/{entry}/surface.json"),
+            &snapshot,
+        );
+        assert_eq!(status, 200);
+        let value: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(value["entry_semantics"]["typical_signal"], signal);
+        assert!(
+            value["entry_semantics"]["operator_focus"]
+                .as_str()
+                .unwrap()
+                .starts_with("bounded RTSP")
+        );
+    }
+}
+
+#[test]
 fn protocol_entry_surface_endpoint_exposes_mail_auth_denied_semantics() {
     let snapshot = ApiSnapshot::default();
 
@@ -31,9 +59,9 @@ fn protocol_entry_surface_endpoint_exposes_mail_auth_denied_semantics() {
     assert!(pop3_body.contains("\"entry_semantics\":{"));
     assert!(pop3_body.contains("\"category\":\"failure-path\""));
     assert!(pop3_body.contains(
-        "\"operator_focus\":\"mailbox password rejection after USER/PASS credential exchange\""
+        "\"operator_focus\":\"explicit POP3 password rejection candidate, not generic -ERR\""
     ));
-    assert!(pop3_body.contains("\"typical_signal\":\"-ERR\""));
+    assert!(pop3_body.contains("\"typical_signal\":\"-ERR invalid password\""));
     assert!(pop3_body.contains("\"primary_failure_mode\":\"server_denied\""));
     assert!(pop3_body.contains("\"primary_failure_detail\":\"access_denied\""));
     assert!(pop3_body.contains("\"primary_failure_basis\":\"direct_protocol_signal\""));
@@ -113,7 +141,7 @@ fn protocol_entry_surface_endpoint_exposes_smtp_and_kerberos_failure_semantics()
             "\"operator_focus\":\"recipient rejection during SMTP envelope construction\""
         )
     );
-    assert!(smtp_body.contains("\"typical_signal\":\"550\""));
+    assert!(smtp_body.contains("\"typical_signal\":\"550 5.1.0 / 550 5.1.1\""));
     assert!(smtp_body.contains("\"primary_failure_mode\":\"server_denied\""));
     assert!(smtp_body.contains("\"primary_failure_detail\":\"access_denied\""));
     assert!(smtp_body.contains("\"primary_failure_basis\":\"direct_protocol_signal\""));

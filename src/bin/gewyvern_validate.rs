@@ -29,6 +29,7 @@ use gewyvern::validation_harness::{
     run_linux_capture_soak_validation, run_linux_capture_stream_validation,
     run_linux_data_breadth_validation, run_linux_http_boundaries_validation,
     run_linux_kprobe_smoke, run_linux_messaging_validation, run_linux_mysql_memcached_validation,
+    run_linux_pop3_validation, run_linux_rtsp_validation, run_linux_smtp_validation,
     run_linux_tc_smoke, run_linux_tcp_capture_validation, run_linux_tcp_juice_shop_validation,
     run_linux_udp_dns_validation, run_package_install_smoke, run_pathological_container_validation,
     run_registry_validation, run_release_container_check, run_release_gate,
@@ -576,7 +577,7 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
         "linux-tcp-capture" => {
             if wants_subcommand_help(&rest) {
                 println!(
-                    "Usage: gewyvern_validate linux-tcp-capture [--juice-shop | --http-boundaries | --auth-breadth | --data-breadth | --mysql-memcached | --messaging-breadth | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed | --capture-soak | --capture-soak-hour | --capture-memory-control] [--out-dir <new-path>]"
+                    "Usage: gewyvern_validate linux-tcp-capture [--juice-shop | --http-boundaries | --auth-breadth | --data-breadth | --mysql-memcached | --messaging-breadth | --smtp-breadth | --pop3-breadth | --rtsp-breadth | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed | --capture-soak | --capture-soak-hour | --capture-memory-control] [--out-dir <new-path>]"
                 );
                 println!(
                     "Default mode captures only owned IPv4 loopback socket cookies, reconstructs real TCP states, and verifies half-close/refusal/decoy behavior. Requires Linux, BTF, clang, bpftool and BPF privileges. No payload capture or PID attribution."
@@ -615,6 +616,15 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
                     "--messaging-breadth validates cached Mosquitto MQTT 3.1.1 and core NATS targets: resumed sessions, QoS acknowledgements, permission-error recovery, and binary/empty message bodies. Owned internal networks only; no TLS, JetStream or crash-durability claim."
                 );
                 println!(
+                    "--smtp-breadth validates a cached Mailpit target: multiline replies, auth/recipient rejection, command-order errors and two DATA submissions on one connection. Private internal network only; no external delivery, TLS or mailbox durability claim."
+                );
+                println!(
+                    "--pop3-breadth validates a cached Mailpit mailbox after an uncaptured SMTP seed: auth refusal, LIST/UIDL/RETR, dot-stuffed bodies, missing/deleted messages and RSET recovery. No TLS, external delivery or delete-commit durability claim."
+                );
+                println!(
+                    "--rtsp-breadth validates cached MediaMTX RTSP/1.0 control after an uncaptured native publisher: OPTIONS, DESCRIBE, TCP SETUP/PLAY, UDP transport refusal, keepalive, PAUSE and TEARDOWN. No TLS, authentication, RTP delivery quality or stream-reassembly claim."
+                );
+                println!(
                     "--capture-soak runs three 300-second runtime load cycles; --capture-soak-hour runs three 1200-second cycles and requires --features capture-allocation-audit. Each has teardown and 30 seconds idle, constant-space journals and report-free checkpoints. Records glibc/RSS/thread/FD observations and one final diagnostic-only malloc_trim. --capture-memory-control requires the same audit feature but no BPF privilege: 256 observer-only checkpoints on each of main/worker threads, with no traffic. No indefinite leak-freedom or production allocator policy change. Audit counters affect throughput and are not C/RSS measurements."
                 );
                 return Ok(());
@@ -629,6 +639,9 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
                 TcpCaptureMode::DataBreadth => run_linux_data_breadth_validation(out_dir)?,
                 TcpCaptureMode::MysqlMemcached => run_linux_mysql_memcached_validation(out_dir)?,
                 TcpCaptureMode::Messaging => run_linux_messaging_validation(out_dir)?,
+                TcpCaptureMode::Smtp => run_linux_smtp_validation(out_dir)?,
+                TcpCaptureMode::Pop3 => run_linux_pop3_validation(out_dir)?,
+                TcpCaptureMode::Rtsp => run_linux_rtsp_validation(out_dir)?,
                 TcpCaptureMode::Stream => run_linux_capture_stream_validation(out_dir)?,
                 TcpCaptureMode::Runtime => run_linux_capture_runtime_validation(out_dir)?,
                 TcpCaptureMode::Soak => run_linux_capture_soak_validation(out_dir)?,
@@ -1298,6 +1311,9 @@ fn parse_linux_ebpf_smoke_options(
 #[derive(Debug, PartialEq, Eq)]
 enum TcpCaptureMode {
     Messaging,
+    Smtp,
+    Pop3,
+    Rtsp,
     MysqlMemcached,
     DataBreadth,
     AuthBreadth,
@@ -1341,6 +1357,9 @@ fn parse_tcp_capture_options(
             "--messaging-breadth" if mode == TcpCaptureMode::Loopback => {
                 mode = TcpCaptureMode::Messaging
             }
+            "--smtp-breadth" if mode == TcpCaptureMode::Loopback => mode = TcpCaptureMode::Smtp,
+            "--pop3-breadth" if mode == TcpCaptureMode::Loopback => mode = TcpCaptureMode::Pop3,
+            "--rtsp-breadth" if mode == TcpCaptureMode::Loopback => mode = TcpCaptureMode::Rtsp,
             "--capture-load" if mode == TcpCaptureMode::Loopback => mode = TcpCaptureMode::Load,
             "--capture-stream" if mode == TcpCaptureMode::Loopback => mode = TcpCaptureMode::Stream,
             "--capture-runtime" if mode == TcpCaptureMode::Loopback => {
@@ -1471,7 +1490,7 @@ fn print_help() {
     println!("  linux-attach-smoke [--hookpoint <category/event>] [--out-dir <path>]");
     println!("  linux-kprobe-smoke [--symbol <kernel-symbol>] [--out-dir <path>]");
     println!(
-        "  linux-tcp-capture [--juice-shop | --http-boundaries | --auth-breadth | --data-breadth | --mysql-memcached | --messaging-breadth | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed | --capture-soak | --capture-soak-hour | --capture-memory-control] [--out-dir <new-path>]"
+        "  linux-tcp-capture [--juice-shop | --http-boundaries | --auth-breadth | --data-breadth | --mysql-memcached | --messaging-breadth | --smtp-breadth | --pop3-breadth | --rtsp-breadth | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed | --capture-soak | --capture-soak-hour | --capture-memory-control] [--out-dir <new-path>]"
     );
     println!("  linux-tc-smoke --dev <netdev> [--out-dir <path>]");
     println!("  package-install-smoke [--deb|--rpm]");

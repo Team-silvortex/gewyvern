@@ -17,7 +17,7 @@ Intent:
 - send `DATA`
 - receive data-ready (`354`)
 - send the message body terminator
-- receive queue success (`250 2.0.0`)
+- observe an explicit queue candidate (`250 2.0.0 Ok: queued as `)
 
 ### `data-denied`
 
@@ -31,7 +31,7 @@ Intent:
 - send `DATA`
 - receive data-ready (`354`)
 - send the message body terminator
-- receive post-body denial (`550`)
+- observe an explicit message-rejection candidate (`550 5.7.1 Message rejected`)
 
 ## Shared Response Shape
 
@@ -48,10 +48,24 @@ Both message-submission entries currently share the same broad staging model:
 9. message-body terminator transmission
 10. terminal queue success or denial
 
-The current models differ only in the final server decision:
+The intended models differ in the final server decision:
 
 - `data` ends on queued/successful acceptance
 - `data-denied` ends on message rejection after body handoff
+
+The packet rules do not enforce this command sequence. A bare `250 2.0.0` is
+also a valid NOOP/RSET response, and a bare `550` may reject a recipient before
+DATA. Neither is enough for a message outcome. Rules now fail closed unless the
+case-sensitive English prefixes above are observed. These are conservative
+candidates, not complete SMTP decoders: other languages, reply spellings,
+single-line EHLO replies and split prefixes may remain unmatched. Explicit
+rejection text alone still does not establish which command caused it.
+
+The Linux Mailpit fixture verifies two real accepted submissions after a
+recipient refusal and command-order error, and negative-only coverage for
+`data-denied`. Its explicit rejection positive is synthetic regression, not an
+observed real post-body denial. No mailbox delivery or crash durability is proven.
+See [SMTP reply semantics](https://www.rfc-editor.org/rfc/rfc5321.html#section-4.2).
 
 ## Machine-Readable Surface Semantics
 
@@ -62,8 +76,8 @@ server decision instead of a generic transfer failure.
 Current denial semantics:
 
 - `category = failure-path`
-- `operator_focus = message rejection after SMTP body handoff`
-- `typical_signal = 550`
+- `operator_focus = explicit SMTP message-rejection candidate; body handoff requires separate evidence`
+- `typical_signal = 550 5.7.1 Message rejected`
 - `primary_failure_mode = server_denied`
 - `primary_failure_detail = access_denied`
 - `primary_failure_basis = direct_protocol_signal`

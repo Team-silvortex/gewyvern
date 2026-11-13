@@ -25,8 +25,10 @@ behavior.
 
 ## Operational Shape
 
-The current authentication family extends the POP3 session banner with a
-`USER`/`PASS` exchange and one of two outcomes.
+The current authentication family has packet-local candidates for a POP3 banner,
+`USER`/`PASS` requests and explicit outcome text. It is not a stateful
+command/reply correlator: the stages below are a reference shape, not a promise
+that every stage is observable or that the whole exchange was completed.
 
 ### Success Branch
 
@@ -64,8 +66,8 @@ rejection without scraping this page.
 Current denial semantics:
 
 - `category = failure-path`
-- `operator_focus = mailbox password rejection after USER/PASS credential exchange`
-- `typical_signal = -ERR`
+- `operator_focus = explicit POP3 password rejection candidate, not generic -ERR`
+- `typical_signal = -ERR invalid password`
 - `primary_failure_mode = server_denied`
 - `primary_failure_detail = access_denied`
 - `primary_failure_basis = direct_protocol_signal`
@@ -80,8 +82,18 @@ Read this page after the POP3 family hub when:
 
 ## Stability Notes
 
-The current family is outcome-based and intentionally minimal. It models the
-classic `USER`/`PASS` path rather than richer auth extensions.
+The conservative response signatures currently recognize complete English lines:
+`+OK Mailpit POP3 server`, `+OK User accepted`, `+OK signed in`, and
+`-ERR invalid password`, each followed by CRLF. Generic `+OK` is not a user or
+authentication success candidate: Mailpit uses that same response for USER,
+NOOP and RSET. `-ERR user not authenticated` and `-ERR no such message` are not
+password rejection. Alternative/localized text and split status lines may be
+unmatched; full-dialogue correlation and TLS/APOP/SASL remain separate work.
+
+The bounded Linux fixture checks the complete USER/PASS conversation independently
+and compares all received bytes to eBPF evidence. Its POP3 mailbox retrieval,
+dot-unstuffing and DELE/RSET checks are validation behavior, not new product
+retrieval/deletion stages. See [field findings](../field-findings.md).
 
 For the broader family map, see
 [docs/book/reference-pop3-surface.md](docs/book/reference-pop3-surface.md).

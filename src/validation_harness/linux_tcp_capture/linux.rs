@@ -20,6 +20,16 @@ const TOOL_TIMEOUT: Duration = Duration::from_secs(20);
 mod auth_breadth;
 mod bounded_stream;
 mod data_breadth;
+pub(super) fn run_rtsp(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    data_breadth::run_rtsp(out)
+}
+
+pub(super) fn run_pop3(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    data_breadth::run_pop3(out)
+}
+pub(super) fn run_smtp(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    data_breadth::run_smtp(out)
+}
 
 pub(super) fn run_data_breadth(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
     data_breadth::run(out)
@@ -147,6 +157,14 @@ impl Drop for Pins {
 }
 
 fn tool(command: &mut Command, out: &Path) -> Result<Vec<u8>, ValidationError> {
+    tool_with_stdout_limit(command, out, 256 * 1024)
+}
+
+fn tool_with_stdout_limit(
+    command: &mut Command,
+    out: &Path,
+    stdout_bytes: usize,
+) -> Result<Vec<u8>, ValidationError> {
     let mut log = OpenOptions::new()
         .create(true)
         .append(true)
@@ -155,7 +173,7 @@ fn tool(command: &mut Command, out: &Path) -> Result<Vec<u8>, ValidationError> {
     let output = run_command_output(
         command,
         TOOL_TIMEOUT,
-        OutputLimits::new(256 * 1024, 64 * 1024),
+        OutputLimits::new(stdout_bytes, 64 * 1024),
         "TCP capture tool",
     )
     .map_err(|e| ValidationError::new(e.to_string()))?;

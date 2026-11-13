@@ -1,0 +1,2981 @@
+{
+  "schema_version": 1,
+  "proof": "linux-real-smtp-command-and-message-boundaries",
+  "captured_on": "2026-11-13",
+  "source_base_revision": "17c28d073cdfa6b70d9ca27318e7664c4062922d",
+  "working_tree_changes": true,
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "execution": {
+    "kernel": "7.0.0-42-generic",
+    "architecture": "x86_64",
+    "host_count": 1,
+    "kernel_count": 1,
+    "live_capture": "physical Linux host; digest-pinned real Mailpit 1.33.0 target on an owned internal Docker bridge",
+    "toolchain": "Rust 1.98 in a temporary two-CPU/four-GiB Linux build container",
+    "packet_prefix_bytes": 1024,
+    "existing_stream_prefix_bytes": 64,
+    "existing_stream_event_bytes": 128,
+    "max_capture_events": 128,
+    "max_server_stream_bytes": 4096,
+    "smtp_max_reply_line_bytes": 512,
+    "smtp_max_lines_per_reply": 16,
+    "exchange_absolute_deadline_seconds": 12,
+    "client_read_chunk_max_bytes": 7,
+    "forced_tcp_packet_segmentation": false,
+    "target_cpu_limit": 1,
+    "target_memory_mib": 512,
+    "target_pids_limit": 128,
+    "target_database_tmpfs_mib": 32,
+    "target_message_limit_mib": 1,
+    "published_ports": false,
+    "host_data_mounted": false,
+    "http_interface": "container loopback only",
+    "smtp_authentication": "disposable PLAIN account on internal isolated plaintext fixture only",
+    "external_relay_or_forwarding": false,
+    "all_emitted_receive_stages_packet_checked": true,
+    "real_post_body_denial_positive": false,
+    "post_body_denial_positive": "synthetic conservative English-prefix regression only",
+    "readiness_is_capture_evidence": false,
+    "image_pulls_during_campaign": false,
+    "macos_builds": false,
+    "macos_image_pulls": false,
+    "remote_evidence": "/home/chiharukiryu/.cache/gewyvern/evidence/20261113-smtp",
+    "local_evidence": "target/validation/smtp-20261113",
+    "final_campaign_directories": [
+      "run-1",
+      "run-2",
+      "run-3"
+    ],
+    "excluded_development_campaign_directories": [
+      "dev-1"
+    ],
+    "excluded_development_checks": [
+      "rules-before-tests.log is an initial new-test type error, not a production failure; rules-before-tests-2.log records four failing production-rule regressions",
+      "tests-after.log predates the final reverse-denial guard and stricter fixture transcript expectations; final-tests.log uses final production source"
+    ]
+  },
+  "artifact_bindings": {
+    "build": {
+      "dsl/smtp_auth_denied_path.gewy": "869ecbc081856b37c1d24bdfd7437531488b8c19bcd60bc646ffb575361781ee",
+      "dsl/smtp_auth_path.gewy": "7aab7aa83f1550fafeee15a69e6cb881e12d6645079599248f4a62ec97632875",
+      "dsl/smtp_data_denied_path.gewy": "5eb6187c5af65c6ced5124d901ad83bdbea8ed07df8bd4b05cc0681b5927f242",
+      "dsl/smtp_data_path.gewy": "acb613fbc95420256166dfe62ef087fe3e72934f099646b104661f2e3597acd2",
+      "dsl/smtp_mail_path.gewy": "1726b242be8c8e5e68221029f901fdcfe3ea523d16c9dbad4022daa7e6ff153f",
+      "dsl/smtp_rcpt_denied_path.gewy": "d7e33c5ec142da258dc9d4e95899e1b06c29d360a2587174ea891e70bddc3a25",
+      "dsl/smtp_rcpt_path.gewy": "9c4d764323be16267e676d4009e10748d5401874ba19431429b4a5915aa1a3b9",
+      "protocols/smtp/auth-denied/main.gewy": "869ecbc081856b37c1d24bdfd7437531488b8c19bcd60bc646ffb575361781ee",
+      "protocols/smtp/auth/main.gewy": "7aab7aa83f1550fafeee15a69e6cb881e12d6645079599248f4a62ec97632875",
+      "protocols/smtp/data-denied/main.gewy": "5eb6187c5af65c6ced5124d901ad83bdbea8ed07df8bd4b05cc0681b5927f242",
+      "protocols/smtp/data/main.gewy": "acb613fbc95420256166dfe62ef087fe3e72934f099646b104661f2e3597acd2",
+      "protocols/smtp/mail/main.gewy": "1726b242be8c8e5e68221029f901fdcfe3ea523d16c9dbad4022daa7e6ff153f",
+      "protocols/smtp/rcpt-denied/main.gewy": "d7e33c5ec142da258dc9d4e95899e1b06c29d360a2587174ea891e70bddc3a25",
+      "protocols/smtp/rcpt/main.gewy": "9c4d764323be16267e676d4009e10748d5401874ba19431429b4a5915aa1a3b9",
+      "src/bin/gewyvern_validate.rs": "50fdd25216669bf0bcb6ded56c4f20202f5662467a55a0bab2018241006e2647",
+      "src/protocol_profiles/semantics/identity.rs": "3f3de915f0ef44091f858869e47d848d71138465b204365cc82a172f7ff88af5",
+      "src/protocol_profiles/tests_semantics/identity.rs": "3ec5e78199520f28c473e04bb49347441c9d6eb54c2ab9e887c0f1fa1203d2a8",
+      "src/validation_harness.rs": "b3811134fae34764e3b541e7a59bbfe548c5aa392e416ee9665304cdf78f1ef2",
+      "src/validation_harness/linux_tcp_capture.rs": "e9904685f8ed4e52aa7395edf7c7efc8af5ac87ad849f9913bb12dc360304f6a",
+      "src/validation_harness/linux_tcp_capture/linux.rs": "2eb09d3c873fd86ef72684c29261fc6c4779a8c28c92ba709a2c7bcee7473796",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth.rs": "b7259f59fa9a0949fbff267a33e2fd3bbf53ec83aa069a76fb19b53307fe1581",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/wire.rs": "aa0e68fa57cc5a4dac3c796431398c0642e37a8cf6414c6583e6efc1a618189d",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/smtp.rs": "4b2cdc10a5b17eb6262cfb9b5595da028f166ea4bf46647028e5fe89e12edb15",
+      "target/debug/gewyvern_validate": "35ed7e8f6d8609ed6d7915637d8a21251ae674b7b9932ca4005f5f4a2fcfdcd1",
+      "ebpf/validation/http_prefix.bpf.c": "ca9eb8c99aee4f3d3ccddfed18d13592ad610d4010cfc32b65aab4d4630aac74",
+      "src/validation_harness/linux_tcp_capture/linux/bounded_stream.rs": "196519549fc1eab62991e386d01f3264955b5558d9052b065722f2e7fab86314",
+      "src/validation_harness/linux_tcp_capture/linux/packet_capture.rs": "d74c0831739f3e587fe0cc6f1696d97011a6524b261eb013086f359e9ec275ee",
+      "src/validation_harness/linux_tcp_capture/packet_evidence.rs": "ce64ea1adef21ed01e2e43c2ecc8da1f4aa02e48394febfb4cf89a449603ffee",
+      "protocols/smtp/session/main.gewy": "1fb2f707f1d1ce17b1f8f3fba9667c239109675ebf4fd0171de0a88ef0924b96"
+    },
+    "reports": {
+      "dev-1/smtp/result.json": "564c1d736a61a6d4a68bbb156f5529af3ee9d6b40507f8d8326f0bb8b226fab0",
+      "dev-1/smtp/package-6-export.json": "b29ef42e573890206bcc5dfeb135f9f1aa35390d3ace91511b23a55a69546cbe",
+      "dev-1/smtp/package-7-export.json": "352f0e79dd1a4bf0956d84d4e20abcf9e45e8b46528993876d673fa75d205dc0",
+      "rules-before-tests-2.log": "b3d5848183b344f682efb8cb342b69a629dc0a9c8943eb870ed9ffc14788d5eb",
+      "final-build.log": "bd647611934ebfd5a0e7a1c61bb8cce33f25761feaef40e67d8d9b8d88f82ec4",
+      "final-tests.log": "c37de6845ddc01845a363817e548e1b9266a520b7c635aa959de472a531a4110",
+      "clippy.log": "0aa980337b7f44009d71f553759d62f7858d712c8bb7d8eb60bd37fb0212d4ca",
+      "messaging-control/summary.json": "9d72befdf32012a7f3d19070a7b2529eb010c4e2ebe857f7d3def6f95839c016",
+      "containers-before.txt": "b9ca4b012a943f034828ac2487fb81f4f5d861dd43aec586c3f8434c148c9e12",
+      "containers-after.txt": "018d2c148930930ab49f0e93a885e9919117d60789513435d4340937c29473eb",
+      "networks-before.txt": "f98139f9bb03180978aa454394c2878925b39e2af8b87cab2a18f098ddd71380",
+      "networks-after.txt": "f98139f9bb03180978aa454394c2878925b39e2af8b87cab2a18f098ddd71380",
+      "volumes-before.txt": "5c1c0b9e58eebd4845fe45ac0bac191ded288364af691a6caee9d5910dfd17e6",
+      "volumes-after.txt": "5c1c0b9e58eebd4845fe45ac0bac191ded288364af691a6caee9d5910dfd17e6",
+      "run-1/summary.json": "5fd5e12004fc36e0322a95d35c8373561e6b1291cdc8c32d859cbaa0da9f696d",
+      "run-1/smtp/packet-events.json": "6453b54791cb48036e5f5afb340b68e1014253de1dd8afd8be53dcee4e58a036",
+      "run-1/smtp/client-response-0.bin": "a1496151ff89f109d5237fcc6369c890bab14b99c957277d8174b5c9d4212196",
+      "run-1/smtp/client-response-1.bin": "11d78e09a829ba330f49a88b08947142049b87f8c07de7a9bff79bee20a017e6",
+      "run-1/after-data-restart/summary.json": "c13cccc04b4fab8d434bed7e9b124fbb4ff6bf39ccf16fc0e95fb52f5f75f5be",
+      "run-2/summary.json": "09d1a94a388412bc509af019b2873d15fa285901a1506e742183cd4585f9180a",
+      "run-2/smtp/packet-events.json": "b630ff22b4becc37d6923ff08c387d89d537af79a7b054c1f1bd1bc5b00a23fe",
+      "run-2/smtp/client-response-0.bin": "df9c565eb24c813b3e3484ed683949aa8d391d479987211849779cc7482ee14b",
+      "run-2/smtp/client-response-1.bin": "2237e42b58229339e281145c1d9fbb03e89c8268724e5bfbc58b0e0147dd9b04",
+      "run-2/after-data-restart/summary.json": "bd0b28e1096bb61c71313766e4c12ebcd5d40c56cc4db4fea028ef5cee00dc88",
+      "run-3/summary.json": "2a21061eb5fb8e8ba2666dda08af79f6ecb2caecb0a020e2d74fbd48b6d2f50c",
+      "run-3/smtp/packet-events.json": "f04a251c9fc44e2a5a8303abc6ba623d47d7d8086861f1a0cfee3ed348d96932",
+      "run-3/smtp/client-response-0.bin": "2c5c6c22af4a63ab23af5650bf80c63440a27bc9a7e7ae2775225efbe5e1233f",
+      "run-3/smtp/client-response-1.bin": "dd36f857d600763d9706fbe819e1b1cb260c4076db609339de6768123234243f",
+      "run-3/after-data-restart/summary.json": "8f384aeaf7ef8f38af653e5aef6eda723c36572120d4e86c9f9219dbf2e2de48",
+      "closure-tests.log": "0a1ed51620d382236139d3641657151d8a7a41caa40074e801f3ff1248896150",
+      "closure-clippy.log": "fcce12e8e9a3743502ec98eb1888a43a32489c10219b715f931aa40675ed5311",
+      "containers-final.txt": "b9ca4b012a943f034828ac2487fb81f4f5d861dd43aec586c3f8434c148c9e12"
+    }
+  },
+  "before_fix": {
+    "anonymous_volume_ids": [],
+    "anonymous_volumes_removed_with_container": true,
+    "client_read_chunk_bytes": 7,
+    "client_reads_are_packet_boundaries": false,
+    "container_id": "7b27844c9f5e39e08057d6dec861ddd29b7e326f26d32f7823909ab86c49a977",
+    "image": "axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231",
+    "image_id": "sha256:580a202b5088e9c651a8e8b4e461e3213fbd3a3aacaa3d2251892a546a734116",
+    "internal_network": true,
+    "network_id": "f36d8b5b5a59742ea920f2bc3e444e510177094b0e498457e6e56bc116442b7e",
+    "observations": [
+      {
+        "captured_result": {
+          "replies": [
+            {
+              "code": 220,
+              "lines": [
+                "7b27844c9f5e Mailpit ESMTP Service ready"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "7b27844c9f5e greets gewy.test",
+                "SIZE 1048576",
+                "AUTH LOGIN PLAIN",
+                "ENHANCEDSTATUSCODES",
+                "8BITMIME",
+                "SMTPUTF8"
+              ]
+            },
+            {
+              "code": 535,
+              "lines": [
+                "5.7.8 Authentication credentials invalid"
+              ]
+            },
+            {
+              "code": 530,
+              "lines": [
+                "5.7.0 Authentication required"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "2.0.0 Ok"
+              ]
+            },
+            {
+              "code": 221,
+              "lines": [
+                "2.0.0 7b27844c9f5e Mailpit ESMTP Service closing transmission channel"
+              ]
+            }
+          ]
+        },
+        "captured_sha256": "af1fddf95909d6a28119aacd87ec89f73ea3589ec784e15d7f71e3a723dbe77c",
+        "client_result": {
+          "replies": [
+            {
+              "code": 220,
+              "lines": [
+                "7b27844c9f5e Mailpit ESMTP Service ready"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "7b27844c9f5e greets gewy.test",
+                "SIZE 1048576",
+                "AUTH LOGIN PLAIN",
+                "ENHANCEDSTATUSCODES",
+                "8BITMIME",
+                "SMTPUTF8"
+              ]
+            },
+            {
+              "code": 535,
+              "lines": [
+                "5.7.8 Authentication credentials invalid"
+              ]
+            },
+            {
+              "code": 530,
+              "lines": [
+                "5.7.0 Authentication required"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "2.0.0 Ok"
+              ]
+            },
+            {
+              "code": 221,
+              "lines": [
+                "2.0.0 7b27844c9f5e Mailpit ESMTP Service closing transmission channel"
+              ]
+            }
+          ]
+        },
+        "control": false,
+        "cookie": 8252,
+        "response_bytes": 344,
+        "response_sha256": "af1fddf95909d6a28119aacd87ec89f73ea3589ec784e15d7f71e3a723dbe77c"
+      },
+      {
+        "captured_result": {
+          "replies": [
+            {
+              "code": 220,
+              "lines": [
+                "7b27844c9f5e Mailpit ESMTP Service ready"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "7b27844c9f5e greets gewy.test",
+                "SIZE 1048576",
+                "AUTH LOGIN PLAIN",
+                "ENHANCEDSTATUSCODES",
+                "8BITMIME",
+                "SMTPUTF8"
+              ]
+            },
+            {
+              "code": 235,
+              "lines": [
+                "2.7.0 Authentication successful"
+              ]
+            },
+            {
+              "code": 503,
+              "lines": [
+                "5.5.1 Bad sequence of commands (MAIL & RCPT required before DATA)"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "2.1.0 Ok"
+              ]
+            },
+            {
+              "code": 550,
+              "lines": [
+                "5.1.0 Requested action not taken: mailbox unavailable"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "2.1.5 Ok"
+              ]
+            },
+            {
+              "code": 354,
+              "lines": [
+                "Start mail input; end with <CR><LF>.<CR><LF>"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "2.0.0 Ok: queued as 4BLPK07lcYBWG7opdgVGTG"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "2.0.0 Ok"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "2.1.0 Ok"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "2.1.5 Ok"
+              ]
+            },
+            {
+              "code": 354,
+              "lines": [
+                "Start mail input; end with <CR><LF>.<CR><LF>"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "2.0.0 Ok: queued as 5QWuXhG0H5elMit49wLAjn"
+              ]
+            },
+            {
+              "code": 221,
+              "lines": [
+                "2.0.0 7b27844c9f5e Mailpit ESMTP Service closing transmission channel"
+              ]
+            }
+          ]
+        },
+        "captured_sha256": "6d4f03edd8edbe3802545b2552992f3c74a0c876b103181ece5ef6a4f1843030",
+        "client_result": {
+          "replies": [
+            {
+              "code": 220,
+              "lines": [
+                "7b27844c9f5e Mailpit ESMTP Service ready"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "7b27844c9f5e greets gewy.test",
+                "SIZE 1048576",
+                "AUTH LOGIN PLAIN",
+                "ENHANCEDSTATUSCODES",
+                "8BITMIME",
+                "SMTPUTF8"
+              ]
+            },
+            {
+              "code": 235,
+              "lines": [
+                "2.7.0 Authentication successful"
+              ]
+            },
+            {
+              "code": 503,
+              "lines": [
+                "5.5.1 Bad sequence of commands (MAIL & RCPT required before DATA)"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "2.1.0 Ok"
+              ]
+            },
+            {
+              "code": 550,
+              "lines": [
+                "5.1.0 Requested action not taken: mailbox unavailable"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "2.1.5 Ok"
+              ]
+            },
+            {
+              "code": 354,
+              "lines": [
+                "Start mail input; end with <CR><LF>.<CR><LF>"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "2.0.0 Ok: queued as 4BLPK07lcYBWG7opdgVGTG"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "2.0.0 Ok"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "2.1.0 Ok"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "2.1.5 Ok"
+              ]
+            },
+            {
+              "code": 354,
+              "lines": [
+                "Start mail input; end with <CR><LF>.<CR><LF>"
+              ]
+            },
+            {
+              "code": 250,
+              "lines": [
+                "2.0.0 Ok: queued as 5QWuXhG0H5elMit49wLAjn"
+              ]
+            },
+            {
+              "code": 221,
+              "lines": [
+                "2.0.0 7b27844c9f5e Mailpit ESMTP Service closing transmission channel"
+              ]
+            }
+          ]
+        },
+        "control": true,
+        "cookie": 8253,
+        "response_bytes": 682,
+        "response_sha256": "6d4f03edd8edbe3802545b2552992f3c74a0c876b103181ece5ef6a4f1843030"
+      }
+    ],
+    "ok": false,
+    "owned_resources_removed": true,
+    "package_failures": [
+      "data package protocols/smtp/data/main.gewy phase receive_message_queued: observed {8252, 8253}, expected {8253}; check packet candidates versus framed response",
+      "data package protocols/smtp/data-denied/main.gewy phase receive_message_denied: observed {8253}, expected {}; check packet candidates versus framed response"
+    ],
+    "packages": [
+      {
+        "facts": 33,
+        "matched_cookies": [
+          8252,
+          8253
+        ],
+        "path": "protocols/smtp/session/main.gewy",
+        "phase": "receive_banner",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "1fb2f707f1d1ce17b1f8f3fba9667c239109675ebf4fd0171de0a88ef0924b96",
+        "unobserved_fragments_explicit": true
+      },
+      {
+        "facts": 33,
+        "matched_cookies": [
+          8253
+        ],
+        "path": "protocols/smtp/auth/main.gewy",
+        "phase": "receive_auth_ok",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "21e5c5e2b1cd2e0208f099b823c8730fbd3c74330eed6942590a4445759b77c3",
+        "unobserved_fragments_explicit": true
+      },
+      {
+        "facts": 33,
+        "matched_cookies": [
+          8252
+        ],
+        "path": "protocols/smtp/auth-denied/main.gewy",
+        "phase": "receive_auth_denied",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "708c28d98ac6a46f43a3ae899109c4971ecd0c2c1a041a30bf077c2428b4a0ab",
+        "unobserved_fragments_explicit": true
+      },
+      {
+        "facts": 33,
+        "matched_cookies": [
+          8253
+        ],
+        "path": "protocols/smtp/mail/main.gewy",
+        "phase": "receive_mail_ok",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "5f5a72127851e087edb4a6a9379ef5d64f08f71a3974a32595351668854380b8",
+        "unobserved_fragments_explicit": true
+      },
+      {
+        "facts": 33,
+        "matched_cookies": [
+          8253
+        ],
+        "path": "protocols/smtp/rcpt/main.gewy",
+        "phase": "receive_rcpt_ok",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "0de5ee75087001055479a1e105c3b9c88cdedb5dfc44156814fcc6c6f0bba79f",
+        "unobserved_fragments_explicit": true
+      },
+      {
+        "facts": 33,
+        "matched_cookies": [
+          8253
+        ],
+        "path": "protocols/smtp/rcpt-denied/main.gewy",
+        "phase": "receive_rcpt_denied",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "4072a55f6eacf1f832d0b203374c5f7cc1c034935e29c381818564e5f4b931f4",
+        "unobserved_fragments_explicit": true
+      },
+      {
+        "facts": 33,
+        "matched_cookies": [
+          8252,
+          8253
+        ],
+        "path": "protocols/smtp/data/main.gewy",
+        "phase": "receive_message_queued",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "ca350919014aaaf4bdb1d90fd9ab6b0f34697521e022a8dbe106214784fcd815",
+        "unobserved_fragments_explicit": true
+      },
+      {
+        "facts": 33,
+        "matched_cookies": [
+          8253
+        ],
+        "path": "protocols/smtp/data-denied/main.gewy",
+        "phase": "receive_message_denied",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "c68b1e75558c6c4cac152300c740855842a5f39757bc2b26afc64ecf89b16265",
+        "unobserved_fragments_explicit": true
+      }
+    ],
+    "packet_counts": {
+      "dropped": 0,
+      "total": 23
+    },
+    "protocol": "smtp",
+    "published_ports": false,
+    "redis_pipeline_commands": 0,
+    "schema_version": 2,
+    "selected_cookies": [
+      8252,
+      8253
+    ],
+    "selected_query_or_command_count": 19,
+    "tcp_state_counts": {
+      "dropped": 0,
+      "total": 10
+    },
+    "unselected_neighbor_cookie": 16437,
+    "unselected_neighbor_result": {
+      "replies": [
+        {
+          "code": 220,
+          "lines": [
+            "7b27844c9f5e Mailpit ESMTP Service ready"
+          ]
+        },
+        {
+          "code": 250,
+          "lines": [
+            "7b27844c9f5e greets gewy.test",
+            "SIZE 1048576",
+            "AUTH LOGIN PLAIN",
+            "ENHANCEDSTATUSCODES",
+            "8BITMIME",
+            "SMTPUTF8"
+          ]
+        },
+        {
+          "code": 535,
+          "lines": [
+            "5.7.8 Authentication credentials invalid"
+          ]
+        },
+        {
+          "code": 530,
+          "lines": [
+            "5.7.0 Authentication required"
+          ]
+        },
+        {
+          "code": 250,
+          "lines": [
+            "2.0.0 Ok"
+          ]
+        },
+        {
+          "code": 221,
+          "lines": [
+            "2.0.0 7b27844c9f5e Mailpit ESMTP Service closing transmission channel"
+          ]
+        }
+      ]
+    }
+  },
+  "runs": [
+    {
+      "checks": [
+        "real_Mailpit_SMTP",
+        "auth_denial_and_unauthenticated_submission_refusal",
+        "multiline_EHLO_and_bounded_CRLF_replies",
+        "bad_sequence_and_recipient_rejection_then_same_connection_submission",
+        "dot_stuffed_body_and_second_transaction",
+        "matched_packet_status_cross_check",
+        "kernel_bytes_match_independent_client",
+        "same_target_unselected_neighbor_excluded",
+        "existing_protocol_packages_and_replay",
+        "owned_internal_network_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "smtp-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "MySQL_caching_sha2_auth_switch_prepared_statements",
+        "Memcached_text_meta_SASL_UDP",
+        "MQTT5_authentication_TLS_offline_delivery_or_crash_durability",
+        "NATS_JetStream_cluster_headers_TLS",
+        "SMTP_STARTTLS_delivery_to_external_mailbox_or_crash_durability",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "95ca456f83208fe8f165089a52320ceae738975a9ab61731cea35240adde6026",
+          "image": "axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231",
+          "image_id": "sha256:580a202b5088e9c651a8e8b4e461e3213fbd3a3aacaa3d2251892a546a734116",
+          "internal_network": true,
+          "network_id": "647d8e8a7b5246a9ce21d9440b46ee880c18ec17e919450608336c991810434c",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "code": 220,
+                    "lines": [
+                      "95ca456f8320 Mailpit ESMTP Service ready"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "95ca456f8320 greets gewy.test",
+                      "SIZE 1048576",
+                      "AUTH PLAIN LOGIN",
+                      "ENHANCEDSTATUSCODES",
+                      "8BITMIME",
+                      "SMTPUTF8"
+                    ]
+                  },
+                  {
+                    "code": 535,
+                    "lines": [
+                      "5.7.8 Authentication credentials invalid"
+                    ]
+                  },
+                  {
+                    "code": 530,
+                    "lines": [
+                      "5.7.0 Authentication required"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 221,
+                    "lines": [
+                      "2.0.0 95ca456f8320 Mailpit ESMTP Service closing transmission channel"
+                    ]
+                  }
+                ]
+              },
+              "captured_sha256": "a1496151ff89f109d5237fcc6369c890bab14b99c957277d8174b5c9d4212196",
+              "client_result": {
+                "replies": [
+                  {
+                    "code": 220,
+                    "lines": [
+                      "95ca456f8320 Mailpit ESMTP Service ready"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "95ca456f8320 greets gewy.test",
+                      "SIZE 1048576",
+                      "AUTH PLAIN LOGIN",
+                      "ENHANCEDSTATUSCODES",
+                      "8BITMIME",
+                      "SMTPUTF8"
+                    ]
+                  },
+                  {
+                    "code": 535,
+                    "lines": [
+                      "5.7.8 Authentication credentials invalid"
+                    ]
+                  },
+                  {
+                    "code": 530,
+                    "lines": [
+                      "5.7.0 Authentication required"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 221,
+                    "lines": [
+                      "2.0.0 95ca456f8320 Mailpit ESMTP Service closing transmission channel"
+                    ]
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 20526,
+              "response_bytes": 344,
+              "response_sha256": "a1496151ff89f109d5237fcc6369c890bab14b99c957277d8174b5c9d4212196"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "code": 220,
+                    "lines": [
+                      "95ca456f8320 Mailpit ESMTP Service ready"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "95ca456f8320 greets gewy.test",
+                      "SIZE 1048576",
+                      "AUTH LOGIN PLAIN",
+                      "ENHANCEDSTATUSCODES",
+                      "8BITMIME",
+                      "SMTPUTF8"
+                    ]
+                  },
+                  {
+                    "code": 235,
+                    "lines": [
+                      "2.7.0 Authentication successful"
+                    ]
+                  },
+                  {
+                    "code": 503,
+                    "lines": [
+                      "5.5.1 Bad sequence of commands (MAIL & RCPT required before DATA)"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 550,
+                    "lines": [
+                      "5.1.0 Requested action not taken: mailbox unavailable"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.5 Ok"
+                    ]
+                  },
+                  {
+                    "code": 354,
+                    "lines": [
+                      "Start mail input; end with <CR><LF>.<CR><LF>"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok: queued as 42thdCWigPmFABCzdPitrD"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.5 Ok"
+                    ]
+                  },
+                  {
+                    "code": 354,
+                    "lines": [
+                      "Start mail input; end with <CR><LF>.<CR><LF>"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok: queued as 2lIWOGG18GohbrQO61iKz4"
+                    ]
+                  },
+                  {
+                    "code": 221,
+                    "lines": [
+                      "2.0.0 95ca456f8320 Mailpit ESMTP Service closing transmission channel"
+                    ]
+                  }
+                ]
+              },
+              "captured_sha256": "11d78e09a829ba330f49a88b08947142049b87f8c07de7a9bff79bee20a017e6",
+              "client_result": {
+                "replies": [
+                  {
+                    "code": 220,
+                    "lines": [
+                      "95ca456f8320 Mailpit ESMTP Service ready"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "95ca456f8320 greets gewy.test",
+                      "SIZE 1048576",
+                      "AUTH LOGIN PLAIN",
+                      "ENHANCEDSTATUSCODES",
+                      "8BITMIME",
+                      "SMTPUTF8"
+                    ]
+                  },
+                  {
+                    "code": 235,
+                    "lines": [
+                      "2.7.0 Authentication successful"
+                    ]
+                  },
+                  {
+                    "code": 503,
+                    "lines": [
+                      "5.5.1 Bad sequence of commands (MAIL & RCPT required before DATA)"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 550,
+                    "lines": [
+                      "5.1.0 Requested action not taken: mailbox unavailable"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.5 Ok"
+                    ]
+                  },
+                  {
+                    "code": 354,
+                    "lines": [
+                      "Start mail input; end with <CR><LF>.<CR><LF>"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok: queued as 42thdCWigPmFABCzdPitrD"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.5 Ok"
+                    ]
+                  },
+                  {
+                    "code": 354,
+                    "lines": [
+                      "Start mail input; end with <CR><LF>.<CR><LF>"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok: queued as 2lIWOGG18GohbrQO61iKz4"
+                    ]
+                  },
+                  {
+                    "code": 221,
+                    "lines": [
+                      "2.0.0 95ca456f8320 Mailpit ESMTP Service closing transmission channel"
+                    ]
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 20527,
+              "response_bytes": 682,
+              "response_sha256": "11d78e09a829ba330f49a88b08947142049b87f8c07de7a9bff79bee20a017e6"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 33,
+              "matched_cookies": [
+                20526,
+                20527
+              ],
+              "path": "protocols/smtp/session/main.gewy",
+              "phase": "receive_banner",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "1fb2f707f1d1ce17b1f8f3fba9667c239109675ebf4fd0171de0a88ef0924b96",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                20527
+              ],
+              "path": "protocols/smtp/auth/main.gewy",
+              "phase": "receive_auth_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "7aab7aa83f1550fafeee15a69e6cb881e12d6645079599248f4a62ec97632875",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                20526
+              ],
+              "path": "protocols/smtp/auth-denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "869ecbc081856b37c1d24bdfd7437531488b8c19bcd60bc646ffb575361781ee",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                20527
+              ],
+              "path": "protocols/smtp/mail/main.gewy",
+              "phase": "receive_mail_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "1726b242be8c8e5e68221029f901fdcfe3ea523d16c9dbad4022daa7e6ff153f",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                20527
+              ],
+              "path": "protocols/smtp/rcpt/main.gewy",
+              "phase": "receive_rcpt_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "9c4d764323be16267e676d4009e10748d5401874ba19431429b4a5915aa1a3b9",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                20527
+              ],
+              "path": "protocols/smtp/rcpt-denied/main.gewy",
+              "phase": "receive_rcpt_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "d7e33c5ec142da258dc9d4e95899e1b06c29d360a2587174ea891e70bddc3a25",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                20527
+              ],
+              "path": "protocols/smtp/data/main.gewy",
+              "phase": "receive_message_queued",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "acb613fbc95420256166dfe62ef087fe3e72934f099646b104661f2e3597acd2",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [],
+              "path": "protocols/smtp/data-denied/main.gewy",
+              "phase": "receive_message_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "5eb6187c5af65c6ced5124d901ad83bdbea8ed07df8bd4b05cc0681b5927f242",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 23
+          },
+          "protocol": "smtp",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            20526,
+            20527
+          ],
+          "selected_query_or_command_count": 19,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 57363,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "code": 220,
+                "lines": [
+                  "95ca456f8320 Mailpit ESMTP Service ready"
+                ]
+              },
+              {
+                "code": 250,
+                "lines": [
+                  "95ca456f8320 greets gewy.test",
+                  "SIZE 1048576",
+                  "AUTH LOGIN PLAIN",
+                  "ENHANCEDSTATUSCODES",
+                  "8BITMIME",
+                  "SMTPUTF8"
+                ]
+              },
+              {
+                "code": 535,
+                "lines": [
+                  "5.7.8 Authentication credentials invalid"
+                ]
+              },
+              {
+                "code": 530,
+                "lines": [
+                  "5.7.0 Authentication required"
+                ]
+              },
+              {
+                "code": 250,
+                "lines": [
+                  "2.0.0 Ok"
+                ]
+              },
+              {
+                "code": 221,
+                "lines": [
+                  "2.0.0 95ca456f8320 Mailpit ESMTP Service closing transmission channel"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "schema_version": 2
+    },
+    {
+      "checks": [
+        "real_Mailpit_SMTP",
+        "auth_denial_and_unauthenticated_submission_refusal",
+        "multiline_EHLO_and_bounded_CRLF_replies",
+        "bad_sequence_and_recipient_rejection_then_same_connection_submission",
+        "dot_stuffed_body_and_second_transaction",
+        "matched_packet_status_cross_check",
+        "kernel_bytes_match_independent_client",
+        "same_target_unselected_neighbor_excluded",
+        "existing_protocol_packages_and_replay",
+        "owned_internal_network_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "smtp-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "MySQL_caching_sha2_auth_switch_prepared_statements",
+        "Memcached_text_meta_SASL_UDP",
+        "MQTT5_authentication_TLS_offline_delivery_or_crash_durability",
+        "NATS_JetStream_cluster_headers_TLS",
+        "SMTP_STARTTLS_delivery_to_external_mailbox_or_crash_durability",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "8cc1a85801b9b98d5a03555a3544d55590bd2c7970d21649f026f78ad2a72a2a",
+          "image": "axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231",
+          "image_id": "sha256:580a202b5088e9c651a8e8b4e461e3213fbd3a3aacaa3d2251892a546a734116",
+          "internal_network": true,
+          "network_id": "c360968a7b430c8643006bb5948f620ffd0858b77dd98ec6fa52134478bd168f",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "code": 220,
+                    "lines": [
+                      "8cc1a85801b9 Mailpit ESMTP Service ready"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "8cc1a85801b9 greets gewy.test",
+                      "SIZE 1048576",
+                      "AUTH LOGIN PLAIN",
+                      "ENHANCEDSTATUSCODES",
+                      "8BITMIME",
+                      "SMTPUTF8"
+                    ]
+                  },
+                  {
+                    "code": 535,
+                    "lines": [
+                      "5.7.8 Authentication credentials invalid"
+                    ]
+                  },
+                  {
+                    "code": 530,
+                    "lines": [
+                      "5.7.0 Authentication required"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 221,
+                    "lines": [
+                      "2.0.0 8cc1a85801b9 Mailpit ESMTP Service closing transmission channel"
+                    ]
+                  }
+                ]
+              },
+              "captured_sha256": "df9c565eb24c813b3e3484ed683949aa8d391d479987211849779cc7482ee14b",
+              "client_result": {
+                "replies": [
+                  {
+                    "code": 220,
+                    "lines": [
+                      "8cc1a85801b9 Mailpit ESMTP Service ready"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "8cc1a85801b9 greets gewy.test",
+                      "SIZE 1048576",
+                      "AUTH LOGIN PLAIN",
+                      "ENHANCEDSTATUSCODES",
+                      "8BITMIME",
+                      "SMTPUTF8"
+                    ]
+                  },
+                  {
+                    "code": 535,
+                    "lines": [
+                      "5.7.8 Authentication credentials invalid"
+                    ]
+                  },
+                  {
+                    "code": 530,
+                    "lines": [
+                      "5.7.0 Authentication required"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 221,
+                    "lines": [
+                      "2.0.0 8cc1a85801b9 Mailpit ESMTP Service closing transmission channel"
+                    ]
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 16438,
+              "response_bytes": 344,
+              "response_sha256": "df9c565eb24c813b3e3484ed683949aa8d391d479987211849779cc7482ee14b"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "code": 220,
+                    "lines": [
+                      "8cc1a85801b9 Mailpit ESMTP Service ready"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "8cc1a85801b9 greets gewy.test",
+                      "SIZE 1048576",
+                      "AUTH LOGIN PLAIN",
+                      "ENHANCEDSTATUSCODES",
+                      "8BITMIME",
+                      "SMTPUTF8"
+                    ]
+                  },
+                  {
+                    "code": 235,
+                    "lines": [
+                      "2.7.0 Authentication successful"
+                    ]
+                  },
+                  {
+                    "code": 503,
+                    "lines": [
+                      "5.5.1 Bad sequence of commands (MAIL & RCPT required before DATA)"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 550,
+                    "lines": [
+                      "5.1.0 Requested action not taken: mailbox unavailable"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.5 Ok"
+                    ]
+                  },
+                  {
+                    "code": 354,
+                    "lines": [
+                      "Start mail input; end with <CR><LF>.<CR><LF>"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok: queued as 4ajBFWU94pspfedQq16nAP"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.5 Ok"
+                    ]
+                  },
+                  {
+                    "code": 354,
+                    "lines": [
+                      "Start mail input; end with <CR><LF>.<CR><LF>"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok: queued as 2pOFlVGXeOFzIbfjGVxIEk"
+                    ]
+                  },
+                  {
+                    "code": 221,
+                    "lines": [
+                      "2.0.0 8cc1a85801b9 Mailpit ESMTP Service closing transmission channel"
+                    ]
+                  }
+                ]
+              },
+              "captured_sha256": "2237e42b58229339e281145c1d9fbb03e89c8268724e5bfbc58b0e0147dd9b04",
+              "client_result": {
+                "replies": [
+                  {
+                    "code": 220,
+                    "lines": [
+                      "8cc1a85801b9 Mailpit ESMTP Service ready"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "8cc1a85801b9 greets gewy.test",
+                      "SIZE 1048576",
+                      "AUTH LOGIN PLAIN",
+                      "ENHANCEDSTATUSCODES",
+                      "8BITMIME",
+                      "SMTPUTF8"
+                    ]
+                  },
+                  {
+                    "code": 235,
+                    "lines": [
+                      "2.7.0 Authentication successful"
+                    ]
+                  },
+                  {
+                    "code": 503,
+                    "lines": [
+                      "5.5.1 Bad sequence of commands (MAIL & RCPT required before DATA)"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 550,
+                    "lines": [
+                      "5.1.0 Requested action not taken: mailbox unavailable"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.5 Ok"
+                    ]
+                  },
+                  {
+                    "code": 354,
+                    "lines": [
+                      "Start mail input; end with <CR><LF>.<CR><LF>"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok: queued as 4ajBFWU94pspfedQq16nAP"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.5 Ok"
+                    ]
+                  },
+                  {
+                    "code": 354,
+                    "lines": [
+                      "Start mail input; end with <CR><LF>.<CR><LF>"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok: queued as 2pOFlVGXeOFzIbfjGVxIEk"
+                    ]
+                  },
+                  {
+                    "code": 221,
+                    "lines": [
+                      "2.0.0 8cc1a85801b9 Mailpit ESMTP Service closing transmission channel"
+                    ]
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 16439,
+              "response_bytes": 682,
+              "response_sha256": "2237e42b58229339e281145c1d9fbb03e89c8268724e5bfbc58b0e0147dd9b04"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 33,
+              "matched_cookies": [
+                16438,
+                16439
+              ],
+              "path": "protocols/smtp/session/main.gewy",
+              "phase": "receive_banner",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "1fb2f707f1d1ce17b1f8f3fba9667c239109675ebf4fd0171de0a88ef0924b96",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                16439
+              ],
+              "path": "protocols/smtp/auth/main.gewy",
+              "phase": "receive_auth_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "7aab7aa83f1550fafeee15a69e6cb881e12d6645079599248f4a62ec97632875",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                16438
+              ],
+              "path": "protocols/smtp/auth-denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "869ecbc081856b37c1d24bdfd7437531488b8c19bcd60bc646ffb575361781ee",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                16439
+              ],
+              "path": "protocols/smtp/mail/main.gewy",
+              "phase": "receive_mail_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "1726b242be8c8e5e68221029f901fdcfe3ea523d16c9dbad4022daa7e6ff153f",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                16439
+              ],
+              "path": "protocols/smtp/rcpt/main.gewy",
+              "phase": "receive_rcpt_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "9c4d764323be16267e676d4009e10748d5401874ba19431429b4a5915aa1a3b9",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                16439
+              ],
+              "path": "protocols/smtp/rcpt-denied/main.gewy",
+              "phase": "receive_rcpt_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "d7e33c5ec142da258dc9d4e95899e1b06c29d360a2587174ea891e70bddc3a25",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                16439
+              ],
+              "path": "protocols/smtp/data/main.gewy",
+              "phase": "receive_message_queued",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "acb613fbc95420256166dfe62ef087fe3e72934f099646b104661f2e3597acd2",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [],
+              "path": "protocols/smtp/data-denied/main.gewy",
+              "phase": "receive_message_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "5eb6187c5af65c6ced5124d901ad83bdbea8ed07df8bd4b05cc0681b5927f242",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 23
+          },
+          "protocol": "smtp",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            16438,
+            16439
+          ],
+          "selected_query_or_command_count": 19,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 28702,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "code": 220,
+                "lines": [
+                  "8cc1a85801b9 Mailpit ESMTP Service ready"
+                ]
+              },
+              {
+                "code": 250,
+                "lines": [
+                  "8cc1a85801b9 greets gewy.test",
+                  "SIZE 1048576",
+                  "AUTH LOGIN PLAIN",
+                  "ENHANCEDSTATUSCODES",
+                  "8BITMIME",
+                  "SMTPUTF8"
+                ]
+              },
+              {
+                "code": 535,
+                "lines": [
+                  "5.7.8 Authentication credentials invalid"
+                ]
+              },
+              {
+                "code": 530,
+                "lines": [
+                  "5.7.0 Authentication required"
+                ]
+              },
+              {
+                "code": 250,
+                "lines": [
+                  "2.0.0 Ok"
+                ]
+              },
+              {
+                "code": 221,
+                "lines": [
+                  "2.0.0 8cc1a85801b9 Mailpit ESMTP Service closing transmission channel"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "schema_version": 2
+    },
+    {
+      "checks": [
+        "real_Mailpit_SMTP",
+        "auth_denial_and_unauthenticated_submission_refusal",
+        "multiline_EHLO_and_bounded_CRLF_replies",
+        "bad_sequence_and_recipient_rejection_then_same_connection_submission",
+        "dot_stuffed_body_and_second_transaction",
+        "matched_packet_status_cross_check",
+        "kernel_bytes_match_independent_client",
+        "same_target_unselected_neighbor_excluded",
+        "existing_protocol_packages_and_replay",
+        "owned_internal_network_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "smtp-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "MySQL_caching_sha2_auth_switch_prepared_statements",
+        "Memcached_text_meta_SASL_UDP",
+        "MQTT5_authentication_TLS_offline_delivery_or_crash_durability",
+        "NATS_JetStream_cluster_headers_TLS",
+        "SMTP_STARTTLS_delivery_to_external_mailbox_or_crash_durability",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "5a68edd4578aaa3e732e265c9cc596da2a5a2b6747d5c234a7a2c877118ebd41",
+          "image": "axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231",
+          "image_id": "sha256:580a202b5088e9c651a8e8b4e461e3213fbd3a3aacaa3d2251892a546a734116",
+          "internal_network": true,
+          "network_id": "2b280deb2503839bb2713ce8a6916420daa6224cb401b1cc8fc1494c582b33a1",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "code": 220,
+                    "lines": [
+                      "5a68edd4578a Mailpit ESMTP Service ready"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "5a68edd4578a greets gewy.test",
+                      "SIZE 1048576",
+                      "AUTH LOGIN PLAIN",
+                      "ENHANCEDSTATUSCODES",
+                      "8BITMIME",
+                      "SMTPUTF8"
+                    ]
+                  },
+                  {
+                    "code": 535,
+                    "lines": [
+                      "5.7.8 Authentication credentials invalid"
+                    ]
+                  },
+                  {
+                    "code": 530,
+                    "lines": [
+                      "5.7.0 Authentication required"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 221,
+                    "lines": [
+                      "2.0.0 5a68edd4578a Mailpit ESMTP Service closing transmission channel"
+                    ]
+                  }
+                ]
+              },
+              "captured_sha256": "2c5c6c22af4a63ab23af5650bf80c63440a27bc9a7e7ae2775225efbe5e1233f",
+              "client_result": {
+                "replies": [
+                  {
+                    "code": 220,
+                    "lines": [
+                      "5a68edd4578a Mailpit ESMTP Service ready"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "5a68edd4578a greets gewy.test",
+                      "SIZE 1048576",
+                      "AUTH LOGIN PLAIN",
+                      "ENHANCEDSTATUSCODES",
+                      "8BITMIME",
+                      "SMTPUTF8"
+                    ]
+                  },
+                  {
+                    "code": 535,
+                    "lines": [
+                      "5.7.8 Authentication credentials invalid"
+                    ]
+                  },
+                  {
+                    "code": 530,
+                    "lines": [
+                      "5.7.0 Authentication required"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 221,
+                    "lines": [
+                      "2.0.0 5a68edd4578a Mailpit ESMTP Service closing transmission channel"
+                    ]
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 8254,
+              "response_bytes": 344,
+              "response_sha256": "2c5c6c22af4a63ab23af5650bf80c63440a27bc9a7e7ae2775225efbe5e1233f"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "code": 220,
+                    "lines": [
+                      "5a68edd4578a Mailpit ESMTP Service ready"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "5a68edd4578a greets gewy.test",
+                      "SIZE 1048576",
+                      "AUTH LOGIN PLAIN",
+                      "ENHANCEDSTATUSCODES",
+                      "8BITMIME",
+                      "SMTPUTF8"
+                    ]
+                  },
+                  {
+                    "code": 235,
+                    "lines": [
+                      "2.7.0 Authentication successful"
+                    ]
+                  },
+                  {
+                    "code": 503,
+                    "lines": [
+                      "5.5.1 Bad sequence of commands (MAIL & RCPT required before DATA)"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 550,
+                    "lines": [
+                      "5.1.0 Requested action not taken: mailbox unavailable"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.5 Ok"
+                    ]
+                  },
+                  {
+                    "code": 354,
+                    "lines": [
+                      "Start mail input; end with <CR><LF>.<CR><LF>"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok: queued as 5xstBv8412U4Lj50OdGpnJ"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.5 Ok"
+                    ]
+                  },
+                  {
+                    "code": 354,
+                    "lines": [
+                      "Start mail input; end with <CR><LF>.<CR><LF>"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok: queued as 5KdKnkwIL9FdWcBRRonPy6"
+                    ]
+                  },
+                  {
+                    "code": 221,
+                    "lines": [
+                      "2.0.0 5a68edd4578a Mailpit ESMTP Service closing transmission channel"
+                    ]
+                  }
+                ]
+              },
+              "captured_sha256": "dd36f857d600763d9706fbe819e1b1cb260c4076db609339de6768123234243f",
+              "client_result": {
+                "replies": [
+                  {
+                    "code": 220,
+                    "lines": [
+                      "5a68edd4578a Mailpit ESMTP Service ready"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "5a68edd4578a greets gewy.test",
+                      "SIZE 1048576",
+                      "AUTH LOGIN PLAIN",
+                      "ENHANCEDSTATUSCODES",
+                      "8BITMIME",
+                      "SMTPUTF8"
+                    ]
+                  },
+                  {
+                    "code": 235,
+                    "lines": [
+                      "2.7.0 Authentication successful"
+                    ]
+                  },
+                  {
+                    "code": 503,
+                    "lines": [
+                      "5.5.1 Bad sequence of commands (MAIL & RCPT required before DATA)"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 550,
+                    "lines": [
+                      "5.1.0 Requested action not taken: mailbox unavailable"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.5 Ok"
+                    ]
+                  },
+                  {
+                    "code": 354,
+                    "lines": [
+                      "Start mail input; end with <CR><LF>.<CR><LF>"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok: queued as 5xstBv8412U4Lj50OdGpnJ"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.0 Ok"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.1.5 Ok"
+                    ]
+                  },
+                  {
+                    "code": 354,
+                    "lines": [
+                      "Start mail input; end with <CR><LF>.<CR><LF>"
+                    ]
+                  },
+                  {
+                    "code": 250,
+                    "lines": [
+                      "2.0.0 Ok: queued as 5KdKnkwIL9FdWcBRRonPy6"
+                    ]
+                  },
+                  {
+                    "code": 221,
+                    "lines": [
+                      "2.0.0 5a68edd4578a Mailpit ESMTP Service closing transmission channel"
+                    ]
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 8255,
+              "response_bytes": 682,
+              "response_sha256": "dd36f857d600763d9706fbe819e1b1cb260c4076db609339de6768123234243f"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 33,
+              "matched_cookies": [
+                8254,
+                8255
+              ],
+              "path": "protocols/smtp/session/main.gewy",
+              "phase": "receive_banner",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "1fb2f707f1d1ce17b1f8f3fba9667c239109675ebf4fd0171de0a88ef0924b96",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                8255
+              ],
+              "path": "protocols/smtp/auth/main.gewy",
+              "phase": "receive_auth_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "7aab7aa83f1550fafeee15a69e6cb881e12d6645079599248f4a62ec97632875",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                8254
+              ],
+              "path": "protocols/smtp/auth-denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "869ecbc081856b37c1d24bdfd7437531488b8c19bcd60bc646ffb575361781ee",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                8255
+              ],
+              "path": "protocols/smtp/mail/main.gewy",
+              "phase": "receive_mail_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "1726b242be8c8e5e68221029f901fdcfe3ea523d16c9dbad4022daa7e6ff153f",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                8255
+              ],
+              "path": "protocols/smtp/rcpt/main.gewy",
+              "phase": "receive_rcpt_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "9c4d764323be16267e676d4009e10748d5401874ba19431429b4a5915aa1a3b9",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                8255
+              ],
+              "path": "protocols/smtp/rcpt-denied/main.gewy",
+              "phase": "receive_rcpt_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "d7e33c5ec142da258dc9d4e95899e1b06c29d360a2587174ea891e70bddc3a25",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [
+                8255
+              ],
+              "path": "protocols/smtp/data/main.gewy",
+              "phase": "receive_message_queued",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "acb613fbc95420256166dfe62ef087fe3e72934f099646b104661f2e3597acd2",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 33,
+              "matched_cookies": [],
+              "path": "protocols/smtp/data-denied/main.gewy",
+              "phase": "receive_message_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "5eb6187c5af65c6ced5124d901ad83bdbea8ed07df8bd4b05cc0681b5927f242",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 23
+          },
+          "protocol": "smtp",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            8254,
+            8255
+          ],
+          "selected_query_or_command_count": 19,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 20530,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "code": 220,
+                "lines": [
+                  "5a68edd4578a Mailpit ESMTP Service ready"
+                ]
+              },
+              {
+                "code": 250,
+                "lines": [
+                  "5a68edd4578a greets gewy.test",
+                  "SIZE 1048576",
+                  "AUTH LOGIN PLAIN",
+                  "ENHANCEDSTATUSCODES",
+                  "8BITMIME",
+                  "SMTPUTF8"
+                ]
+              },
+              {
+                "code": 535,
+                "lines": [
+                  "5.7.8 Authentication credentials invalid"
+                ]
+              },
+              {
+                "code": 530,
+                "lines": [
+                  "5.7.0 Authentication required"
+                ]
+              },
+              {
+                "code": 250,
+                "lines": [
+                  "2.0.0 Ok"
+                ]
+              },
+              {
+                "code": 221,
+                "lines": [
+                  "2.0.0 5a68edd4578a Mailpit ESMTP Service closing transmission channel"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "schema_version": 2
+    }
+  ],
+  "fresh_http_captures": [
+    {
+      "cgroup_removed": true,
+      "checks": [
+        "captured_syn_ack_origins",
+        "real_split_status_line",
+        "body_prefix_candidate_not_promoted",
+        "derived_prefix_provenance",
+        "raw_packets_unchanged",
+        "export_and_derived_replay",
+        "decoy_exclusion",
+        "zero_reported_capture_loss",
+        "owned_pins_and_cgroup_removed"
+      ],
+      "clock_anchor_monotonic_ns": 56511472892444,
+      "clock_anchor_unix_ns": "1794554039616265808",
+      "decoy_cookie": 20528,
+      "decoy_events": 0,
+      "derived_prefix_limit": 13,
+      "dropped_events": 0,
+      "flows": 2,
+      "ingest_trust_mode": "unverified-local",
+      "kernel": "7.0.0-42-generic",
+      "kernel_events": 10,
+      "mode": "http-boundaries",
+      "not_proven": [
+        "general-TCP-stream-reassembly",
+        "subsequent-HTTP-responses",
+        "HTTP-informational-responses",
+        "TLS",
+        "TCP-Fast-Open",
+        "vulnerability-detection"
+      ],
+      "ok": true,
+      "packet_dropped_events": 0,
+      "packet_dsl_status_candidates": [
+        [
+          32837,
+          500
+        ]
+      ],
+      "packet_events": 6,
+      "pins_removed": true,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          32836,
+          55969,
+          45021,
+          4026531833
+        ],
+        [
+          32837,
+          52811,
+          45021,
+          4026531833
+        ]
+      ],
+      "verified_http_statuses": [
+        [
+          32836,
+          403
+        ],
+        [
+          32837,
+          200
+        ]
+      ]
+    },
+    {
+      "cgroup_removed": true,
+      "checks": [
+        "captured_syn_ack_origins",
+        "real_split_status_line",
+        "body_prefix_candidate_not_promoted",
+        "derived_prefix_provenance",
+        "raw_packets_unchanged",
+        "export_and_derived_replay",
+        "decoy_exclusion",
+        "zero_reported_capture_loss",
+        "owned_pins_and_cgroup_removed"
+      ],
+      "clock_anchor_monotonic_ns": 56569004052719,
+      "clock_anchor_unix_ns": "1794554097147426214",
+      "decoy_cookie": 20529,
+      "decoy_events": 0,
+      "derived_prefix_limit": 13,
+      "dropped_events": 0,
+      "flows": 2,
+      "ingest_trust_mode": "unverified-local",
+      "kernel": "7.0.0-42-generic",
+      "kernel_events": 10,
+      "mode": "http-boundaries",
+      "not_proven": [
+        "general-TCP-stream-reassembly",
+        "subsequent-HTTP-responses",
+        "HTTP-informational-responses",
+        "TLS",
+        "TCP-Fast-Open",
+        "vulnerability-detection"
+      ],
+      "ok": true,
+      "packet_dropped_events": 0,
+      "packet_dsl_status_candidates": [
+        [
+          45130,
+          500
+        ]
+      ],
+      "packet_events": 6,
+      "pins_removed": true,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          45129,
+          45605,
+          37037,
+          4026531833
+        ],
+        [
+          45130,
+          38615,
+          37037,
+          4026531833
+        ]
+      ],
+      "verified_http_statuses": [
+        [
+          45129,
+          403
+        ],
+        [
+          45130,
+          200
+        ]
+      ]
+    },
+    {
+      "cgroup_removed": true,
+      "checks": [
+        "captured_syn_ack_origins",
+        "real_split_status_line",
+        "body_prefix_candidate_not_promoted",
+        "derived_prefix_provenance",
+        "raw_packets_unchanged",
+        "export_and_derived_replay",
+        "decoy_exclusion",
+        "zero_reported_capture_loss",
+        "owned_pins_and_cgroup_removed"
+      ],
+      "clock_anchor_monotonic_ns": 56632216730150,
+      "clock_anchor_unix_ns": "1794554160360103605",
+      "decoy_cookie": 24645,
+      "decoy_events": 0,
+      "derived_prefix_limit": 13,
+      "dropped_events": 0,
+      "flows": 2,
+      "ingest_trust_mode": "unverified-local",
+      "kernel": "7.0.0-42-generic",
+      "kernel_events": 10,
+      "mode": "http-boundaries",
+      "not_proven": [
+        "general-TCP-stream-reassembly",
+        "subsequent-HTTP-responses",
+        "HTTP-informational-responses",
+        "TLS",
+        "TCP-Fast-Open",
+        "vulnerability-detection"
+      ],
+      "ok": true,
+      "packet_dropped_events": 0,
+      "packet_dsl_status_candidates": [
+        [
+          40972,
+          500
+        ]
+      ],
+      "packet_events": 6,
+      "pins_removed": true,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          40971,
+          56109,
+          33609,
+          4026531833
+        ],
+        [
+          40972,
+          42961,
+          33609,
+          4026531833
+        ]
+      ],
+      "verified_http_statuses": [
+        [
+          40971,
+          403
+        ],
+        [
+          40972,
+          200
+        ]
+      ]
+    }
+  ],
+  "messaging_control": {
+    "checks": [
+      "real_Mosquitto_and_NATS",
+      "MQTT_identifier_refusal_persistent_session_resume_and_QoS_acks",
+      "NATS_auth_denial_permission_error_then_same_connection_recovery",
+      "binary_empty_and_control_looking_message_bodies",
+      "matched_packet_status_cross_check",
+      "kernel_bytes_match_independent_client",
+      "same_target_unselected_neighbor_excluded",
+      "existing_protocol_packages_and_replay",
+      "owned_internal_network_and_anonymous_volume_cleanup",
+      "fresh_HTTP_capture_after_data"
+    ],
+    "ingest_trust_mode": "unverified-local",
+    "mode": "messaging-breadth",
+    "not_proven": [
+      "TLS_decryption",
+      "arbitrary_protocol_detection",
+      "general_TCP_reassembly",
+      "vulnerability_exploitation_detection",
+      "PostgreSQL_TLS_SCRAM_extended_query",
+      "Redis_cluster_RESP3",
+      "MySQL_caching_sha2_auth_switch_prepared_statements",
+      "Memcached_text_meta_SASL_UDP",
+      "MQTT5_authentication_TLS_offline_delivery_or_crash_durability",
+      "NATS_JetStream_cluster_headers_TLS",
+      "SMTP_STARTTLS_delivery_to_external_mailbox_or_crash_durability",
+      "PID_or_container_process_attribution",
+      "request_payload_capture",
+      "IPv6_or_UDP",
+      "multiple_hosts_or_kernels"
+    ],
+    "ok": true,
+    "phases": [
+      {
+        "anonymous_volume_ids": [
+          "f307311fd64a08554c7e9730bfa667db4827b32d40c2f2d653e694e777df8d42",
+          "ca82a2cbe90222bee4bc3aa7d23cf2051ef7505e5be37aeda481c13f44c0758e"
+        ],
+        "anonymous_volumes_removed_with_container": true,
+        "client_read_chunk_bytes": 7,
+        "client_reads_are_packet_boundaries": false,
+        "container_id": "371e78f7413a923d4b93f04f446202efdebecc1252f611533e4171fb49f19958",
+        "image": "eclipse-mosquitto@sha256:75d6662dee52c947dc9dd9c29f1d8d7ffef78ddaf38001caa09755681e8bbc98",
+        "image_id": "sha256:ceaa1d541610ed761c1399787c4108d4cfa6eec6a28bdefe4d169c9d675d18ee",
+        "internal_network": true,
+        "network_id": "5cf19aa98142ad897c2f2133a7389729c8591af2ab574ba3e4aae3726c33cf15",
+        "observations": [
+          {
+            "captured_result": {
+              "replies": [
+                {
+                  "code": 2,
+                  "kind": "connack",
+                  "session_present": false
+                }
+              ]
+            },
+            "captured_sha256": "10288b2d97836baa0a0ee705086a6ed4a3651ed3b696788dc1cfe014debf2e2b",
+            "client_result": {
+              "replies": [
+                {
+                  "code": 2,
+                  "kind": "connack",
+                  "session_present": false
+                }
+              ]
+            },
+            "control": false,
+            "cookie": 61452,
+            "response_bytes": 4,
+            "response_sha256": "10288b2d97836baa0a0ee705086a6ed4a3651ed3b696788dc1cfe014debf2e2b"
+          },
+          {
+            "captured_result": {
+              "replies": [
+                {
+                  "code": 0,
+                  "kind": "connack",
+                  "session_present": true
+                },
+                {
+                  "id": 7,
+                  "kind": "puback"
+                },
+                {
+                  "id": 8,
+                  "kind": "pubrec"
+                },
+                {
+                  "id": 8,
+                  "kind": "pubcomp"
+                },
+                {
+                  "kind": "publish",
+                  "topic": "gewy/in",
+                  "value_bytes": 8,
+                  "value_hex": "00ff0d0a2d455252"
+                },
+                {
+                  "code": 0,
+                  "id": 9,
+                  "kind": "suback"
+                },
+                {
+                  "kind": "pingresp"
+                }
+              ]
+            },
+            "captured_sha256": "9356f373ae2b4cbe73fa81990efa6e4a1806d03a93984127c56215e22d6da9ce",
+            "client_result": {
+              "replies": [
+                {
+                  "code": 0,
+                  "kind": "connack",
+                  "session_present": true
+                },
+                {
+                  "id": 7,
+                  "kind": "puback"
+                },
+                {
+                  "id": 8,
+                  "kind": "pubrec"
+                },
+                {
+                  "id": 8,
+                  "kind": "pubcomp"
+                },
+                {
+                  "kind": "publish",
+                  "topic": "gewy/in",
+                  "value_bytes": 8,
+                  "value_hex": "00ff0d0a2d455252"
+                },
+                {
+                  "code": 0,
+                  "id": 9,
+                  "kind": "suback"
+                },
+                {
+                  "kind": "pingresp"
+                }
+              ]
+            },
+            "control": true,
+            "cookie": 61453,
+            "response_bytes": 42,
+            "response_sha256": "9356f373ae2b4cbe73fa81990efa6e4a1806d03a93984127c56215e22d6da9ce"
+          }
+        ],
+        "ok": true,
+        "owned_resources_removed": true,
+        "package_failures": [],
+        "packages": [
+          {
+            "facts": 20,
+            "matched_cookies": [
+              61453
+            ],
+            "path": "protocols/mqtt/connect/main.gewy",
+            "phase": "receive_connack",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "a6dcbec5e9a9d629e90fa3cf6abc49977d7a35acfa98b9d48ffd999e993534e7",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 20,
+            "matched_cookies": [
+              61452,
+              61453
+            ],
+            "path": "protocols/mqtt/connack/main.gewy",
+            "phase": "receive_connack",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "cb1b3978af1d8caa71c35a9622cf022800fb3ce9e620501518b8d35c3c8e7865",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 20,
+            "matched_cookies": [
+              61453
+            ],
+            "path": "protocols/mqtt/publish/main.gewy",
+            "phase": "receive_puback",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "873caa8688f72df1f43178bfd08fb9bfca85431c3d44cebbe6ae578fc05a1c75",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 20,
+            "matched_cookies": [
+              61453
+            ],
+            "path": "protocols/mqtt/pubrec/main.gewy",
+            "phase": "receive_pubrec",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "53686db8e7a10cbfa7ee04f0b7131727eb1d11f430f5d6a9faf6f20a26d17bae",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 20,
+            "matched_cookies": [
+              61453
+            ],
+            "path": "protocols/mqtt/pubcomp/main.gewy",
+            "phase": "receive_pubcomp",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "bbdbd29ebdea8e9b1f7b4cb1c45b0dcb3c079af8a7b5f1659cd9981e56c7ede9",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 20,
+            "matched_cookies": [
+              61453
+            ],
+            "path": "protocols/mqtt/subscribe/main.gewy",
+            "phase": "receive_suback",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "7e9069f2d0bf0f9348e1d4dd077057b848a42e1a7118d1dfc94137adba4f7c47",
+            "unobserved_fragments_explicit": true
+          }
+        ],
+        "packet_counts": {
+          "dropped": 0,
+          "total": 10
+        },
+        "protocol": "mqtt",
+        "published_ports": false,
+        "redis_pipeline_commands": 0,
+        "schema_version": 2,
+        "selected_cookies": [
+          61452,
+          61453
+        ],
+        "selected_query_or_command_count": 9,
+        "tcp_state_counts": {
+          "dropped": 0,
+          "total": 10
+        },
+        "unselected_neighbor_cookie": 20531,
+        "unselected_neighbor_result": {
+          "replies": [
+            {
+              "code": 2,
+              "kind": "connack",
+              "session_present": false
+            }
+          ]
+        }
+      },
+      {
+        "anonymous_volume_ids": [],
+        "anonymous_volumes_removed_with_container": true,
+        "client_read_chunk_bytes": 7,
+        "client_reads_are_packet_boundaries": false,
+        "container_id": "06bb15b1b5f3c99dc0363ad5777aa4ff63ca922c79827fc108d0c07c65c1031c",
+        "image": "nats@sha256:558394a23dd3c36f2d3a64b51865fd09908010e80a542cea5e75c2af543ed62a",
+        "image_id": "sha256:0ea8169776497b3f85533203eebf4cdc015bbd99096e103b44b7580870f66099",
+        "internal_network": true,
+        "network_id": "94eff31315c9540998a19f2898fa704bfcd7511d96b3d88b1a632035a1c479c2",
+        "observations": [
+          {
+            "captured_result": {
+              "replies": [
+                {
+                  "auth_required": true,
+                  "kind": "info",
+                  "max_payload": 1024
+                },
+                {
+                  "kind": "error",
+                  "message": "Authorization Violation"
+                }
+              ]
+            },
+            "captured_sha256": "25a0fa82520f39af316a3d5928b5e5f277214cafaf70665c02e3e1cf4049fcea",
+            "client_result": {
+              "replies": [
+                {
+                  "auth_required": true,
+                  "kind": "info",
+                  "max_payload": 1024
+                },
+                {
+                  "kind": "error",
+                  "message": "Authorization Violation"
+                }
+              ]
+            },
+            "control": false,
+            "cookie": 20532,
+            "response_bytes": 454,
+            "response_sha256": "25a0fa82520f39af316a3d5928b5e5f277214cafaf70665c02e3e1cf4049fcea"
+          },
+          {
+            "captured_result": {
+              "replies": [
+                {
+                  "auth_required": true,
+                  "kind": "info",
+                  "max_payload": 1024
+                },
+                {
+                  "kind": "pong"
+                },
+                {
+                  "auth_required": true,
+                  "kind": "info",
+                  "max_payload": 1024
+                },
+                {
+                  "kind": "pong"
+                },
+                {
+                  "kind": "message",
+                  "sid": 1,
+                  "subject": "gewy.lab",
+                  "value_bytes": 8,
+                  "value_hex": "00ff0d0a2d455252"
+                },
+                {
+                  "kind": "pong"
+                },
+                {
+                  "kind": "message",
+                  "sid": 1,
+                  "subject": "gewy.lab",
+                  "value_bytes": 0,
+                  "value_hex": ""
+                },
+                {
+                  "kind": "pong"
+                },
+                {
+                  "kind": "message",
+                  "sid": 1,
+                  "subject": "gewy.lab",
+                  "value_bytes": 17,
+                  "value_hex": "2d455252206e6f742d616e2d6572726f72"
+                },
+                {
+                  "kind": "pong"
+                },
+                {
+                  "kind": "error",
+                  "message": "Permissions Violation for Publish to \"denied\""
+                },
+                {
+                  "kind": "pong"
+                },
+                {
+                  "kind": "message",
+                  "sid": 1,
+                  "subject": "gewy.lab",
+                  "value_bytes": 2,
+                  "value_hex": "3433"
+                },
+                {
+                  "kind": "pong"
+                }
+              ]
+            },
+            "captured_sha256": "54cd3ecc0b8ad0c505b65b45739d950100a9b60579826a72bf139036e59315d7",
+            "client_result": {
+              "replies": [
+                {
+                  "auth_required": true,
+                  "kind": "info",
+                  "max_payload": 1024
+                },
+                {
+                  "kind": "pong"
+                },
+                {
+                  "auth_required": true,
+                  "kind": "info",
+                  "max_payload": 1024
+                },
+                {
+                  "kind": "pong"
+                },
+                {
+                  "kind": "message",
+                  "sid": 1,
+                  "subject": "gewy.lab",
+                  "value_bytes": 8,
+                  "value_hex": "00ff0d0a2d455252"
+                },
+                {
+                  "kind": "pong"
+                },
+                {
+                  "kind": "message",
+                  "sid": 1,
+                  "subject": "gewy.lab",
+                  "value_bytes": 0,
+                  "value_hex": ""
+                },
+                {
+                  "kind": "pong"
+                },
+                {
+                  "kind": "message",
+                  "sid": 1,
+                  "subject": "gewy.lab",
+                  "value_bytes": 17,
+                  "value_hex": "2d455252206e6f742d616e2d6572726f72"
+                },
+                {
+                  "kind": "pong"
+                },
+                {
+                  "kind": "error",
+                  "message": "Permissions Violation for Publish to \"denied\""
+                },
+                {
+                  "kind": "pong"
+                },
+                {
+                  "kind": "message",
+                  "sid": 1,
+                  "subject": "gewy.lab",
+                  "value_bytes": 2,
+                  "value_hex": "3433"
+                },
+                {
+                  "kind": "pong"
+                }
+              ]
+            },
+            "control": true,
+            "cookie": 20533,
+            "response_bytes": 1090,
+            "response_sha256": "54cd3ecc0b8ad0c505b65b45739d950100a9b60579826a72bf139036e59315d7"
+          }
+        ],
+        "ok": true,
+        "owned_resources_removed": true,
+        "package_failures": [],
+        "packages": [
+          {
+            "facts": 23,
+            "matched_cookies": [
+              20532,
+              20533
+            ],
+            "path": "protocols/nats/connect/main.gewy",
+            "phase": "receive_info",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "21a030cd0e7d123fbea6cdb490a275834d114f51582a841fa3c850254c6ee6eb",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 23,
+            "matched_cookies": [
+              20532,
+              20533
+            ],
+            "path": "protocols/nats/error/main.gewy",
+            "phase": "receive_error",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "e95c0027e7c898974ee1a40cd7bae646db582d6da00e8a5f7b7f4c32677228f2",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 23,
+            "matched_cookies": [
+              20533
+            ],
+            "path": "protocols/nats/sub/main.gewy",
+            "phase": "receive_message",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "e0957490515b16aafcc34083e63f31c63a7b6560ca5169542108e963057d7e36",
+            "unobserved_fragments_explicit": true
+          }
+        ],
+        "packet_counts": {
+          "dropped": 0,
+          "total": 13
+        },
+        "protocol": "nats",
+        "published_ports": false,
+        "redis_pipeline_commands": 0,
+        "schema_version": 2,
+        "selected_cookies": [
+          20532,
+          20533
+        ],
+        "selected_query_or_command_count": 16,
+        "tcp_state_counts": {
+          "dropped": 0,
+          "total": 10
+        },
+        "unselected_neighbor_cookie": 82,
+        "unselected_neighbor_result": {
+          "replies": [
+            {
+              "auth_required": true,
+              "kind": "info",
+              "max_payload": 1024
+            },
+            {
+              "kind": "error",
+              "message": "Authorization Violation"
+            }
+          ]
+        }
+      }
+    ],
+    "schema_version": 2
+  },
+  "totals": {
+    "campaigns": 3,
+    "selected_connections": 6,
+    "unselected_neighbors": 3,
+    "packet_events": 69,
+    "tcp_state_events": 30,
+    "server_response_bytes": 3078,
+    "reported_packet_drops": 0,
+    "reported_tcp_state_drops": 0,
+    "package_replays": 24,
+    "selected_commands": 57,
+    "accepted_submissions": 6,
+    "fresh_http_captures": 3,
+    "owned_targets_removed": 3,
+    "owned_networks_removed": 3
+  },
+  "verification": {
+    "related_tests_passed": 1549,
+    "related_tests_failed": 0,
+    "closure_tests_passed": 346,
+    "closure_tests_failed": 0,
+    "total_tests_passed": 1895,
+    "fmt_check": true,
+    "diff_check": true,
+    "preexisting_diagnostic_tests_ignored": 1,
+    "clippy_all_targets_all_features": true,
+    "scope": "Gewyvern library and seven targeted integration suites, plus native-validation and project-status closure suites; not a whole-workspace test or release gate"
+  },
+  "cleanup": {
+    "existing_container_identities_unchanged": true,
+    "existing_network_identities_unchanged": true,
+    "existing_volume_inventory_unchanged": true,
+    "temporary_build_container_removed": true,
+    "inventory_counts": {
+      "existing_containers": 15,
+      "containers_including_temporary_build": 16,
+      "final_containers": 15,
+      "networks": 6,
+      "volumes": 54
+    },
+    "temporary_build_container_id": "81f1862c742e0bea838af9088b01870ca97ff56c97ff146f35c61983547844ba",
+    "global_prune_used": false,
+    "note": "Capture inventories differ only by this turn's temporary build container; after its removal, final container identities exactly match the pre-turn inventory. Failed development capture and MQTT/NATS control are excluded from final SMTP totals."
+  },
+  "limitations": [
+    "one physical host/kernel, not independent-host qualification",
+    "bounded plaintext Mailpit SMTP only, no TLS or generic protocol detection",
+    "no SMTP command/reply correlation in production packet rules; canonical case-sensitive English signatures can miss other servers, localized text, single-line EHLO or split prefixes",
+    "real SMTP data-denied coverage is negative-only; no real post-body rejection positive",
+    "client body input is not captured request payload or validated mailbox content",
+    "queue acknowledgement is not external delivery or durable storage proof",
+    "no IMAP/POP3/LMTP, external forwarding, broker crash, performance or vulnerability-detection claim",
+    "native transcript and captured transcript share the same bounded parser, but input byte sources are independent; partial client reads are not TCP segment boundaries"
+  ]
+}

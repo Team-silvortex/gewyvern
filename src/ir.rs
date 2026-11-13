@@ -5,6 +5,7 @@ pub use crate::ledger::{QuicFrameType, QuicPacketType};
 mod matching;
 mod narrative;
 mod predicates;
+mod rtsp;
 #[cfg(test)]
 mod tests;
 
@@ -38,9 +39,32 @@ pub struct ObservationScope {
     pub remote_port: Option<u16>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RtspResponseKind {
+    Options,
+    Describe,
+    Setup,
+    Play,
+}
+
+impl RtspResponseKind {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Options => "options_ok",
+            Self::Describe => "describe_ok",
+            Self::Setup => "setup_ok",
+            Self::Play => "play_ok",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FlowPredicate {
     ProcessBound,
+    RtspResponseObserved {
+        remote_port: u16,
+        kind: RtspResponseKind,
+    },
     SocketStateObserved {
         local_port: Option<u16>,
         remote_port: Option<u16>,

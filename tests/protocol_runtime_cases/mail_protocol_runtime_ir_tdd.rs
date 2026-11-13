@@ -32,14 +32,11 @@ fn smtp_data_runtime_path_materializes_message_submit_ir() {
         &[
             (PacketDir::Ingress, prefix4(*b"220 ")),
             (PacketDir::Egress, prefix4(*b"EHLO")),
-            (PacketDir::Ingress, prefix4(*b"250 ")),
+            (PacketDir::Ingress, prefix4(*b"250-")),
             (PacketDir::Egress, prefix4(*b"AUTH")),
             (PacketDir::Ingress, prefix4(*b"235 ")),
             (PacketDir::Egress, prefix4(*b"MAIL")),
-            (
-                PacketDir::Ingress,
-                bytes(&[b'2', b'5', b'0', b' ', b'2', b'.', b'1', b'.']),
-            ),
+            (PacketDir::Ingress, bytes(b"250 2.1.0 ")),
             (PacketDir::Egress, prefix4(*b"RCPT")),
             (
                 PacketDir::Ingress,
@@ -50,7 +47,7 @@ fn smtp_data_runtime_path_materializes_message_submit_ir() {
             (PacketDir::Egress, bytes(&[0x0d, 0x0a, b'.', 0x0d, 0x0a])),
             (
                 PacketDir::Ingress,
-                bytes(&[b'2', b'5', b'0', b' ', b'2', b'.', b'0', b'.', b'0']),
+                bytes(b"250 2.0.0 Ok: queued as fixture"),
             ),
         ],
     );
@@ -78,16 +75,13 @@ fn smtp_rcpt_denied_runtime_path_materializes_envelope_failure_ir() {
         &[
             (PacketDir::Ingress, prefix4(*b"220 ")),
             (PacketDir::Egress, prefix4(*b"EHLO")),
-            (PacketDir::Ingress, prefix4(*b"250 ")),
+            (PacketDir::Ingress, prefix4(*b"250-")),
             (PacketDir::Egress, prefix4(*b"AUTH")),
             (PacketDir::Ingress, prefix4(*b"235 ")),
             (PacketDir::Egress, prefix4(*b"MAIL")),
-            (
-                PacketDir::Ingress,
-                bytes(&[b'2', b'5', b'0', b' ', b'2', b'.', b'1', b'.']),
-            ),
+            (PacketDir::Ingress, bytes(b"250 2.1.0 ")),
             (PacketDir::Egress, prefix4(*b"RCPT")),
-            (PacketDir::Ingress, prefix4(*b"550 ")),
+            (PacketDir::Ingress, bytes(b"550 5.1.1 No such user")),
         ],
     );
 
@@ -117,16 +111,13 @@ fn smtp_rcpt_denied_runtime_ir_does_not_materialize_for_accepted_recipient() {
         &[
             (PacketDir::Ingress, prefix4(*b"220 ")),
             (PacketDir::Egress, prefix4(*b"EHLO")),
-            (PacketDir::Ingress, prefix4(*b"250 ")),
+            (PacketDir::Ingress, prefix4(*b"250-")),
             (PacketDir::Egress, prefix4(*b"AUTH")),
             (PacketDir::Ingress, prefix4(*b"235 ")),
             (PacketDir::Egress, prefix4(*b"MAIL")),
-            (
-                PacketDir::Ingress,
-                bytes(&[b'2', b'5', b'0', b' ', b'2', b'.', b'1', b'.']),
-            ),
+            (PacketDir::Ingress, bytes(b"250 2.1.0 ")),
             (PacketDir::Egress, prefix4(*b"RCPT")),
-            (PacketDir::Ingress, prefix4(*b"250 ")),
+            (PacketDir::Ingress, prefix4(*b"250-")),
         ],
     );
 
@@ -147,7 +138,7 @@ fn smtp_auth_denied_runtime_path_materializes_auth_failure_ir() {
         &[
             (PacketDir::Ingress, prefix4(*b"220 ")),
             (PacketDir::Egress, prefix4(*b"EHLO")),
-            (PacketDir::Ingress, prefix4(*b"250 ")),
+            (PacketDir::Ingress, prefix4(*b"250-")),
             (PacketDir::Egress, prefix4(*b"AUTH")),
             (PacketDir::Ingress, prefix4(*b"535 ")),
         ],
@@ -179,7 +170,7 @@ fn smtp_auth_denied_runtime_ir_does_not_materialize_for_auth_ok() {
         &[
             (PacketDir::Ingress, prefix4(*b"220 ")),
             (PacketDir::Egress, prefix4(*b"EHLO")),
-            (PacketDir::Ingress, prefix4(*b"250 ")),
+            (PacketDir::Ingress, prefix4(*b"250-")),
             (PacketDir::Egress, prefix4(*b"AUTH")),
             (PacketDir::Ingress, prefix4(*b"235 ")),
         ],
@@ -202,14 +193,11 @@ fn smtp_data_denied_runtime_path_materializes_message_failure_ir() {
         &[
             (PacketDir::Ingress, prefix4(*b"220 ")),
             (PacketDir::Egress, prefix4(*b"EHLO")),
-            (PacketDir::Ingress, prefix4(*b"250 ")),
+            (PacketDir::Ingress, prefix4(*b"250-")),
             (PacketDir::Egress, prefix4(*b"AUTH")),
             (PacketDir::Ingress, prefix4(*b"235 ")),
             (PacketDir::Egress, prefix4(*b"MAIL")),
-            (
-                PacketDir::Ingress,
-                bytes(&[b'2', b'5', b'0', b' ', b'2', b'.', b'1', b'.']),
-            ),
+            (PacketDir::Ingress, bytes(b"250 2.1.0 ")),
             (PacketDir::Egress, prefix4(*b"RCPT")),
             (
                 PacketDir::Ingress,
@@ -218,7 +206,7 @@ fn smtp_data_denied_runtime_path_materializes_message_failure_ir() {
             (PacketDir::Egress, prefix4(*b"DATA")),
             (PacketDir::Ingress, prefix4(*b"354 ")),
             (PacketDir::Egress, bytes(&[0x0d, 0x0a, b'.', 0x0d, 0x0a])),
-            (PacketDir::Ingress, prefix4(*b"550 ")),
+            (PacketDir::Ingress, bytes(b"550 5.7.1 Message rejected")),
         ],
     );
 
@@ -242,14 +230,11 @@ fn smtp_data_denied_runtime_ir_does_not_materialize_for_message_queued() {
         &[
             (PacketDir::Ingress, prefix4(*b"220 ")),
             (PacketDir::Egress, prefix4(*b"EHLO")),
-            (PacketDir::Ingress, prefix4(*b"250 ")),
+            (PacketDir::Ingress, prefix4(*b"250-")),
             (PacketDir::Egress, prefix4(*b"AUTH")),
             (PacketDir::Ingress, prefix4(*b"235 ")),
             (PacketDir::Egress, prefix4(*b"MAIL")),
-            (
-                PacketDir::Ingress,
-                bytes(&[b'2', b'5', b'0', b' ', b'2', b'.', b'1', b'.']),
-            ),
+            (PacketDir::Ingress, bytes(b"250 2.1.0 ")),
             (PacketDir::Egress, prefix4(*b"RCPT")),
             (
                 PacketDir::Ingress,
@@ -260,7 +245,7 @@ fn smtp_data_denied_runtime_ir_does_not_materialize_for_message_queued() {
             (PacketDir::Egress, bytes(&[0x0d, 0x0a, b'.', 0x0d, 0x0a])),
             (
                 PacketDir::Ingress,
-                bytes(&[b'2', b'5', b'0', b' ', b'2', b'.', b'0', b'.', b'0']),
+                bytes(b"250 2.0.0 Ok: queued as fixture"),
             ),
         ],
     );
@@ -323,24 +308,15 @@ fn pop3_list_runtime_path_materializes_mailbox_list_ir() {
         110,
         "pop3-client",
         &[
-            (
-                PacketDir::Ingress,
-                bytes(&[b'+', b'O', b'K', b' ', b'P', b'O', b'P', b'3']),
-            ),
+            (PacketDir::Ingress, bytes(b"+OK Mailpit POP3 server\r\n")),
             (PacketDir::Egress, prefix4(*b"USER")),
-            (
-                PacketDir::Ingress,
-                bytes(&[b'+', b'O', b'K', b' ', b' ', b'U', b's', b'e', b'r']),
-            ),
+            (PacketDir::Ingress, bytes(b"+OK\r\n")),
             (PacketDir::Egress, prefix4(*b"PASS")),
-            (
-                PacketDir::Ingress,
-                bytes(&[b'+', b'O', b'K', b' ', b' ', b'M', b'a', b'i', b'l']),
-            ),
+            (PacketDir::Ingress, bytes(b"+OK signed in\r\n")),
             (PacketDir::Egress, prefix4(*b"LIST")),
             (
                 PacketDir::Ingress,
-                bytes(&[b'+', b'O', b'K', b' ', b' ', b'm', b'e', b's', b's']),
+                bytes(b"+OK 2 messages (768 octets)\r\n"),
             ),
         ],
     );
@@ -363,7 +339,7 @@ fn run_tcp_mail_path(
     packets: &[(PacketDir, &[(u16, u8)])],
 ) -> ExportBundle {
     let binding = compile_file(&dsl_fixture_path(fixture)).unwrap();
-    let config = SessionConfig::for_template(binding.template).unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, cookie, 8800, process_name));
     session.ingest(route_fact(2, cookie, 2));

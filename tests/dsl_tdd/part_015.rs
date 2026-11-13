@@ -39,7 +39,7 @@ fn smtp_data_denied_path_materializes_denied_queue_phase() {
         Some(25),
         Some(0x32),
         Some(0x3235),
-        Some(0x32353020),
+        Some(0x3235302d),
     ));
     session.ingest(packet_fact_with_dir_and_payload(
         7,
@@ -90,6 +90,8 @@ fn smtp_data_denied_path_materializes_denied_queue_phase() {
             (5, 0x2e),
             (6, 0x31),
             (7, 0x2e),
+            (8, 0x30),
+            (9, 0x20),
         ],
     ));
     session.ingest(packet_fact_with_dir_and_payload(
@@ -153,16 +155,41 @@ fn smtp_data_denied_path_materializes_denied_queue_phase() {
         Some(25),
         &[(0, 0x0d), (1, 0x0a), (2, 0x2e), (3, 0x0d), (4, 0x0a)],
     ));
-    session.ingest(packet_fact_with_dir_and_payload(
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
         16,
         8306,
         0x18,
         PacketDir::Ingress,
         Some(53020),
         Some(25),
-        Some(0x35),
-        Some(0x3535),
-        Some(0x35353020),
+        &[
+            (0, 0x35),
+            (1, 0x35),
+            (2, 0x30),
+            (3, 0x20),
+            (4, 0x35),
+            (5, 0x2e),
+            (6, 0x37),
+            (7, 0x2e),
+            (8, 0x31),
+            (9, 0x20),
+            (10, 0x4d),
+            (11, 0x65),
+            (12, 0x73),
+            (13, 0x73),
+            (14, 0x61),
+            (15, 0x67),
+            (16, 0x65),
+            (17, 0x20),
+            (18, 0x72),
+            (19, 0x65),
+            (20, 0x6a),
+            (21, 0x65),
+            (22, 0x63),
+            (23, 0x74),
+            (24, 0x65),
+            (25, 0x64),
+        ],
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(150));
 
@@ -218,7 +245,7 @@ fn smtp_data_denied_path_does_not_match_success_queue_response() {
         Some(25),
         Some(0x32),
         Some(0x3235),
-        Some(0x32353020),
+        Some(0x3235302d),
     ));
     session.ingest(packet_fact_with_dir_and_payload(
         7,
@@ -269,6 +296,8 @@ fn smtp_data_denied_path_does_not_match_success_queue_response() {
             (5, 0x2e),
             (6, 0x31),
             (7, 0x2e),
+            (8, 0x30),
+            (9, 0x20),
         ],
     ));
     session.ingest(packet_fact_with_dir_and_payload(
@@ -332,16 +361,18 @@ fn smtp_data_denied_path_does_not_match_success_queue_response() {
         Some(25),
         &[(0, 0x0d), (1, 0x0a), (2, 0x2e), (3, 0x0d), (4, 0x0a)],
     ));
-    session.ingest(packet_fact_with_dir_and_payload(
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
         16,
         8307,
         0x18,
         PacketDir::Ingress,
         Some(53021),
         Some(25),
-        Some(0x32),
-        Some(0x3235),
-        Some(0x32353020),
+        &b"250 2.0.0 Ok: queued as fixture"
+            .iter()
+            .enumerate()
+            .map(|(offset, byte)| (offset as u16, *byte))
+            .collect::<Vec<_>>(),
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(150));
 
@@ -393,7 +424,7 @@ fn smtp_rcpt_denied_path_materializes_recipient_denied_phase() {
         Some(25),
         Some(0x32),
         Some(0x3235),
-        Some(0x32353020),
+        Some(0x3235302d),
     ));
     session.ingest(packet_fact_with_dir_and_payload(
         7,
@@ -444,6 +475,8 @@ fn smtp_rcpt_denied_path_materializes_recipient_denied_phase() {
             (5, 0x2e),
             (6, 0x31),
             (7, 0x2e),
+            (8, 0x30),
+            (9, 0x20),
         ],
     ));
     session.ingest(packet_fact_with_dir_and_payload(
@@ -457,16 +490,37 @@ fn smtp_rcpt_denied_path_materializes_recipient_denied_phase() {
         Some(0x5243),
         Some(0x52435054),
     ));
-    session.ingest(packet_fact_with_dir_and_payload(
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
         12,
         8308,
         0x18,
         PacketDir::Ingress,
         Some(53022),
         Some(25),
-        Some(0x35),
-        Some(0x3535),
-        Some(0x35353020),
+        &[
+            (0, 0x35),
+            (1, 0x35),
+            (2, 0x30),
+            (3, 0x20),
+            (4, 0x35),
+            (5, 0x2e),
+            (6, 0x31),
+            (7, 0x2e),
+            (8, 0x31),
+            (9, 0x20),
+            (10, 0x4e),
+            (11, 0x6f),
+            (12, 0x20),
+            (13, 0x73),
+            (14, 0x75),
+            (15, 0x63),
+            (16, 0x68),
+            (17, 0x20),
+            (18, 0x75),
+            (19, 0x73),
+            (20, 0x65),
+            (21, 0x72),
+        ],
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(110));
 

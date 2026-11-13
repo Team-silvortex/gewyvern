@@ -177,6 +177,11 @@ Do not infer vocabulary from names alone. Use the exact tables in
 - built-in fragments and fragment parameters
 - evidence tiers
 
+For RTSP response candidates, use the reference's bounded
+`rtsp_response_observed:remote:rtsp:<kind>` vocabulary, not fixed offsets for
+header names or a bare `200` match. Check the collector's payload coverage;
+these candidates do not prove request correlation or media delivery.
+
 Custom operation, model, module, and phase ids are allowed where their
 respective reference sections say so. Custom pipeline steps and built-in
 fragment ids are not allowed.

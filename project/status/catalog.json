@@ -835,7 +835,7 @@
       "independence": "internal",
       "contract": {
         "id": "linux-attach-validation",
-        "version": "1.18.0",
+        "version": "1.21.0",
         "stability": "stable",
         "surfaces": [
           "attach-smoke",
@@ -860,6 +860,16 @@
           "real-postgres-redis-framed-capture",
           "real-mysql-memcached-framed-capture",
           "real-mqtt-nats-broker-capture",
+          "real-smtp-submission-capture",
+          "smtp-command-reply-candidate-separation",
+          "smtp-all-receive-stage-packet-cross-check",
+          "real-pop3-mailbox-retrieval-capture",
+          "pop3-dot-unstuffing-and-delete-reset-proof",
+          "pop3-declared-size-discrepancy-disclosure",
+          "real-rtsp-media-control-capture",
+          "bounded-packet-local-rtsp-header-candidates",
+          "rtsp-keepalive-refusal-and-play-separation",
+          "bounded-breadth-map-json-export",
           "mqtt-session-resume-and-variable-puback-id",
           "nats-async-info-and-permission-error-recovery",
           "negative-message-bodies-before-real-error-deduplication",
@@ -982,6 +992,16 @@
         { "kind": "source", "path": "src/validation_harness/linux_tcp_capture/linux/data_breadth/memcached.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/linux_tcp_capture/linux/data_breadth/mqtt.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/linux_tcp_capture/linux/data_breadth/nats.rs", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/linux_tcp_capture/linux/data_breadth/smtp.rs", "state": "present" },
+        { "kind": "test", "path": "tests/smtp_protocol_runtime_tdd.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_smtp_linux_x86_64_20261113.json", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/linux_tcp_capture/linux/data_breadth/pop3.rs", "state": "present" },
+        { "kind": "test", "path": "tests/pop3_protocol_runtime_tdd.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_pop3_linux_x86_64_20261113.json", "state": "present" },
+        { "kind": "source", "path": "src/ir/rtsp.rs", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/linux_tcp_capture/linux/data_breadth/rtsp.rs", "state": "present" },
+        { "kind": "test", "path": "tests/rtsp_protocol_runtime_tdd.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_rtsp_linux_x86_64_20261113.json", "state": "present" },
         { "kind": "test", "path": "docs/fixtures/gewyvern_messaging_linux_x86_64_20261113.json", "state": "present" },
         { "kind": "test", "path": "docs/fixtures/gewyvern_mysql_memcached_linux_x86_64_20261113.json", "state": "present" },
         { "kind": "test", "path": "docs/fixtures/gewyvern_data_breadth_linux_x86_64_20261113.json", "state": "present" },
@@ -1330,7 +1350,7 @@
         { "kind": "test", "path": "docs/fixtures/gewyvern_messaging_linux_x86_64_20261113.json", "state": "present" },
         { "kind": "test", "path": "tests/dns_error_runtime_tdd.rs", "state": "present" }
       ],
-      "next_gate": "Preserve package compatibility, deterministic strict diagnostics, package-root confinement, and request-local snapshot freshness; future catalog filters must reuse snapshots rather than install a process-wide cache. Real FTP/LDAP authentication, bounded bidirectional UDP/DNS, PostgreSQL/Redis, MySQL/Memcached and MQTT/NATS exchanges now cover twenty-eight packages; registry size does not establish full-catalog wire validation. PostgreSQL error candidates remain conservative English field prefixes; database, cache and messaging response predicates are bounded packet candidates, not general stream decoders. Broader UDP, IPv6, encrypted transports, recursive DNS/EDNS/DNSSEC, additional database/cache protocols, advanced exchanges and throughput remain separate breadth gates."
+      "next_gate": "Preserve package compatibility, deterministic strict diagnostics, package-root confinement, and request-local snapshot freshness; future catalog filters must reuse snapshots rather than install a process-wide cache. Real FTP/LDAP authentication, bounded bidirectional UDP/DNS, PostgreSQL/Redis, MySQL/Memcached, MQTT/NATS, SMTP, POP3 and RTSP exchanges now exercise forty-three packages (SMTP data-denied is negative-only real coverage); registry size does not establish full-catalog wire validation. PostgreSQL error candidates remain conservative English field prefixes; SMTP and POP3 signatures deliberately omit ambiguous generic replies. The POP3 fixture discloses Mailpit's extra RETR CRLF without removing raw bytes; it does not certify server conformance. Database, cache, messaging, mail and RTSP predicates are bounded packet candidates, not general stream decoders. RTSP uses complete headers within 512 bytes and does not correlate requests by CSeq or prove media delivery; sparse collectors retain unsupported-offset diagnostics. Broader UDP, IPv6, encrypted transports, recursive DNS/EDNS/DNSSEC, alternate mail servers, advanced exchanges and throughput remain separate breadth gates."
     },
     {
       "id": "leserpent-1x/control-plane/orchestration-persistence",

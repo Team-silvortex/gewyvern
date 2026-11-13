@@ -15968,7 +15968,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(linux_attach.maturity, Maturity::Mature);
     assert_eq!(linux_attach.priority, Priority::Maintenance);
     assert_eq!(linux_attach.completion, 100);
-    assert_eq!(linux_attach.contract.version, "1.18.0");
+    assert_eq!(linux_attach.contract.version, "1.21.0");
     for surface in [
         "artifact-embedded-fixed-smoke-sources",
         "exclusive-private-smoke-source-materialization",
@@ -15987,6 +15987,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "real-postgres-redis-framed-capture",
         "real-mysql-memcached-framed-capture",
         "real-mqtt-nats-broker-capture",
+        "real-smtp-submission-capture",
+        "smtp-command-reply-candidate-separation",
+        "smtp-all-receive-stage-packet-cross-check",
+        "real-pop3-mailbox-retrieval-capture",
+        "pop3-dot-unstuffing-and-delete-reset-proof",
+        "pop3-declared-size-discrepancy-disclosure",
+        "real-rtsp-media-control-capture",
+        "bounded-packet-local-rtsp-header-candidates",
+        "rtsp-keepalive-refusal-and-play-separation",
+        "bounded-breadth-map-json-export",
         "mqtt-session-resume-and-variable-puback-id",
         "nats-async-info-and-permission-error-recovery",
         "negative-message-bodies-before-real-error-deduplication",
@@ -16030,6 +16040,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }));
     assert!(linux_attach.evidence.iter().any(|item| {
         item.path == "docs/fixtures/gewyvern_messaging_linux_x86_64_20261113.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(linux_attach.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/gewyvern_smtp_linux_x86_64_20261113.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(linux_attach.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/gewyvern_rtsp_linux_x86_64_20261113.json"
             && item.state == EvidenceState::Present
     }));
     for remaining_gate in [

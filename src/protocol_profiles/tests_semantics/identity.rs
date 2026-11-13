@@ -34,9 +34,12 @@ fn imap_and_pop3_auth_denied_surfaces_expose_machine_readable_entry_semantics() 
     assert_eq!(pop3_semantics.category, "failure-path");
     assert_eq!(
         pop3_semantics.operator_focus,
-        "mailbox password rejection after USER/PASS credential exchange"
+        "explicit POP3 password rejection candidate, not generic -ERR"
     );
-    assert_eq!(pop3_semantics.typical_signal.as_deref(), Some("-ERR"));
+    assert_eq!(
+        pop3_semantics.typical_signal.as_deref(),
+        Some("-ERR invalid password")
+    );
     assert_eq!(
         pop3_semantics.primary_failure_mode.as_deref(),
         Some("server_denied")
@@ -193,7 +196,10 @@ fn smtp_and_kerberos_failure_surfaces_expose_machine_readable_entry_semantics() 
         rcpt_denied_semantics.operator_focus,
         "recipient rejection during SMTP envelope construction"
     );
-    assert_eq!(rcpt_denied_semantics.typical_signal.as_deref(), Some("550"));
+    assert_eq!(
+        rcpt_denied_semantics.typical_signal.as_deref(),
+        Some("550 5.1.0 / 550 5.1.1")
+    );
     assert_eq!(
         rcpt_denied_semantics.primary_failure_mode.as_deref(),
         Some("server_denied")
@@ -214,9 +220,12 @@ fn smtp_and_kerberos_failure_surfaces_expose_machine_readable_entry_semantics() 
         .expect("smtp data-denied should expose semantics");
     assert_eq!(
         data_denied_semantics.operator_focus,
-        "message rejection after SMTP body handoff"
+        "explicit SMTP message-rejection candidate; body handoff requires separate evidence"
     );
-    assert_eq!(data_denied_semantics.typical_signal.as_deref(), Some("550"));
+    assert_eq!(
+        data_denied_semantics.typical_signal.as_deref(),
+        Some("550 5.7.1 Message rejected")
+    );
 
     let kerberos_error =
         protocol_surface("kerberos", "as-error").expect("kerberos as-error should exist");

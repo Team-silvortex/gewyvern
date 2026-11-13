@@ -6,7 +6,8 @@ use super::{
     QuicPacketHeaderQualifiers, ReasonTransportPredicateFields,
 };
 use crate::ir::{
-    NarrativeTemplate, ObservationScope, PayloadByteMatch, PayloadByteSequenceMatch, SignalKind,
+    NarrativeTemplate, ObservationScope, PayloadByteMatch, PayloadByteSequenceMatch,
+    RtspResponseKind, SignalKind,
 };
 use crate::ledger::{PacketDir, QuicFrameType, QuicPacketType};
 use crate::reason::{
@@ -164,6 +165,41 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
             .ok_or_else(|| ExportError::InvalidShape("reason_predicate.kind".into()))?
             .as_str()?
         {
+            "rtsp_response_observed" => {
+                if object
+                    .keys()
+                    .any(|key| !matches!(key.as_str(), "kind" | "remote_port" | "response"))
+                {
+                    return Err(ExportError::InvalidShape(
+                        "rtsp_response_observed fields".into(),
+                    ));
+                }
+                let port = object
+                    .get("remote_port")
+                    .ok_or_else(|| {
+                        ExportError::InvalidShape("reason_predicate.remote_port".into())
+                    })?
+                    .as_i64()?;
+                let remote_port = u16::try_from(port).map_err(|_| {
+                    ExportError::InvalidValue("RTSP remote port out of range".into())
+                })?;
+                let response = object
+                    .get("response")
+                    .ok_or_else(|| ExportError::InvalidShape("reason_predicate.response".into()))?
+                    .as_str()?;
+                let kind = match response {
+                    "options_ok" => RtspResponseKind::Options,
+                    "describe_ok" => RtspResponseKind::Describe,
+                    "setup_ok" => RtspResponseKind::Setup,
+                    "play_ok" => RtspResponseKind::Play,
+                    _ => {
+                        return Err(ExportError::InvalidValue(format!(
+                            "unknown RTSP response '{response}'"
+                        )));
+                    }
+                };
+                Ok(ReasonPredicate::RtspResponseObserved { remote_port, kind })
+            }
             "socket_state_observed" => Ok(ReasonPredicate::SocketStateObserved {
                 local_port: parse_optional_u16(
                     object.get("local_port").unwrap_or(&JsonValue::Null),

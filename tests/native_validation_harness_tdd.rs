@@ -1295,6 +1295,390 @@ fn mysql_memcached_proof_checks_error_identity_and_each_candidate_packet() {
 }
 
 #[test]
+fn smtp_proof_separates_command_success_from_message_outcomes() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_smtp_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    assert_eq!(proof["execution"]["host_count"], 1);
+    assert_eq!(proof["execution"]["image_pulls_during_campaign"], false);
+    assert_eq!(proof["execution"]["real_post_body_denial_positive"], false);
+    assert_eq!(proof["before_fix"]["ok"], false);
+    assert_eq!(
+        proof["before_fix"]["package_failures"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let (mut packets, mut states, mut bytes, mut replays) = (0, 0, 0, 0);
+    let mut cookies = std::collections::BTreeSet::new();
+    for run in runs {
+        assert_eq!(run["ok"], true);
+        assert_eq!(run["mode"], "smtp-breadth");
+        let phases = run["phases"].as_array().unwrap();
+        assert_eq!(phases.len(), 1);
+        let phase = &phases[0];
+        assert_eq!(phase["protocol"], "smtp");
+        assert_eq!(phase["package_failures"], serde_json::json!([]));
+        for field in ["ok", "owned_resources_removed", "internal_network"] {
+            assert_eq!(phase[field], true);
+        }
+        assert_eq!(phase["published_ports"], false);
+        assert_eq!(phase["packet_counts"]["dropped"], 0);
+        assert_eq!(phase["tcp_state_counts"]["dropped"], 0);
+        assert_eq!(phase["selected_query_or_command_count"], 19);
+        packets += phase["packet_counts"]["total"].as_u64().unwrap();
+        states += phase["tcp_state_counts"]["total"].as_u64().unwrap();
+        let selected = phase["selected_cookies"].as_array().unwrap();
+        assert_eq!(selected.len(), 2);
+        for cookie in selected {
+            assert!(cookies.insert(cookie.as_u64().unwrap()));
+        }
+        assert!(cookies.insert(phase["unselected_neighbor_cookie"].as_u64().unwrap()));
+        let observations = phase["observations"].as_array().unwrap();
+        assert_eq!(observations.len(), 2);
+        for (index, observation) in observations.iter().enumerate() {
+            assert_eq!(observation["cookie"], selected[index]);
+            assert_eq!(observation["client_result"], observation["captured_result"]);
+            assert_eq!(
+                observation["response_sha256"],
+                observation["captured_sha256"]
+            );
+            bytes += observation["response_bytes"].as_u64().unwrap();
+            let replies = observation["client_result"]["replies"].as_array().unwrap();
+            let codes: Vec<_> = replies
+                .iter()
+                .map(|r| r["code"].as_u64().unwrap())
+                .collect();
+            assert_eq!(
+                codes,
+                if index == 0 {
+                    vec![220, 250, 535, 530, 250, 221]
+                } else {
+                    vec![
+                        220, 250, 235, 503, 250, 550, 250, 354, 250, 250, 250, 250, 354, 250, 221,
+                    ]
+                }
+            );
+            assert!(replies[1]["lines"].as_array().unwrap().len() > 1);
+            if index == 0 {
+                assert_eq!(replies[4]["lines"][0], "2.0.0 Ok");
+            } else {
+                for at in [8, 13] {
+                    assert!(
+                        replies[at]["lines"][0]
+                            .as_str()
+                            .unwrap()
+                            .starts_with("2.0.0 Ok: queued as ")
+                    );
+                }
+                assert_eq!(replies[9]["lines"][0], "2.0.0 Ok");
+            }
+        }
+        let packages = phase["packages"].as_array().unwrap();
+        assert_eq!(packages.len(), 8);
+        let mut paths = std::collections::BTreeSet::new();
+        for package in packages {
+            let path = package["path"].as_str().unwrap();
+            assert!(paths.insert(path));
+            let matched = package["matched_cookies"].as_array().unwrap();
+            let expected = match path {
+                "protocols/smtp/session/main.gewy" => selected.clone(),
+                "protocols/smtp/auth-denied/main.gewy" => vec![selected[0].clone()],
+                "protocols/smtp/data-denied/main.gewy" => vec![],
+                "protocols/smtp/auth/main.gewy"
+                | "protocols/smtp/mail/main.gewy"
+                | "protocols/smtp/rcpt/main.gewy"
+                | "protocols/smtp/rcpt-denied/main.gewy"
+                | "protocols/smtp/data/main.gewy" => vec![selected[1].clone()],
+                _ => panic!("unexpected SMTP package {path}"),
+            };
+            assert_eq!(*matched, expected);
+            assert_eq!(package["replay_identical"], true);
+            assert_eq!(package["process_attribution"], false);
+            assert_eq!(package["request_payload_observed"], false);
+            assert_eq!(
+                package["source_sha256"],
+                proof["artifact_bindings"]["build"][path]
+            );
+            replays += 1;
+        }
+    }
+    assert_eq!(proof["totals"]["packet_events"], packets);
+    assert_eq!(proof["totals"]["tcp_state_events"], states);
+    assert_eq!(proof["totals"]["server_response_bytes"], bytes);
+    assert_eq!(proof["totals"]["package_replays"], replays);
+    assert_eq!(proof["messaging_control"]["ok"], true);
+    assert_eq!(proof["fresh_http_captures"].as_array().unwrap().len(), 3);
+    for http in proof["fresh_http_captures"].as_array().unwrap() {
+        assert_eq!(http["ok"], true);
+    }
+    for key in [
+        "existing_container_identities_unchanged",
+        "existing_network_identities_unchanged",
+        "existing_volume_inventory_unchanged",
+    ] {
+        assert_eq!(proof["cleanup"][key], true);
+    }
+    assert_eq!(proof["cleanup"]["global_prune_used"], false);
+}
+
+#[test]
+fn pop3_proof_preserves_raw_mailbox_bytes_and_discloses_server_size_quirk() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_pop3_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    assert_eq!(proof["execution"]["host_count"], 1);
+    assert_eq!(proof["execution"]["image_pulls_during_campaign"], false);
+    assert_eq!(
+        proof["execution"]["breadth_event_dump_stdout_limit"],
+        2 * 1024 * 1024
+    );
+    assert_eq!(proof["before_fix"]["ok"], false);
+    assert_eq!(
+        proof["before_fix"]["package_failures"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let (mut packets, mut states, mut bytes, mut replays) = (0, 0, 0, 0);
+    for run in runs {
+        assert_eq!(run["ok"], true);
+        assert_eq!(run["mode"], "pop3-breadth");
+        let phases = run["phases"].as_array().unwrap();
+        assert_eq!(phases.len(), 1);
+        let phase = &phases[0];
+        assert_eq!(phase["protocol"], "pop3");
+        assert_eq!(phase["package_failures"], serde_json::json!([]));
+        for field in ["ok", "owned_resources_removed", "internal_network"] {
+            assert_eq!(phase[field], true);
+        }
+        assert_eq!(phase["published_ports"], false);
+        assert_eq!(phase["packet_counts"]["dropped"], 0);
+        assert_eq!(phase["tcp_state_counts"]["dropped"], 0);
+        assert_eq!(phase["selected_query_or_command_count"], 20);
+        packets += phase["packet_counts"]["total"].as_u64().unwrap();
+        states += phase["tcp_state_counts"]["total"].as_u64().unwrap();
+        let selected = phase["selected_cookies"].as_array().unwrap();
+        assert_eq!(selected.len(), 2);
+        assert!(!selected.contains(&phase["unselected_neighbor_cookie"]));
+        let observations = phase["observations"].as_array().unwrap();
+        assert_eq!(observations.len(), 2);
+        for (index, observation) in observations.iter().enumerate() {
+            assert_eq!(observation["client_result"], observation["captured_result"]);
+            assert_eq!(
+                observation["response_sha256"],
+                observation["captured_sha256"]
+            );
+            assert_eq!(observation["cookie"], selected[index]);
+            bytes += observation["response_bytes"].as_u64().unwrap();
+            let replies = observation["client_result"]["replies"].as_array().unwrap();
+            assert_eq!(replies.len(), if index == 0 { 5 } else { 17 });
+            if index == 0 {
+                assert_eq!(replies[2]["status"], "-ERR invalid password");
+                assert_eq!(replies[3]["status"], "-ERR user not authenticated");
+                continue;
+            }
+            assert_eq!(replies[2]["status"], "+OK signed in");
+            assert_eq!(replies[6]["ok"], false);
+            assert_eq!(replies[12]["ok"], false);
+            assert_eq!(replies[14]["status"], replies[3]["status"]);
+            assert_eq!(replies[15]["body_hex"], replies[4]["body_hex"]);
+            let retrievals = observation["client_result"]["retrievals"]
+                .as_array()
+                .unwrap();
+            assert_eq!(retrievals.len(), 2);
+            for retrieval in retrievals {
+                assert_eq!(retrieval["size_conformant"], false);
+                assert_eq!(retrieval["known_mailpit_extra_crlf"], true);
+                assert_eq!(
+                    retrieval["unstuffed_octets"].as_u64().unwrap(),
+                    retrieval["declared_octets"].as_u64().unwrap() + 2
+                );
+            }
+        }
+        let packages = phase["packages"].as_array().unwrap();
+        assert_eq!(packages.len(), 3);
+        for package in packages {
+            let path = package["path"].as_str().unwrap();
+            let cookie = match path {
+                "protocols/pop3/auth-denied/main.gewy" => &selected[0],
+                "protocols/pop3/auth/main.gewy" | "protocols/pop3/list/main.gewy" => &selected[1],
+                _ => panic!("unexpected POP3 package {path}"),
+            };
+            assert_eq!(package["matched_cookies"], serde_json::json!([cookie]));
+            assert_eq!(package["replay_identical"], true);
+            assert_eq!(package["process_attribution"], false);
+            assert_eq!(package["request_payload_observed"], false);
+            assert_eq!(
+                package["source_sha256"],
+                proof["artifact_bindings"]["build"][path]
+            );
+            replays += 1;
+        }
+    }
+    assert_eq!(proof["totals"]["packet_events"], packets);
+    assert_eq!(proof["totals"]["tcp_state_events"], states);
+    assert_eq!(proof["totals"]["server_response_bytes"], bytes);
+    assert_eq!(proof["totals"]["package_replays"], replays);
+    assert_eq!(proof["smtp_control"]["ok"], true);
+    let http = proof["fresh_http_captures"].as_array().unwrap();
+    assert_eq!(http.len(), 3);
+    assert!(http.iter().all(|run| run["ok"] == true));
+    for key in [
+        "existing_container_identities_unchanged",
+        "existing_network_identities_unchanged",
+        "existing_volume_inventory_unchanged",
+    ] {
+        assert_eq!(proof["cleanup"][key], true);
+    }
+    assert_eq!(proof["cleanup"]["global_prune_used"], false);
+}
+
+#[test]
+fn rtsp_proof_separates_control_success_from_refusal_and_keepalive() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_rtsp_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    assert_eq!(proof["execution"]["host_count"], 1);
+    assert_eq!(proof["execution"]["product_max_header_bytes"], 512);
+    assert_eq!(
+        proof["execution"]["full_dialogue_correlation_in_product"],
+        false
+    );
+    assert_eq!(proof["before_fix"]["ok"], false);
+    assert_eq!(
+        proof["before_fix"]["package_failures"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let (mut packets, mut states, mut bytes, mut replays) = (0, 0, 0, 0);
+    for run in runs {
+        assert_eq!(run["ok"], true);
+        assert_eq!(run["mode"], "rtsp-breadth");
+        let phases = run["phases"].as_array().unwrap();
+        assert_eq!(phases.len(), 1);
+        let phase = &phases[0];
+        assert_eq!(phase["protocol"], "rtsp");
+        assert_eq!(phase["package_failures"], serde_json::json!([]));
+        for field in ["ok", "owned_resources_removed", "internal_network"] {
+            assert_eq!(phase[field], true);
+        }
+        assert_eq!(phase["published_ports"], false);
+        assert_eq!(phase["packet_counts"]["dropped"], 0);
+        assert_eq!(phase["tcp_state_counts"]["dropped"], 0);
+        assert_eq!(phase["selected_query_or_command_count"], 11);
+        packets += phase["packet_counts"]["total"].as_u64().unwrap();
+        states += phase["tcp_state_counts"]["total"].as_u64().unwrap();
+        let selected = phase["selected_cookies"].as_array().unwrap();
+        assert_eq!(selected.len(), 2);
+        assert!(!selected.contains(&phase["unselected_neighbor_cookie"]));
+        let observations = phase["observations"].as_array().unwrap();
+        assert_eq!(observations.len(), 2);
+        for (index, observation) in observations.iter().enumerate() {
+            assert_eq!(observation["client_result"], observation["captured_result"]);
+            assert_eq!(
+                observation["response_sha256"],
+                observation["captured_sha256"]
+            );
+            assert_eq!(observation["cookie"], selected[index]);
+            bytes += observation["response_bytes"].as_u64().unwrap();
+            let replies = observation["client_result"]["replies"].as_array().unwrap();
+            let codes: Vec<_> = replies.iter().map(|reply| reply["code"].clone()).collect();
+            assert_eq!(
+                serde_json::json!(codes),
+                if index == 0 {
+                    serde_json::json!([200, 404])
+                } else {
+                    serde_json::json!([200, 200, 461, 200, 200, 200, 200, 200, 200])
+                }
+            );
+            for (at, reply) in replies.iter().enumerate() {
+                assert_eq!(reply["cseq"], at + 1);
+            }
+            if index == 1 {
+                assert_eq!(replies[1]["headers"]["content-type"], "application/sdp");
+                assert!(replies[1]["body_bytes"].as_u64().unwrap() > 0);
+                assert!(replies[2]["headers"]["session"].is_string());
+                let session = &replies[3]["headers"]["session"];
+                assert!(session.is_string());
+                for reply in &replies[4..8] {
+                    assert_eq!(&reply["headers"]["session"], session);
+                }
+                for at in [4, 7] {
+                    assert!(
+                        replies[at]["headers"]["rtp-info"]
+                            .as_str()
+                            .unwrap()
+                            .starts_with("url=rtsp://")
+                    );
+                }
+                for at in [5, 6] {
+                    assert!(replies[at]["headers"]["rtp-info"].is_null());
+                }
+            }
+        }
+        let packages = phase["packages"].as_array().unwrap();
+        assert_eq!(packages.len(), 4);
+        let mut paths = std::collections::BTreeSet::new();
+        for package in packages {
+            let path = package["path"].as_str().unwrap();
+            assert!(paths.insert(path));
+            let expected = match path {
+                "protocols/rtsp/options/main.gewy" => selected.clone(),
+                "protocols/rtsp/describe/main.gewy"
+                | "protocols/rtsp/setup/main.gewy"
+                | "protocols/rtsp/play/main.gewy" => vec![selected[1].clone()],
+                _ => panic!("unexpected RTSP package {path}"),
+            };
+            assert_eq!(package["matched_cookies"], serde_json::json!(expected));
+            assert_eq!(package["replay_identical"], true);
+            assert_eq!(package["request_payload_observed"], false);
+            assert_eq!(package["process_attribution"], false);
+            assert_eq!(
+                package["source_sha256"],
+                proof["artifact_bindings"]["build"][path]
+            );
+            replays += 1;
+        }
+    }
+    assert_eq!(proof["totals"]["packet_events"], packets);
+    assert_eq!(proof["totals"]["tcp_state_events"], states);
+    assert_eq!(proof["totals"]["server_response_bytes"], bytes);
+    assert_eq!(proof["totals"]["package_replays"], replays);
+    assert_eq!(proof["pop3_control"]["ok"], true);
+    let http = proof["fresh_http_captures"].as_array().unwrap();
+    assert_eq!(http.len(), 3);
+    assert!(http.iter().all(|run| run["ok"] == true));
+    for key in [
+        "existing_container_identities_unchanged",
+        "existing_network_identities_unchanged",
+        "existing_volume_inventory_unchanged",
+    ] {
+        assert_eq!(proof["cleanup"][key], true);
+    }
+    assert_eq!(proof["cleanup"]["global_prune_used"], false);
+}
+
+#[test]
 fn messaging_proof_preserves_session_resume_and_byte_counted_message_boundaries() {
     let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
         "docs/fixtures/gewyvern_messaging_linux_x86_64_20261113.json",

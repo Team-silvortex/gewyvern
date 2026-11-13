@@ -120,6 +120,11 @@ impl FlowPredicate {
 
     pub fn observation_scope(&self) -> Option<ObservationScope> {
         match self {
+            FlowPredicate::RtspResponseObserved { remote_port, .. } => Some(ObservationScope {
+                dir: Some(crate::ledger::PacketDir::Ingress),
+                local_port: None,
+                remote_port: Some(*remote_port),
+            }),
             FlowPredicate::PacketObserved {
                 dir,
                 local_port,
@@ -176,6 +181,9 @@ impl FlowPredicate {
     pub fn required_payload_offsets(&self) -> Vec<u16> {
         let mut offsets = BTreeSet::new();
         match self {
+            FlowPredicate::RtspResponseObserved { .. } => {
+                offsets.extend(0..super::rtsp::MAX_HEADER_BYTES)
+            }
             FlowPredicate::PacketObserved {
                 byte4_mask,
                 byte13_mask,
@@ -217,6 +225,7 @@ impl FlowPredicate {
     pub fn required_fact_kinds(&self) -> Vec<FactKindTag> {
         match self {
             FlowPredicate::ProcessBound => vec![FactKindTag::SockLineage],
+            FlowPredicate::RtspResponseObserved { .. } => vec![FactKindTag::PacketMeta],
             FlowPredicate::SocketStateObserved { .. } => vec![FactKindTag::TcpState],
             FlowPredicate::PacketObserved { .. } => vec![FactKindTag::PacketMeta],
             FlowPredicate::DatagramObserved { .. } => vec![FactKindTag::PacketMeta],

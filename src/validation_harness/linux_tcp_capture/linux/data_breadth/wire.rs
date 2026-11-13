@@ -245,6 +245,9 @@ pub(super) fn describe(protocol: Protocol, bytes: &[u8]) -> Result<Value, Valida
         Protocol::Memcached => return super::memcached::describe(bytes),
         Protocol::Mqtt => return super::mqtt::describe(bytes),
         Protocol::Nats => return super::nats::describe(bytes),
+        Protocol::Smtp => return super::smtp::describe(bytes),
+        Protocol::Pop3 => return super::pop3::describe(bytes),
+        Protocol::Rtsp => return super::rtsp::describe(bytes),
         _ => (),
     }
     if matches!(protocol, Protocol::Redis) {
@@ -369,6 +372,9 @@ pub(super) fn expected(protocol: Protocol, control: bool) -> Value {
         (Protocol::Memcached, control) => super::memcached::expected(control),
         (Protocol::Mqtt, control) => super::mqtt::expected(control),
         (Protocol::Nats, control) => super::nats::expected(control),
+        (Protocol::Smtp, control) => super::smtp::expected(control),
+        (Protocol::Pop3, control) => super::pop3::expected(control),
+        (Protocol::Rtsp, control) => super::rtsp::expected(control),
         (Protocol::Postgres, false) => {
             json!({"auth":[3],"sqlstates":["28P01"],"rows":[],"ready":0,"ready_states":[],"completed_queries":0,"command_tags":[]})
         }
@@ -403,6 +409,9 @@ pub(super) fn exchange(
         Protocol::Memcached => super::memcached::interact(&mut wire, control)?,
         Protocol::Mqtt => super::mqtt::interact(&mut wire, control)?,
         Protocol::Nats => super::nats::interact(&mut wire, control)?,
+        Protocol::Smtp => super::smtp::interact(&mut wire, control)?,
+        Protocol::Pop3 => super::pop3::interact(&mut wire, control)?,
+        Protocol::Rtsp => super::rtsp::interact(&mut wire, target, control)?,
         Protocol::Redis => {
             let commands: Vec<Vec<&str>> = if control {
                 vec![
@@ -492,6 +501,12 @@ pub(super) fn exchange(
     let result = describe(protocol, &response)?;
     let matches = if matches!(protocol, Protocol::Nats) {
         super::nats::matches_expected(&result, control)
+    } else if matches!(protocol, Protocol::Smtp) {
+        super::smtp::matches_expected(&result, control)
+    } else if matches!(protocol, Protocol::Pop3) {
+        super::pop3::matches_expected(&result, control)
+    } else if matches!(protocol, Protocol::Rtsp) {
+        super::rtsp::matches_expected(&result, control)
     } else {
         result == expected(protocol, control)
     };

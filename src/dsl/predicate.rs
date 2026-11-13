@@ -13,6 +13,26 @@ use self::qualifier::{
 };
 
 pub(crate) fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
+    if let Some(rest) = value.strip_prefix("rtsp_response_observed:remote:") {
+        let Some((port, kind)) = rest.split_once(':') else {
+            return Err(DslError::InvalidValue(
+                "RTSP response requires remote port and candidate kind".into(),
+            ));
+        };
+        let remote_port = parse_named_port(port, "rtsp_response_observed")?;
+        let kind = match kind {
+            "options_ok" => crate::ir::RtspResponseKind::Options,
+            "describe_ok" => crate::ir::RtspResponseKind::Describe,
+            "setup_ok" => crate::ir::RtspResponseKind::Setup,
+            "play_ok" => crate::ir::RtspResponseKind::Play,
+            _ => {
+                return Err(DslError::InvalidValue(
+                    "unknown RTSP response candidate kind".into(),
+                ));
+            }
+        };
+        return Ok(FlowPredicate::RtspResponseObserved { remote_port, kind });
+    }
     if let Some(inner) = value
         .strip_prefix("all(")
         .and_then(|rest| rest.strip_suffix(')'))

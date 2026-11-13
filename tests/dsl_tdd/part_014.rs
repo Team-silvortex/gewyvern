@@ -39,7 +39,7 @@ fn smtp_mail_path_materializes_auth_and_mail_from_phases() {
         Some(25),
         Some(0x32),
         Some(0x3235),
-        Some(0x32353020),
+        Some(0x3235302d),
     ));
     session.ingest(packet_fact_with_dir_and_payload(
         7,
@@ -90,6 +90,8 @@ fn smtp_mail_path_materializes_auth_and_mail_from_phases() {
             (5, 0x2e),
             (6, 0x31),
             (7, 0x2e),
+            (8, 0x30),
+            (9, 0x20),
         ],
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(90));
@@ -149,7 +151,7 @@ fn smtp_rcpt_path_materializes_mail_and_rcpt_phases() {
         Some(25),
         Some(0x32),
         Some(0x3235),
-        Some(0x32353020),
+        Some(0x3235302d),
     ));
     session.ingest(packet_fact_with_dir_and_payload(
         7,
@@ -200,6 +202,8 @@ fn smtp_rcpt_path_materializes_mail_and_rcpt_phases() {
             (5, 0x2e),
             (6, 0x31),
             (7, 0x2e),
+            (8, 0x30),
+            (9, 0x20),
         ],
     ));
     session.ingest(packet_fact_with_dir_and_payload(
@@ -289,7 +293,7 @@ fn smtp_data_path_materializes_data_and_queue_phases() {
         Some(25),
         Some(0x32),
         Some(0x3235),
-        Some(0x32353020),
+        Some(0x3235302d),
     ));
     session.ingest(packet_fact_with_dir_and_payload(
         7,
@@ -340,6 +344,8 @@ fn smtp_data_path_materializes_data_and_queue_phases() {
             (5, 0x2e),
             (6, 0x31),
             (7, 0x2e),
+            (8, 0x30),
+            (9, 0x20),
         ],
     ));
     session.ingest(packet_fact_with_dir_and_payload(
@@ -420,6 +426,28 @@ fn smtp_data_path_materializes_data_and_queue_phases() {
             (6, 0x30),
             (7, 0x2e),
             (8, 0x30),
+            (9, 0x20),
+            (10, 0x4f),
+            (11, 0x6b),
+            (12, 0x3a),
+            (13, 0x20),
+            (14, 0x71),
+            (15, 0x75),
+            (16, 0x65),
+            (17, 0x75),
+            (18, 0x65),
+            (19, 0x64),
+            (20, 0x20),
+            (21, 0x61),
+            (22, 0x73),
+            (23, 0x20),
+            (24, 0x66),
+            (25, 0x69),
+            (26, 0x78),
+            (27, 0x74),
+            (28, 0x75),
+            (29, 0x72),
+            (30, 0x65),
         ],
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(150));

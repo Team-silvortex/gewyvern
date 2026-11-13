@@ -1,0 +1,2592 @@
+{
+  "schema_version": 1,
+  "proof": "linux-real-rtsp-control-and-session-recovery",
+  "captured_on": "2026-11-13",
+  "source_base_revision": "17c28d073cdfa6b70d9ca27318e7664c4062922d",
+  "working_tree_changes": true,
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "execution": {
+    "kernel": "7.0.0-42-generic",
+    "architecture": "x86_64",
+    "host_count": 1,
+    "kernel_count": 1,
+    "live_capture": "physical Linux; digest-pinned MediaMTX 1.21.3 on fresh owned internal Docker bridges",
+    "toolchain": "Rust 1.98; temporary two-CPU/four-GiB build container",
+    "packet_prefix_bytes": 1024,
+    "max_capture_events": 128,
+    "product_max_header_bytes": 512,
+    "product_max_unique_header_fields": 32,
+    "client_max_header_bytes": 2048,
+    "client_max_header_fields": 24,
+    "client_max_header_line_bytes": 512,
+    "client_max_body_bytes": 1024,
+    "max_server_stream_bytes": 4096,
+    "exchange_absolute_deadline_seconds": 12,
+    "client_read_chunk_max_bytes": 7,
+    "forced_tcp_packet_segmentation": false,
+    "target_cpu_limit": 1,
+    "target_memory_mib": 512,
+    "target_pids_limit": 128,
+    "published_ports": false,
+    "host_data_mounted": false,
+    "publisher": "native Rust ANNOUNCE/SETUP/RECORD and one private synthetic PCMU RTP packet before capture; no captured publisher/request evidence",
+    "authentication": "anonymous private fixture only, not production configuration",
+    "all_emitted_receive_stages_packet_checked": true,
+    "full_dialogue_correlation_in_product": false,
+    "image_pulls_during_campaign": true,
+    "image_pull_scope": "one pinned MediaMTX image on Linux, using empty fixture-owned Docker config after existing registry token expired; administrator credentials unchanged",
+    "macos_builds": false,
+    "macos_image_pulls": false,
+    "remote_evidence": "/home/chiharukiryu/.cache/gewyvern/evidence/20261113-rtsp",
+    "local_evidence": "target/validation/rtsp-20261113",
+    "final_campaign_directories": [
+      "final-1",
+      "final-2",
+      "final-3"
+    ],
+    "excluded_development_campaign_directories": [
+      "dev-1",
+      "dev-2"
+    ],
+    "excluded_development_checks": [
+      "dev-1 assumed another command after missing-path DESCRIBE; pinned MediaMTX closes that connection after 404. Fixture now expects EOF and tests success on a fresh connection.",
+      "dev-2 retained all four old production-rule misses after raw byte reconciliation.",
+      "rules-before.log: old rules fail real-header-order and missing-CSeq regression tests.",
+      "rules-after.log: five focused packet/scope/boundary/replay tests passed before final campaigns.",
+      "api-test.log: expanded API suite found a stale SMTP rcpt-denied signal assertion; api-after.log passes all 23 cases after correcting the assertion and adding RTSP API checks."
+    ]
+  },
+  "artifact_bindings": {
+    "build": {
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/rtsp.rs": "c4aa8ce7b89edba0bcd00e26dfd9f36452e2f3a71f453a6926c79c0f2ab7cb66",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth.rs": "a87b3bca224baec03981f83bcc731b6f4408c90bdaf1b5c50dbc044845e60dab",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/wire.rs": "4be40997c61aee276e383fa3910991eec57e7a5564910eafe04fcb333fcba50f",
+      "src/validation_harness/linux_tcp_capture/linux.rs": "c4cdeb7419d4f1152b64521664406d7c67790e47de1c4729f4c766540283ee63",
+      "src/validation_harness/linux_tcp_capture.rs": "3ab624edcc00d44828493403690d826f05a0e7a9885a2c168a0d674e94ecc344",
+      "src/validation_harness.rs": "765278feb2be2cd93f98d6302a6b5d34a670bc9f15f4e591ab67a52834283b6a",
+      "src/bin/gewyvern_validate.rs": "4bae190adc916a6a90470704bf3f6008fc04587bd74a4ac65449fef6e212ab65",
+      "src/ir.rs": "539804fb61fa2a37b11b5b589eda58e21ab7d172e02cf4d602d6c2a3dc1fd9cb",
+      "src/ir/rtsp.rs": "f24a49dbd5ef9bf91477754db931a9334b9f6a5059e05be7b003bc2eae8afeee",
+      "src/ir/matching.rs": "116a8819c106a4e0b49f4ff570b8566293ea4a973c0cb9f7ef47d6ec44255d86",
+      "src/ir/predicates.rs": "e8cc1d87d99523d088819f2e4197b61c7b20e6138a2f7caf99ec361f28e44143",
+      "src/gewyc/ir_focus/support.rs": "6fc661636e5e5bee013f43943e8cc398518de5bc42a0e4e41d1bba6f27d1bf50",
+      "src/dsl/predicate.rs": "753e1512c800d0971d49d55ad9dba30d9b19d908760633ad575fc2b2735d21c6",
+      "tests/rtsp_protocol_runtime_tdd.rs": "b8cabbf213e23f2431d939774f8f65107597129e274309e2736c14ce21a0ddfb",
+      "protocols/rtsp/options/main.gewy": "d6556d0958226c2630f3488cc918827b1e76d08ee127871d2467541217c0ea11",
+      "dsl/rtsp_options_path.gewy": "d6556d0958226c2630f3488cc918827b1e76d08ee127871d2467541217c0ea11",
+      "protocols/rtsp/describe/main.gewy": "8286270e9618b4ba11ff70ac1780cebd602d6152e75dc1dd7f2a5de0c6da92fb",
+      "dsl/rtsp_describe_path.gewy": "8286270e9618b4ba11ff70ac1780cebd602d6152e75dc1dd7f2a5de0c6da92fb",
+      "protocols/rtsp/setup/main.gewy": "88fb762d1349fdf384c33212b095ea975d45441e0fef3a5a847fe64c13be0447",
+      "dsl/rtsp_setup_path.gewy": "88fb762d1349fdf384c33212b095ea975d45441e0fef3a5a847fe64c13be0447",
+      "protocols/rtsp/play/main.gewy": "1190a19e71f24b61a9f5cb42bc4eb56510d0e3e2e38c33a6ed59cd8b829f7def",
+      "dsl/rtsp_play_path.gewy": "1190a19e71f24b61a9f5cb42bc4eb56510d0e3e2e38c33a6ed59cd8b829f7def",
+      "tests/dsl_tdd/part_013.rs": "8cd8974828cae0c08f77d49a0305345554babf3d6d9e439a036aaf2e06e3b7cd",
+      "tests/protocol_runtime_cases/session_control_media_protocol_runtime_ir_tdd.rs": "6224235d36d184a25aafcbc79ac1f5d5ad91db7f0311ddda54652ec7feccbeed",
+      "src/protocol_profiles/semantics/media.rs": "568980a08fd178cdc5c53ed4312710d7b016682467107cdd5c2d4a79ab3d7efd",
+      "src/export/reason_codec/encode.rs": "1081729fae6b75de3cf3cf44f4a448628ec8fd44da8ffda3b5f90d16083f9345",
+      "src/export/reason_codec/parse.rs": "232c2bd88ee4001f6629c3f1e22a11f6dbe5f593ca4d729cd14b65e48297e358",
+      "tests/gewyvern_validate_json_snapshot_tdd.rs": "012618de8441f49c9e8b00e6cf32e691404fda2aa229be78d4e8db634cb724f4",
+      "ebpf/validation/http_prefix.bpf.c": "ca9eb8c99aee4f3d3ccddfed18d13592ad610d4010cfc32b65aab4d4630aac74",
+      "src/validation_harness/linux_tcp_capture/linux/packet_capture.rs": "f365869ea3569429902bca76a7a0298e69a79edd2b7b4ffda13811380cb19460",
+      "src/validation_harness/linux_tcp_capture/linux/bounded_stream.rs": "196519549fc1eab62991e386d01f3264955b5558d9052b065722f2e7fab86314",
+      "src/validation_harness/linux_tcp_capture/packet_evidence.rs": "ce64ea1adef21ed01e2e43c2ecc8da1f4aa02e48394febfb4cf89a449603ffee",
+      "target/debug/gewyvern_validate": "3a86e336be001eac1caad96737292c5f01411b46cdda5b62fb904574f69f9db9"
+    },
+    "local_source_hashes_match_remote": true,
+    "reports": {
+      "final-1/summary.json": "3974f80f309d70ca73f92763ebdaf5c5650f796c92cfc7cc930b1352ff79113f",
+      "final-2/summary.json": "d51e39dc67e9778abc332b70392c1283605b47e60e891b09b0bf673ede439997",
+      "final-3/summary.json": "8ba43b7a2ed40389483309300e7b1380b6654d8d3629cb3195d0840c9f6fdae4",
+      "final-1/after-data-restart/summary.json": "e537c9e0c6884f05938f0ecc3057628243739b7f0eed3b6d5542b0d010396834",
+      "final-2/after-data-restart/summary.json": "d23d382c1a1016e4b886b121f0aa98b29e6b64b1a214a8c0260521818629a6bb",
+      "final-3/after-data-restart/summary.json": "de306af7444ea4a3e31a28f05aa259bac6469ed4a2572128365d6ae0ec258dbb",
+      "dev-2/rtsp/result.json": "b0b57b12867c7aeb1be507c2151e7241bb7c2ec1a1184b25436111d1ab30c3c7",
+      "dev-2/rtsp/packet-events.json": "c6047e49d7fc6219066059f0422b5299f08d6f5ca9de2cdf8104588316ef1bde",
+      "pop3-control/summary.json": "5a063c20316caf8a3abd7bc1b266744eb3cd14eccbb8805ec5e2312ddd6c1aa3",
+      "rules-before.log": "b473d4cb118664362b098c7cf9d7d81ea5a59557e14178ad3404851c0b1991b4",
+      "rules-after.log": "236606a1a64028c2be23c7fa599a457dac944ab0dfbcf6c421e457b84a377c43",
+      "final-tests.log": "0771832bf822fb89afa85970cbbc0ee00e2ea42214a03598d11bbb4455f7a61e",
+      "final-build.log": "77e561224a37ee04c35e9b311c6748cc785bab6fde37a96748cfb03c3718bedb",
+      "clippy.log": "4c6021e8924e83e6ea8f99c8f53c4f59f5313b41e4f68be5e27f3440bfd47247",
+      "api-test.log": "060e24b90eee25108bdba311b8f33d3299c4173db0c752fc8b54cb172358e82b",
+      "api-after.log": "b6fdba1931647ede701e79883496a3694660c0981176b03a245ce76acff6421a",
+      "closure-tests.log": "1457c570eda20a18f558e959a3f07701786ec8db74f011f5e6677035c1fc5e8e",
+      "closure-clippy.log": "4fed36c6887f3dd41b4fedd4445791e0326fd7fe9ff13e0cf8bd9f9bbb5e99f1",
+      "final-1/rtsp/packet-events.json": "0ca45402fea556fee964448e9b3ef059a80af7061da8d104381b475d0403996c",
+      "final-1/rtsp/client-observations.json": "47152f57b892f38971bb014368fb36e7cef851939af937e73aa76537c733d3fa",
+      "final-1/rtsp/client-response-0.bin": "9c9f1f18b2fc73a157377b022e5e23a6b0c4661bdd8d2a4bfa5c23452a6b84a6",
+      "final-1/rtsp/client-response-1.bin": "1810b7f90a4a6a6ad4b8665ee425747f9722da0c45524c04820577de5e71e0f6",
+      "final-1/rtsp/package-0-export.json": "86f85d5c3426e4d5a8a56eaa2a346071e3e9a7c7116f2c96a077efe14745d9b7",
+      "final-1/rtsp/package-1-export.json": "cd419cc35fada855710608547e04718e8f86a268b10e31a94c15070451487985",
+      "final-1/rtsp/package-2-export.json": "432baf4d1f079b5530d925f6ca3b60ad413de12a48e07cc5e9ff4348c771cc5b",
+      "final-1/rtsp/package-3-export.json": "6d0e4ec57284707dc8f19f4f65f59fd4f9b9091cde6f94241a093dcb7f3fee6f",
+      "final-2/rtsp/packet-events.json": "eef7f10456f7274e05f0b0fe8ce8512a4c84cb1500dc960904a4d25fb5a048c2",
+      "final-2/rtsp/client-observations.json": "ef77ff1169cd33a86dddde0fc69cba46fe76095f1e9f998bc7066275ddf44e0f",
+      "final-2/rtsp/client-response-0.bin": "9c9f1f18b2fc73a157377b022e5e23a6b0c4661bdd8d2a4bfa5c23452a6b84a6",
+      "final-2/rtsp/client-response-1.bin": "6790a81182ada7dd78cd4dae6f3d302a59b41a566d02696b328a85c8f1dc20d4",
+      "final-2/rtsp/package-0-export.json": "43d10de03690b3fa2c9ef92e8a5434e2938ebe33947bd185144bf63dc259f168",
+      "final-2/rtsp/package-1-export.json": "8dc1cf9af39d7a2d7ff12771cfa3e43daca98cb4362eaa045ca70d1de59d7578",
+      "final-2/rtsp/package-2-export.json": "db677e0a478eee3d2359a2c06adb072e6bf14398059519bf3078f4d1af99263a",
+      "final-2/rtsp/package-3-export.json": "e88bb45caf0dacca71add3a018a8a73324c3dc0519d0dfd167d2ed275c0ffe33",
+      "final-3/rtsp/packet-events.json": "8b028718eb45f98d9cabe6de46971f65a18c8f712bd24031807648f391145543",
+      "final-3/rtsp/client-observations.json": "f26de843bea796b19be27c22b26e692ee2e997edc61d1e88fbb44dae442d9df4",
+      "final-3/rtsp/client-response-0.bin": "9c9f1f18b2fc73a157377b022e5e23a6b0c4661bdd8d2a4bfa5c23452a6b84a6",
+      "final-3/rtsp/client-response-1.bin": "f8afe7e709e969922ff4f87e1d41c00fbbbf8dd815b7831e85314b6ce86ec2fb",
+      "final-3/rtsp/package-0-export.json": "d2ef313a2ec148d4f025a3f3133dcec91429353cbbd55953a8e32330f4b14590",
+      "final-3/rtsp/package-1-export.json": "3bb9d6e4342c4692d0764269eceaa3447f151118d84d6c7d65029c6da59d44a8",
+      "final-3/rtsp/package-2-export.json": "59bd730cddf41532befaa7bdd898c6008c85d6bef028c00df7d2d6515f58139f",
+      "final-3/rtsp/package-3-export.json": "61a8e8947019cadbf5beb49224e0a775b94fd5dda6024c0f072a7bfb3146be67"
+    },
+    "verification": {
+      "tests/native_validation_harness_tdd.rs": "4fc6a2f3d41a48f000640896dc09c2aee784a9955f986920196a5b8c8b189ae1",
+      "tests/project_status_tdd.rs": "f1165d0dac8344e9a691556a423ec84e2596761ff57781e199d9284fd74c9a35",
+      "project/status/catalog.json": "75b1cb2b3c99dd1042ab8572ca930f08a3e74a2594f715912af4a86e139fa5d5",
+      "docs/book/reference-rtsp-options-surface.md": "33b1b30335c61acfe915933f90e071ab44369116a2843c73a728615d742bd34a",
+      "docs/book/reference-rtsp-describe-surface.md": "906679a1076c2dd1b2f1b6d1046bf9a00a3cd44a68a7ed68b767a594b7d32fbe",
+      "docs/book/reference-rtsp-setup-surface.md": "0a8b37eeba741f7e4666960020492d8b5a49cb5a8130d0726380a55ed11ab2b7",
+      "docs/book/reference-rtsp-play-surface.md": "1b6b57d758f9f3d364a6d1f8c0763817b96e2f92b5b65beb781df8099bb6aee7",
+      "docs/dsl-reference.md": "691c77b480951536be7ebd298bc72a891ddb472a8305fcfe67d089b35d2ca531",
+      "docs/gewylang-llm-guide.md": "7ff943e23441e71d1b23e1d46b937f730392c8950b7a796859b30f1ae3f511cb",
+      "docs/field-findings.md": "0f1f50cd5c087b8c36f958ead145ba39ea7204c1354c6be9e9af22783a6b85d6",
+      "docs/field-validation.md": "6babbeacd639f2e44e253143f64f65bc5645741dcde09f844cb023751af5636f",
+      "docs/script-entrypoints.md": "ca6518d865794aeda3a132d05b4793ac3c213083339c2cdcb95eefe49690f2e5",
+      "src/main/tests/api_protocol_surface_semantics.rs": "435d98e47cfebb935b176b097a0af744b9b18486f8dae8750f5aa36b5d472083"
+    }
+  },
+  "before_fix": {
+    "anonymous_volume_ids": [],
+    "anonymous_volumes_removed_with_container": true,
+    "client_read_chunk_bytes": 7,
+    "client_reads_are_packet_boundaries": false,
+    "container_id": "54f362caa1555ee7d06a08177c5507f7efbd118d8610f5f1f5e9d6794ccf263f",
+    "image": "bluenviron/mediamtx@sha256:59e43552f3be43695b70c19424dc2a42fcec18075f88d91561a24ac5d70a586c",
+    "image_id": "sha256:b0c14cc8ca728087348b41e2e58090af8003f8c6375b047e94547404b7a14061",
+    "internal_network": true,
+    "network_id": "7016d1a81f2b1d687c92135776eaaf31a47f69530cafa7a1bf929bfb279da264",
+    "observations": [
+      {
+        "captured_result": {
+          "replies": [
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 200,
+              "cseq": 1,
+              "headers": {
+                "cseq": "1",
+                "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                "server": "gortsplib"
+              }
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 404,
+              "cseq": 2,
+              "headers": {
+                "cseq": "2",
+                "server": "gortsplib"
+              }
+            }
+          ]
+        },
+        "captured_sha256": "9c9f1f18b2fc73a157377b022e5e23a6b0c4661bdd8d2a4bfa5c23452a6b84a6",
+        "client_result": {
+          "replies": [
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 200,
+              "cseq": 1,
+              "headers": {
+                "cseq": "1",
+                "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                "server": "gortsplib"
+              }
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 404,
+              "cseq": 2,
+              "headers": {
+                "cseq": "2",
+                "server": "gortsplib"
+              }
+            }
+          ]
+        },
+        "control": false,
+        "cookie": 57370,
+        "response_bytes": 182,
+        "response_sha256": "9c9f1f18b2fc73a157377b022e5e23a6b0c4661bdd8d2a4bfa5c23452a6b84a6"
+      },
+      {
+        "captured_result": {
+          "replies": [
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 200,
+              "cseq": 1,
+              "headers": {
+                "cseq": "1",
+                "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                "server": "gortsplib"
+              }
+            },
+            {
+              "body_bytes": 148,
+              "body_hex": "763d300d0a6f3d2d2030203020494e20495034203132372e302e302e310d0a733d476577797665726e20626f756e64656420666978747572650d0a633d494e2049503420302e302e302e300d0a743d3020300d0a6d3d617564696f2030205254502f41565020300d0a613d636f6e74726f6c3a747261636b49443d300d0a613d7274706d61703a302050434d552f383030300d0a",
+              "code": 200,
+              "cseq": 2,
+              "headers": {
+                "content-base": "rtsp://172.21.0.2:554/fixture/",
+                "content-length": "148",
+                "content-type": "application/sdp",
+                "cseq": "2",
+                "server": "gortsplib"
+              }
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 461,
+              "cseq": 3,
+              "headers": {
+                "cseq": "3",
+                "server": "gortsplib",
+                "session": "e47727f47e7b4fdda1acdd3a17b785c6;timeout=55"
+              }
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 200,
+              "cseq": 4,
+              "headers": {
+                "cseq": "4",
+                "server": "gortsplib",
+                "session": "e47727f47e7b4fdda1acdd3a17b785c6;timeout=55",
+                "transport": "RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=0106379C"
+              }
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 200,
+              "cseq": 5,
+              "headers": {
+                "cseq": "5",
+                "rtp-info": "url=rtsp://172.21.0.2:554/fixture/trackID=0",
+                "server": "gortsplib",
+                "session": "e47727f47e7b4fdda1acdd3a17b785c6;timeout=55"
+              }
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 200,
+              "cseq": 6,
+              "headers": {
+                "content-type": "text/parameters",
+                "cseq": "6",
+                "server": "gortsplib",
+                "session": "e47727f47e7b4fdda1acdd3a17b785c6;timeout=55"
+              }
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 200,
+              "cseq": 7,
+              "headers": {
+                "cseq": "7",
+                "server": "gortsplib",
+                "session": "e47727f47e7b4fdda1acdd3a17b785c6;timeout=55"
+              }
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 200,
+              "cseq": 8,
+              "headers": {
+                "cseq": "8",
+                "rtp-info": "url=rtsp://172.21.0.2:554/fixture/trackID=0",
+                "server": "gortsplib",
+                "session": "e47727f47e7b4fdda1acdd3a17b785c6;timeout=55"
+              }
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 200,
+              "cseq": 9,
+              "headers": {
+                "cseq": "9",
+                "server": "gortsplib"
+              }
+            }
+          ]
+        },
+        "captured_sha256": "dcba9a4d63a28041965a1fc97416883dda45f5b36d68c5ac8f48de24679ef3bf",
+        "client_result": {
+          "replies": [
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 200,
+              "cseq": 1,
+              "headers": {
+                "cseq": "1",
+                "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                "server": "gortsplib"
+              }
+            },
+            {
+              "body_bytes": 148,
+              "body_hex": "763d300d0a6f3d2d2030203020494e20495034203132372e302e302e310d0a733d476577797665726e20626f756e64656420666978747572650d0a633d494e2049503420302e302e302e300d0a743d3020300d0a6d3d617564696f2030205254502f41565020300d0a613d636f6e74726f6c3a747261636b49443d300d0a613d7274706d61703a302050434d552f383030300d0a",
+              "code": 200,
+              "cseq": 2,
+              "headers": {
+                "content-base": "rtsp://172.21.0.2:554/fixture/",
+                "content-length": "148",
+                "content-type": "application/sdp",
+                "cseq": "2",
+                "server": "gortsplib"
+              }
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 461,
+              "cseq": 3,
+              "headers": {
+                "cseq": "3",
+                "server": "gortsplib",
+                "session": "e47727f47e7b4fdda1acdd3a17b785c6;timeout=55"
+              }
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 200,
+              "cseq": 4,
+              "headers": {
+                "cseq": "4",
+                "server": "gortsplib",
+                "session": "e47727f47e7b4fdda1acdd3a17b785c6;timeout=55",
+                "transport": "RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=0106379C"
+              }
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 200,
+              "cseq": 5,
+              "headers": {
+                "cseq": "5",
+                "rtp-info": "url=rtsp://172.21.0.2:554/fixture/trackID=0",
+                "server": "gortsplib",
+                "session": "e47727f47e7b4fdda1acdd3a17b785c6;timeout=55"
+              }
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 200,
+              "cseq": 6,
+              "headers": {
+                "content-type": "text/parameters",
+                "cseq": "6",
+                "server": "gortsplib",
+                "session": "e47727f47e7b4fdda1acdd3a17b785c6;timeout=55"
+              }
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 200,
+              "cseq": 7,
+              "headers": {
+                "cseq": "7",
+                "server": "gortsplib",
+                "session": "e47727f47e7b4fdda1acdd3a17b785c6;timeout=55"
+              }
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 200,
+              "cseq": 8,
+              "headers": {
+                "cseq": "8",
+                "rtp-info": "url=rtsp://172.21.0.2:554/fixture/trackID=0",
+                "server": "gortsplib",
+                "session": "e47727f47e7b4fdda1acdd3a17b785c6;timeout=55"
+              }
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "code": 200,
+              "cseq": 9,
+              "headers": {
+                "cseq": "9",
+                "server": "gortsplib"
+              }
+            }
+          ]
+        },
+        "control": true,
+        "cookie": 57371,
+        "response_bytes": 1296,
+        "response_sha256": "dcba9a4d63a28041965a1fc97416883dda45f5b36d68c5ac8f48de24679ef3bf"
+      }
+    ],
+    "ok": false,
+    "owned_resources_removed": true,
+    "package_failures": [
+      "data package protocols/rtsp/options/main.gewy phase receive_options_ok: observed {}, expected {57370, 57371}; check packet candidates versus framed response",
+      "data package protocols/rtsp/describe/main.gewy phase receive_describe_ok: observed {}, expected {57371}; check packet candidates versus framed response",
+      "data package protocols/rtsp/setup/main.gewy phase receive_setup_ok: observed {}, expected {57371}; check packet candidates versus framed response",
+      "data package protocols/rtsp/play/main.gewy phase receive_play_ok: observed {}, expected {57371}; check packet candidates versus framed response"
+    ],
+    "packages": [
+      {
+        "facts": 23,
+        "matched_cookies": [],
+        "path": "protocols/rtsp/options/main.gewy",
+        "phase": "receive_options_ok",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "3a01d64d57b2a5cf629c289e3add59f9287df8625b6874d8a621f29cffe9d09a",
+        "unobserved_fragments_explicit": true
+      },
+      {
+        "facts": 23,
+        "matched_cookies": [],
+        "path": "protocols/rtsp/describe/main.gewy",
+        "phase": "receive_describe_ok",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "2563dde507978c2e41dec5f57f704e287631cb1ebc05a066002e48cae8c04ea6",
+        "unobserved_fragments_explicit": true
+      },
+      {
+        "facts": 23,
+        "matched_cookies": [],
+        "path": "protocols/rtsp/setup/main.gewy",
+        "phase": "receive_setup_ok",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "9d8af1e7644c2184b2552b53665a85fa594a2364d085d8111c261de276a31847",
+        "unobserved_fragments_explicit": true
+      },
+      {
+        "facts": 23,
+        "matched_cookies": [],
+        "path": "protocols/rtsp/play/main.gewy",
+        "phase": "receive_play_ok",
+        "process_attribution": false,
+        "replay_identical": true,
+        "request_payload_observed": false,
+        "source_sha256": "ca12bfdc7bc4f7ac129bbe11c48e726b96792de574859395306c447672c06db9",
+        "unobserved_fragments_explicit": true
+      }
+    ],
+    "packet_counts": {
+      "dropped": 0,
+      "total": 13
+    },
+    "protocol": "rtsp",
+    "published_ports": false,
+    "redis_pipeline_commands": 0,
+    "schema_version": 2,
+    "selected_cookies": [
+      57370,
+      57371
+    ],
+    "selected_query_or_command_count": 11,
+    "tcp_state_counts": {
+      "dropped": 0,
+      "total": 10
+    },
+    "unselected_neighbor_cookie": 24648,
+    "unselected_neighbor_result": {
+      "replies": [
+        {
+          "body_bytes": 0,
+          "body_hex": "",
+          "code": 200,
+          "cseq": 1,
+          "headers": {
+            "cseq": "1",
+            "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+            "server": "gortsplib"
+          }
+        },
+        {
+          "body_bytes": 0,
+          "body_hex": "",
+          "code": 404,
+          "cseq": 2,
+          "headers": {
+            "cseq": "2",
+            "server": "gortsplib"
+          }
+        }
+      ]
+    }
+  },
+  "runs": [
+    {
+      "checks": [
+        "real_MediaMTX_RTSP_1_0",
+        "uncaptured_native_publisher_and_synthetic_PCMU_seed",
+        "OPTIONS_and_missing_DESCRIBE_recovery",
+        "SDP_and_content_length_checked",
+        "unsupported_UDP_then_TCP_SETUP",
+        "PLAY_keepalive_PAUSE_resume_TEARDOWN",
+        "CSeq_and_session_identity_checked",
+        "kernel_bytes_match_independent_client",
+        "same_target_unselected_neighbor_excluded",
+        "existing_protocol_packages_and_replay",
+        "owned_internal_network_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "rtsp-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "MySQL_caching_sha2_auth_switch_prepared_statements",
+        "Memcached_text_meta_SASL_UDP",
+        "MQTT5_authentication_TLS_offline_delivery_or_crash_durability",
+        "NATS_JetStream_cluster_headers_TLS",
+        "SMTP_STARTTLS_delivery_to_external_mailbox_or_crash_durability",
+        "POP3_TLS_APOP_SASL_external_delivery_or_delete_commit_durability",
+        "RTSP_TLS_authentication_RTP_delivery_quality_UDP_multicast_or_general_stream_decoding",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "27c3487ffdc3abee01d8af3d472ae80a22ffafac90e43888ef262acfa537179b",
+          "image": "bluenviron/mediamtx@sha256:59e43552f3be43695b70c19424dc2a42fcec18075f88d91561a24ac5d70a586c",
+          "image_id": "sha256:b0c14cc8ca728087348b41e2e58090af8003f8c6375b047e94547404b7a14061",
+          "internal_network": true,
+          "network_id": "734886b58a8e82236bdf290defed3d680695e79862733527d0be393cdddd0116",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 1,
+                    "headers": {
+                      "cseq": "1",
+                      "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 404,
+                    "cseq": 2,
+                    "headers": {
+                      "cseq": "2",
+                      "server": "gortsplib"
+                    }
+                  }
+                ]
+              },
+              "captured_sha256": "9c9f1f18b2fc73a157377b022e5e23a6b0c4661bdd8d2a4bfa5c23452a6b84a6",
+              "client_result": {
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 1,
+                    "headers": {
+                      "cseq": "1",
+                      "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 404,
+                    "cseq": 2,
+                    "headers": {
+                      "cseq": "2",
+                      "server": "gortsplib"
+                    }
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 32845,
+              "response_bytes": 182,
+              "response_sha256": "9c9f1f18b2fc73a157377b022e5e23a6b0c4661bdd8d2a4bfa5c23452a6b84a6"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 1,
+                    "headers": {
+                      "cseq": "1",
+                      "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 148,
+                    "body_hex": "763d300d0a6f3d2d2030203020494e20495034203132372e302e302e310d0a733d476577797665726e20626f756e64656420666978747572650d0a633d494e2049503420302e302e302e300d0a743d3020300d0a6d3d617564696f2030205254502f41565020300d0a613d636f6e74726f6c3a747261636b49443d300d0a613d7274706d61703a302050434d552f383030300d0a",
+                    "code": 200,
+                    "cseq": 2,
+                    "headers": {
+                      "content-base": "rtsp://172.21.0.2:554/fixture/",
+                      "content-length": "148",
+                      "content-type": "application/sdp",
+                      "cseq": "2",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 461,
+                    "cseq": 3,
+                    "headers": {
+                      "cseq": "3",
+                      "server": "gortsplib",
+                      "session": "f1c20f19e4144b66b6f6ee2c23f0de37;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 4,
+                    "headers": {
+                      "cseq": "4",
+                      "server": "gortsplib",
+                      "session": "f1c20f19e4144b66b6f6ee2c23f0de37;timeout=55",
+                      "transport": "RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=76BF1F17"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 5,
+                    "headers": {
+                      "cseq": "5",
+                      "rtp-info": "url=rtsp://172.21.0.2:554/fixture/trackID=0",
+                      "server": "gortsplib",
+                      "session": "f1c20f19e4144b66b6f6ee2c23f0de37;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 6,
+                    "headers": {
+                      "content-type": "text/parameters",
+                      "cseq": "6",
+                      "server": "gortsplib",
+                      "session": "f1c20f19e4144b66b6f6ee2c23f0de37;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 7,
+                    "headers": {
+                      "cseq": "7",
+                      "server": "gortsplib",
+                      "session": "f1c20f19e4144b66b6f6ee2c23f0de37;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 8,
+                    "headers": {
+                      "cseq": "8",
+                      "rtp-info": "url=rtsp://172.21.0.2:554/fixture/trackID=0",
+                      "server": "gortsplib",
+                      "session": "f1c20f19e4144b66b6f6ee2c23f0de37;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 9,
+                    "headers": {
+                      "cseq": "9",
+                      "server": "gortsplib"
+                    }
+                  }
+                ]
+              },
+              "captured_sha256": "1810b7f90a4a6a6ad4b8665ee425747f9722da0c45524c04820577de5e71e0f6",
+              "client_result": {
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 1,
+                    "headers": {
+                      "cseq": "1",
+                      "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 148,
+                    "body_hex": "763d300d0a6f3d2d2030203020494e20495034203132372e302e302e310d0a733d476577797665726e20626f756e64656420666978747572650d0a633d494e2049503420302e302e302e300d0a743d3020300d0a6d3d617564696f2030205254502f41565020300d0a613d636f6e74726f6c3a747261636b49443d300d0a613d7274706d61703a302050434d552f383030300d0a",
+                    "code": 200,
+                    "cseq": 2,
+                    "headers": {
+                      "content-base": "rtsp://172.21.0.2:554/fixture/",
+                      "content-length": "148",
+                      "content-type": "application/sdp",
+                      "cseq": "2",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 461,
+                    "cseq": 3,
+                    "headers": {
+                      "cseq": "3",
+                      "server": "gortsplib",
+                      "session": "f1c20f19e4144b66b6f6ee2c23f0de37;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 4,
+                    "headers": {
+                      "cseq": "4",
+                      "server": "gortsplib",
+                      "session": "f1c20f19e4144b66b6f6ee2c23f0de37;timeout=55",
+                      "transport": "RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=76BF1F17"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 5,
+                    "headers": {
+                      "cseq": "5",
+                      "rtp-info": "url=rtsp://172.21.0.2:554/fixture/trackID=0",
+                      "server": "gortsplib",
+                      "session": "f1c20f19e4144b66b6f6ee2c23f0de37;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 6,
+                    "headers": {
+                      "content-type": "text/parameters",
+                      "cseq": "6",
+                      "server": "gortsplib",
+                      "session": "f1c20f19e4144b66b6f6ee2c23f0de37;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 7,
+                    "headers": {
+                      "cseq": "7",
+                      "server": "gortsplib",
+                      "session": "f1c20f19e4144b66b6f6ee2c23f0de37;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 8,
+                    "headers": {
+                      "cseq": "8",
+                      "rtp-info": "url=rtsp://172.21.0.2:554/fixture/trackID=0",
+                      "server": "gortsplib",
+                      "session": "f1c20f19e4144b66b6f6ee2c23f0de37;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 9,
+                    "headers": {
+                      "cseq": "9",
+                      "server": "gortsplib"
+                    }
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 32846,
+              "response_bytes": 1296,
+              "response_sha256": "1810b7f90a4a6a6ad4b8665ee425747f9722da0c45524c04820577de5e71e0f6"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 23,
+              "matched_cookies": [
+                32845,
+                32846
+              ],
+              "path": "protocols/rtsp/options/main.gewy",
+              "phase": "receive_options_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "d6556d0958226c2630f3488cc918827b1e76d08ee127871d2467541217c0ea11",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 23,
+              "matched_cookies": [
+                32846
+              ],
+              "path": "protocols/rtsp/describe/main.gewy",
+              "phase": "receive_describe_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "8286270e9618b4ba11ff70ac1780cebd602d6152e75dc1dd7f2a5de0c6da92fb",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 23,
+              "matched_cookies": [
+                32846
+              ],
+              "path": "protocols/rtsp/setup/main.gewy",
+              "phase": "receive_setup_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "88fb762d1349fdf384c33212b095ea975d45441e0fef3a5a847fe64c13be0447",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 23,
+              "matched_cookies": [
+                32846
+              ],
+              "path": "protocols/rtsp/play/main.gewy",
+              "phase": "receive_play_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "1190a19e71f24b61a9f5cb42bc4eb56510d0e3e2e38c33a6ed59cd8b829f7def",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 13
+          },
+          "protocol": "rtsp",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            32845,
+            32846
+          ],
+          "selected_query_or_command_count": 11,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 20538,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "code": 200,
+                "cseq": 1,
+                "headers": {
+                  "cseq": "1",
+                  "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                  "server": "gortsplib"
+                }
+              },
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "code": 404,
+                "cseq": 2,
+                "headers": {
+                  "cseq": "2",
+                  "server": "gortsplib"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "schema_version": 2
+    },
+    {
+      "checks": [
+        "real_MediaMTX_RTSP_1_0",
+        "uncaptured_native_publisher_and_synthetic_PCMU_seed",
+        "OPTIONS_and_missing_DESCRIBE_recovery",
+        "SDP_and_content_length_checked",
+        "unsupported_UDP_then_TCP_SETUP",
+        "PLAY_keepalive_PAUSE_resume_TEARDOWN",
+        "CSeq_and_session_identity_checked",
+        "kernel_bytes_match_independent_client",
+        "same_target_unselected_neighbor_excluded",
+        "existing_protocol_packages_and_replay",
+        "owned_internal_network_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "rtsp-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "MySQL_caching_sha2_auth_switch_prepared_statements",
+        "Memcached_text_meta_SASL_UDP",
+        "MQTT5_authentication_TLS_offline_delivery_or_crash_durability",
+        "NATS_JetStream_cluster_headers_TLS",
+        "SMTP_STARTTLS_delivery_to_external_mailbox_or_crash_durability",
+        "POP3_TLS_APOP_SASL_external_delivery_or_delete_commit_durability",
+        "RTSP_TLS_authentication_RTP_delivery_quality_UDP_multicast_or_general_stream_decoding",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "fed09c1a3d1f3c39e00743af84264d35a17a3e017b89383e4e4d3c9f4ebb9919",
+          "image": "bluenviron/mediamtx@sha256:59e43552f3be43695b70c19424dc2a42fcec18075f88d91561a24ac5d70a586c",
+          "image_id": "sha256:b0c14cc8ca728087348b41e2e58090af8003f8c6375b047e94547404b7a14061",
+          "internal_network": true,
+          "network_id": "0ba8da2c4b86c2b3dbaf25d2c13c639eaf6df53798b8bcdbb6858cd25f8238ce",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 1,
+                    "headers": {
+                      "cseq": "1",
+                      "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 404,
+                    "cseq": 2,
+                    "headers": {
+                      "cseq": "2",
+                      "server": "gortsplib"
+                    }
+                  }
+                ]
+              },
+              "captured_sha256": "9c9f1f18b2fc73a157377b022e5e23a6b0c4661bdd8d2a4bfa5c23452a6b84a6",
+              "client_result": {
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 1,
+                    "headers": {
+                      "cseq": "1",
+                      "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 404,
+                    "cseq": 2,
+                    "headers": {
+                      "cseq": "2",
+                      "server": "gortsplib"
+                    }
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 12349,
+              "response_bytes": 182,
+              "response_sha256": "9c9f1f18b2fc73a157377b022e5e23a6b0c4661bdd8d2a4bfa5c23452a6b84a6"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 1,
+                    "headers": {
+                      "cseq": "1",
+                      "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 148,
+                    "body_hex": "763d300d0a6f3d2d2030203020494e20495034203132372e302e302e310d0a733d476577797665726e20626f756e64656420666978747572650d0a633d494e2049503420302e302e302e300d0a743d3020300d0a6d3d617564696f2030205254502f41565020300d0a613d636f6e74726f6c3a747261636b49443d300d0a613d7274706d61703a302050434d552f383030300d0a",
+                    "code": 200,
+                    "cseq": 2,
+                    "headers": {
+                      "content-base": "rtsp://172.21.0.2:554/fixture/",
+                      "content-length": "148",
+                      "content-type": "application/sdp",
+                      "cseq": "2",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 461,
+                    "cseq": 3,
+                    "headers": {
+                      "cseq": "3",
+                      "server": "gortsplib",
+                      "session": "f75a0256eb2241b6ab35a55a09a8e54f;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 4,
+                    "headers": {
+                      "cseq": "4",
+                      "server": "gortsplib",
+                      "session": "f75a0256eb2241b6ab35a55a09a8e54f;timeout=55",
+                      "transport": "RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=02F646A2"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 5,
+                    "headers": {
+                      "cseq": "5",
+                      "rtp-info": "url=rtsp://172.21.0.2:554/fixture/trackID=0",
+                      "server": "gortsplib",
+                      "session": "f75a0256eb2241b6ab35a55a09a8e54f;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 6,
+                    "headers": {
+                      "content-type": "text/parameters",
+                      "cseq": "6",
+                      "server": "gortsplib",
+                      "session": "f75a0256eb2241b6ab35a55a09a8e54f;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 7,
+                    "headers": {
+                      "cseq": "7",
+                      "server": "gortsplib",
+                      "session": "f75a0256eb2241b6ab35a55a09a8e54f;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 8,
+                    "headers": {
+                      "cseq": "8",
+                      "rtp-info": "url=rtsp://172.21.0.2:554/fixture/trackID=0",
+                      "server": "gortsplib",
+                      "session": "f75a0256eb2241b6ab35a55a09a8e54f;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 9,
+                    "headers": {
+                      "cseq": "9",
+                      "server": "gortsplib"
+                    }
+                  }
+                ]
+              },
+              "captured_sha256": "6790a81182ada7dd78cd4dae6f3d302a59b41a566d02696b328a85c8f1dc20d4",
+              "client_result": {
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 1,
+                    "headers": {
+                      "cseq": "1",
+                      "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 148,
+                    "body_hex": "763d300d0a6f3d2d2030203020494e20495034203132372e302e302e310d0a733d476577797665726e20626f756e64656420666978747572650d0a633d494e2049503420302e302e302e300d0a743d3020300d0a6d3d617564696f2030205254502f41565020300d0a613d636f6e74726f6c3a747261636b49443d300d0a613d7274706d61703a302050434d552f383030300d0a",
+                    "code": 200,
+                    "cseq": 2,
+                    "headers": {
+                      "content-base": "rtsp://172.21.0.2:554/fixture/",
+                      "content-length": "148",
+                      "content-type": "application/sdp",
+                      "cseq": "2",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 461,
+                    "cseq": 3,
+                    "headers": {
+                      "cseq": "3",
+                      "server": "gortsplib",
+                      "session": "f75a0256eb2241b6ab35a55a09a8e54f;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 4,
+                    "headers": {
+                      "cseq": "4",
+                      "server": "gortsplib",
+                      "session": "f75a0256eb2241b6ab35a55a09a8e54f;timeout=55",
+                      "transport": "RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=02F646A2"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 5,
+                    "headers": {
+                      "cseq": "5",
+                      "rtp-info": "url=rtsp://172.21.0.2:554/fixture/trackID=0",
+                      "server": "gortsplib",
+                      "session": "f75a0256eb2241b6ab35a55a09a8e54f;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 6,
+                    "headers": {
+                      "content-type": "text/parameters",
+                      "cseq": "6",
+                      "server": "gortsplib",
+                      "session": "f75a0256eb2241b6ab35a55a09a8e54f;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 7,
+                    "headers": {
+                      "cseq": "7",
+                      "server": "gortsplib",
+                      "session": "f75a0256eb2241b6ab35a55a09a8e54f;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 8,
+                    "headers": {
+                      "cseq": "8",
+                      "rtp-info": "url=rtsp://172.21.0.2:554/fixture/trackID=0",
+                      "server": "gortsplib",
+                      "session": "f75a0256eb2241b6ab35a55a09a8e54f;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 9,
+                    "headers": {
+                      "cseq": "9",
+                      "server": "gortsplib"
+                    }
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 12350,
+              "response_bytes": 1296,
+              "response_sha256": "6790a81182ada7dd78cd4dae6f3d302a59b41a566d02696b328a85c8f1dc20d4"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 23,
+              "matched_cookies": [
+                12349,
+                12350
+              ],
+              "path": "protocols/rtsp/options/main.gewy",
+              "phase": "receive_options_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "d6556d0958226c2630f3488cc918827b1e76d08ee127871d2467541217c0ea11",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 23,
+              "matched_cookies": [
+                12350
+              ],
+              "path": "protocols/rtsp/describe/main.gewy",
+              "phase": "receive_describe_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "8286270e9618b4ba11ff70ac1780cebd602d6152e75dc1dd7f2a5de0c6da92fb",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 23,
+              "matched_cookies": [
+                12350
+              ],
+              "path": "protocols/rtsp/setup/main.gewy",
+              "phase": "receive_setup_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "88fb762d1349fdf384c33212b095ea975d45441e0fef3a5a847fe64c13be0447",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 23,
+              "matched_cookies": [
+                12350
+              ],
+              "path": "protocols/rtsp/play/main.gewy",
+              "phase": "receive_play_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "1190a19e71f24b61a9f5cb42bc4eb56510d0e3e2e38c33a6ed59cd8b829f7def",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 13
+          },
+          "protocol": "rtsp",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            12349,
+            12350
+          ],
+          "selected_query_or_command_count": 11,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 24649,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "code": 200,
+                "cseq": 1,
+                "headers": {
+                  "cseq": "1",
+                  "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                  "server": "gortsplib"
+                }
+              },
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "code": 404,
+                "cseq": 2,
+                "headers": {
+                  "cseq": "2",
+                  "server": "gortsplib"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "schema_version": 2
+    },
+    {
+      "checks": [
+        "real_MediaMTX_RTSP_1_0",
+        "uncaptured_native_publisher_and_synthetic_PCMU_seed",
+        "OPTIONS_and_missing_DESCRIBE_recovery",
+        "SDP_and_content_length_checked",
+        "unsupported_UDP_then_TCP_SETUP",
+        "PLAY_keepalive_PAUSE_resume_TEARDOWN",
+        "CSeq_and_session_identity_checked",
+        "kernel_bytes_match_independent_client",
+        "same_target_unselected_neighbor_excluded",
+        "existing_protocol_packages_and_replay",
+        "owned_internal_network_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "rtsp-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "MySQL_caching_sha2_auth_switch_prepared_statements",
+        "Memcached_text_meta_SASL_UDP",
+        "MQTT5_authentication_TLS_offline_delivery_or_crash_durability",
+        "NATS_JetStream_cluster_headers_TLS",
+        "SMTP_STARTTLS_delivery_to_external_mailbox_or_crash_durability",
+        "POP3_TLS_APOP_SASL_external_delivery_or_delete_commit_durability",
+        "RTSP_TLS_authentication_RTP_delivery_quality_UDP_multicast_or_general_stream_decoding",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "ad497cdfbd38225e6625d72b9857a3be33ad2e7a81d6dddfa6231322848c5ff3",
+          "image": "bluenviron/mediamtx@sha256:59e43552f3be43695b70c19424dc2a42fcec18075f88d91561a24ac5d70a586c",
+          "image_id": "sha256:b0c14cc8ca728087348b41e2e58090af8003f8c6375b047e94547404b7a14061",
+          "internal_network": true,
+          "network_id": "6b0fd0eb5fe81615088c87abf81a6bf23207150352dd2650cc47cd2016f260d8",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 1,
+                    "headers": {
+                      "cseq": "1",
+                      "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 404,
+                    "cseq": 2,
+                    "headers": {
+                      "cseq": "2",
+                      "server": "gortsplib"
+                    }
+                  }
+                ]
+              },
+              "captured_sha256": "9c9f1f18b2fc73a157377b022e5e23a6b0c4661bdd8d2a4bfa5c23452a6b84a6",
+              "client_result": {
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 1,
+                    "headers": {
+                      "cseq": "1",
+                      "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 404,
+                    "cseq": 2,
+                    "headers": {
+                      "cseq": "2",
+                      "server": "gortsplib"
+                    }
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 57372,
+              "response_bytes": 182,
+              "response_sha256": "9c9f1f18b2fc73a157377b022e5e23a6b0c4661bdd8d2a4bfa5c23452a6b84a6"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 1,
+                    "headers": {
+                      "cseq": "1",
+                      "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 148,
+                    "body_hex": "763d300d0a6f3d2d2030203020494e20495034203132372e302e302e310d0a733d476577797665726e20626f756e64656420666978747572650d0a633d494e2049503420302e302e302e300d0a743d3020300d0a6d3d617564696f2030205254502f41565020300d0a613d636f6e74726f6c3a747261636b49443d300d0a613d7274706d61703a302050434d552f383030300d0a",
+                    "code": 200,
+                    "cseq": 2,
+                    "headers": {
+                      "content-base": "rtsp://172.21.0.2:554/fixture/",
+                      "content-length": "148",
+                      "content-type": "application/sdp",
+                      "cseq": "2",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 461,
+                    "cseq": 3,
+                    "headers": {
+                      "cseq": "3",
+                      "server": "gortsplib",
+                      "session": "3205db6d76484671b51a1be3d0890347;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 4,
+                    "headers": {
+                      "cseq": "4",
+                      "server": "gortsplib",
+                      "session": "3205db6d76484671b51a1be3d0890347;timeout=55",
+                      "transport": "RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=099D84FD"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 5,
+                    "headers": {
+                      "cseq": "5",
+                      "rtp-info": "url=rtsp://172.21.0.2:554/fixture/trackID=0",
+                      "server": "gortsplib",
+                      "session": "3205db6d76484671b51a1be3d0890347;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 6,
+                    "headers": {
+                      "content-type": "text/parameters",
+                      "cseq": "6",
+                      "server": "gortsplib",
+                      "session": "3205db6d76484671b51a1be3d0890347;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 7,
+                    "headers": {
+                      "cseq": "7",
+                      "server": "gortsplib",
+                      "session": "3205db6d76484671b51a1be3d0890347;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 8,
+                    "headers": {
+                      "cseq": "8",
+                      "rtp-info": "url=rtsp://172.21.0.2:554/fixture/trackID=0",
+                      "server": "gortsplib",
+                      "session": "3205db6d76484671b51a1be3d0890347;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 9,
+                    "headers": {
+                      "cseq": "9",
+                      "server": "gortsplib"
+                    }
+                  }
+                ]
+              },
+              "captured_sha256": "f8afe7e709e969922ff4f87e1d41c00fbbbf8dd815b7831e85314b6ce86ec2fb",
+              "client_result": {
+                "replies": [
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 1,
+                    "headers": {
+                      "cseq": "1",
+                      "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 148,
+                    "body_hex": "763d300d0a6f3d2d2030203020494e20495034203132372e302e302e310d0a733d476577797665726e20626f756e64656420666978747572650d0a633d494e2049503420302e302e302e300d0a743d3020300d0a6d3d617564696f2030205254502f41565020300d0a613d636f6e74726f6c3a747261636b49443d300d0a613d7274706d61703a302050434d552f383030300d0a",
+                    "code": 200,
+                    "cseq": 2,
+                    "headers": {
+                      "content-base": "rtsp://172.21.0.2:554/fixture/",
+                      "content-length": "148",
+                      "content-type": "application/sdp",
+                      "cseq": "2",
+                      "server": "gortsplib"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 461,
+                    "cseq": 3,
+                    "headers": {
+                      "cseq": "3",
+                      "server": "gortsplib",
+                      "session": "3205db6d76484671b51a1be3d0890347;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 4,
+                    "headers": {
+                      "cseq": "4",
+                      "server": "gortsplib",
+                      "session": "3205db6d76484671b51a1be3d0890347;timeout=55",
+                      "transport": "RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=099D84FD"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 5,
+                    "headers": {
+                      "cseq": "5",
+                      "rtp-info": "url=rtsp://172.21.0.2:554/fixture/trackID=0",
+                      "server": "gortsplib",
+                      "session": "3205db6d76484671b51a1be3d0890347;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 6,
+                    "headers": {
+                      "content-type": "text/parameters",
+                      "cseq": "6",
+                      "server": "gortsplib",
+                      "session": "3205db6d76484671b51a1be3d0890347;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 7,
+                    "headers": {
+                      "cseq": "7",
+                      "server": "gortsplib",
+                      "session": "3205db6d76484671b51a1be3d0890347;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 8,
+                    "headers": {
+                      "cseq": "8",
+                      "rtp-info": "url=rtsp://172.21.0.2:554/fixture/trackID=0",
+                      "server": "gortsplib",
+                      "session": "3205db6d76484671b51a1be3d0890347;timeout=55"
+                    }
+                  },
+                  {
+                    "body_bytes": 0,
+                    "body_hex": "",
+                    "code": 200,
+                    "cseq": 9,
+                    "headers": {
+                      "cseq": "9",
+                      "server": "gortsplib"
+                    }
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 57373,
+              "response_bytes": 1296,
+              "response_sha256": "f8afe7e709e969922ff4f87e1d41c00fbbbf8dd815b7831e85314b6ce86ec2fb"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 23,
+              "matched_cookies": [
+                57372,
+                57373
+              ],
+              "path": "protocols/rtsp/options/main.gewy",
+              "phase": "receive_options_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "d6556d0958226c2630f3488cc918827b1e76d08ee127871d2467541217c0ea11",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 23,
+              "matched_cookies": [
+                57373
+              ],
+              "path": "protocols/rtsp/describe/main.gewy",
+              "phase": "receive_describe_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "8286270e9618b4ba11ff70ac1780cebd602d6152e75dc1dd7f2a5de0c6da92fb",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 23,
+              "matched_cookies": [
+                57373
+              ],
+              "path": "protocols/rtsp/setup/main.gewy",
+              "phase": "receive_setup_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "88fb762d1349fdf384c33212b095ea975d45441e0fef3a5a847fe64c13be0447",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 23,
+              "matched_cookies": [
+                57373
+              ],
+              "path": "protocols/rtsp/play/main.gewy",
+              "phase": "receive_play_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "1190a19e71f24b61a9f5cb42bc4eb56510d0e3e2e38c33a6ed59cd8b829f7def",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 13
+          },
+          "protocol": "rtsp",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            57372,
+            57373
+          ],
+          "selected_query_or_command_count": 11,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 8262,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "code": 200,
+                "cseq": 1,
+                "headers": {
+                  "cseq": "1",
+                  "public": "DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN",
+                  "server": "gortsplib"
+                }
+              },
+              {
+                "body_bytes": 0,
+                "body_hex": "",
+                "code": 404,
+                "cseq": 2,
+                "headers": {
+                  "cseq": "2",
+                  "server": "gortsplib"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "schema_version": 2
+    }
+  ],
+  "totals": {
+    "packet_events": 39,
+    "tcp_state_events": 30,
+    "server_response_bytes": 4434,
+    "package_replays": 12,
+    "selected_commands": 33,
+    "reported_loss": 0
+  },
+  "pop3_control": {
+    "checks": [
+      "real_Mailpit_POP3",
+      "uncaptured_SMTP_seed_then_captured_mailbox_retrieval",
+      "auth_denial_and_unauthorized_STAT",
+      "LIST_STAT_and_RETR_declared_sizes_agree",
+      "Mailpit_extra_CRLF_disclosed_and_raw_bytes_preserved",
+      "UIDL_unique_and_RETR_bodies_match_seed",
+      "matched_packet_status_cross_check",
+      "missing_and_deleted_message_errors",
+      "dot_unstuffed_body_not_status_lines",
+      "delete_mark_reset_and_restored_list",
+      "kernel_bytes_match_independent_client",
+      "same_target_unselected_neighbor_excluded",
+      "existing_protocol_packages_and_replay",
+      "owned_internal_network_cleanup",
+      "fresh_HTTP_capture_after_data"
+    ],
+    "ingest_trust_mode": "unverified-local",
+    "mode": "pop3-breadth",
+    "not_proven": [
+      "TLS_decryption",
+      "arbitrary_protocol_detection",
+      "general_TCP_reassembly",
+      "vulnerability_exploitation_detection",
+      "PostgreSQL_TLS_SCRAM_extended_query",
+      "Redis_cluster_RESP3",
+      "MySQL_caching_sha2_auth_switch_prepared_statements",
+      "Memcached_text_meta_SASL_UDP",
+      "MQTT5_authentication_TLS_offline_delivery_or_crash_durability",
+      "NATS_JetStream_cluster_headers_TLS",
+      "SMTP_STARTTLS_delivery_to_external_mailbox_or_crash_durability",
+      "POP3_TLS_APOP_SASL_external_delivery_or_delete_commit_durability",
+      "RTSP_TLS_authentication_RTP_delivery_quality_UDP_multicast_or_general_stream_decoding",
+      "PID_or_container_process_attribution",
+      "request_payload_capture",
+      "IPv6_or_UDP",
+      "multiple_hosts_or_kernels"
+    ],
+    "ok": true,
+    "phases": [
+      {
+        "anonymous_volume_ids": [],
+        "anonymous_volumes_removed_with_container": true,
+        "client_read_chunk_bytes": 7,
+        "client_reads_are_packet_boundaries": false,
+        "container_id": "be6db3953cfe283b7f5bddffcd1eb4159af6a364e3e9c24d5343b4f772e29e23",
+        "image": "axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231",
+        "image_id": "sha256:580a202b5088e9c651a8e8b4e461e3213fbd3a3aacaa3d2251892a546a734116",
+        "internal_network": true,
+        "network_id": "6bd159ebbf13401acca1f3f76077064b595dfa01ea5c4d87e6839255fbb2cb33",
+        "observations": [
+          {
+            "captured_result": {
+              "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+              "replies": [
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK Mailpit POP3 server"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": false,
+                  "status": "-ERR invalid password"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": false,
+                  "status": "-ERR user not authenticated"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK goodbye"
+                }
+              ],
+              "retrievals": []
+            },
+            "captured_sha256": "86f96f1d2143e204bab6df35cfa19461e8b7df9e1e5af5129cedac683fc5a283",
+            "client_result": {
+              "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+              "replies": [
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK Mailpit POP3 server"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": false,
+                  "status": "-ERR invalid password"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": false,
+                  "status": "-ERR user not authenticated"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK goodbye"
+                }
+              ],
+              "retrievals": []
+            },
+            "control": false,
+            "cookie": 49169,
+            "response_bytes": 95,
+            "response_sha256": "86f96f1d2143e204bab6df35cfa19461e8b7df9e1e5af5129cedac683fc5a283"
+          },
+          {
+            "captured_result": {
+              "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+              "replies": [
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK Mailpit POP3 server"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK signed in"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK 2 768"
+                },
+                {
+                  "body_bytes": 14,
+                  "body_hex": "31203335350d0a32203431330d0a",
+                  "ok": true,
+                  "status": "+OK 2 messages (768 octets)"
+                },
+                {
+                  "body_bytes": 52,
+                  "body_hex": "3120303341664b5973497151534f4b4549776e43343531410d0a3220366a6351734e716444304242477669675343534a71500d0a",
+                  "ok": true,
+                  "status": "+OK unique-id listing follows"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": false,
+                  "status": "-ERR no such message"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK"
+                },
+                {
+                  "body_bytes": 357,
+                  "body_hex": "4d6573736167652d49443a203c356f6f414849454d43664a534e50784d736f78656f50406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792062653664623339353363666520284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030383a33303a3430202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d310d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a7365636f6e640d0a0d0a",
+                  "ok": true,
+                  "status": "+OK 355 octets"
+                },
+                {
+                  "body_bytes": 415,
+                  "body_hex": "4d6573736167652d49443a203c376753646a746d6c504272516b35686d627a3168354f406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792062653664623339353363666520284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030383a33303a3430202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d300d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a66697273740d0a2e20646f740d0a2e0d0a2d4552522061757468656e7469636174696f6e2074657874206f6e6c790d0a2b4f4b206e6f742061207374617475730d0a0d0a",
+                  "ok": true,
+                  "status": "+OK 413 octets"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK message marked for deletion"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK 1 413"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": false,
+                  "status": "-ERR no such message"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK 2 768"
+                },
+                {
+                  "body_bytes": 14,
+                  "body_hex": "31203335350d0a32203431330d0a",
+                  "ok": true,
+                  "status": "+OK 2 messages (768 octets)"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK goodbye"
+                }
+              ],
+              "retrievals": [
+                {
+                  "declared_octets": 355,
+                  "known_mailpit_extra_crlf": true,
+                  "reply_index": 8,
+                  "size_conformant": false,
+                  "unstuffed_octets": 357
+                },
+                {
+                  "declared_octets": 413,
+                  "known_mailpit_extra_crlf": true,
+                  "reply_index": 9,
+                  "size_conformant": false,
+                  "unstuffed_octets": 415
+                }
+              ]
+            },
+            "captured_sha256": "a0b2a238b083240aa1a1ec688f1ec0857493b28a2f7bd7bc335af2ca14e413a9",
+            "client_result": {
+              "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+              "replies": [
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK Mailpit POP3 server"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK signed in"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK 2 768"
+                },
+                {
+                  "body_bytes": 14,
+                  "body_hex": "31203335350d0a32203431330d0a",
+                  "ok": true,
+                  "status": "+OK 2 messages (768 octets)"
+                },
+                {
+                  "body_bytes": 52,
+                  "body_hex": "3120303341664b5973497151534f4b4549776e43343531410d0a3220366a6351734e716444304242477669675343534a71500d0a",
+                  "ok": true,
+                  "status": "+OK unique-id listing follows"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": false,
+                  "status": "-ERR no such message"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK"
+                },
+                {
+                  "body_bytes": 357,
+                  "body_hex": "4d6573736167652d49443a203c356f6f414849454d43664a534e50784d736f78656f50406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792062653664623339353363666520284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030383a33303a3430202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d310d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a7365636f6e640d0a0d0a",
+                  "ok": true,
+                  "status": "+OK 355 octets"
+                },
+                {
+                  "body_bytes": 415,
+                  "body_hex": "4d6573736167652d49443a203c376753646a746d6c504272516b35686d627a3168354f406d61696c7069743e0d0a52657475726e2d506174683a203c73656e646572406578616d706c652e746573743e0d0a52656365697665643a2066726f6d20676577792e746573742028756e6b6e6f776e205b3137322e32312e302e315d290d0a202020202020202062792062653664623339353363666520284d61696c70697429207769746820534d54500d0a2020202020202020666f72203c696e626f7840676577792e746573743e3b204672692c203133204e6f7620323032362030383a33303a3430202b303030302028555443290d0a46726f6d3a2073656e646572406578616d706c652e746573740d0a546f3a20696e626f7840676577792e746573740d0a5375626a6563743a20706f70332d666978747572652d300d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a66697273740d0a2e20646f740d0a2e0d0a2d4552522061757468656e7469636174696f6e2074657874206f6e6c790d0a2b4f4b206e6f742061207374617475730d0a0d0a",
+                  "ok": true,
+                  "status": "+OK 413 octets"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK message marked for deletion"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK 1 413"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": false,
+                  "status": "-ERR no such message"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK 2 768"
+                },
+                {
+                  "body_bytes": 14,
+                  "body_hex": "31203335350d0a32203431330d0a",
+                  "ok": true,
+                  "status": "+OK 2 messages (768 octets)"
+                },
+                {
+                  "body_bytes": 0,
+                  "body_hex": "",
+                  "ok": true,
+                  "status": "+OK goodbye"
+                }
+              ],
+              "retrievals": [
+                {
+                  "declared_octets": 355,
+                  "known_mailpit_extra_crlf": true,
+                  "reply_index": 8,
+                  "size_conformant": false,
+                  "unstuffed_octets": 357
+                },
+                {
+                  "declared_octets": 413,
+                  "known_mailpit_extra_crlf": true,
+                  "reply_index": 9,
+                  "size_conformant": false,
+                  "unstuffed_octets": 415
+                }
+              ]
+            },
+            "control": true,
+            "cookie": 49170,
+            "response_bytes": 1168,
+            "response_sha256": "a0b2a238b083240aa1a1ec688f1ec0857493b28a2f7bd7bc335af2ca14e413a9"
+          }
+        ],
+        "ok": true,
+        "owned_resources_removed": true,
+        "package_failures": [],
+        "packages": [
+          {
+            "facts": 47,
+            "matched_cookies": [
+              49170
+            ],
+            "path": "protocols/pop3/auth/main.gewy",
+            "phase": "receive_auth_ok",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "789f850f9440ea0e997e648b20c3ce8093f94cac5671f9073ee9465555f5043c",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 47,
+            "matched_cookies": [
+              49169
+            ],
+            "path": "protocols/pop3/auth-denied/main.gewy",
+            "phase": "receive_auth_denied",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "9318566c5221c2515043e74258d9ef8a69afbef900d64e04c24d2b4526f32c13",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 47,
+            "matched_cookies": [
+              49170
+            ],
+            "path": "protocols/pop3/list/main.gewy",
+            "phase": "receive_list_ready",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "56cd395315815fec98eccdff5972dd3ba89329dd6c15161ee55258533c7ab8d9",
+            "unobserved_fragments_explicit": true
+          }
+        ],
+        "packet_counts": {
+          "dropped": 0,
+          "total": 37
+        },
+        "protocol": "pop3",
+        "published_ports": false,
+        "redis_pipeline_commands": 0,
+        "schema_version": 2,
+        "selected_cookies": [
+          49169,
+          49170
+        ],
+        "selected_query_or_command_count": 20,
+        "tcp_state_counts": {
+          "dropped": 0,
+          "total": 10
+        },
+        "unselected_neighbor_cookie": 4193,
+        "unselected_neighbor_result": {
+          "fixture_size_policy": "pinned_Mailpit_1.33.0_extra_CRLF_reported_not_removed",
+          "replies": [
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK Mailpit POP3 server"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR invalid password"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": false,
+              "status": "-ERR user not authenticated"
+            },
+            {
+              "body_bytes": 0,
+              "body_hex": "",
+              "ok": true,
+              "status": "+OK goodbye"
+            }
+          ],
+          "retrievals": []
+        }
+      }
+    ],
+    "schema_version": 2
+  },
+  "fresh_http_captures": [
+    {
+      "cgroup_removed": true,
+      "checks": [
+        "captured_syn_ack_origins",
+        "real_split_status_line",
+        "body_prefix_candidate_not_promoted",
+        "derived_prefix_provenance",
+        "raw_packets_unchanged",
+        "export_and_derived_replay",
+        "decoy_exclusion",
+        "zero_reported_capture_loss",
+        "owned_pins_and_cgroup_removed"
+      ],
+      "clock_anchor_monotonic_ns": 60942807578621,
+      "clock_anchor_unix_ns": "1794558470950951986",
+      "decoy_cookie": 45136,
+      "decoy_events": 0,
+      "derived_prefix_limit": 13,
+      "dropped_events": 0,
+      "flows": 2,
+      "ingest_trust_mode": "unverified-local",
+      "kernel": "7.0.0-42-generic",
+      "kernel_events": 10,
+      "mode": "http-boundaries",
+      "not_proven": [
+        "general-TCP-stream-reassembly",
+        "subsequent-HTTP-responses",
+        "HTTP-informational-responses",
+        "TLS",
+        "TCP-Fast-Open",
+        "vulnerability-detection"
+      ],
+      "ok": true,
+      "packet_dropped_events": 0,
+      "packet_dsl_status_candidates": [
+        [
+          4189,
+          500
+        ]
+      ],
+      "packet_events": 6,
+      "pins_removed": true,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          4188,
+          46839,
+          36575,
+          4026531833
+        ],
+        [
+          4189,
+          42101,
+          36575,
+          4026531833
+        ]
+      ],
+      "verified_http_statuses": [
+        [
+          4188,
+          403
+        ],
+        [
+          4189,
+          200
+        ]
+      ]
+    },
+    {
+      "cgroup_removed": true,
+      "checks": [
+        "captured_syn_ack_origins",
+        "real_split_status_line",
+        "body_prefix_candidate_not_promoted",
+        "derived_prefix_provenance",
+        "raw_packets_unchanged",
+        "export_and_derived_replay",
+        "decoy_exclusion",
+        "zero_reported_capture_loss",
+        "owned_pins_and_cgroup_removed"
+      ],
+      "clock_anchor_monotonic_ns": 61010302443569,
+      "clock_anchor_unix_ns": "1794558538445817164",
+      "decoy_cookie": 24650,
+      "decoy_events": 0,
+      "derived_prefix_limit": 13,
+      "dropped_events": 0,
+      "flows": 2,
+      "ingest_trust_mode": "unverified-local",
+      "kernel": "7.0.0-42-generic",
+      "kernel_events": 10,
+      "mode": "http-boundaries",
+      "not_proven": [
+        "general-TCP-stream-reassembly",
+        "subsequent-HTTP-responses",
+        "HTTP-informational-responses",
+        "TLS",
+        "TCP-Fast-Open",
+        "vulnerability-detection"
+      ],
+      "ok": true,
+      "packet_dropped_events": 0,
+      "packet_dsl_status_candidates": [
+        [
+          8261,
+          500
+        ]
+      ],
+      "packet_events": 6,
+      "pins_removed": true,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          8260,
+          47167,
+          36435,
+          4026531833
+        ],
+        [
+          8261,
+          60527,
+          36435,
+          4026531833
+        ]
+      ],
+      "verified_http_statuses": [
+        [
+          8260,
+          403
+        ],
+        [
+          8261,
+          200
+        ]
+      ]
+    },
+    {
+      "cgroup_removed": true,
+      "checks": [
+        "captured_syn_ack_origins",
+        "real_split_status_line",
+        "body_prefix_candidate_not_promoted",
+        "derived_prefix_provenance",
+        "raw_packets_unchanged",
+        "export_and_derived_replay",
+        "decoy_exclusion",
+        "zero_reported_capture_loss",
+        "owned_pins_and_cgroup_removed"
+      ],
+      "clock_anchor_monotonic_ns": 61066944386252,
+      "clock_anchor_unix_ns": "1794558595087759616",
+      "decoy_cookie": 4192,
+      "decoy_events": 0,
+      "derived_prefix_limit": 13,
+      "dropped_events": 0,
+      "flows": 2,
+      "ingest_trust_mode": "unverified-local",
+      "kernel": "7.0.0-42-generic",
+      "kernel_events": 10,
+      "mode": "http-boundaries",
+      "not_proven": [
+        "general-TCP-stream-reassembly",
+        "subsequent-HTTP-responses",
+        "HTTP-informational-responses",
+        "TLS",
+        "TCP-Fast-Open",
+        "vulnerability-detection"
+      ],
+      "ok": true,
+      "packet_dropped_events": 0,
+      "packet_dsl_status_candidates": [
+        [
+          4191,
+          500
+        ]
+      ],
+      "packet_events": 6,
+      "pins_removed": true,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          4190,
+          54947,
+          35921,
+          4026531833
+        ],
+        [
+          4191,
+          56779,
+          35921,
+          4026531833
+        ]
+      ],
+      "verified_http_statuses": [
+        [
+          4190,
+          403
+        ],
+        [
+          4191,
+          200
+        ]
+      ]
+    }
+  ],
+  "regression": {
+    "core_and_protocol_passed": 1572,
+    "existing_ignored": 1,
+    "api_passed": 23,
+    "strict_clippy_passed": true,
+    "closure": {
+      "passed": 348,
+      "failed": 0,
+      "strict_clippy_passed": true
+    },
+    "total_passed": 1943,
+    "format_passed": true
+  },
+  "cleanup": {
+    "existing_container_identities_unchanged": true,
+    "existing_network_identities_unchanged": true,
+    "existing_volume_inventory_unchanged": true,
+    "existing_containers": 15,
+    "existing_networks": 6,
+    "existing_volumes": 54,
+    "global_prune_used": false,
+    "build_container_removed": true,
+    "no_owned_capture_pins_or_cgroups_remaining": true,
+    "unrelated_control_group_preserved": "gewyvern-vm-transfer.service active since 2026-11-04; not created or stopped by this campaign",
+    "final_container_inventory_matches_baseline": true
+  },
+  "limits": [
+    "Only one physical Linux host/kernel and one MediaMTX build; not a release artifact or full catalog certification.",
+    "Response-only selected-cookie packet evidence; no captured requests, process attribution or request/CSeq dialogue correlation in production.",
+    "Complete contiguous RTSP/1.0 headers must start at packet offset zero and end within 512 bytes. No cross-packet reconstruction, body parsing, RTSP/2.0 or arbitrary method/outcome detection.",
+    "CSeq ordering and session equality are independently verified by the fixture, not inferred by product predicates.",
+    "404 recovery uses a new connection; 461 UDP SETUP refusal is followed by successful TCP SETUP on the same connection.",
+    "Generic 200, session-only keepalive/PAUSE, range-only replies and body-only header text are negative controls, not PLAY proof.",
+    "A signature-shaped body at a new packet boundary still requires dialogue context these packet-local predicates do not supply.",
+    "No authentication/TLS, UDP media/multicast, RTP delivery/loss/jitter/media quality, throughput or multi-host/kernel coverage.",
+    "Default sparse collectors retain unsupported-offset diagnostics; this proof supplies a 1024-byte contiguous validation prefix without changing the ordinary streaming ABI."
+  ]
+}

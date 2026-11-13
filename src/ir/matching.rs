@@ -88,6 +88,14 @@ where
 {
     match predicate {
         FlowPredicate::ProcessBound => flow.evidence.lineage_facts.contains(&fact.id),
+        FlowPredicate::RtspResponseObserved { remote_port, kind } => {
+            flow.evidence.packet_facts.contains(&fact.id)
+                && matches!(&fact.kind,
+                FactKind::PacketMeta(packet) if packet.l4_proto == 6
+                    && packet.dir == crate::ledger::PacketDir::Ingress
+                    && packet.remote_port == Some(*remote_port)
+                    && super::rtsp::matches(packet,*kind))
+        }
         FlowPredicate::SocketStateObserved {
             local_port,
             remote_port,

@@ -39,7 +39,7 @@ fn smtp_auth_path_does_not_treat_failed_auth_response_as_auth_ok() {
         Some(25),
         Some(0x32),
         Some(0x3235),
-        Some(0x32353020),
+        Some(0x3235302d),
     ));
     session.ingest(packet_fact_with_dir_and_payload(
         7,
@@ -279,7 +279,7 @@ fn smtp_mail_path_does_not_treat_failed_mail_response_as_mail_ok() {
         Some(25),
         Some(0x32),
         Some(0x3235),
-        Some(0x32353020),
+        Some(0x3235302d),
     ));
     session.ingest(packet_fact_with_dir_and_payload(
         7,
@@ -382,7 +382,7 @@ fn smtp_rcpt_path_does_not_treat_failed_rcpt_response_as_rcpt_ok() {
         Some(25),
         Some(0x32),
         Some(0x3235),
-        Some(0x32353020),
+        Some(0x3235302d),
     ));
     session.ingest(packet_fact_with_dir_and_payload(
         7,
@@ -433,6 +433,8 @@ fn smtp_rcpt_path_does_not_treat_failed_rcpt_response_as_rcpt_ok() {
             (5, 0x2e),
             (6, 0x31),
             (7, 0x2e),
+            (8, 0x30),
+            (9, 0x20),
         ],
     ));
     session.ingest(packet_fact_with_dir_and_payload(

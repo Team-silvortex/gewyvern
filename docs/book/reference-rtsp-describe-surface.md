@@ -39,8 +39,12 @@ Read this page after the RTSP family hub when:
 
 ## Stability Notes
 
-The current entry is stage-based. It tells you that the peer responded to
-`DESCRIBE`, not that every later media transport step succeeded.
+The receive stage is a packet-local RTSP/1.0 `200` candidate with decimal `CSeq`,
+SDP content type and positive content length. It does not validate the body or
+correlate requests by CSeq. Header names are case-insensitive and order-independent;
+the complete header must fit within 512 bytes of one packet. Sparse capture may
+report unsupported offsets. This is not media-delivery or stream-reassembly proof.
+See the [real Linux proof](../fixtures/gewyvern_rtsp_linux_x86_64_20261113.json).
 
 For the broader family map, see
 [docs/book/reference-rtsp-surface.md](docs/book/reference-rtsp-surface.md).

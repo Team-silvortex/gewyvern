@@ -43,8 +43,13 @@ Read this page after the RTSP family hub when:
 
 ## Stability Notes
 
-The current entry is still control-plane oriented. It models successful `PLAY`
-startup rather than the later sustained RTP media plane.
+The receive stage requires a packet-local RTSP/1.0 `200`, decimal `CSeq`,
+nonempty `Session` and `RTP-Info` URL. A generic `200`, session-only `PAUSE` or
+keepalive, and range-only reply are not playback candidates. Header names are
+case-insensitive and order-independent; the complete header must fit within
+512 bytes of one packet. Sparse capture may report unsupported offsets. This
+does not correlate requests or certify RTP delivery, timing, jitter or quality.
+See the [real Linux proof](../fixtures/gewyvern_rtsp_linux_x86_64_20261113.json).
 
 For the broader family map, see
 [docs/book/reference-rtsp-surface.md](docs/book/reference-rtsp-surface.md).

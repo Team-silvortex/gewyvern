@@ -33,6 +33,10 @@ pub(super) fn narrative_summary(narrative: &NarrativeTemplate) -> String {
 pub(super) fn predicate_summary(predicate: &FlowPredicate) -> String {
     match predicate {
         FlowPredicate::ProcessBound => "process_bound".into(),
+        FlowPredicate::RtspResponseObserved { remote_port, kind } => format!(
+            "rtsp_response_observed(remote_port={remote_port},kind={},max_header_bytes=512)",
+            kind.label()
+        ),
         FlowPredicate::SocketStateObserved {
             local_port,
             remote_port,

@@ -137,6 +137,19 @@ fn reason_rule_json(rule: &ReasonRule) -> JsonValue {
 
 fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
     match predicate {
+        ReasonPredicate::RtspResponseObserved { remote_port, kind } => {
+            JsonValue::Object(BTreeMap::from([
+                (
+                    "kind".into(),
+                    JsonValue::String("rtsp_response_observed".into()),
+                ),
+                (
+                    "remote_port".into(),
+                    JsonValue::Number(i64::from(*remote_port)),
+                ),
+                ("response".into(), JsonValue::String(kind.label().into())),
+            ]))
+        }
         ReasonPredicate::ProcessBound => JsonValue::String("process_bound".into()),
         ReasonPredicate::SocketStateObserved {
             local_port,

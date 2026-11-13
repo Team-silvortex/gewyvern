@@ -38,8 +38,12 @@ Read this page after the generic protocol surface when:
 
 ## Stability Notes
 
-The current entry is intentionally early-phase. It models successful probe flow
-without trying to infer later media-session intent.
+The receive stage is a packet-local RTSP/1.0 `200` candidate with decimal `CSeq`
+and a `Public` method list. It accepts reordered/case-insensitive headers, but
+requires a complete header within the first 512 bytes of one packet. It does
+not correlate requests by CSeq or infer media delivery. Default sparse capture
+may report unsupported offsets; use an adequately sampled prefix, never a
+fabricated success. See the [real Linux proof](../fixtures/gewyvern_rtsp_linux_x86_64_20261113.json).
 
 For the broader family map, see
 [docs/book/reference-rtsp-surface.md](docs/book/reference-rtsp-surface.md).

@@ -5,7 +5,9 @@ use std::process::Command;
 
 use super::super::packet_evidence::PacketEvent;
 use super::bpf_link;
-use super::{Counts, Pins, ValidationError, map_dump, map_entries, repo_root, tool};
+use super::{
+    Counts, Pins, ValidationError, map_dump, map_entries, repo_root, tool, tool_with_stdout_limit,
+};
 
 pub(super) struct Scope {
     original: PathBuf,
@@ -78,6 +80,17 @@ impl Drop for Scope {
 pub(super) struct Capture {
     link: Option<OwnedFd>,
     pins: Pins,
+    event_dump_limit: usize,
+}
+
+fn event_dump_limit(data_breadth: bool) -> usize {
+    // bpftool emits both raw hex and BTF-decoded bytes. Budget 16 KiB per 1 KiB
+    // event, bounded by the existing 128-slot map; other tools retain 256 KiB.
+    if data_breadth {
+        128 * 16 * 1024
+    } else {
+        256 * 1024
+    }
 }
 
 fn packet_counts(pins: &Pins, out: &Path) -> Result<Counts, ValidationError> {
@@ -253,6 +266,7 @@ impl Capture {
         Ok(Self {
             link: Some(link),
             pins,
+            event_dump_limit: event_dump_limit(data_breadth),
         })
     }
 
@@ -266,7 +280,13 @@ impl Capture {
         if let Some(code) = count_rejection(before) {
             return reject(out, code, before, None);
         }
-        let bytes = map_dump(&self.pins, "events", out)?;
+        let bytes = tool_with_stdout_limit(
+            Command::new("bpftool")
+                .args(["-j", "map", "dump", "pinned"])
+                .arg(self.pins.0.join("maps/events")),
+            out,
+            self.event_dump_limit,
+        )?;
         fs::write(out.join("packet-prefix-raw.json"), &bytes)?;
         let after = packet_counts(&self.pins, out)?;
         if before != after {
@@ -321,6 +341,18 @@ fn reject(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn breadth_dump_budget_covers_full_map_raw_and_formatted_bytes() {
+        let event = serde_json::json!({"key":vec!["0xff";4],
+            "value":vec!["0xff";1088],
+            "formatted":{"key":127,"value":{"prefix":vec![255u8;1024],
+                "metadata_padding":"9".repeat(1024)}}});
+        let full_map = serde_json::to_vec(&vec![event; 128]).unwrap();
+        assert!(full_map.len() > event_dump_limit(false));
+        assert!(full_map.len() < event_dump_limit(true));
+        assert_eq!(event_dump_limit(true), 2 * 1024 * 1024);
+        assert_eq!(event_dump_limit(false), 256 * 1024);
+    }
     #[test]
     fn cgroup_path_is_confined_to_unified_mount() {
         assert_eq!(
