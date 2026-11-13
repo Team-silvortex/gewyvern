@@ -15,16 +15,17 @@ fn mysql_auth_denied_rules() =
   |> program_rule pred: "socket_state_observed:remote:mysql:established", stage: :socket_state_transition, narr: "static:program reached an established MySQL socket state", dedupe: true, mod: $module_name, phase: :establish
   |> program_rule pred: "packet_observed:tcp:remote:mysql:remote_to_local:byte_at:4:0xff:0x0a", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_greeting
   |> program_rule pred: "packet_observed:tcp:remote:mysql:local_to_remote:byte_at:3:0xff:0x01", stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_login
-  |> program_rule pred: "packet_observed:tcp:remote:mysql:remote_to_local:byte_at:4:0xff:0xff", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_auth_denied
+  |> program_rule pred: "packet_observed:tcp:remote:mysql:remote_to_local:byte_at:4:0xff:0xff:bytes_at:5:0x15,0x04,0x23,0x32,0x38,0x30,0x30,0x30", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_auth_denied
   |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
   |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_upstream
   |> reason_rule pred: "socket_state_observed:remote:mysql", event: :state_change, narr: :tcp_state_transition, dedupe: false, mod: $module_name, phase: :connect
   |> reason_rule pred: "socket_state_observed:remote:mysql:established", event: :state_change, narr: :tcp_state_transition, dedupe: true, mod: $module_name, phase: :establish
   |> reason_rule pred: "packet_observed:tcp:remote:mysql:remote_to_local:byte_at:4:0xff:0x0a", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_greeting
   |> reason_rule pred: "packet_observed:tcp:remote:mysql:local_to_remote:byte_at:3:0xff:0x01", event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_login
-  |> reason_rule pred: "packet_observed:tcp:remote:mysql:remote_to_local:byte_at:4:0xff:0xff", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_auth_denied
+  |> reason_rule pred: "packet_observed:tcp:remote:mysql:remote_to_local:byte_at:4:0xff:0xff:bytes_at:5:0x15,0x04,0x23,0x32,0x38,0x30,0x30,0x30", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_auth_denied
 
 template :mysql_auth_denied_path
 |> window(duration_ms: 5000, lateness_ms: 200)
 |> use :mysql_auth_denied_rules
 |> param :sock_lineage_fragment.capture_comm, true
+|> param :tcp_packet_meta_fragment.sample_payload_offsets, "5,6,7,8,9,10,11,12"

@@ -165,6 +165,42 @@ fn container_capture_rejects_ambiguous_targets_before_any_lab_effects() {
         vec![
             "--json",
             "linux-tcp-capture",
+            "--messaging-breadth",
+            "--messaging-breadth",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--mysql-memcached",
+            "--messaging-breadth",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--messaging-breadth",
+            "--capture-stream",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--mysql-memcached",
+            "--mysql-memcached",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--mysql-memcached",
+            "--data-breadth",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--capture-stream",
+            "--mysql-memcached",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
             "--data-breadth",
             "--auth-breadth",
         ],

@@ -29,8 +29,8 @@ Coarse response shape:
 The first `E` byte alone cannot distinguish authentication refusal from query
 failure. The current TCP packet predicates deliberately use a
 conservative canonical English field layout: `auth-denied` requires FATAL and
-SQLSTATE class 28; `error` requires the nonfatal ERROR prefix. Both require the
-observed SQLSTATE end byte. Different field order, localized severity text,
+SQLSTATE class 28; `error` requires the nonfatal ERROR prefix. Both require an
+observed zero SQLSTATE terminator, not merely a byte at that offset. Different field order, localized severity text,
 split prefixes or fatal query failures can remain unmatched, not mislabeled.
 These are packet-local candidates, not a full PostgreSQL decoder.
 
@@ -41,6 +41,15 @@ division by zero and verifies a later query on the same connection. No request
 payload or process identity is synthesized. A raw `receive_auth` stage only
 means an authentication message was seen, not login succeeded; a ready message
 alone is also not proof that the preceding query succeeded.
+
+The schema-2 fixture also checks a failed explicit transaction: `BEGIN` yields
+ReadyForQuery `T`, division by zero yields `E`, the next query is rejected with
+`25P02`, and `ROLLBACK` returns to `I` before a successful query. SQL NULL and
+empty text are retained as distinct row values. These states follow the
+[PostgreSQL wire formats](https://www.postgresql.org/docs/16/protocol-message-formats.html);
+they are framed fixture observations, not new meanings assigned to packet-only
+program stages. Extended queries, arbitrary result types and production-wide
+transaction correlation remain outside this bounded fixture.
 
 ## Machine-Readable Surface Semantics
 

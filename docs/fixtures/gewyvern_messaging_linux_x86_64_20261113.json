@@ -1,0 +1,2625 @@
+{
+  "schema_version": 1,
+  "proof": "linux-real-mqtt-nats-session-and-message-boundaries",
+  "captured_on": "2026-11-13",
+  "source_base_revision": "8f27030b92fc5d5d28612487bb10dd541b71c0e9",
+  "working_tree_changes": true,
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "execution": {
+    "kernel": "7.0.0-42-generic",
+    "architecture": "x86_64",
+    "host_count": 1,
+    "kernel_count": 1,
+    "live_capture": "physical Linux host; digest-pinned official Mosquitto and NATS targets on owned internal Docker networks",
+    "toolchain": "Rust 1.98 in a temporary two-CPU/four-GiB build container",
+    "packet_prefix_bytes": 1024,
+    "existing_stream_prefix_bytes": 64,
+    "existing_stream_event_bytes": 128,
+    "max_capture_events": 128,
+    "max_server_stream_bytes": 4096,
+    "exchange_absolute_deadline_seconds": 12,
+    "client_read_chunk_bytes": 7,
+    "forced_tcp_packet_segmentation": false,
+    "target_cpu_limit": 1,
+    "target_memory_mib": 512,
+    "target_pids_limit": 128,
+    "published_ports": false,
+    "host_data_mounted": false,
+    "generated_config_copied_into_stopped_target": true,
+    "mqtt": "3.1.1 anonymous isolated fixture, in-memory persistent-session seed, no disk persistence",
+    "mqtt_seed_is_capture_evidence": false,
+    "mqtt_seed_before_selected_capture": true,
+    "nats": "core protocol-1, disposable account and gewy.> permissions, max_payload 1024",
+    "nats_info_updates": "retained in raw bytes and decoded transcript; bounded to four INFO frames per exchange for expectation matching",
+    "negative_message_bodies_precede_real_error": true,
+    "image_pulls_during_campaign": false,
+    "images_preloaded_this_turn_on_linux_only": true,
+    "docker_public_pull_configuration": "separate empty configuration after existing Docker login token was rejected as expired; original credentials untouched",
+    "macos_builds": false,
+    "macos_image_pulls": false,
+    "remote_evidence": "/home/chiharukiryu/.cache/gewyvern/evidence/20261113-messaging",
+    "local_evidence": "target/validation/messaging-20261113",
+    "final_campaign_directories": [
+      "run-4",
+      "run-5",
+      "run-6"
+    ],
+    "excluded_development_campaign_directories": [
+      "dev-1",
+      "dev-2",
+      "dev-3",
+      "dev-4",
+      "run-1",
+      "run-2",
+      "run-3"
+    ],
+    "exclusion_reasons": {
+      "dev-1": "unsupported-version readiness oracle was not suitable for this broker; switched to valid clean-session readiness and explicit empty-ID refusal",
+      "dev-2": "real MQTT session-resume and nonzero-PUBACK-ID production rule failures",
+      "dev-3": "development rule used unsupported TCP prefix2 qualifier; corrected to existing byte predicates",
+      "dev-4": "MQTT passed; NATS readiness oracle did not handle asynchronous INFO",
+      "run-1..3": "successful preliminary captures excluded after moving negative bodies before the real error and adding a post-error recovery message"
+    }
+  },
+  "artifact_bindings": {
+    "build": {
+      "target/debug/gewyvern_validate": "bae2180589b2b4c30ed416869f8e9095a505160ff9d8144c021e648d066d5a9f",
+      "ebpf/validation/http_prefix.bpf.c": "ca9eb8c99aee4f3d3ccddfed18d13592ad610d4010cfc32b65aab4d4630aac74",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth.rs": "e06c195d82e6b036d810c9c7b9f717876355094eee6c4e0a97cd3b7c5c790cc3",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/wire.rs": "24d8d96bcad1ecd9e896b73bfc8477dc9248e283efbd4baa4656128fe96ee4a4",
+      "src/validation_harness/linux_tcp_capture/linux/bounded_stream.rs": "196519549fc1eab62991e386d01f3264955b5558d9052b065722f2e7fab86314",
+      "src/validation_harness/linux_tcp_capture/linux/packet_capture.rs": "d74c0831739f3e587fe0cc6f1696d97011a6524b261eb013086f359e9ec275ee",
+      "src/validation_harness/linux_tcp_capture/packet_evidence.rs": "ce64ea1adef21ed01e2e43c2ecc8da1f4aa02e48394febfb4cf89a449603ffee",
+      "protocols/postgres/auth-denied/main.gewy": "329a23c8a2faeee3bf39587caafa32278af7650d63699a469a311817fa1679e1",
+      "protocols/postgres/error/main.gewy": "dd4fb60095014bea28f18af8093e98f666be9f05914991368aa06f99e78ade83",
+      "protocols/postgres/auth/main.gewy": "4cd13df0f49c7a21587b4f1464c2a695b9ef6ea64f5344e98c7744a433927084",
+      "protocols/redis/auth-denied/main.gewy": "4dd11db6ddfb6e9d23515f7423f70206d5f4e2908dc92bc7640500cec9dc4ecc",
+      "protocols/redis/error/main.gewy": "ffad0645b9b8ee570c3fde77318008ed4b983afbc7c090d54db8c2f7b56526eb",
+      "protocols/redis/get/main.gewy": "7dfe57a644f4f6cd574ebb14d5cc9d57ea8873d0fac91b6d58edde585de4ff16",
+      "src/fragment.rs": "ef5f6566a48192a6b9ec15352ad5a553e92c9872bf7f71d8532fbf53ea21387b",
+      "src/export/attach_codec/encode.rs": "7ff8ddafe90f8ea1be560f7f189e29b86e17f04efa4ace8b2277edeb2b2958a4",
+      "src/export/attach_codec/decode.rs": "3a959c6c1137c45600c7317d62f7e8e0792bd42f70d2e57474cace02718f54ee",
+      "src/bin/gewyvern_validate.rs": "48add91a52726f2c8b335e838580f367fabde9091f51414c2aaa2fd63dd0ba5b",
+      "src/validation_harness.rs": "c1deec155999c1e9f010a0a3dffaeae8d2ee3e2854060cb32dc962564762490b",
+      "src/validation_harness/linux_tcp_capture.rs": "0ac5b6cd128c3240f64947f3c144c98abcc84b678c1058fa9393f3e423769049",
+      "src/validation_harness/linux_tcp_capture/linux.rs": "b4ef921c6011a447160fa72cecddbbf220ce18c15deb4ed9b5be4d102a4f7cd4",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/mysql.rs": "6bf734d74ea1095e5a3f255c1b4054312ca19deb30f8c7d736d8f834549bd6e2",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/memcached.rs": "87cf84d3b1182e99914b614d5a941d4a6701ff75563f61e7e88867b99f147ca4",
+      "src/protocol_profiles/semantics/data.rs": "278a54611d2ca036578d041e0dc6d197fa98ac9db87c1675e31449182587815b",
+      "protocols/mysql/auth-denied/main.gewy": "d0812316a267fa51a49d99bbf6a3fb903a551b6d49a66f3eee08d317d523aeab",
+      "protocols/mysql/error/main.gewy": "291714570839dd1caf08dfa338a2e41e276c8f963c5f06310cd9aed11c39c2a6",
+      "protocols/mysql/auth/main.gewy": "49e62f41c578a56b3e3a740d59a8565638d4b75a73e87bad227324b788929e2f",
+      "protocols/memcached/get/main.gewy": "57d642a60b160e691168f67e55a3dda4eb11276408ad65791959acc317361166",
+      "protocols/memcached/set/main.gewy": "3ae36caa3d730120397b72a392e9f703c210c1621249e5c309b6f9f0963314be",
+      "protocols/memcached/miss/main.gewy": "f156ec01a0a8d747feaf78e13f3d6ad7d19a5c89b92d79f7316e64d6a4324060",
+      "protocols/memcached/not-stored/main.gewy": "c57af0939121b4c02c21d27976f90228e43872986cbca38baea899ce480fd6f3",
+      "dsl/mysql_auth_denied_path.gewy": "d0812316a267fa51a49d99bbf6a3fb903a551b6d49a66f3eee08d317d523aeab",
+      "dsl/mysql_query_error_path.gewy": "291714570839dd1caf08dfa338a2e41e276c8f963c5f06310cd9aed11c39c2a6",
+      "dsl/memcached_get_path.gewy": "57d642a60b160e691168f67e55a3dda4eb11276408ad65791959acc317361166",
+      "dsl/memcached_set_path.gewy": "3ae36caa3d730120397b72a392e9f703c210c1621249e5c309b6f9f0963314be",
+      "dsl/memcached_miss_path.gewy": "f156ec01a0a8d747feaf78e13f3d6ad7d19a5c89b92d79f7316e64d6a4324060",
+      "dsl/memcached_not_stored_path.gewy": "c57af0939121b4c02c21d27976f90228e43872986cbca38baea899ce480fd6f3",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/mqtt.rs": "f993d5307cf18d83e2a84b93b05af7c2d29ac2c994d8455382a919286d52d237",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/nats.rs": "f36dfd6e50d1401ce10e20eeeac7d3f8da77a5d50b2bd71d783e67b517df4677",
+      "protocols/mqtt/connect/main.gewy": "a6dcbec5e9a9d629e90fa3cf6abc49977d7a35acfa98b9d48ffd999e993534e7",
+      "protocols/mqtt/connack/main.gewy": "cb1b3978af1d8caa71c35a9622cf022800fb3ce9e620501518b8d35c3c8e7865",
+      "protocols/mqtt/publish/main.gewy": "873caa8688f72df1f43178bfd08fb9bfca85431c3d44cebbe6ae578fc05a1c75",
+      "protocols/mqtt/pubrec/main.gewy": "53686db8e7a10cbfa7ee04f0b7131727eb1d11f430f5d6a9faf6f20a26d17bae",
+      "protocols/mqtt/pubcomp/main.gewy": "bbdbd29ebdea8e9b1f7b4cb1c45b0dcb3c079af8a7b5f1659cd9981e56c7ede9",
+      "protocols/mqtt/subscribe/main.gewy": "7e9069f2d0bf0f9348e1d4dd077057b848a42e1a7118d1dfc94137adba4f7c47",
+      "protocols/nats/connect/main.gewy": "21a030cd0e7d123fbea6cdb490a275834d114f51582a841fa3c850254c6ee6eb",
+      "protocols/nats/error/main.gewy": "e95c0027e7c898974ee1a40cd7bae646db582d6da00e8a5f7b7f4c32677228f2",
+      "protocols/nats/sub/main.gewy": "e0957490515b16aafcc34083e63f31c63a7b6560ca5169542108e963057d7e36",
+      "dsl/mqtt_connect_path.gewy": "a6dcbec5e9a9d629e90fa3cf6abc49977d7a35acfa98b9d48ffd999e993534e7",
+      "dsl/mqtt_publish_path.gewy": "873caa8688f72df1f43178bfd08fb9bfca85431c3d44cebbe6ae578fc05a1c75"
+    },
+    "reports": {
+      "run-4/summary.json": "c4542a6250c4ee4f293a50d861b41f768434d343f2709b2a1817eb69085182fa",
+      "run-5/summary.json": "f3e880f801e99f2aa2d2945229bd70a3bf7f2bbbdfb09641287b5473ff388a65",
+      "run-6/summary.json": "5a04c66cc8bc051eeb4e26f8d0ce95367cdef6f5c8a8f40771e9aa8d4a00df8e",
+      "run-4/after-data-restart/summary.json": "690e3be6adc0d0ea462f6a5b12048478ba6d7d020a9eedf6455593302d854073",
+      "run-5/after-data-restart/summary.json": "9d4e0a8e3ff39b5a8cd32e1077fd42b522c80760f56b68ddbd45374c132ce151",
+      "run-6/after-data-restart/summary.json": "0af8c2e525b99ef730b3cfa90cdf805a5426e70826f56de7c53a55f6f9bb4d06",
+      "dev-2/mqtt/result.json": "1309302352e8135acb995c6150f9916157b7828445d124bc6753da8f0033b9f2",
+      "dev-2/mqtt/package-0-export.json": "16226eddf2004e046d0018820f8fd2d2d84618e96353505009fd3c90437211b9",
+      "dev-2/mqtt/package-2-export.json": "0cde7b97703f09f3fb905a4ad098c156c752d1bc6b92ecccaec0b43a0611f7e6",
+      "mqtt-before-fix-test.log": "11300483a327a0da7f26e49136be3c3b310a1d2df4e460aade414512cbe39c4e",
+      "mysql-memcached-control/summary.json": "d1b911aff6b1d07fc94ec522eed520da0ed110d1d966c74252117485c394c23a",
+      "containers-before.txt": "f292a9d54d0ce70e7f7e5f5d8ddeb460ca4e87338dbf492a4d904a9b28094c1a",
+      "containers-after.txt": "f292a9d54d0ce70e7f7e5f5d8ddeb460ca4e87338dbf492a4d904a9b28094c1a",
+      "networks-before.txt": "f98139f9bb03180978aa454394c2878925b39e2af8b87cab2a18f098ddd71380",
+      "networks-after.txt": "f98139f9bb03180978aa454394c2878925b39e2af8b87cab2a18f098ddd71380",
+      "volumes-before.txt": "5c1c0b9e58eebd4845fe45ac0bac191ded288364af691a6caee9d5910dfd17e6",
+      "volumes-after.txt": "5c1c0b9e58eebd4845fe45ac0bac191ded288364af691a6caee9d5910dfd17e6",
+      "tests.log": "01df1879d9ad7c70edd13286c1f3ace10e798cdf45a8d7eeead37b47ebd6dca7",
+      "final-clippy.log": "42b58bf8e229d00a6f45c38dda278060ada2b8b0a26cce2ec6c88e0ea23b90b9",
+      "final-build.log": "483e9caef9b5e0dda8f56464cdd511bfab04fc38f683acf071c75fea759d73cf",
+      "closure-tests.log": "db99d1f84848d10112a4419ff89f9dfdc195766a70cb9010f3d2f90bd65ea5b8",
+      "closure-clippy.log": "c0e4a301d664345e62a2a2efde1358598ce20b2d077b587e046feabd98da4a2c",
+      "containers-final.txt": "b9ca4b012a943f034828ac2487fb81f4f5d861dd43aec586c3f8434c148c9e12"
+    }
+  },
+  "before_fix": {
+    "kind": "actual Mosquitto responses reconciled against kernel bytes and existing package stages",
+    "report": "dev-2/mqtt/result.json",
+    "ok": false,
+    "package_failures": [
+      "data package protocols/mqtt/connect/main.gewy phase receive_connack: observed {}, expected {32833}; check packet candidates versus framed response",
+      "data package protocols/mqtt/publish/main.gewy phase receive_puback: observed {}, expected {32833}; check packet candidates versus framed response"
+    ],
+    "observations": [
+      {
+        "captured_result": {
+          "replies": [
+            {
+              "code": 2,
+              "kind": "connack",
+              "session_present": false
+            }
+          ]
+        },
+        "captured_sha256": "10288b2d97836baa0a0ee705086a6ed4a3651ed3b696788dc1cfe014debf2e2b",
+        "client_result": {
+          "replies": [
+            {
+              "code": 2,
+              "kind": "connack",
+              "session_present": false
+            }
+          ]
+        },
+        "control": false,
+        "cookie": 32832,
+        "response_bytes": 4,
+        "response_sha256": "10288b2d97836baa0a0ee705086a6ed4a3651ed3b696788dc1cfe014debf2e2b"
+      },
+      {
+        "captured_result": {
+          "replies": [
+            {
+              "code": 0,
+              "kind": "connack",
+              "session_present": true
+            },
+            {
+              "id": 7,
+              "kind": "puback"
+            },
+            {
+              "id": 8,
+              "kind": "pubrec"
+            },
+            {
+              "id": 8,
+              "kind": "pubcomp"
+            },
+            {
+              "kind": "publish",
+              "topic": "gewy/in",
+              "value_bytes": 8,
+              "value_hex": "00ff0d0a2d455252"
+            },
+            {
+              "code": 0,
+              "id": 9,
+              "kind": "suback"
+            },
+            {
+              "kind": "pingresp"
+            }
+          ]
+        },
+        "captured_sha256": "9356f373ae2b4cbe73fa81990efa6e4a1806d03a93984127c56215e22d6da9ce",
+        "client_result": {
+          "replies": [
+            {
+              "code": 0,
+              "kind": "connack",
+              "session_present": true
+            },
+            {
+              "id": 7,
+              "kind": "puback"
+            },
+            {
+              "id": 8,
+              "kind": "pubrec"
+            },
+            {
+              "id": 8,
+              "kind": "pubcomp"
+            },
+            {
+              "kind": "publish",
+              "topic": "gewy/in",
+              "value_bytes": 8,
+              "value_hex": "00ff0d0a2d455252"
+            },
+            {
+              "code": 0,
+              "id": 9,
+              "kind": "suback"
+            },
+            {
+              "kind": "pingresp"
+            }
+          ]
+        },
+        "control": true,
+        "cookie": 32833,
+        "response_bytes": 42,
+        "response_sha256": "9356f373ae2b4cbe73fa81990efa6e4a1806d03a93984127c56215e22d6da9ce"
+      }
+    ],
+    "fixes": [
+      {
+        "path": "protocols/mqtt/connect/main.gewy",
+        "problem": "success predicate accepted only new-session CONNACK 20 02 00 00, missing resumed-session 20 02 01 00",
+        "fix": "add exact resumed-session success alternative; preserve refusal/reserved/truncated negatives"
+      },
+      {
+        "path": "protocols/mqtt/publish/main.gewy",
+        "problem": "PUBACK predicate hard-coded packet identifier zero and missed real identifier 7",
+        "fix": "require PUBACK type/length and observed ID bytes; fixed client separately validates nonzero exact ID, production candidate does not correlate IDs"
+      }
+    ],
+    "synthetic_before_fix_failure": "mqtt-before-fix-test.log"
+  },
+  "runs": [
+    {
+      "checks": [
+        "real_Mosquitto_and_NATS",
+        "MQTT_identifier_refusal_persistent_session_resume_and_QoS_acks",
+        "NATS_auth_denial_permission_error_then_same_connection_recovery",
+        "binary_empty_and_control_looking_message_bodies",
+        "matched_packet_status_cross_check",
+        "kernel_bytes_match_independent_client",
+        "same_target_unselected_neighbor_excluded",
+        "existing_protocol_packages_and_replay",
+        "owned_internal_network_and_anonymous_volume_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "messaging-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "MySQL_caching_sha2_auth_switch_prepared_statements",
+        "Memcached_text_meta_SASL_UDP",
+        "MQTT5_authentication_TLS_offline_delivery_or_crash_durability",
+        "NATS_JetStream_cluster_headers_TLS",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [
+            "624e8408a0e50ff31b0199a4f34b0748df6c84faa1d13502d9f9cfa93421c457",
+            "b1df22b0a9bbd47e3cab8e5865fab744d9673b140df33b1e9c8952b2e5b32a73"
+          ],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "b85db0ca3f8cd32c580782b99016ae56e1ecad391b13080a2c56bf53c84b76c7",
+          "image": "eclipse-mosquitto@sha256:75d6662dee52c947dc9dd9c29f1d8d7ffef78ddaf38001caa09755681e8bbc98",
+          "image_id": "sha256:ceaa1d541610ed761c1399787c4108d4cfa6eec6a28bdefe4d169c9d675d18ee",
+          "internal_network": true,
+          "network_id": "fb37783131d732886274902531c7d8dae0cfeff9222eabf819c0a5a26c8e0108",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "code": 2,
+                    "kind": "connack",
+                    "session_present": false
+                  }
+                ]
+              },
+              "captured_sha256": "10288b2d97836baa0a0ee705086a6ed4a3651ed3b696788dc1cfe014debf2e2b",
+              "client_result": {
+                "replies": [
+                  {
+                    "code": 2,
+                    "kind": "connack",
+                    "session_present": false
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 74,
+              "response_bytes": 4,
+              "response_sha256": "10288b2d97836baa0a0ee705086a6ed4a3651ed3b696788dc1cfe014debf2e2b"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "code": 0,
+                    "kind": "connack",
+                    "session_present": true
+                  },
+                  {
+                    "id": 7,
+                    "kind": "puback"
+                  },
+                  {
+                    "id": 8,
+                    "kind": "pubrec"
+                  },
+                  {
+                    "id": 8,
+                    "kind": "pubcomp"
+                  },
+                  {
+                    "kind": "publish",
+                    "topic": "gewy/in",
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "code": 0,
+                    "id": 9,
+                    "kind": "suback"
+                  },
+                  {
+                    "kind": "pingresp"
+                  }
+                ]
+              },
+              "captured_sha256": "9356f373ae2b4cbe73fa81990efa6e4a1806d03a93984127c56215e22d6da9ce",
+              "client_result": {
+                "replies": [
+                  {
+                    "code": 0,
+                    "kind": "connack",
+                    "session_present": true
+                  },
+                  {
+                    "id": 7,
+                    "kind": "puback"
+                  },
+                  {
+                    "id": 8,
+                    "kind": "pubrec"
+                  },
+                  {
+                    "id": 8,
+                    "kind": "pubcomp"
+                  },
+                  {
+                    "kind": "publish",
+                    "topic": "gewy/in",
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "code": 0,
+                    "id": 9,
+                    "kind": "suback"
+                  },
+                  {
+                    "kind": "pingresp"
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 75,
+              "response_bytes": 42,
+              "response_sha256": "9356f373ae2b4cbe73fa81990efa6e4a1806d03a93984127c56215e22d6da9ce"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 20,
+              "matched_cookies": [
+                75
+              ],
+              "path": "protocols/mqtt/connect/main.gewy",
+              "phase": "receive_connack",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "a6dcbec5e9a9d629e90fa3cf6abc49977d7a35acfa98b9d48ffd999e993534e7",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                74,
+                75
+              ],
+              "path": "protocols/mqtt/connack/main.gewy",
+              "phase": "receive_connack",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "cb1b3978af1d8caa71c35a9622cf022800fb3ce9e620501518b8d35c3c8e7865",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                75
+              ],
+              "path": "protocols/mqtt/publish/main.gewy",
+              "phase": "receive_puback",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "873caa8688f72df1f43178bfd08fb9bfca85431c3d44cebbe6ae578fc05a1c75",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                75
+              ],
+              "path": "protocols/mqtt/pubrec/main.gewy",
+              "phase": "receive_pubrec",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "53686db8e7a10cbfa7ee04f0b7131727eb1d11f430f5d6a9faf6f20a26d17bae",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                75
+              ],
+              "path": "protocols/mqtt/pubcomp/main.gewy",
+              "phase": "receive_pubcomp",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "bbdbd29ebdea8e9b1f7b4cb1c45b0dcb3c079af8a7b5f1659cd9981e56c7ede9",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                75
+              ],
+              "path": "protocols/mqtt/subscribe/main.gewy",
+              "phase": "receive_suback",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "7e9069f2d0bf0f9348e1d4dd077057b848a42e1a7118d1dfc94137adba4f7c47",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "protocol": "mqtt",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            74,
+            75
+          ],
+          "selected_query_or_command_count": 9,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 76,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "code": 2,
+                "kind": "connack",
+                "session_present": false
+              }
+            ]
+          }
+        },
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "f36cdbe6d374c39fbdf0c3168f1be58a5a97214c8191d98e2fe0c83805a46a30",
+          "image": "nats@sha256:558394a23dd3c36f2d3a64b51865fd09908010e80a542cea5e75c2af543ed62a",
+          "image_id": "sha256:0ea8169776497b3f85533203eebf4cdc015bbd99096e103b44b7580870f66099",
+          "internal_network": true,
+          "network_id": "ce760ba59ac5720d37c08a7172b758c0356cccb69e41cad6126b9be027b03fb3",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "error",
+                    "message": "Authorization Violation"
+                  }
+                ]
+              },
+              "captured_sha256": "7f9e6a7193f94217217fff1d8c8d7b8cf595963a416cc3f748c13e51f3d47977",
+              "client_result": {
+                "replies": [
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "error",
+                    "message": "Authorization Violation"
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 4177,
+              "response_bytes": 454,
+              "response_sha256": "7f9e6a7193f94217217fff1d8c8d7b8cf595963a416cc3f748c13e51f3d47977"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 0,
+                    "value_hex": ""
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 17,
+                    "value_hex": "2d455252206e6f742d616e2d6572726f72"
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "error",
+                    "message": "Permissions Violation for Publish to \"denied\""
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 2,
+                    "value_hex": "3433"
+                  },
+                  {
+                    "kind": "pong"
+                  }
+                ]
+              },
+              "captured_sha256": "3d2934ecf1c9cf23b6f66e43a9163c2aafd16aa14a2c85e557bc0fe148f94d65",
+              "client_result": {
+                "replies": [
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 0,
+                    "value_hex": ""
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 17,
+                    "value_hex": "2d455252206e6f742d616e2d6572726f72"
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "error",
+                    "message": "Permissions Violation for Publish to \"denied\""
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 2,
+                    "value_hex": "3433"
+                  },
+                  {
+                    "kind": "pong"
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 4178,
+              "response_bytes": 1090,
+              "response_sha256": "3d2934ecf1c9cf23b6f66e43a9163c2aafd16aa14a2c85e557bc0fe148f94d65"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 22,
+              "matched_cookies": [
+                4177,
+                4178
+              ],
+              "path": "protocols/nats/connect/main.gewy",
+              "phase": "receive_info",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "21a030cd0e7d123fbea6cdb490a275834d114f51582a841fa3c850254c6ee6eb",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 22,
+              "matched_cookies": [
+                4177,
+                4178
+              ],
+              "path": "protocols/nats/error/main.gewy",
+              "phase": "receive_error",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "e95c0027e7c898974ee1a40cd7bae646db582d6da00e8a5f7b7f4c32677228f2",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 22,
+              "matched_cookies": [
+                4178
+              ],
+              "path": "protocols/nats/sub/main.gewy",
+              "phase": "receive_message",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "e0957490515b16aafcc34083e63f31c63a7b6560ca5169542108e963057d7e36",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 12
+          },
+          "protocol": "nats",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            4177,
+            4178
+          ],
+          "selected_query_or_command_count": 16,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 4179,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "auth_required": true,
+                "kind": "info",
+                "max_payload": 1024
+              },
+              {
+                "kind": "error",
+                "message": "Authorization Violation"
+              }
+            ]
+          }
+        }
+      ],
+      "schema_version": 2
+    },
+    {
+      "checks": [
+        "real_Mosquitto_and_NATS",
+        "MQTT_identifier_refusal_persistent_session_resume_and_QoS_acks",
+        "NATS_auth_denial_permission_error_then_same_connection_recovery",
+        "binary_empty_and_control_looking_message_bodies",
+        "matched_packet_status_cross_check",
+        "kernel_bytes_match_independent_client",
+        "same_target_unselected_neighbor_excluded",
+        "existing_protocol_packages_and_replay",
+        "owned_internal_network_and_anonymous_volume_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "messaging-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "MySQL_caching_sha2_auth_switch_prepared_statements",
+        "Memcached_text_meta_SASL_UDP",
+        "MQTT5_authentication_TLS_offline_delivery_or_crash_durability",
+        "NATS_JetStream_cluster_headers_TLS",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [
+            "bfd1a260c8deaa9aa0a002bceb2cbe9b8c2384e6f39636f3b07df625c91ec621",
+            "1c15694e249de5241041d3cd45b5874f585c8dfc95b669feab30e950f547486e"
+          ],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "631aa103b18f59c0af60b7d948d2089216071c5772cc42efe0402ea52533f2d3",
+          "image": "eclipse-mosquitto@sha256:75d6662dee52c947dc9dd9c29f1d8d7ffef78ddaf38001caa09755681e8bbc98",
+          "image_id": "sha256:ceaa1d541610ed761c1399787c4108d4cfa6eec6a28bdefe4d169c9d675d18ee",
+          "internal_network": true,
+          "network_id": "1d08760c4d70bc9530db511632b526090971a04b9c7f1ebf8c272c14857c3606",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "code": 2,
+                    "kind": "connack",
+                    "session_present": false
+                  }
+                ]
+              },
+              "captured_sha256": "10288b2d97836baa0a0ee705086a6ed4a3651ed3b696788dc1cfe014debf2e2b",
+              "client_result": {
+                "replies": [
+                  {
+                    "code": 2,
+                    "kind": "connack",
+                    "session_present": false
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 4180,
+              "response_bytes": 4,
+              "response_sha256": "10288b2d97836baa0a0ee705086a6ed4a3651ed3b696788dc1cfe014debf2e2b"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "code": 0,
+                    "kind": "connack",
+                    "session_present": true
+                  },
+                  {
+                    "id": 7,
+                    "kind": "puback"
+                  },
+                  {
+                    "id": 8,
+                    "kind": "pubrec"
+                  },
+                  {
+                    "id": 8,
+                    "kind": "pubcomp"
+                  },
+                  {
+                    "kind": "publish",
+                    "topic": "gewy/in",
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "code": 0,
+                    "id": 9,
+                    "kind": "suback"
+                  },
+                  {
+                    "kind": "pingresp"
+                  }
+                ]
+              },
+              "captured_sha256": "9356f373ae2b4cbe73fa81990efa6e4a1806d03a93984127c56215e22d6da9ce",
+              "client_result": {
+                "replies": [
+                  {
+                    "code": 0,
+                    "kind": "connack",
+                    "session_present": true
+                  },
+                  {
+                    "id": 7,
+                    "kind": "puback"
+                  },
+                  {
+                    "id": 8,
+                    "kind": "pubrec"
+                  },
+                  {
+                    "id": 8,
+                    "kind": "pubcomp"
+                  },
+                  {
+                    "kind": "publish",
+                    "topic": "gewy/in",
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "code": 0,
+                    "id": 9,
+                    "kind": "suback"
+                  },
+                  {
+                    "kind": "pingresp"
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 4181,
+              "response_bytes": 42,
+              "response_sha256": "9356f373ae2b4cbe73fa81990efa6e4a1806d03a93984127c56215e22d6da9ce"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 20,
+              "matched_cookies": [
+                4181
+              ],
+              "path": "protocols/mqtt/connect/main.gewy",
+              "phase": "receive_connack",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "a6dcbec5e9a9d629e90fa3cf6abc49977d7a35acfa98b9d48ffd999e993534e7",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                4180,
+                4181
+              ],
+              "path": "protocols/mqtt/connack/main.gewy",
+              "phase": "receive_connack",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "cb1b3978af1d8caa71c35a9622cf022800fb3ce9e620501518b8d35c3c8e7865",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                4181
+              ],
+              "path": "protocols/mqtt/publish/main.gewy",
+              "phase": "receive_puback",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "873caa8688f72df1f43178bfd08fb9bfca85431c3d44cebbe6ae578fc05a1c75",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                4181
+              ],
+              "path": "protocols/mqtt/pubrec/main.gewy",
+              "phase": "receive_pubrec",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "53686db8e7a10cbfa7ee04f0b7131727eb1d11f430f5d6a9faf6f20a26d17bae",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                4181
+              ],
+              "path": "protocols/mqtt/pubcomp/main.gewy",
+              "phase": "receive_pubcomp",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "bbdbd29ebdea8e9b1f7b4cb1c45b0dcb3c079af8a7b5f1659cd9981e56c7ede9",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                4181
+              ],
+              "path": "protocols/mqtt/subscribe/main.gewy",
+              "phase": "receive_suback",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "7e9069f2d0bf0f9348e1d4dd077057b848a42e1a7118d1dfc94137adba4f7c47",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "protocol": "mqtt",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            4180,
+            4181
+          ],
+          "selected_query_or_command_count": 9,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 16434,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "code": 2,
+                "kind": "connack",
+                "session_present": false
+              }
+            ]
+          }
+        },
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "c2f5e5997f6b7e50466551e3620d2682400d28623c51e1ecd986b052831e3df4",
+          "image": "nats@sha256:558394a23dd3c36f2d3a64b51865fd09908010e80a542cea5e75c2af543ed62a",
+          "image_id": "sha256:0ea8169776497b3f85533203eebf4cdc015bbd99096e103b44b7580870f66099",
+          "internal_network": true,
+          "network_id": "6e477d182341c67d4cb1f5c88e1d3a3d61e9f07336108942161350f4dea07405",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "error",
+                    "message": "Authorization Violation"
+                  }
+                ]
+              },
+              "captured_sha256": "6832fdcefbbd7883387825327b50c69b6ad6fd563bb2b4c2bf01627d93001b65",
+              "client_result": {
+                "replies": [
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "error",
+                    "message": "Authorization Violation"
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 45126,
+              "response_bytes": 454,
+              "response_sha256": "6832fdcefbbd7883387825327b50c69b6ad6fd563bb2b4c2bf01627d93001b65"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 0,
+                    "value_hex": ""
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 17,
+                    "value_hex": "2d455252206e6f742d616e2d6572726f72"
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "error",
+                    "message": "Permissions Violation for Publish to \"denied\""
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 2,
+                    "value_hex": "3433"
+                  },
+                  {
+                    "kind": "pong"
+                  }
+                ]
+              },
+              "captured_sha256": "e9d921394b06459ced83f021da011f241d42792e24dbc3a4cca4865f33b03abf",
+              "client_result": {
+                "replies": [
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 0,
+                    "value_hex": ""
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 17,
+                    "value_hex": "2d455252206e6f742d616e2d6572726f72"
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "error",
+                    "message": "Permissions Violation for Publish to \"denied\""
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 2,
+                    "value_hex": "3433"
+                  },
+                  {
+                    "kind": "pong"
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 45127,
+              "response_bytes": 1090,
+              "response_sha256": "e9d921394b06459ced83f021da011f241d42792e24dbc3a4cca4865f33b03abf"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 22,
+              "matched_cookies": [
+                45126,
+                45127
+              ],
+              "path": "protocols/nats/connect/main.gewy",
+              "phase": "receive_info",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "21a030cd0e7d123fbea6cdb490a275834d114f51582a841fa3c850254c6ee6eb",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 22,
+              "matched_cookies": [
+                45126,
+                45127
+              ],
+              "path": "protocols/nats/error/main.gewy",
+              "phase": "receive_error",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "e95c0027e7c898974ee1a40cd7bae646db582d6da00e8a5f7b7f4c32677228f2",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 22,
+              "matched_cookies": [
+                45127
+              ],
+              "path": "protocols/nats/sub/main.gewy",
+              "phase": "receive_message",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "e0957490515b16aafcc34083e63f31c63a7b6560ca5169542108e963057d7e36",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 12
+          },
+          "protocol": "nats",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            45126,
+            45127
+          ],
+          "selected_query_or_command_count": 16,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 45128,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "auth_required": true,
+                "kind": "info",
+                "max_payload": 1024
+              },
+              {
+                "kind": "error",
+                "message": "Authorization Violation"
+              }
+            ]
+          }
+        }
+      ],
+      "schema_version": 2
+    },
+    {
+      "checks": [
+        "real_Mosquitto_and_NATS",
+        "MQTT_identifier_refusal_persistent_session_resume_and_QoS_acks",
+        "NATS_auth_denial_permission_error_then_same_connection_recovery",
+        "binary_empty_and_control_looking_message_bodies",
+        "matched_packet_status_cross_check",
+        "kernel_bytes_match_independent_client",
+        "same_target_unselected_neighbor_excluded",
+        "existing_protocol_packages_and_replay",
+        "owned_internal_network_and_anonymous_volume_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "messaging-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "MySQL_caching_sha2_auth_switch_prepared_statements",
+        "Memcached_text_meta_SASL_UDP",
+        "MQTT5_authentication_TLS_offline_delivery_or_crash_durability",
+        "NATS_JetStream_cluster_headers_TLS",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [
+            "d5fa99d767ef825946a7e1f31a9437cb5f2f3f058bc14c4ff6e51a052275a714",
+            "ce734c56b75a00945fa329e4be4b8e921a565608bdba5022f3a49458da2f9735"
+          ],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "cb9ee1ad151f1a1ae71c37f442a9a79725cc84026e370e60d4f4da3fb0aff740",
+          "image": "eclipse-mosquitto@sha256:75d6662dee52c947dc9dd9c29f1d8d7ffef78ddaf38001caa09755681e8bbc98",
+          "image_id": "sha256:ceaa1d541610ed761c1399787c4108d4cfa6eec6a28bdefe4d169c9d675d18ee",
+          "internal_network": true,
+          "network_id": "bcb83d4945285f6c706f06913e38c28855de6d2775dd13bd79d8b71e5e511bdb",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "code": 2,
+                    "kind": "connack",
+                    "session_present": false
+                  }
+                ]
+              },
+              "captured_sha256": "10288b2d97836baa0a0ee705086a6ed4a3651ed3b696788dc1cfe014debf2e2b",
+              "client_result": {
+                "replies": [
+                  {
+                    "code": 2,
+                    "kind": "connack",
+                    "session_present": false
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 4182,
+              "response_bytes": 4,
+              "response_sha256": "10288b2d97836baa0a0ee705086a6ed4a3651ed3b696788dc1cfe014debf2e2b"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "code": 0,
+                    "kind": "connack",
+                    "session_present": true
+                  },
+                  {
+                    "id": 7,
+                    "kind": "puback"
+                  },
+                  {
+                    "id": 8,
+                    "kind": "pubrec"
+                  },
+                  {
+                    "id": 8,
+                    "kind": "pubcomp"
+                  },
+                  {
+                    "kind": "publish",
+                    "topic": "gewy/in",
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "code": 0,
+                    "id": 9,
+                    "kind": "suback"
+                  },
+                  {
+                    "kind": "pingresp"
+                  }
+                ]
+              },
+              "captured_sha256": "9356f373ae2b4cbe73fa81990efa6e4a1806d03a93984127c56215e22d6da9ce",
+              "client_result": {
+                "replies": [
+                  {
+                    "code": 0,
+                    "kind": "connack",
+                    "session_present": true
+                  },
+                  {
+                    "id": 7,
+                    "kind": "puback"
+                  },
+                  {
+                    "id": 8,
+                    "kind": "pubrec"
+                  },
+                  {
+                    "id": 8,
+                    "kind": "pubcomp"
+                  },
+                  {
+                    "kind": "publish",
+                    "topic": "gewy/in",
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "code": 0,
+                    "id": 9,
+                    "kind": "suback"
+                  },
+                  {
+                    "kind": "pingresp"
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 4183,
+              "response_bytes": 42,
+              "response_sha256": "9356f373ae2b4cbe73fa81990efa6e4a1806d03a93984127c56215e22d6da9ce"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 20,
+              "matched_cookies": [
+                4183
+              ],
+              "path": "protocols/mqtt/connect/main.gewy",
+              "phase": "receive_connack",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "a6dcbec5e9a9d629e90fa3cf6abc49977d7a35acfa98b9d48ffd999e993534e7",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                4182,
+                4183
+              ],
+              "path": "protocols/mqtt/connack/main.gewy",
+              "phase": "receive_connack",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "cb1b3978af1d8caa71c35a9622cf022800fb3ce9e620501518b8d35c3c8e7865",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                4183
+              ],
+              "path": "protocols/mqtt/publish/main.gewy",
+              "phase": "receive_puback",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "873caa8688f72df1f43178bfd08fb9bfca85431c3d44cebbe6ae578fc05a1c75",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                4183
+              ],
+              "path": "protocols/mqtt/pubrec/main.gewy",
+              "phase": "receive_pubrec",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "53686db8e7a10cbfa7ee04f0b7131727eb1d11f430f5d6a9faf6f20a26d17bae",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                4183
+              ],
+              "path": "protocols/mqtt/pubcomp/main.gewy",
+              "phase": "receive_pubcomp",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "bbdbd29ebdea8e9b1f7b4cb1c45b0dcb3c079af8a7b5f1659cd9981e56c7ede9",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                4183
+              ],
+              "path": "protocols/mqtt/subscribe/main.gewy",
+              "phase": "receive_suback",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "7e9069f2d0bf0f9348e1d4dd077057b848a42e1a7118d1dfc94137adba4f7c47",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "protocol": "mqtt",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            4182,
+            4183
+          ],
+          "selected_query_or_command_count": 9,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 24644,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "code": 2,
+                "kind": "connack",
+                "session_present": false
+              }
+            ]
+          }
+        },
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "db94d0c35d4c281f06f371dd4dfaec161844f90a62e7ab995c95331077cf3c41",
+          "image": "nats@sha256:558394a23dd3c36f2d3a64b51865fd09908010e80a542cea5e75c2af543ed62a",
+          "image_id": "sha256:0ea8169776497b3f85533203eebf4cdc015bbd99096e103b44b7580870f66099",
+          "internal_network": true,
+          "network_id": "56d2698d75f34aa66be95a5492ff8c3ea6e8444e32130da117167392670851e4",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "error",
+                    "message": "Authorization Violation"
+                  }
+                ]
+              },
+              "captured_sha256": "76559011d769074ff0be69c98467f669eede823e349df188cce408179d1968c3",
+              "client_result": {
+                "replies": [
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "error",
+                    "message": "Authorization Violation"
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 77,
+              "response_bytes": 454,
+              "response_sha256": "76559011d769074ff0be69c98467f669eede823e349df188cce408179d1968c3"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 0,
+                    "value_hex": ""
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 17,
+                    "value_hex": "2d455252206e6f742d616e2d6572726f72"
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "error",
+                    "message": "Permissions Violation for Publish to \"denied\""
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 2,
+                    "value_hex": "3433"
+                  },
+                  {
+                    "kind": "pong"
+                  }
+                ]
+              },
+              "captured_sha256": "b63da2b33a750ba4b9038ba378d3f97f4fcef202941aa382f49539cd8b9e4ff1",
+              "client_result": {
+                "replies": [
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "auth_required": true,
+                    "kind": "info",
+                    "max_payload": 1024
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 0,
+                    "value_hex": ""
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 17,
+                    "value_hex": "2d455252206e6f742d616e2d6572726f72"
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "error",
+                    "message": "Permissions Violation for Publish to \"denied\""
+                  },
+                  {
+                    "kind": "pong"
+                  },
+                  {
+                    "kind": "message",
+                    "sid": 1,
+                    "subject": "gewy.lab",
+                    "value_bytes": 2,
+                    "value_hex": "3433"
+                  },
+                  {
+                    "kind": "pong"
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 78,
+              "response_bytes": 1090,
+              "response_sha256": "b63da2b33a750ba4b9038ba378d3f97f4fcef202941aa382f49539cd8b9e4ff1"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 22,
+              "matched_cookies": [
+                77,
+                78
+              ],
+              "path": "protocols/nats/connect/main.gewy",
+              "phase": "receive_info",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "21a030cd0e7d123fbea6cdb490a275834d114f51582a841fa3c850254c6ee6eb",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 22,
+              "matched_cookies": [
+                77,
+                78
+              ],
+              "path": "protocols/nats/error/main.gewy",
+              "phase": "receive_error",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "e95c0027e7c898974ee1a40cd7bae646db582d6da00e8a5f7b7f4c32677228f2",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 22,
+              "matched_cookies": [
+                78
+              ],
+              "path": "protocols/nats/sub/main.gewy",
+              "phase": "receive_message",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "e0957490515b16aafcc34083e63f31c63a7b6560ca5169542108e963057d7e36",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 12
+          },
+          "protocol": "nats",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            77,
+            78
+          ],
+          "selected_query_or_command_count": 16,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 61451,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "auth_required": true,
+                "kind": "info",
+                "max_payload": 1024
+              },
+              {
+                "kind": "error",
+                "message": "Authorization Violation"
+              }
+            ]
+          }
+        }
+      ],
+      "schema_version": 2
+    }
+  ],
+  "post_campaign_http": [
+    {
+      "cgroup_removed": true,
+      "checks": [
+        "captured_syn_ack_origins",
+        "real_split_status_line",
+        "body_prefix_candidate_not_promoted",
+        "derived_prefix_provenance",
+        "raw_packets_unchanged",
+        "export_and_derived_replay",
+        "decoy_exclusion",
+        "zero_reported_capture_loss",
+        "owned_pins_and_cgroup_removed"
+      ],
+      "clock_anchor_monotonic_ns": 54843057996876,
+      "clock_anchor_unix_ns": "1794552371201370311",
+      "decoy_cookie": 36878,
+      "decoy_events": 0,
+      "derived_prefix_limit": 13,
+      "dropped_events": 0,
+      "flows": 2,
+      "ingest_trust_mode": "unverified-local",
+      "kernel": "7.0.0-42-generic",
+      "kernel_events": 10,
+      "mode": "http-boundaries",
+      "not_proven": [
+        "general-TCP-stream-reassembly",
+        "subsequent-HTTP-responses",
+        "HTTP-informational-responses",
+        "TLS",
+        "TCP-Fast-Open",
+        "vulnerability-detection"
+      ],
+      "ok": true,
+      "packet_dropped_events": 0,
+      "packet_dsl_status_candidates": [
+        [
+          8248,
+          500
+        ]
+      ],
+      "packet_events": 6,
+      "pins_removed": true,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          8247,
+          60487,
+          43805,
+          4026531833
+        ],
+        [
+          8248,
+          44711,
+          43805,
+          4026531833
+        ]
+      ],
+      "verified_http_statuses": [
+        [
+          8247,
+          403
+        ],
+        [
+          8248,
+          200
+        ]
+      ]
+    },
+    {
+      "cgroup_removed": true,
+      "checks": [
+        "captured_syn_ack_origins",
+        "real_split_status_line",
+        "body_prefix_candidate_not_promoted",
+        "derived_prefix_provenance",
+        "raw_packets_unchanged",
+        "export_and_derived_replay",
+        "decoy_exclusion",
+        "zero_reported_capture_loss",
+        "owned_pins_and_cgroup_removed"
+      ],
+      "clock_anchor_monotonic_ns": 54883799013212,
+      "clock_anchor_unix_ns": "1794552411942386607",
+      "decoy_cookie": 49168,
+      "decoy_events": 0,
+      "derived_prefix_limit": 13,
+      "dropped_events": 0,
+      "flows": 2,
+      "ingest_trust_mode": "unverified-local",
+      "kernel": "7.0.0-42-generic",
+      "kernel_events": 10,
+      "mode": "http-boundaries",
+      "not_proven": [
+        "general-TCP-stream-reassembly",
+        "subsequent-HTTP-responses",
+        "HTTP-informational-responses",
+        "TLS",
+        "TCP-Fast-Open",
+        "vulnerability-detection"
+      ],
+      "ok": true,
+      "packet_dropped_events": 0,
+      "packet_dsl_status_candidates": [
+        [
+          36880,
+          500
+        ]
+      ],
+      "packet_events": 6,
+      "pins_removed": true,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          36879,
+          38837,
+          40471,
+          4026531833
+        ],
+        [
+          36880,
+          52909,
+          40471,
+          4026531833
+        ]
+      ],
+      "verified_http_statuses": [
+        [
+          36879,
+          403
+        ],
+        [
+          36880,
+          200
+        ]
+      ]
+    },
+    {
+      "cgroup_removed": true,
+      "checks": [
+        "captured_syn_ack_origins",
+        "real_split_status_line",
+        "body_prefix_candidate_not_promoted",
+        "derived_prefix_provenance",
+        "raw_packets_unchanged",
+        "export_and_derived_replay",
+        "decoy_exclusion",
+        "zero_reported_capture_loss",
+        "owned_pins_and_cgroup_removed"
+      ],
+      "clock_anchor_monotonic_ns": 54933593603120,
+      "clock_anchor_unix_ns": "1794552461736976494",
+      "decoy_cookie": 81,
+      "decoy_events": 0,
+      "derived_prefix_limit": 13,
+      "dropped_events": 0,
+      "flows": 2,
+      "ingest_trust_mode": "unverified-local",
+      "kernel": "7.0.0-42-generic",
+      "kernel_events": 10,
+      "mode": "http-boundaries",
+      "not_proven": [
+        "general-TCP-stream-reassembly",
+        "subsequent-HTTP-responses",
+        "HTTP-informational-responses",
+        "TLS",
+        "TCP-Fast-Open",
+        "vulnerability-detection"
+      ],
+      "ok": true,
+      "packet_dropped_events": 0,
+      "packet_dsl_status_candidates": [
+        [
+          80,
+          500
+        ]
+      ],
+      "packet_events": 6,
+      "pins_removed": true,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          79,
+          51627,
+          36341,
+          4026531833
+        ],
+        [
+          80,
+          38377,
+          36341,
+          4026531833
+        ]
+      ],
+      "verified_http_statuses": [
+        [
+          79,
+          403
+        ],
+        [
+          80,
+          200
+        ]
+      ]
+    }
+  ],
+  "mysql_memcached_control": {
+    "checks": [
+      "real_MySQL_and_Memcached",
+      "MySQL_native_auth_query_error_and_recovery",
+      "Memcached_binary_miss_not_stored_oversized_and_recovery",
+      "matched_packet_status_cross_check",
+      "kernel_bytes_match_independent_client",
+      "same_target_unselected_neighbor_excluded",
+      "existing_protocol_packages_and_replay",
+      "owned_internal_network_and_anonymous_volume_cleanup",
+      "fresh_HTTP_capture_after_data"
+    ],
+    "ingest_trust_mode": "unverified-local",
+    "mode": "mysql-memcached",
+    "not_proven": [
+      "TLS_decryption",
+      "arbitrary_protocol_detection",
+      "general_TCP_reassembly",
+      "vulnerability_exploitation_detection",
+      "PostgreSQL_TLS_SCRAM_extended_query",
+      "Redis_cluster_RESP3",
+      "MySQL_caching_sha2_auth_switch_prepared_statements",
+      "Memcached_text_meta_SASL_UDP",
+      "MQTT5_authentication_TLS_offline_delivery_or_crash_durability",
+      "NATS_JetStream_cluster_headers_TLS",
+      "PID_or_container_process_attribution",
+      "request_payload_capture",
+      "IPv6_or_UDP",
+      "multiple_hosts_or_kernels"
+    ],
+    "ok": true,
+    "phases": [
+      {
+        "anonymous_volume_ids": [],
+        "anonymous_volumes_removed_with_container": true,
+        "client_read_chunk_bytes": 7,
+        "client_reads_are_packet_boundaries": false,
+        "container_id": "e5cf2d5388d736befca31180c88a12f897e9a3c996ed058d8ce8634dccad9ea1",
+        "image": "mysql@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b",
+        "image_id": "sha256:6cd09145362dfe6831b14545de3d5fd6cc75c37cfd6ef8561429c1fc73518b39",
+        "internal_network": true,
+        "network_id": "7b759e7cf1dd656663efde4b8872c784a07541a009fe67e8bacf714c9518a2b4",
+        "observations": [
+          {
+            "captured_result": {
+              "auth": {
+                "error": 1045,
+                "sqlstate": "28000"
+              },
+              "ping": false,
+              "results": []
+            },
+            "captured_sha256": "2176453dcb750474a82978c90a9d257f843bb56670804ea7d645283b07c3c2b9",
+            "client_result": {
+              "auth": {
+                "error": 1045,
+                "sqlstate": "28000"
+              },
+              "ping": false,
+              "results": []
+            },
+            "control": false,
+            "cookie": 28699,
+            "response_bytes": 155,
+            "response_sha256": "2176453dcb750474a82978c90a9d257f843bb56670804ea7d645283b07c3c2b9"
+          },
+          {
+            "captured_result": {
+              "auth": {
+                "ok": true
+              },
+              "ping": true,
+              "results": [
+                {
+                  "row": "42"
+                },
+                {
+                  "error": 1064,
+                  "sqlstate": "42000"
+                },
+                {
+                  "row": null
+                },
+                {
+                  "row": ""
+                },
+                {
+                  "row": "43"
+                }
+              ]
+            },
+            "captured_sha256": "dcae339f09dd00a711e7875a1f4ab09cab8802785b121ef90d11d6f96823a7d3",
+            "client_result": {
+              "auth": {
+                "ok": true
+              },
+              "ping": true,
+              "results": [
+                {
+                  "row": "42"
+                },
+                {
+                  "error": 1064,
+                  "sqlstate": "42000"
+                },
+                {
+                  "row": null
+                },
+                {
+                  "row": ""
+                },
+                {
+                  "row": "43"
+                }
+              ]
+            },
+            "control": true,
+            "cookie": 28700,
+            "response_bytes": 495,
+            "response_sha256": "dcae339f09dd00a711e7875a1f4ab09cab8802785b121ef90d11d6f96823a7d3"
+          }
+        ],
+        "ok": true,
+        "owned_resources_removed": true,
+        "package_failures": [],
+        "packages": [
+          {
+            "facts": 22,
+            "matched_cookies": [
+              28699
+            ],
+            "path": "protocols/mysql/auth-denied/main.gewy",
+            "phase": "receive_auth_denied",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "d0812316a267fa51a49d99bbf6a3fb903a551b6d49a66f3eee08d317d523aeab",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 22,
+            "matched_cookies": [
+              28700
+            ],
+            "path": "protocols/mysql/error/main.gewy",
+            "phase": "receive_error",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "291714570839dd1caf08dfa338a2e41e276c8f963c5f06310cd9aed11c39c2a6",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 22,
+            "matched_cookies": [
+              28700
+            ],
+            "path": "protocols/mysql/auth/main.gewy",
+            "phase": "receive_ok",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "49e62f41c578a56b3e3a740d59a8565638d4b75a73e87bad227324b788929e2f",
+            "unobserved_fragments_explicit": true
+          }
+        ],
+        "packet_counts": {
+          "dropped": 0,
+          "total": 12
+        },
+        "protocol": "mysql",
+        "published_ports": false,
+        "redis_pipeline_commands": 0,
+        "schema_version": 2,
+        "selected_cookies": [
+          28699,
+          28700
+        ],
+        "selected_query_or_command_count": 5,
+        "tcp_state_counts": {
+          "dropped": 0,
+          "total": 10
+        },
+        "unselected_neighbor_cookie": 28701,
+        "unselected_neighbor_result": {
+          "auth": {
+            "error": 1045,
+            "sqlstate": "28000"
+          },
+          "ping": false,
+          "results": []
+        }
+      },
+      {
+        "anonymous_volume_ids": [],
+        "anonymous_volumes_removed_with_container": true,
+        "client_read_chunk_bytes": 7,
+        "client_reads_are_packet_boundaries": false,
+        "container_id": "50319bec29fe535e68a0a9dacd3161e8a7244154e30d60a0850594d80a73006f",
+        "image": "memcached@sha256:084fb554292d1447bc2c68b80c2331b98834514f56c866bc21a61be3c2ee376d",
+        "image_id": "sha256:f6f3ee535ae89d4575d0348a2c0bda0447f259f96b195687683c737ce36085d8",
+        "internal_network": true,
+        "network_id": "27faeb001ec6b747fd5758261726dca3c689cdcf18ca8ca7af22eb36d7c5ecb3",
+        "observations": [
+          {
+            "captured_result": {
+              "replies": [
+                {
+                  "opaque": 1,
+                  "opcode": 0,
+                  "status": 1
+                },
+                {
+                  "opaque": 2,
+                  "opcode": 14,
+                  "status": 5
+                },
+                {
+                  "opaque": 3,
+                  "opcode": 1,
+                  "status": 3
+                },
+                {
+                  "opaque": 4,
+                  "opcode": 1,
+                  "status": 0
+                },
+                {
+                  "opaque": 5,
+                  "opcode": 0,
+                  "status": 0,
+                  "value_bytes": 2,
+                  "value_hex": "3432"
+                },
+                {
+                  "opaque": 6,
+                  "opcode": 127,
+                  "status": 129
+                },
+                {
+                  "opaque": 7,
+                  "opcode": 0,
+                  "status": 0,
+                  "value_bytes": 2,
+                  "value_hex": "3432"
+                },
+                {
+                  "opaque": 8,
+                  "opcode": 7,
+                  "status": 0
+                }
+              ]
+            },
+            "captured_sha256": "08f87a28e050a45c394d0ba337e8e113578a18adaa8339e16391bc76902567b2",
+            "client_result": {
+              "replies": [
+                {
+                  "opaque": 1,
+                  "opcode": 0,
+                  "status": 1
+                },
+                {
+                  "opaque": 2,
+                  "opcode": 14,
+                  "status": 5
+                },
+                {
+                  "opaque": 3,
+                  "opcode": 1,
+                  "status": 3
+                },
+                {
+                  "opaque": 4,
+                  "opcode": 1,
+                  "status": 0
+                },
+                {
+                  "opaque": 5,
+                  "opcode": 0,
+                  "status": 0,
+                  "value_bytes": 2,
+                  "value_hex": "3432"
+                },
+                {
+                  "opaque": 6,
+                  "opcode": 127,
+                  "status": 129
+                },
+                {
+                  "opaque": 7,
+                  "opcode": 0,
+                  "status": 0,
+                  "value_bytes": 2,
+                  "value_hex": "3432"
+                },
+                {
+                  "opaque": 8,
+                  "opcode": 7,
+                  "status": 0
+                }
+              ]
+            },
+            "control": false,
+            "cookie": 16435,
+            "response_bytes": 249,
+            "response_sha256": "08f87a28e050a45c394d0ba337e8e113578a18adaa8339e16391bc76902567b2"
+          },
+          {
+            "captured_result": {
+              "replies": [
+                {
+                  "opaque": 1,
+                  "opcode": 1,
+                  "status": 0
+                },
+                {
+                  "opaque": 2,
+                  "opcode": 0,
+                  "status": 0,
+                  "value_bytes": 0,
+                  "value_hex": ""
+                },
+                {
+                  "opaque": 3,
+                  "opcode": 1,
+                  "status": 0
+                },
+                {
+                  "opaque": 4,
+                  "opcode": 0,
+                  "status": 0,
+                  "value_bytes": 8,
+                  "value_hex": "00ff0d0a2d455252"
+                },
+                {
+                  "opaque": 5,
+                  "opcode": 7,
+                  "status": 0
+                }
+              ]
+            },
+            "captured_sha256": "009ce77acdaf69f6650c54fb231461a8bac2804aca54dd8a04c7fb611ef2a003",
+            "client_result": {
+              "replies": [
+                {
+                  "opaque": 1,
+                  "opcode": 1,
+                  "status": 0
+                },
+                {
+                  "opaque": 2,
+                  "opcode": 0,
+                  "status": 0,
+                  "value_bytes": 0,
+                  "value_hex": ""
+                },
+                {
+                  "opaque": 3,
+                  "opcode": 1,
+                  "status": 0
+                },
+                {
+                  "opaque": 4,
+                  "opcode": 0,
+                  "status": 0,
+                  "value_bytes": 8,
+                  "value_hex": "00ff0d0a2d455252"
+                },
+                {
+                  "opaque": 5,
+                  "opcode": 7,
+                  "status": 0
+                }
+              ]
+            },
+            "control": true,
+            "cookie": 16436,
+            "response_bytes": 136,
+            "response_sha256": "009ce77acdaf69f6650c54fb231461a8bac2804aca54dd8a04c7fb611ef2a003"
+          }
+        ],
+        "ok": true,
+        "owned_resources_removed": true,
+        "package_failures": [],
+        "packages": [
+          {
+            "facts": 25,
+            "matched_cookies": [
+              16435,
+              16436
+            ],
+            "path": "protocols/memcached/get/main.gewy",
+            "phase": "receive_value",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "57d642a60b160e691168f67e55a3dda4eb11276408ad65791959acc317361166",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 25,
+            "matched_cookies": [
+              16435,
+              16436
+            ],
+            "path": "protocols/memcached/set/main.gewy",
+            "phase": "receive_stored",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "3ae36caa3d730120397b72a392e9f703c210c1621249e5c309b6f9f0963314be",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 25,
+            "matched_cookies": [
+              16435
+            ],
+            "path": "protocols/memcached/miss/main.gewy",
+            "phase": "receive_not_found",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "f156ec01a0a8d747feaf78e13f3d6ad7d19a5c89b92d79f7316e64d6a4324060",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 25,
+            "matched_cookies": [
+              16435
+            ],
+            "path": "protocols/memcached/not-stored/main.gewy",
+            "phase": "receive_not_stored",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "c57af0939121b4c02c21d27976f90228e43872986cbca38baea899ce480fd6f3",
+            "unobserved_fragments_explicit": true
+          }
+        ],
+        "packet_counts": {
+          "dropped": 0,
+          "total": 15
+        },
+        "protocol": "memcached",
+        "published_ports": false,
+        "redis_pipeline_commands": 0,
+        "schema_version": 2,
+        "selected_cookies": [
+          16435,
+          16436
+        ],
+        "selected_query_or_command_count": 13,
+        "tcp_state_counts": {
+          "dropped": 0,
+          "total": 10
+        },
+        "unselected_neighbor_cookie": 4184,
+        "unselected_neighbor_result": {
+          "replies": [
+            {
+              "opaque": 1,
+              "opcode": 0,
+              "status": 1
+            },
+            {
+              "opaque": 2,
+              "opcode": 14,
+              "status": 5
+            },
+            {
+              "opaque": 3,
+              "opcode": 1,
+              "status": 3
+            },
+            {
+              "opaque": 4,
+              "opcode": 1,
+              "status": 0
+            },
+            {
+              "opaque": 5,
+              "opcode": 0,
+              "status": 0,
+              "value_bytes": 2,
+              "value_hex": "3432"
+            },
+            {
+              "opaque": 6,
+              "opcode": 127,
+              "status": 129
+            },
+            {
+              "opaque": 7,
+              "opcode": 0,
+              "status": 0,
+              "value_bytes": 2,
+              "value_hex": "3432"
+            },
+            {
+              "opaque": 8,
+              "opcode": 7,
+              "status": 0
+            }
+          ]
+        }
+      }
+    ],
+    "schema_version": 2
+  },
+  "totals": {
+    "campaigns": 3,
+    "selected_connections": 12,
+    "unselected_neighbors": 6,
+    "packet_events": 66,
+    "tcp_state_events": 60,
+    "server_response_bytes": 4770,
+    "reported_packet_drops": 0,
+    "reported_tcp_state_drops": 0,
+    "package_replays": 27,
+    "selected_mqtt_commands": 27,
+    "selected_nats_commands": 48,
+    "fresh_http_captures": 3,
+    "owned_targets_removed": 6,
+    "owned_networks_removed": 6
+  },
+  "verification": {
+    "related_tests_passed": 1542,
+    "related_tests_failed": 0,
+    "closure_tests_passed": 345,
+    "closure_tests_failed": 0,
+    "total_tests_passed": 1887,
+    "preexisting_diagnostic_tests_ignored": 1,
+    "clippy_all_targets_all_features": true,
+    "fmt_check": true,
+    "scope": "Gewyvern library and six targeted integration suites, plus native-validation and project-status closure suites; not a whole-workspace test or release gate"
+  },
+  "cleanup": {
+    "existing_container_identities_unchanged": true,
+    "existing_network_identities_unchanged": true,
+    "existing_volume_inventory_unchanged": true,
+    "temporary_build_container_removed": true,
+    "only_owned_build_removed_from_final_container_inventory": true,
+    "inventory_counts": {
+      "containers_including_temporary_build": 16,
+      "final_containers": 15,
+      "networks": 6,
+      "volumes": 54
+    },
+    "global_prune_used": false,
+    "note": "Before/after inventories compare all captures before temporary build-container removal; final container inventory differs only by removal of that owned build container. Previous-family control and preliminary/development runs are excluded from final messaging totals."
+  },
+  "limitations": [
+    "one physical host/kernel, not cross-host qualification",
+    "no TLS decryption, arbitrary protocol detection, vulnerability-detection or performance claim",
+    "bounded server-stream oracle, not general TCP reassembly; client read chunks are not TCP packet boundaries",
+    "no request-side payload capture or process attribution; MQTT seed is setup only",
+    "MQTT 3.1.1 only, anonymous lab, no MQTT5/authentication/offline-queue/broker-crash durability certification",
+    "PUBACK production predicates are packet-prefix candidates, not nonzero-ID validation or request/ack correlation",
+    "NATS core only, no headers/JetStream/clusters/TLS; INFO/-ERR packet candidates do not establish successful login"
+  ]
+}

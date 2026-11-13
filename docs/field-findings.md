@@ -43,6 +43,132 @@ For those, use:
 - [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
 - [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 
+## `2026-11-13` MQTT/NATS Extend Real Broker Coverage
+
+Three final physical-Linux `--messaging-breadth` campaigns passed against fresh
+digest-pinned Mosquitto and NATS targets. Twelve selected connections retained
+66 packet events, 60 TCP state events and 4,770 complete server-response bytes,
+with zero reported capture loss. Six same-target neighbors were excluded;
+27 package replays and three new HTTP captures passed. See the
+[source-bound messaging proof](fixtures/gewyvern_messaging_linux_x86_64_20261113.json).
+Final runs are `run-4` through `run-6`; four failed development attempts and three
+successful preliminary captures are excluded from these totals.
+
+Real Mosquitto exposed two production rule bugs. The MQTT connection success
+predicate accepted only a new session, missing the valid resumed-session
+`20 02 01 00` response. PUBACK was incorrectly pinned to packet identifier zero,
+missing the real acknowledgement for ID 7. Package and standalone rules now
+accept resumed sessions and variable observed PUBACK ID bytes. Fresh/resumed
+success, refusals, reserved flags, truncated headers and different IDs have
+regression coverage. The fixed native client separately checks exact nonzero
+IDs; the production prefix candidate is not an ID-correlation engine.
+
+MQTT checks empty-ID refusal, an uncaptured persistent-session seed, reconnect,
+QoS 1/2 acknowledgements, binary delivery through the resumed subscription,
+SUBACK and PINGRESP. NATS checks bad credentials, successful subscribe/delivery,
+empty/binary/control-looking bodies, denied publication and later delivery on
+the same connection. Across final runs, selected clients issued 27 MQTT and
+48 NATS commands; no request payloads were captured. In-memory session resume
+and acknowledgements do not prove broker crash durability or downstream storage.
+
+The native NATS oracle also needed to accept asynchronous protocol-1 INFO updates.
+These remain bounded and present in both raw bytes and decoded transcripts,
+without replacing a command reply. Negative message bodies now precede the real
+permission error so stage deduplication cannot hide an earlier false positive;
+a final message verifies recovery. Earlier successful captures were rerun after
+this stronger ordering, rather than silently reused as final-source proof.
+
+Owned targets and networks were removed, and the existing container/network/
+54-volume inventories were unchanged. A separate MySQL/Memcached control passed.
+Images were prepared only on Linux, using a separate anonymous Docker config
+after an expired existing login token was rejected; original credentials were
+not changed. This is bounded plaintext broker coverage, not MQTT 5, TLS,
+JetStream/cluster, arbitrary stream decoding, throughput or cross-host acceptance.
+
+## `2026-11-13` MySQL/Memcached Fix Real Response Misclassification
+
+Three final physical-Linux `--mysql-memcached` campaigns passed on kernel
+`7.0.0-42-generic`, using digest-pinned MySQL 8 and Memcached 1.6 targets.
+Twelve selected connections retained 81 packet events, 60 TCP state events and
+3,105 complete response bytes with zero reported capture loss. Six same-target
+neighbors were excluded; 21 package replays and three fresh HTTP captures passed.
+See the [source-bound MySQL/Memcached proof](fixtures/gewyvern_mysql_memcached_linux_x86_64_20261113.json).
+Four development attempts are excluded, including two Memcached startup/config
+failures. The startup failures remain failures, not protocol acceptance evidence.
+
+The real targets exposed four production rule gaps:
+
+- MySQL query error `1064/42000` also became an authentication-denied candidate.
+  Denial now requires `1045/#28000`; the query-error path requires a complete
+  protocol-4.1 ERR prefix at command response sequence 1.
+- Memcached GET miss status `0x0001` also became a value candidate. Success now
+  requires status zero, four flags-extra bytes and an observed 24-byte header.
+- Memcached oversized SET rejection `0x0003` became a stored candidate. Success
+  now requires status zero and the observed header end.
+- Actual APPEND-to-missing-key `NOT_STORED` (`0x0005`) was missed by a SET-only
+  rule. SET/APPEND/PREPEND alternatives now share the same status-checked phase;
+  APPEND is real-target evidence, while PREPEND also has synthetic regression.
+
+Package and standalone DSL rules were updated together. The validator checks
+each matched packet's actual status, rather than letting a later success on the
+same socket hide an earlier false positive. MySQL exercises wrong credentials,
+five queries including a syntax error, NULL/empty rows, recovery and PING.
+Memcached exercises missing keys, rejected writes, unknown commands, successful
+reads after errors and empty/binary values. Selected clients issued 15 MySQL
+query messages and 39 Memcached commands across the final campaigns.
+
+These fixtures use isolated disposable credentials, internal networks and no
+published ports or host data mounts. Images were prepared only on Linux; the
+runner itself never pulls images. Full framed client responses are independent
+oracles, not invented kernel facts. Seven-byte reads do not force TCP segments.
+All owned targets/networks were removed and the existing container/network/
+54-volume inventories stayed unchanged. A separate PostgreSQL/Redis control
+campaign also passed; its counts are not included in the totals above.
+This does not prove TLS, arbitrary TCP reassembly, process attribution, request
+payload capture, MySQL caching-SHA2/auth switching/prepared statements,
+Memcached text/meta/SASL/UDP, throughput or cross-host/kernel breadth.
+
+## `2026-11-13` Database Boundaries Preserve Transaction State And Byte Values
+
+Three additional physical-Linux `--data-breadth` runs passed against fresh real
+PostgreSQL/Redis targets. Twelve selected connections retained 120 packet events,
+60 TCP state events and 4,515 complete server-response bytes with zero reported
+loss. Six unselected neighbors stayed excluded; eighteen package replays and
+three fresh HTTP captures passed. See the [transaction/value boundary proof](fixtures/gewyvern_data_boundaries_linux_x86_64_20261113.json).
+The previous schema-1 campaign remains bound to its original source revision and
+is retained unchanged; these new totals are separate, not cumulative.
+Final-source campaigns are `run-4` through `run-6`; three successful pre-final
+development runs are excluded after a test-only static-check spelling fix.
+
+PostgreSQL now exercises ten simple-query messages per selected authenticated
+connection, including `BEGIN` and `ROLLBACK`. The failed transaction remains in
+ReadyForQuery `E`; the next query returns `25P02` rather than a row. Only rollback
+returns to `I`, after which row `45` arrives. SQL NULL and empty text remain
+distinct. Redis adds empty bulk values, an eight-byte value containing NUL,
+non-UTF-8 data, CRLF and `-ERR`, and three pipelined GET replies. Across the three
+runs, selected clients issued 30 PostgreSQL simple-query messages and 63 Redis
+commands, including nine pipelined commands. No request payload was captured.
+
+The bounded validation parser previously supported only non-null text rows,
+idle readiness and UTF-8 bulk values. Schema 2 now records transaction states
+and command tags, emits JSON null for SQL NULL and preserves non-UTF-8 Redis
+bytes as hex without lossy replacement. This extends the test oracle, not the
+production runtime into a general database driver. Seven-byte client reads
+exercise partial I/O; they do not force TCP packet segmentation. Synthetic
+fragmented-write/malformed-frame unit controls remain separate from kernel facts.
+
+A new synthetic negative regression also exposed a production rule gap: the
+SQLSTATE end-byte predicate checked presence but accepted a nonzero byte. Both
+PostgreSQL error package and standalone rules now require the zero terminator.
+The before-fix failure is archived; valid real server responses still match.
+Canonical English field-layout limitations remain explicit.
+
+All six owned targets and networks were removed; existing container/network/
+54-volume inventories were unchanged. No image pulls, host data mounts or public
+ports were used. The existing streaming ABI is unchanged. This does not close
+TLS/SCRAM, extended queries, general TCP reassembly, RESP3/arrays/cluster,
+throughput or independent-host/kernel gates.
+
 ## `2026-11-13` PostgreSQL/Redis Expose And Fix An Error Classification Bug
 
 Three physical-Linux `linux-tcp-capture --data-breadth` runs used fresh internal

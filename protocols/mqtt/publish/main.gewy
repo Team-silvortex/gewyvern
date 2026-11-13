@@ -15,14 +15,15 @@ fn mqtt_publish_rules() =
   |> program_rule pred: "socket_state_observed:remote:mqtt:established", stage: :socket_state_transition, narr: "static:program reached an established MQTT socket state", dedupe: true, mod: $module_name, phase: :establish
   |> program_rule pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true, mod: $module_name, phase: :resolve_upstream
   |> program_rule pred: "packet_observed:tcp:remote:mqtt:local_to_remote:byte0_mask:0xf0:0x30", stage: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_publish
-  |> program_rule pred: "packet_observed:tcp:remote:mqtt:remote_to_local:prefix4:0x40020000", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_puback
+  |> program_rule pred: "packet_observed:tcp:remote:mqtt:remote_to_local:byte0_mask:0xff:0x40:byte_at:1:0xff:0x02:byte_at:2:0x00:0x00:byte_at:3:0x00:0x00", stage: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_puback
   |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
   |> reason_rule pred: "socket_state_observed:remote:mqtt", event: :state_change, narr: :tcp_state_transition, dedupe: false, mod: $module_name, phase: :connect
   |> reason_rule pred: "socket_state_observed:remote:mqtt:established", event: :state_change, narr: :tcp_state_transition, dedupe: true, mod: $module_name, phase: :establish
   |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_upstream
   |> reason_rule pred: "packet_observed:tcp:remote:mqtt:local_to_remote:byte0_mask:0xf0:0x30", event: :packet_observed, narr: :transport_payload_sent, dedupe: true, mod: $module_name, phase: :send_publish
-  |> reason_rule pred: "packet_observed:tcp:remote:mqtt:remote_to_local:prefix4:0x40020000", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_puback
+  |> reason_rule pred: "packet_observed:tcp:remote:mqtt:remote_to_local:byte0_mask:0xff:0x40:byte_at:1:0xff:0x02:byte_at:2:0x00:0x00:byte_at:3:0x00:0x00", event: :packet_observed, narr: :transport_payload_received, dedupe: true, mod: $module_name, phase: :receive_puback
 
 template :mqtt_publish_path
 |> window :default_5s
 |> use :mqtt_publish_rules
+|> param :tcp_packet_meta_fragment.sample_payload_offsets, "2,3"

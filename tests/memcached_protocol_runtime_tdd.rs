@@ -23,7 +23,7 @@ fn dsl_fixture_path(name: &str) -> String {
 fn memcached_miss_runtime_path_materializes_not_found_result() {
     let export = run_memcached_path(
         "memcached_miss_path.gewy",
-        &[(0, 0x81), (1, 0x00), (6, 0x00), (7, 0x01)],
+        &[(0, 0x81), (1, 0x00), (6, 0x00), (7, 0x01), (23, 0)],
     );
 
     assert_eq!(
@@ -47,7 +47,7 @@ fn memcached_miss_runtime_path_materializes_not_found_result() {
 fn memcached_not_stored_runtime_path_materializes_write_miss_result() {
     let export = run_memcached_path(
         "memcached_not_stored_path.gewy",
-        &[(0, 0x81), (1, 0x01), (6, 0x00), (7, 0x05)],
+        &[(0, 0x81), (1, 0x01), (6, 0x00), (7, 0x05), (23, 0)],
     );
 
     assert_eq!(
@@ -73,12 +73,81 @@ fn memcached_not_stored_runtime_path_materializes_write_miss_result() {
     assert_eq!(replayed.protocol_ir, export.protocol_ir);
 }
 
+#[test]
+fn memcached_success_candidates_do_not_accept_miss_or_rejected_write() {
+    for (name, phase, op, bad_status) in [
+        ("memcached_get_path.gewy", "receive_value", 0, 1),
+        ("memcached_set_path.gewy", "receive_stored", 1, 3),
+    ] {
+        let mut header = vec![
+            (0, 129),
+            (1, op),
+            (4, if op == 0 { 4 } else { 0 }),
+            (6, 0),
+            (7, 0),
+            (23, 0),
+        ];
+        assert_stage(&run_memcached_path(name, &header), phase);
+        header
+            .iter_mut()
+            .find(|(offset, _)| *offset == 7)
+            .unwrap()
+            .1 = bad_status;
+        let failed = run_memcached_path(name, &header);
+        assert!(
+            !failed
+                .program_flows
+                .iter()
+                .flat_map(|flow| &flow.stages)
+                .any(|stage| stage.phase.as_deref() == Some(phase))
+        );
+        header
+            .iter_mut()
+            .find(|(offset, _)| *offset == 7)
+            .unwrap()
+            .1 = 0;
+        header.retain(|(offset, _)| *offset != 23);
+        let short = run_memcached_path(name, &header);
+        assert!(
+            !short
+                .program_flows
+                .iter()
+                .flat_map(|flow| &flow.stages)
+                .any(|stage| stage.phase.as_deref() == Some(phase))
+        );
+    }
+}
+
+#[test]
+fn memcached_not_stored_includes_append_and_prepend_but_not_other_statuses() {
+    for op in [14, 15] {
+        let export = run_memcached_path(
+            "memcached_not_stored_path.gewy",
+            &[(0, 129), (1, op), (6, 0), (7, 5), (23, 0)],
+        );
+        assert_stage(&export, "receive_not_stored");
+        for status in [0, 1, 2, 3, 6] {
+            let export = run_memcached_path(
+                "memcached_not_stored_path.gewy",
+                &[(0, 129), (1, op), (6, 0), (7, status), (23, 0)],
+            );
+            assert!(
+                !export
+                    .program_flows
+                    .iter()
+                    .flat_map(|flow| &flow.stages)
+                    .any(|stage| stage.phase.as_deref() == Some("receive_not_stored"))
+            );
+        }
+    }
+}
+
 fn run_memcached_path(
     name: &str,
     response_payload: &[(u16, u8)],
 ) -> gewyvern::export::ExportBundle {
     let binding = compile_file(&dsl_fixture_path(name)).unwrap();
-    let config = SessionConfig::for_template(binding.template).unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     let cookie = 0x6d63;
     session.ingest(sock_lineage_fact(1, cookie, 5180, "memcached-client"));

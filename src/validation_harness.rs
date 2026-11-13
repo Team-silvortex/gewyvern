@@ -59,7 +59,8 @@ pub use linux_tcp_capture::{
     run_linux_capture_recovery_validation, run_linux_capture_runtime_validation,
     run_linux_capture_soak_hour_validation, run_linux_capture_soak_validation,
     run_linux_capture_stream_validation, run_linux_data_breadth_validation,
-    run_linux_http_boundaries_validation, run_linux_tcp_capture_validation,
+    run_linux_http_boundaries_validation, run_linux_messaging_validation,
+    run_linux_mysql_memcached_validation, run_linux_tcp_capture_validation,
     run_linux_tcp_juice_shop_validation, run_linux_udp_dns_validation,
 };
 pub use registry::run_registry_validation;

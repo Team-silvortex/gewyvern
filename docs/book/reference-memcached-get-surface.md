@@ -55,6 +55,13 @@ The current entry is intentionally compact. It models the coarse binary `get`
 exchange and the common `NOT_FOUND` response, not broader caching policy or
 multi-key nuances.
 
+The value candidate requires binary response status `0x0000`, four bytes of
+flags extras, and an observed complete 24-byte header. A `GET` miss has status
+`0x0001` and must not also become a value candidate. These are bounded packet
+prefix checks, not a claim of complete stream parsing in the production rule.
+The native MySQL/Memcached field validator separately reconstructs full response
+frames and checks missing keys, empty values, binary values and error recovery.
+
 For the broader family map, see
 [docs/book/reference-memcached-surface.md](docs/book/reference-memcached-surface.md).
 

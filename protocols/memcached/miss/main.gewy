@@ -14,14 +14,15 @@ fn memcached_miss_rules() =
   |> program_rule pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true, mod: $module_name, phase: :resolve_upstream
   |> program_rule pred: "socket_state_observed:remote:memcached", stage: :socket_state_transition, narr: "static:program initiated or advanced a Memcached socket state transition", dedupe: false, mod: $module_name, phase: :connect
   |> program_rule pred: "socket_state_observed:remote:memcached:established", stage: :socket_state_transition, narr: "static:program reached an established Memcached socket state", dedupe: true, mod: $module_name, phase: :establish
-  |> program_rule pred: "packet_observed:tcp:remote:memcached:remote_to_local:byte0_mask:0xff:0x81:byte_at:1:0xff:0x00:byte_at:6:0xff:0x00:byte_at:7:0xff:0x01", stage: :packet_observed, narr: $miss_narrative, dedupe: true, mod: $module_name, phase: :receive_not_found
+  |> program_rule pred: "packet_observed:tcp:remote:memcached:remote_to_local:byte0_mask:0xff:0x81:byte_at:1:0xff:0x00:byte_at:6:0xff:0x00:byte_at:7:0xff:0x01:byte_at:23:0x00:0x00", stage: :packet_observed, narr: $miss_narrative, dedupe: true, mod: $module_name, phase: :receive_not_found
   |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
   |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_upstream
   |> reason_rule pred: "socket_state_observed:remote:memcached", event: :state_change, narr: :tcp_state_transition, dedupe: false, mod: $module_name, phase: :connect
   |> reason_rule pred: "socket_state_observed:remote:memcached:established", event: :state_change, narr: :tcp_state_transition, dedupe: true, mod: $module_name, phase: :establish
-  |> reason_rule pred: "packet_observed:tcp:remote:memcached:remote_to_local:byte0_mask:0xff:0x81:byte_at:1:0xff:0x00:byte_at:6:0xff:0x00:byte_at:7:0xff:0x01", event: :packet_observed, narr: $miss_narrative, dedupe: true, mod: $module_name, phase: :receive_not_found
+  |> reason_rule pred: "packet_observed:tcp:remote:memcached:remote_to_local:byte0_mask:0xff:0x81:byte_at:1:0xff:0x00:byte_at:6:0xff:0x00:byte_at:7:0xff:0x01:byte_at:23:0x00:0x00", event: :packet_observed, narr: $miss_narrative, dedupe: true, mod: $module_name, phase: :receive_not_found
 
 template :memcached_miss_path
 |> window(duration_ms: 5000, lateness_ms: 200)
 |> use :memcached_miss_rules
 |> param :sock_lineage_fragment.capture_comm, true
+|> param :tcp_packet_meta_fragment.sample_payload_offsets, "4,6,7,23"

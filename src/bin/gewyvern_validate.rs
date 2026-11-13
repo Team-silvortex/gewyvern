@@ -28,10 +28,11 @@ use gewyvern::validation_harness::{
     run_linux_capture_runtime_validation, run_linux_capture_soak_hour_validation,
     run_linux_capture_soak_validation, run_linux_capture_stream_validation,
     run_linux_data_breadth_validation, run_linux_http_boundaries_validation,
-    run_linux_kprobe_smoke, run_linux_tc_smoke, run_linux_tcp_capture_validation,
-    run_linux_tcp_juice_shop_validation, run_linux_udp_dns_validation, run_package_install_smoke,
-    run_pathological_container_validation, run_registry_validation, run_release_container_check,
-    run_release_gate, run_remote_linux_host_validation, run_resilience_bundle_validation,
+    run_linux_kprobe_smoke, run_linux_messaging_validation, run_linux_mysql_memcached_validation,
+    run_linux_tc_smoke, run_linux_tcp_capture_validation, run_linux_tcp_juice_shop_validation,
+    run_linux_udp_dns_validation, run_package_install_smoke, run_pathological_container_validation,
+    run_registry_validation, run_release_container_check, run_release_gate,
+    run_remote_linux_host_validation, run_resilience_bundle_validation,
     run_resilience_drive_bad_json_validation, run_resilience_emit_helper_validation,
     run_resilience_log_evidence_validation, run_resilience_roundtrip_validation,
     run_runtime_lifecycle_validation, run_runtime_operator_validation, run_socket_roundtrip_demo,
@@ -575,7 +576,7 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
         "linux-tcp-capture" => {
             if wants_subcommand_help(&rest) {
                 println!(
-                    "Usage: gewyvern_validate linux-tcp-capture [--juice-shop | --http-boundaries | --auth-breadth | --data-breadth | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed | --capture-soak | --capture-soak-hour | --capture-memory-control] [--out-dir <new-path>]"
+                    "Usage: gewyvern_validate linux-tcp-capture [--juice-shop | --http-boundaries | --auth-breadth | --data-breadth | --mysql-memcached | --messaging-breadth | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed | --capture-soak | --capture-soak-hour | --capture-memory-control] [--out-dir <new-path>]"
                 );
                 println!(
                     "Default mode captures only owned IPv4 loopback socket cookies, reconstructs real TCP states, and verifies half-close/refusal/decoy behavior. Requires Linux, BTF, clang, bpftool and BPF privileges. No payload capture or PID attribution."
@@ -608,6 +609,12 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
                     "--data-breadth uses private cached PostgreSQL/Redis targets, bounded 1024-byte ingress snapshots and native framed clients. Tests denial, successful values, errors and same-connection recovery; keeps packet candidates separate from full response semantics. No host data, public ports, egress payload or PID attribution."
                 );
                 println!(
+                    "--mysql-memcached reuses this bounded path for cached MySQL native-password/text-result and Memcached binary targets. Validates error recovery and each candidate's actual status, with no public ports, host data or automatic image pulls."
+                );
+                println!(
+                    "--messaging-breadth validates cached Mosquitto MQTT 3.1.1 and core NATS targets: resumed sessions, QoS acknowledgements, permission-error recovery, and binary/empty message bodies. Owned internal networks only; no TLS, JetStream or crash-durability claim."
+                );
+                println!(
                     "--capture-soak runs three 300-second runtime load cycles; --capture-soak-hour runs three 1200-second cycles and requires --features capture-allocation-audit. Each has teardown and 30 seconds idle, constant-space journals and report-free checkpoints. Records glibc/RSS/thread/FD observations and one final diagnostic-only malloc_trim. --capture-memory-control requires the same audit feature but no BPF privilege: 256 observer-only checkpoints on each of main/worker threads, with no traffic. No indefinite leak-freedom or production allocator policy change. Audit counters affect throughput and are not C/RSS measurements."
                 );
                 return Ok(());
@@ -620,6 +627,8 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
                 TcpCaptureMode::Load => run_linux_capture_load_validation(out_dir)?,
                 TcpCaptureMode::AuthBreadth => run_linux_auth_breadth_validation(out_dir)?,
                 TcpCaptureMode::DataBreadth => run_linux_data_breadth_validation(out_dir)?,
+                TcpCaptureMode::MysqlMemcached => run_linux_mysql_memcached_validation(out_dir)?,
+                TcpCaptureMode::Messaging => run_linux_messaging_validation(out_dir)?,
                 TcpCaptureMode::Stream => run_linux_capture_stream_validation(out_dir)?,
                 TcpCaptureMode::Runtime => run_linux_capture_runtime_validation(out_dir)?,
                 TcpCaptureMode::Soak => run_linux_capture_soak_validation(out_dir)?,
@@ -1288,6 +1297,8 @@ fn parse_linux_ebpf_smoke_options(
 
 #[derive(Debug, PartialEq, Eq)]
 enum TcpCaptureMode {
+    Messaging,
+    MysqlMemcached,
     DataBreadth,
     AuthBreadth,
     Loopback,
@@ -1323,6 +1334,12 @@ fn parse_tcp_capture_options(
             }
             "--data-breadth" if mode == TcpCaptureMode::Loopback => {
                 mode = TcpCaptureMode::DataBreadth
+            }
+            "--mysql-memcached" if mode == TcpCaptureMode::Loopback => {
+                mode = TcpCaptureMode::MysqlMemcached
+            }
+            "--messaging-breadth" if mode == TcpCaptureMode::Loopback => {
+                mode = TcpCaptureMode::Messaging
             }
             "--capture-load" if mode == TcpCaptureMode::Loopback => mode = TcpCaptureMode::Load,
             "--capture-stream" if mode == TcpCaptureMode::Loopback => mode = TcpCaptureMode::Stream,
@@ -1454,7 +1471,7 @@ fn print_help() {
     println!("  linux-attach-smoke [--hookpoint <category/event>] [--out-dir <path>]");
     println!("  linux-kprobe-smoke [--symbol <kernel-symbol>] [--out-dir <path>]");
     println!(
-        "  linux-tcp-capture [--juice-shop | --http-boundaries | --auth-breadth | --data-breadth | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed | --capture-soak | --capture-soak-hour | --capture-memory-control] [--out-dir <new-path>]"
+        "  linux-tcp-capture [--juice-shop | --http-boundaries | --auth-breadth | --data-breadth | --mysql-memcached | --messaging-breadth | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed | --capture-soak | --capture-soak-hour | --capture-memory-control] [--out-dir <new-path>]"
     );
     println!("  linux-tc-smoke --dev <netdev> [--out-dir <path>]");
     println!("  package-install-smoke [--deb|--rpm]");

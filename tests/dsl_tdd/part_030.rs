@@ -65,17 +65,14 @@ fn memcached_get_path_materializes_connect_get_and_value_phases() {
         None,
         None,
     ));
-    session.ingest(packet_fact_with_dir_and_payload_and_byte1(
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
         6,
         516,
         0,
         PacketDir::Ingress,
         Some(43135),
         Some(11211),
-        Some(0x81),
-        Some(0x00),
-        None,
-        None,
+        &[(0, 129), (1, 0), (4, 4), (6, 0), (7, 0), (23, 0)],
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
 
@@ -171,17 +168,14 @@ fn memcached_set_path_materializes_connect_set_and_stored_phases() {
         None,
         None,
     ));
-    session.ingest(packet_fact_with_dir_and_payload_and_byte1(
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
         6,
         518,
         0,
         PacketDir::Ingress,
         Some(43137),
         Some(11211),
-        Some(0x81),
-        Some(0x01),
-        None,
-        None,
+        &[(0, 129), (1, 1), (6, 0), (7, 0), (23, 0)],
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
 

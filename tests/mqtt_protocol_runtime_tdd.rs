@@ -17,12 +17,42 @@ fn dsl_fixture_path(name: &str) -> String {
 }
 
 #[test]
+fn mqtt_connect_recognizes_new_and_resumed_sessions_without_accepting_refusal() {
+    for payload in [&[32, 2, 0, 0][..], &[32, 2, 1, 0]] {
+        let export = run_mqtt_path("mqtt_connect_path.gewy", &[(PacketDir::Ingress, payload)]);
+        assert_stage(&export, "receive_connack");
+        let replayed = ExportBundle::from_json(&export.to_json()).unwrap();
+        assert_eq!(replayed.program_flows, export.program_flows);
+        assert_eq!(replayed.reasons, export.reasons);
+    }
+    for payload in [
+        &[32, 2, 0, 1][..],
+        &[32, 2, 0, 2],
+        &[32, 2, 1, 5],
+        &[32, 2, 2, 0],
+        &[33, 2, 0, 0],
+        &[32, 3, 0, 0],
+        &[32, 2, 1],
+    ] {
+        let export = run_mqtt_path("mqtt_connect_path.gewy", &[(PacketDir::Ingress, payload)]);
+        assert!(
+            !export
+                .program_flows
+                .iter()
+                .flat_map(|flow| &flow.stages)
+                .any(|stage| stage.phase.as_deref() == Some("receive_connack")),
+            "{payload:?}"
+        );
+    }
+}
+
+#[test]
 fn mqtt_publish_runtime_path_materializes_publish_and_puback_stages() {
     let export = run_mqtt_path(
         "mqtt_publish_path.gewy",
         &[
             (PacketDir::Egress, &[0x30, 0x00][..]),
-            (PacketDir::Ingress, &[0x40, 0x02, 0x00, 0x00][..]),
+            (PacketDir::Ingress, &[0x40, 0x02, 0x00, 0x07][..]),
         ],
     );
 
@@ -105,9 +135,39 @@ fn mqtt_qos2_pubcomp_runtime_path_materializes_full_ack_ladder() {
     assert_eq!(replayed.protocol_ir, export.protocol_ir);
 }
 
+#[test]
+fn mqtt_puback_candidates_allow_different_identifiers_but_require_the_header() {
+    for id in [1u16, 7, 256, 65535] {
+        let [high, low] = id.to_be_bytes();
+        let export = run_mqtt_path(
+            "mqtt_publish_path.gewy",
+            &[(PacketDir::Ingress, &[64, 2, high, low])],
+        );
+        assert_stage(&export, "receive_puback");
+    }
+    for payload in [
+        &[64][..],
+        &[64, 2],
+        &[64, 2, 0],
+        &[65, 2, 0, 7],
+        &[64, 3, 0, 7],
+        &[80, 2, 0, 7],
+    ] {
+        let export = run_mqtt_path("mqtt_publish_path.gewy", &[(PacketDir::Ingress, payload)]);
+        assert!(
+            !export
+                .program_flows
+                .iter()
+                .flat_map(|flow| &flow.stages)
+                .any(|stage| stage.phase.as_deref() == Some("receive_puback")),
+            "{payload:?}"
+        );
+    }
+}
+
 fn run_mqtt_path(name: &str, packets: &[(PacketDir, &[u8])]) -> gewyvern::export::ExportBundle {
     let binding = compile_file(&dsl_fixture_path(name)).unwrap();
-    let config = SessionConfig::for_template(binding.template).unwrap();
+    let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     let cookie = 0x6d71;
     session.ingest(route_fact(1, cookie, 2));

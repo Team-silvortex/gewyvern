@@ -86,6 +86,7 @@ fn mysql_simple_query_runtime_path_keeps_legacy_operation_in_protocol_ir() {
 
 #[test]
 fn mysql_auth_denied_runtime_path_materializes_auth_failure_ir() {
+    let error = mysql_error_prefix(true);
     let export = run_database_path(
         "mysql_auth_denied_path.gewy",
         0x6d7a,
@@ -94,7 +95,7 @@ fn mysql_auth_denied_runtime_path_materializes_auth_failure_ir() {
         &[
             (PacketDir::Ingress, &[(4, 0x0a)][..]),
             (PacketDir::Egress, &[(3, 0x01)][..]),
-            (PacketDir::Ingress, &[(4, 0xff)][..]),
+            (PacketDir::Ingress, &error),
         ],
     );
 
@@ -134,6 +135,7 @@ fn mysql_auth_denied_runtime_ir_does_not_materialize_for_login_ok() {
 
 #[test]
 fn mysql_query_error_runtime_path_materializes_error_ir() {
+    let error = mysql_error_prefix(false);
     let export = run_database_path(
         "mysql_query_error_path.gewy",
         0x6d7c,
@@ -141,7 +143,7 @@ fn mysql_query_error_runtime_path_materializes_error_ir() {
         "mysql",
         &[
             (PacketDir::Egress, &[(4, 0x03)][..]),
-            (PacketDir::Ingress, &[(4, 0xff)][..]),
+            (PacketDir::Ingress, &error),
         ],
     );
 
@@ -274,6 +276,52 @@ fn postgres_query_error_runtime_ir_does_not_materialize_for_ready_message() {
     assert_json_replay(&export);
 }
 
+fn mysql_error_prefix(auth: bool) -> Vec<(u16, u8)> {
+    let mut bytes = vec![
+        9,
+        0,
+        0,
+        if auth { 2 } else { 1 },
+        255,
+        if auth { 0x15 } else { 0x28 },
+        4,
+        b'#',
+    ];
+    bytes.extend_from_slice(if auth { b"28000" } else { b"42000" });
+    bytes
+        .into_iter()
+        .enumerate()
+        .map(|(i, b)| (i as u16, b))
+        .collect()
+}
+
+#[test]
+fn mysql_auth_and_query_errors_do_not_cross_or_accept_short_err() {
+    for (fixture, phase, auth) in [
+        ("mysql_auth_denied_path.gewy", "receive_auth_denied", true),
+        ("mysql_query_error_path.gewy", "receive_error", false),
+    ] {
+        for bytes in [
+            mysql_error_prefix(!auth),
+            vec![(4, 255)],
+            mysql_error_prefix(auth)
+                .into_iter()
+                .filter(|(offset, _)| *offset != 12)
+                .collect(),
+        ] {
+            let export = run_database_path(
+                fixture,
+                0x6d80,
+                3306,
+                "mysql",
+                &[(PacketDir::Ingress, &bytes)],
+            );
+            assert_no_stage(&export, phase);
+            assert_json_replay(&export);
+        }
+    }
+}
+
 fn pg_error_prefix(auth: bool) -> Vec<(u16, u8)> {
     let mut bytes = vec![b'E', 0, 0, 0, 64];
     bytes.extend_from_slice(if auth {
@@ -309,6 +357,36 @@ fn postgres_error_candidates_do_not_cross_auth_and_query_or_accept_short_e() {
             let export = run_database_path(
                 fixture,
                 0x7078,
+                5432,
+                "psql",
+                &[(PacketDir::Ingress, &bytes)],
+            );
+            assert_no_stage(&export, phase);
+            assert_json_replay(&export);
+        }
+    }
+}
+
+#[test]
+fn postgres_error_candidates_require_a_zero_sqlstate_terminator() {
+    for (fixture, phase, auth) in [
+        (
+            "postgres_auth_denied_path.gewy",
+            "receive_auth_denied",
+            true,
+        ),
+        ("postgres_query_error_path.gewy", "receive_error", false),
+    ] {
+        for invalid_end in [1, b'0', b'C', 255] {
+            let mut bytes = pg_error_prefix(auth);
+            bytes
+                .iter_mut()
+                .find(|(offset, _)| *offset == 25)
+                .unwrap()
+                .1 = invalid_end;
+            let export = run_database_path(
+                fixture,
+                0x7079,
                 5432,
                 "psql",
                 &[(PacketDir::Ingress, &bytes)],

@@ -33,7 +33,11 @@ parallel harness. The next campaign should cover these ordered layers:
 11. Use `linux-tcp-capture --auth-breadth` to connect real FTP control and LDAP simple-bind targets to the same kernel evidence path. For each protocol, compare selected success/denial with an unselected denied neighbor, reconstruct only complete bounded server bytes, and run the existing protocol packages with JSON replay. Unsupported process/route probes remain explicitly unavailable. This does not certify the whole protocol catalog, TLS decryption, request-side payloads, FTP data transfer or LDAP search/modify/SASL.
 
 12. Use `linux-udp-capture` for private CoreDNS queries with two owned IPv4 UDP sockets: success, FORMERR/SERVFAIL/NXDOMAIN/REFUSED, a truncated reply, a dropped reply with bounded timeout and subsequent recovery. Reconcile both captured directions byte-for-byte against native client I/O, exclude a same-target neighbor, and replay packet-only DNS packages. Shared DNS transaction IDs must not merge socket identities. TC is not successful resolution, timeout is not a DNS error code, and transport phases are not full DNS parsing.
-13. Use `linux-tcp-capture --data-breadth` for private PostgreSQL/Redis targets: authentication refusal, successful queries/reads, query/command errors, same-connection recovery, missing keys and error-looking normal values. Compare complete SYN-ACK-anchored server streams with bounded native client I/O and replay six existing packages, excluding same-target neighbors. The finite 1024-byte prefix does not change the 64-byte streaming ABI. PostgreSQL error candidates use a conservative English field layout, not a full decoder; authentication-message/ReadyForQuery/bulk stages alone do not prove login/query/key success.
+13. Use `linux-tcp-capture --data-breadth` for private PostgreSQL/Redis targets: authentication refusal, successful queries/reads, query/command errors, same-connection recovery, missing keys and error-looking normal values. Schema 2 adds explicit transaction failure/rollback, NULL versus empty text, binary Redis values and pipelined replies. Compare complete SYN-ACK-anchored server streams with bounded native client I/O and replay six existing packages, excluding same-target neighbors. Seven-byte client reads are not a claim of forced TCP segmentation. The finite 1024-byte prefix does not change the 64-byte streaming ABI. PostgreSQL error candidates use a conservative English field layout, not a full decoder; authentication-message/ReadyForQuery/bulk stages alone do not prove login/query/key success.
+
+14. Use `linux-tcp-capture --mysql-memcached` for private MySQL 8 native-password and Memcached binary targets. Check MySQL login refusal versus query syntax errors, NULL versus empty rows and same-connection recovery. Check Memcached missing keys, APPEND `NOT_STORED`, oversized SET rejection, unknown commands, empty/binary values and successful reads after errors. Validate every matched packet's status, not only aggregate socket membership; replay seven existing packages and exclude same-target neighbors. The runner requires preloaded digest-pinned images and removes its own targets and networks.
+
+15. Use `linux-tcp-capture --messaging-breadth` for real Mosquitto/NATS targets. MQTT checks identifier refusal, a seeded persistent-session resume, QoS 1/2 acknowledgements with exact IDs, resumed subscription delivery and ping. NATS checks authentication denial, permission-error recovery on the same connection, and empty/binary/control-looking message bodies. Reconcile complete server bytes, replay nine packages and exclude same-target neighbors. The seed is setup, not captured evidence; in-memory session resume is not crash durability. Message acknowledgements do not prove downstream persistence.
 
 ### Breadth Acceptance
 
@@ -45,11 +49,14 @@ Client responses and target logs are independent oracles, never replacement fact
 
 The HTTP and FTP/LDAP fixtures cover different response framing on IPv4 TCP;
 the UDP/DNS fixture adds bounded bidirectional datagram correctness, and the
-PostgreSQL/Redis fixture adds real database/cache errors and subsequent recovery.
+PostgreSQL/Redis and MySQL/Memcached fixtures add real database/cache errors and
+subsequent recovery. Mosquitto/NATS add bounded broker session and message exchange
+coverage, not whole messaging-system acceptance.
 Next breadth work should target IPv6, broader UDP, encrypted-transport
 observability and additional database/cache protocols or advanced exchanges.
 General TCP reassembly, localized/reordered PostgreSQL errors, TLS/SCRAM,
-extended queries, RESP3/cluster/persistence and database/cache performance remain
+extended queries, RESP3/cluster/persistence, MySQL caching-SHA2/auth switching/
+prepared statements, Memcached text/meta/SASL and database/cache performance remain
 separate gates: neither the hour-scale load proof nor the protocol registry
 count closes them. A failed or unsupported row stays visible rather than
 becoming a skip-pass.

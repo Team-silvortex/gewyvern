@@ -33,6 +33,15 @@ NATS `-ERR` responses often mean parser rejection, authorization failure, or an
 invalid command sequence. Pair this entry with `connect`, `pub`, or `sub` when
 you need to know which command path triggered the rejection.
 
+The native messaging field fixture distinguishes authentication refusal (the
+connection closes) from a denied publish followed by PONG and successful message
+delivery on the same connection. It also checks empty, binary and `-ERR`-looking
+normal message bodies. These are byte-counted MSG payloads, not error responses.
+Additional protocol-1 INFO notifications are retained without satisfying command
+expectations. Production package stages remain packet-local prefix candidates;
+the fixture's complete-stream parsing does not turn them into a general NATS
+decoder or prove JetStream persistence.
+
 <!-- gewyvern:entry-aliases:start -->
 ## Current Entry Aliases
 

@@ -1,0 +1,2551 @@
+{
+  "schema_version": 1,
+  "proof": "linux-real-mysql-memcached-error-identity-and-value-boundaries",
+  "captured_on": "2026-11-13",
+  "source_base_revision": "8f27030b92fc5d5d28612487bb10dd541b71c0e9",
+  "working_tree_changes": true,
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "execution": {
+    "kernel": "7.0.0-42-generic",
+    "architecture": "x86_64",
+    "host_count": 1,
+    "kernel_count": 1,
+    "live_capture": "physical Linux host; digest-pinned MySQL 8 / Memcached 1.6 on owned internal Docker networks",
+    "toolchain": "Rust 1.98 in a temporary two-CPU/four-GiB Linux build container",
+    "packet_prefix_bytes": 1024,
+    "existing_stream_prefix_bytes": 64,
+    "existing_stream_event_bytes": 128,
+    "max_capture_events": 128,
+    "max_server_stream_bytes": 4096,
+    "exchange_absolute_deadline_seconds": 12,
+    "client_read_chunk_bytes": 7,
+    "forced_tcp_packet_segmentation": false,
+    "target_cpu_limit": 1,
+    "target_pids_limit": 128,
+    "mysql_memory_mib": 1024,
+    "mysql_tmpfs_mib": 512,
+    "memcached_memory_mib": 512,
+    "memcached_cache_mib": 16,
+    "memcached_item_limit_bytes": 1024,
+    "memcached_slab_chunk_max_kib": 1,
+    "mysql_authentication": "isolated disposable mysql_native_password fixture, not a production authentication recommendation",
+    "memcached_protocol": "binary only; UDP disabled",
+    "image_pulls_during_campaign": false,
+    "images_preloaded_this_turn_on_linux_only": true,
+    "published_ports": false,
+    "host_data_mounted": false,
+    "disposable_credentials_only": true,
+    "macos_builds": false,
+    "macos_image_pulls": false,
+    "remote_evidence": "/home/chiharukiryu/.cache/gewyvern/evidence/20261113-mysql-memcached",
+    "local_evidence": "target/validation/mysql-memcached-20261113",
+    "final_campaign_directories": [
+      "run-1",
+      "run-2",
+      "run-3"
+    ],
+    "development_capture_runs": 4,
+    "excluded_development_campaign_directories": [
+      "dev-1",
+      "dev-2",
+      "dev-3",
+      "dev-4"
+    ],
+    "exclusion_reason": "dev-1 reproduced MySQL misclassification; dev-2/3 failed Memcached slab-limit startup configuration; dev-4 reproduced Memcached misclassification/missed NOT_STORED. None count toward acceptance."
+  },
+  "artifact_bindings": {
+    "build": {
+      "target/debug/gewyvern_validate": "be8ccebe83b2565ff8677b4ab2999296083f54ee30cce1792363b5d9123738e1",
+      "ebpf/validation/http_prefix.bpf.c": "ca9eb8c99aee4f3d3ccddfed18d13592ad610d4010cfc32b65aab4d4630aac74",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth.rs": "a41212fbe6e4f7dfc5a874478d69596349be1ac1d304cb7474079b5f6a4632c9",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/wire.rs": "b0cc8e2d54534c47a458ff22bc970becc5a12ee5fc0aab35c75e30b10da5b5a8",
+      "src/validation_harness/linux_tcp_capture/linux/bounded_stream.rs": "196519549fc1eab62991e386d01f3264955b5558d9052b065722f2e7fab86314",
+      "src/validation_harness/linux_tcp_capture/linux/packet_capture.rs": "d74c0831739f3e587fe0cc6f1696d97011a6524b261eb013086f359e9ec275ee",
+      "src/validation_harness/linux_tcp_capture/packet_evidence.rs": "ce64ea1adef21ed01e2e43c2ecc8da1f4aa02e48394febfb4cf89a449603ffee",
+      "protocols/postgres/auth-denied/main.gewy": "329a23c8a2faeee3bf39587caafa32278af7650d63699a469a311817fa1679e1",
+      "protocols/postgres/error/main.gewy": "dd4fb60095014bea28f18af8093e98f666be9f05914991368aa06f99e78ade83",
+      "protocols/postgres/auth/main.gewy": "4cd13df0f49c7a21587b4f1464c2a695b9ef6ea64f5344e98c7744a433927084",
+      "protocols/redis/auth-denied/main.gewy": "4dd11db6ddfb6e9d23515f7423f70206d5f4e2908dc92bc7640500cec9dc4ecc",
+      "protocols/redis/error/main.gewy": "ffad0645b9b8ee570c3fde77318008ed4b983afbc7c090d54db8c2f7b56526eb",
+      "protocols/redis/get/main.gewy": "7dfe57a644f4f6cd574ebb14d5cc9d57ea8873d0fac91b6d58edde585de4ff16",
+      "src/fragment.rs": "ef5f6566a48192a6b9ec15352ad5a553e92c9872bf7f71d8532fbf53ea21387b",
+      "src/export/attach_codec/encode.rs": "7ff8ddafe90f8ea1be560f7f189e29b86e17f04efa4ace8b2277edeb2b2958a4",
+      "src/export/attach_codec/decode.rs": "3a959c6c1137c45600c7317d62f7e8e0792bd42f70d2e57474cace02718f54ee",
+      "src/bin/gewyvern_validate.rs": "5f824dd00e2641ddc2278a357a72c910b825b8bf44650694ffc446b3daf6adcb",
+      "src/validation_harness.rs": "7385f98d3d41e9868db8069aea0a06cc5a244cdfc8295e3008aa86ea3a43b758",
+      "src/validation_harness/linux_tcp_capture.rs": "14111c352b00d9f74924ebb97c7904d8d587720855de7e041487963a8a60df8a",
+      "src/validation_harness/linux_tcp_capture/linux.rs": "abf80264a232309254b4edc03701624421caf473d17ca4fe239c453e812455c8",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/mysql.rs": "6bf734d74ea1095e5a3f255c1b4054312ca19deb30f8c7d736d8f834549bd6e2",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/memcached.rs": "87cf84d3b1182e99914b614d5a941d4a6701ff75563f61e7e88867b99f147ca4",
+      "src/protocol_profiles/semantics/data.rs": "278a54611d2ca036578d041e0dc6d197fa98ac9db87c1675e31449182587815b",
+      "protocols/mysql/auth-denied/main.gewy": "d0812316a267fa51a49d99bbf6a3fb903a551b6d49a66f3eee08d317d523aeab",
+      "protocols/mysql/error/main.gewy": "291714570839dd1caf08dfa338a2e41e276c8f963c5f06310cd9aed11c39c2a6",
+      "protocols/mysql/auth/main.gewy": "49e62f41c578a56b3e3a740d59a8565638d4b75a73e87bad227324b788929e2f",
+      "protocols/memcached/get/main.gewy": "57d642a60b160e691168f67e55a3dda4eb11276408ad65791959acc317361166",
+      "protocols/memcached/set/main.gewy": "3ae36caa3d730120397b72a392e9f703c210c1621249e5c309b6f9f0963314be",
+      "protocols/memcached/miss/main.gewy": "f156ec01a0a8d747feaf78e13f3d6ad7d19a5c89b92d79f7316e64d6a4324060",
+      "protocols/memcached/not-stored/main.gewy": "c57af0939121b4c02c21d27976f90228e43872986cbca38baea899ce480fd6f3",
+      "dsl/mysql_auth_denied_path.gewy": "d0812316a267fa51a49d99bbf6a3fb903a551b6d49a66f3eee08d317d523aeab",
+      "dsl/mysql_query_error_path.gewy": "291714570839dd1caf08dfa338a2e41e276c8f963c5f06310cd9aed11c39c2a6",
+      "dsl/memcached_get_path.gewy": "57d642a60b160e691168f67e55a3dda4eb11276408ad65791959acc317361166",
+      "dsl/memcached_set_path.gewy": "3ae36caa3d730120397b72a392e9f703c210c1621249e5c309b6f9f0963314be",
+      "dsl/memcached_miss_path.gewy": "f156ec01a0a8d747feaf78e13f3d6ad7d19a5c89b92d79f7316e64d6a4324060",
+      "dsl/memcached_not_stored_path.gewy": "c57af0939121b4c02c21d27976f90228e43872986cbca38baea899ce480fd6f3"
+    },
+    "reports": {
+      "run-1/summary.json": "03dcee9d41b75e2ebe4d7ea52485f6f7eb5b3ec6e03744445ce01ad4b6a2e0d4",
+      "run-2/summary.json": "0fdc97f857a472979a873099fb03783ae168ab4c6f4b00548dcf16159412b14a",
+      "run-3/summary.json": "9892697ef944af2fa063a469f3d907e98517d465a03bd0edcf6f70a5c4f7f85e",
+      "run-1/after-data-restart/summary.json": "6942fb102206dfb566a747781aa3d57164281390be3355c36b4fb2c75e6a961e",
+      "run-2/after-data-restart/summary.json": "bf51ae9d386c588c035ab9df0ce0dfbc70577a7023cd5701f4fc2475219ce97c",
+      "run-3/after-data-restart/summary.json": "9b5d4280f08409828d0832ce6f1d53c5ce0815330d535d2e8e0fd71a8d2c6723",
+      "dev-1/mysql/package-0-export.json": "5ba273dffd87cbd1faa67536de295984d296ff7f3eaa4add1c701b70a4008794",
+      "dev-1/mysql/client-observations.json": "5d1f7d312fd9121e54f47ee8c5e8bd867d330d4c48f92fd0d3225e56d829e726",
+      "dev-4/memcached/result.json": "b5cbb90dbbbd5160fac2331e8c8ee14103a1731ec33873718786392f254c0e7b",
+      "postgres-redis-control/summary.json": "b9ec16c76b8057cfd6694b4f1be5ef26995d10e0b06577af76988e0125552c6b",
+      "containers-before.txt": "9b4f9a73aaeff819de9c46dc8d5178a2688cbcc886638134a36b533660b2fcf7",
+      "containers-after.txt": "9b4f9a73aaeff819de9c46dc8d5178a2688cbcc886638134a36b533660b2fcf7",
+      "networks-before.txt": "f98139f9bb03180978aa454394c2878925b39e2af8b87cab2a18f098ddd71380",
+      "networks-after.txt": "f98139f9bb03180978aa454394c2878925b39e2af8b87cab2a18f098ddd71380",
+      "volumes-before.txt": "5c1c0b9e58eebd4845fe45ac0bac191ded288364af691a6caee9d5910dfd17e6",
+      "volumes-after.txt": "5c1c0b9e58eebd4845fe45ac0bac191ded288364af691a6caee9d5910dfd17e6",
+      "tests.log": "5465358671a8645355818dd25585022017da4397653f9176b17c0c41b7bff2a6",
+      "clippy.log": "539452faf539e720d7adf7c0e5ff633c43fe278151bb04a25ca81da2525cb592",
+      "final-build.log": "1094a36867300c1838cdc4ee40efe961d83bac574665f8ee57a40d5b1e88698c",
+      "closure-tests.log": "dfd7e318f3c3acc882f5a9a4a20bbaa7b708038d1500b18e85c67b73246af129",
+      "final-clippy.log": "8e27d397aadc6260faa6446fbc203b34e5f0504bac1ce8055be92b8384541888",
+      "containers-final.txt": "b9ca4b012a943f034828ac2487fb81f4f5d861dd43aec586c3f8434c148c9e12"
+    }
+  },
+  "before_fix": {
+    "mysql": {
+      "kind": "real server response and actual packet-derived package stage",
+      "export": "dev-1/mysql/package-0-export.json",
+      "fact_id": 15,
+      "cookie": 16424,
+      "observed_prefix": [
+        {
+          "offset": 0,
+          "value": 163
+        },
+        {
+          "offset": 1,
+          "value": 0
+        },
+        {
+          "offset": 2,
+          "value": 0
+        },
+        {
+          "offset": 3,
+          "value": 1
+        },
+        {
+          "offset": 4,
+          "value": 255
+        },
+        {
+          "offset": 5,
+          "value": 40
+        },
+        {
+          "offset": 6,
+          "value": 4
+        },
+        {
+          "offset": 7,
+          "value": 35
+        },
+        {
+          "offset": 8,
+          "value": 52
+        },
+        {
+          "offset": 9,
+          "value": 50
+        },
+        {
+          "offset": 10,
+          "value": 48
+        },
+        {
+          "offset": 11,
+          "value": 48
+        },
+        {
+          "offset": 12,
+          "value": 48
+        }
+      ],
+      "incorrect_phase": "receive_auth_denied",
+      "actual_error": 1064,
+      "actual_sqlstate": "42000",
+      "fix": "Require 1045/#28000 for authentication denial; require command-response sequence 1 and complete ERR prefix for query errors"
+    },
+    "memcached": {
+      "kind": "real server response with per-candidate cross-check failures",
+      "report": "dev-4/memcached/result.json",
+      "ok": false,
+      "package_failures": [
+        "memcached receive_value matched the wrong actual packet at fact FactId(4), cookie Some(8241), bytes [(0, 129), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (6, 0), (7, 1), (8, 0), (9, 0), (10, 0), (11, 9), (12, 0), (13, 0), (14, 0), (15, 1), (16, 0), (17, 0), (18, 0), (19, 0), (20, 0), (21, 0), (22, 0), (23, 0), (24, 78), (25, 111)]",
+        "data package protocols/memcached/get/main.gewy phase receive_value: observed {}, expected {8241, 8242}; check packet candidates versus framed response",
+        "memcached receive_stored matched the wrong actual packet at fact FactId(6), cookie Some(8241), bytes [(0, 129), (1, 1), (2, 0), (3, 0), (4, 0), (5, 0), (6, 0), (7, 3), (8, 0), (9, 0), (10, 0), (11, 10), (12, 0), (13, 0), (14, 0), (15, 3), (16, 0), (17, 0), (18, 0), (19, 0), (20, 0), (21, 0), (22, 0), (23, 0), (24, 84), (25, 111)]",
+        "data package protocols/memcached/set/main.gewy phase receive_stored: observed {}, expected {8241, 8242}; check packet candidates versus framed response",
+        "data package protocols/memcached/not-stored/main.gewy phase receive_not_stored: observed {}, expected {8241}; check packet candidates versus framed response"
+      ],
+      "fixes": [
+        "GET value requires status zero and four-byte flags extras",
+        "SET stored requires status zero",
+        "GET/SET/miss/not-stored require observed header offset 23",
+        "NOT_STORED status 5 includes APPEND/PREPEND as well as legacy SET alternative"
+      ],
+      "prepend_real_target_tested": false,
+      "prepend_synthetic_regression": true
+    }
+  },
+  "runs": [
+    {
+      "checks": [
+        "real_MySQL_and_Memcached",
+        "MySQL_native_auth_query_error_and_recovery",
+        "Memcached_binary_miss_not_stored_oversized_and_recovery",
+        "matched_packet_status_cross_check",
+        "kernel_bytes_match_independent_client",
+        "same_target_unselected_neighbor_excluded",
+        "existing_protocol_packages_and_replay",
+        "owned_internal_network_and_anonymous_volume_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "mysql-memcached",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "MySQL_caching_sha2_auth_switch_prepared_statements",
+        "Memcached_text_meta_SASL_UDP",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "b243600780b0a721ae63e2da6ee638b277373f302739a881426a32879c0703c5",
+          "image": "mysql@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b",
+          "image_id": "sha256:6cd09145362dfe6831b14545de3d5fd6cc75c37cfd6ef8561429c1fc73518b39",
+          "internal_network": true,
+          "network_id": "562089feabf476523c5cde112e3cf3563aa07fe952030abeb19bce170be39f09",
+          "observations": [
+            {
+              "captured_result": {
+                "auth": {
+                  "error": 1045,
+                  "sqlstate": "28000"
+                },
+                "ping": false,
+                "results": []
+              },
+              "captured_sha256": "af573d6b1b423520694c7655f4d64d29e5aac5ed11f897ff99709e785e294357",
+              "client_result": {
+                "auth": {
+                  "error": 1045,
+                  "sqlstate": "28000"
+                },
+                "ping": false,
+                "results": []
+              },
+              "control": false,
+              "cookie": 12331,
+              "response_bytes": 155,
+              "response_sha256": "af573d6b1b423520694c7655f4d64d29e5aac5ed11f897ff99709e785e294357"
+            },
+            {
+              "captured_result": {
+                "auth": {
+                  "ok": true
+                },
+                "ping": true,
+                "results": [
+                  {
+                    "row": "42"
+                  },
+                  {
+                    "error": 1064,
+                    "sqlstate": "42000"
+                  },
+                  {
+                    "row": null
+                  },
+                  {
+                    "row": ""
+                  },
+                  {
+                    "row": "43"
+                  }
+                ]
+              },
+              "captured_sha256": "cdf6c1a4e4ff057d1b473a8f21c129debe5140e66895aea14b5090ba79a2e7d2",
+              "client_result": {
+                "auth": {
+                  "ok": true
+                },
+                "ping": true,
+                "results": [
+                  {
+                    "row": "42"
+                  },
+                  {
+                    "error": 1064,
+                    "sqlstate": "42000"
+                  },
+                  {
+                    "row": null
+                  },
+                  {
+                    "row": ""
+                  },
+                  {
+                    "row": "43"
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 12332,
+              "response_bytes": 495,
+              "response_sha256": "cdf6c1a4e4ff057d1b473a8f21c129debe5140e66895aea14b5090ba79a2e7d2"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 22,
+              "matched_cookies": [
+                12331
+              ],
+              "path": "protocols/mysql/auth-denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "d0812316a267fa51a49d99bbf6a3fb903a551b6d49a66f3eee08d317d523aeab",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 22,
+              "matched_cookies": [
+                12332
+              ],
+              "path": "protocols/mysql/error/main.gewy",
+              "phase": "receive_error",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "291714570839dd1caf08dfa338a2e41e276c8f963c5f06310cd9aed11c39c2a6",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 22,
+              "matched_cookies": [
+                12332
+              ],
+              "path": "protocols/mysql/auth/main.gewy",
+              "phase": "receive_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "49e62f41c578a56b3e3a740d59a8565638d4b75a73e87bad227324b788929e2f",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 12
+          },
+          "protocol": "mysql",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            12331,
+            12332
+          ],
+          "selected_query_or_command_count": 5,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 72,
+          "unselected_neighbor_result": {
+            "auth": {
+              "error": 1045,
+              "sqlstate": "28000"
+            },
+            "ping": false,
+            "results": []
+          }
+        },
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "a047840f9c0e1101405c5db5351a790b8078e2095cf933dbf22a47f0de1618ca",
+          "image": "memcached@sha256:084fb554292d1447bc2c68b80c2331b98834514f56c866bc21a61be3c2ee376d",
+          "image_id": "sha256:f6f3ee535ae89d4575d0348a2c0bda0447f259f96b195687683c737ce36085d8",
+          "internal_network": true,
+          "network_id": "6cea77da878fcbd827f21ce893def0ff09e1656f54e9bab0214c1a6002194c1f",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "opaque": 1,
+                    "opcode": 0,
+                    "status": 1
+                  },
+                  {
+                    "opaque": 2,
+                    "opcode": 14,
+                    "status": 5
+                  },
+                  {
+                    "opaque": 3,
+                    "opcode": 1,
+                    "status": 3
+                  },
+                  {
+                    "opaque": 4,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 5,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 2,
+                    "value_hex": "3432"
+                  },
+                  {
+                    "opaque": 6,
+                    "opcode": 127,
+                    "status": 129
+                  },
+                  {
+                    "opaque": 7,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 2,
+                    "value_hex": "3432"
+                  },
+                  {
+                    "opaque": 8,
+                    "opcode": 7,
+                    "status": 0
+                  }
+                ]
+              },
+              "captured_sha256": "08f87a28e050a45c394d0ba337e8e113578a18adaa8339e16391bc76902567b2",
+              "client_result": {
+                "replies": [
+                  {
+                    "opaque": 1,
+                    "opcode": 0,
+                    "status": 1
+                  },
+                  {
+                    "opaque": 2,
+                    "opcode": 14,
+                    "status": 5
+                  },
+                  {
+                    "opaque": 3,
+                    "opcode": 1,
+                    "status": 3
+                  },
+                  {
+                    "opaque": 4,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 5,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 2,
+                    "value_hex": "3432"
+                  },
+                  {
+                    "opaque": 6,
+                    "opcode": 127,
+                    "status": 129
+                  },
+                  {
+                    "opaque": 7,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 2,
+                    "value_hex": "3432"
+                  },
+                  {
+                    "opaque": 8,
+                    "opcode": 7,
+                    "status": 0
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 40969,
+              "response_bytes": 249,
+              "response_sha256": "08f87a28e050a45c394d0ba337e8e113578a18adaa8339e16391bc76902567b2"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "opaque": 1,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 2,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 0,
+                    "value_hex": ""
+                  },
+                  {
+                    "opaque": 3,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 4,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "opaque": 5,
+                    "opcode": 7,
+                    "status": 0
+                  }
+                ]
+              },
+              "captured_sha256": "009ce77acdaf69f6650c54fb231461a8bac2804aca54dd8a04c7fb611ef2a003",
+              "client_result": {
+                "replies": [
+                  {
+                    "opaque": 1,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 2,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 0,
+                    "value_hex": ""
+                  },
+                  {
+                    "opaque": 3,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 4,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "opaque": 5,
+                    "opcode": 7,
+                    "status": 0
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 40970,
+              "response_bytes": 136,
+              "response_sha256": "009ce77acdaf69f6650c54fb231461a8bac2804aca54dd8a04c7fb611ef2a003"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 25,
+              "matched_cookies": [
+                40969,
+                40970
+              ],
+              "path": "protocols/memcached/get/main.gewy",
+              "phase": "receive_value",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "57d642a60b160e691168f67e55a3dda4eb11276408ad65791959acc317361166",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 25,
+              "matched_cookies": [
+                40969,
+                40970
+              ],
+              "path": "protocols/memcached/set/main.gewy",
+              "phase": "receive_stored",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "3ae36caa3d730120397b72a392e9f703c210c1621249e5c309b6f9f0963314be",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 25,
+              "matched_cookies": [
+                40969
+              ],
+              "path": "protocols/memcached/miss/main.gewy",
+              "phase": "receive_not_found",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "f156ec01a0a8d747feaf78e13f3d6ad7d19a5c89b92d79f7316e64d6a4324060",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 25,
+              "matched_cookies": [
+                40969
+              ],
+              "path": "protocols/memcached/not-stored/main.gewy",
+              "phase": "receive_not_stored",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "c57af0939121b4c02c21d27976f90228e43872986cbca38baea899ce480fd6f3",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 15
+          },
+          "protocol": "memcached",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            40969,
+            40970
+          ],
+          "selected_query_or_command_count": 13,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 24638,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "opaque": 1,
+                "opcode": 0,
+                "status": 1
+              },
+              {
+                "opaque": 2,
+                "opcode": 14,
+                "status": 5
+              },
+              {
+                "opaque": 3,
+                "opcode": 1,
+                "status": 3
+              },
+              {
+                "opaque": 4,
+                "opcode": 1,
+                "status": 0
+              },
+              {
+                "opaque": 5,
+                "opcode": 0,
+                "status": 0,
+                "value_bytes": 2,
+                "value_hex": "3432"
+              },
+              {
+                "opaque": 6,
+                "opcode": 127,
+                "status": 129
+              },
+              {
+                "opaque": 7,
+                "opcode": 0,
+                "status": 0,
+                "value_bytes": 2,
+                "value_hex": "3432"
+              },
+              {
+                "opaque": 8,
+                "opcode": 7,
+                "status": 0
+              }
+            ]
+          }
+        }
+      ],
+      "schema_version": 2
+    },
+    {
+      "checks": [
+        "real_MySQL_and_Memcached",
+        "MySQL_native_auth_query_error_and_recovery",
+        "Memcached_binary_miss_not_stored_oversized_and_recovery",
+        "matched_packet_status_cross_check",
+        "kernel_bytes_match_independent_client",
+        "same_target_unselected_neighbor_excluded",
+        "existing_protocol_packages_and_replay",
+        "owned_internal_network_and_anonymous_volume_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "mysql-memcached",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "MySQL_caching_sha2_auth_switch_prepared_statements",
+        "Memcached_text_meta_SASL_UDP",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "d9af25399385eccaf4d67a344af468907cf5f2fdf5beba1fb5401f3444041663",
+          "image": "mysql@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b",
+          "image_id": "sha256:6cd09145362dfe6831b14545de3d5fd6cc75c37cfd6ef8561429c1fc73518b39",
+          "internal_network": true,
+          "network_id": "d638185f3022200d5cbddd7115a45e84b633654cda46e44370f120026129fdbd",
+          "observations": [
+            {
+              "captured_result": {
+                "auth": {
+                  "error": 1045,
+                  "sqlstate": "28000"
+                },
+                "ping": false,
+                "results": []
+              },
+              "captured_sha256": "fcb63cf5f3976c026f576c5120e0b5b64f3ee4fd0f1e3acca78676136f750988",
+              "client_result": {
+                "auth": {
+                  "error": 1045,
+                  "sqlstate": "28000"
+                },
+                "ping": false,
+                "results": []
+              },
+              "control": false,
+              "cookie": 12333,
+              "response_bytes": 155,
+              "response_sha256": "fcb63cf5f3976c026f576c5120e0b5b64f3ee4fd0f1e3acca78676136f750988"
+            },
+            {
+              "captured_result": {
+                "auth": {
+                  "ok": true
+                },
+                "ping": true,
+                "results": [
+                  {
+                    "row": "42"
+                  },
+                  {
+                    "error": 1064,
+                    "sqlstate": "42000"
+                  },
+                  {
+                    "row": null
+                  },
+                  {
+                    "row": ""
+                  },
+                  {
+                    "row": "43"
+                  }
+                ]
+              },
+              "captured_sha256": "dc913ee49cbf8e4b2f17d17ac2b1cf7f91f4b13075d9516df869545ed40733f5",
+              "client_result": {
+                "auth": {
+                  "ok": true
+                },
+                "ping": true,
+                "results": [
+                  {
+                    "row": "42"
+                  },
+                  {
+                    "error": 1064,
+                    "sqlstate": "42000"
+                  },
+                  {
+                    "row": null
+                  },
+                  {
+                    "row": ""
+                  },
+                  {
+                    "row": "43"
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 12334,
+              "response_bytes": 495,
+              "response_sha256": "dc913ee49cbf8e4b2f17d17ac2b1cf7f91f4b13075d9516df869545ed40733f5"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 22,
+              "matched_cookies": [
+                12333
+              ],
+              "path": "protocols/mysql/auth-denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "d0812316a267fa51a49d99bbf6a3fb903a551b6d49a66f3eee08d317d523aeab",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 22,
+              "matched_cookies": [
+                12334
+              ],
+              "path": "protocols/mysql/error/main.gewy",
+              "phase": "receive_error",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "291714570839dd1caf08dfa338a2e41e276c8f963c5f06310cd9aed11c39c2a6",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 22,
+              "matched_cookies": [
+                12334
+              ],
+              "path": "protocols/mysql/auth/main.gewy",
+              "phase": "receive_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "49e62f41c578a56b3e3a740d59a8565638d4b75a73e87bad227324b788929e2f",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 12
+          },
+          "protocol": "mysql",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            12333,
+            12334
+          ],
+          "selected_query_or_command_count": 5,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 45117,
+          "unselected_neighbor_result": {
+            "auth": {
+              "error": 1045,
+              "sqlstate": "28000"
+            },
+            "ping": false,
+            "results": []
+          }
+        },
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "322ac63497a3a8384956c4e95cf48a122b5d4b7986fffbe7b65e46716ece64ce",
+          "image": "memcached@sha256:084fb554292d1447bc2c68b80c2331b98834514f56c866bc21a61be3c2ee376d",
+          "image_id": "sha256:f6f3ee535ae89d4575d0348a2c0bda0447f259f96b195687683c737ce36085d8",
+          "internal_network": true,
+          "network_id": "010ceb7832d77b3aa99b578423807d4aa8415c9feee4c1d811d72bbf26142009",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "opaque": 1,
+                    "opcode": 0,
+                    "status": 1
+                  },
+                  {
+                    "opaque": 2,
+                    "opcode": 14,
+                    "status": 5
+                  },
+                  {
+                    "opaque": 3,
+                    "opcode": 1,
+                    "status": 3
+                  },
+                  {
+                    "opaque": 4,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 5,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 2,
+                    "value_hex": "3432"
+                  },
+                  {
+                    "opaque": 6,
+                    "opcode": 127,
+                    "status": 129
+                  },
+                  {
+                    "opaque": 7,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 2,
+                    "value_hex": "3432"
+                  },
+                  {
+                    "opaque": 8,
+                    "opcode": 7,
+                    "status": 0
+                  }
+                ]
+              },
+              "captured_sha256": "08f87a28e050a45c394d0ba337e8e113578a18adaa8339e16391bc76902567b2",
+              "client_result": {
+                "replies": [
+                  {
+                    "opaque": 1,
+                    "opcode": 0,
+                    "status": 1
+                  },
+                  {
+                    "opaque": 2,
+                    "opcode": 14,
+                    "status": 5
+                  },
+                  {
+                    "opaque": 3,
+                    "opcode": 1,
+                    "status": 3
+                  },
+                  {
+                    "opaque": 4,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 5,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 2,
+                    "value_hex": "3432"
+                  },
+                  {
+                    "opaque": 6,
+                    "opcode": 127,
+                    "status": 129
+                  },
+                  {
+                    "opaque": 7,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 2,
+                    "value_hex": "3432"
+                  },
+                  {
+                    "opaque": 8,
+                    "opcode": 7,
+                    "status": 0
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 53258,
+              "response_bytes": 249,
+              "response_sha256": "08f87a28e050a45c394d0ba337e8e113578a18adaa8339e16391bc76902567b2"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "opaque": 1,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 2,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 0,
+                    "value_hex": ""
+                  },
+                  {
+                    "opaque": 3,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 4,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "opaque": 5,
+                    "opcode": 7,
+                    "status": 0
+                  }
+                ]
+              },
+              "captured_sha256": "009ce77acdaf69f6650c54fb231461a8bac2804aca54dd8a04c7fb611ef2a003",
+              "client_result": {
+                "replies": [
+                  {
+                    "opaque": 1,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 2,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 0,
+                    "value_hex": ""
+                  },
+                  {
+                    "opaque": 3,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 4,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "opaque": 5,
+                    "opcode": 7,
+                    "status": 0
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 53259,
+              "response_bytes": 136,
+              "response_sha256": "009ce77acdaf69f6650c54fb231461a8bac2804aca54dd8a04c7fb611ef2a003"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 25,
+              "matched_cookies": [
+                53258,
+                53259
+              ],
+              "path": "protocols/memcached/get/main.gewy",
+              "phase": "receive_value",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "57d642a60b160e691168f67e55a3dda4eb11276408ad65791959acc317361166",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 25,
+              "matched_cookies": [
+                53258,
+                53259
+              ],
+              "path": "protocols/memcached/set/main.gewy",
+              "phase": "receive_stored",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "3ae36caa3d730120397b72a392e9f703c210c1621249e5c309b6f9f0963314be",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 25,
+              "matched_cookies": [
+                53258
+              ],
+              "path": "protocols/memcached/miss/main.gewy",
+              "phase": "receive_not_found",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "f156ec01a0a8d747feaf78e13f3d6ad7d19a5c89b92d79f7316e64d6a4324060",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 25,
+              "matched_cookies": [
+                53258
+              ],
+              "path": "protocols/memcached/not-stored/main.gewy",
+              "phase": "receive_not_stored",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "c57af0939121b4c02c21d27976f90228e43872986cbca38baea899ce480fd6f3",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 15
+          },
+          "protocol": "memcached",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            53258,
+            53259
+          ],
+          "selected_query_or_command_count": 13,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 32829,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "opaque": 1,
+                "opcode": 0,
+                "status": 1
+              },
+              {
+                "opaque": 2,
+                "opcode": 14,
+                "status": 5
+              },
+              {
+                "opaque": 3,
+                "opcode": 1,
+                "status": 3
+              },
+              {
+                "opaque": 4,
+                "opcode": 1,
+                "status": 0
+              },
+              {
+                "opaque": 5,
+                "opcode": 0,
+                "status": 0,
+                "value_bytes": 2,
+                "value_hex": "3432"
+              },
+              {
+                "opaque": 6,
+                "opcode": 127,
+                "status": 129
+              },
+              {
+                "opaque": 7,
+                "opcode": 0,
+                "status": 0,
+                "value_bytes": 2,
+                "value_hex": "3432"
+              },
+              {
+                "opaque": 8,
+                "opcode": 7,
+                "status": 0
+              }
+            ]
+          }
+        }
+      ],
+      "schema_version": 2
+    },
+    {
+      "checks": [
+        "real_MySQL_and_Memcached",
+        "MySQL_native_auth_query_error_and_recovery",
+        "Memcached_binary_miss_not_stored_oversized_and_recovery",
+        "matched_packet_status_cross_check",
+        "kernel_bytes_match_independent_client",
+        "same_target_unselected_neighbor_excluded",
+        "existing_protocol_packages_and_replay",
+        "owned_internal_network_and_anonymous_volume_cleanup",
+        "fresh_HTTP_capture_after_data"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "mysql-memcached",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "PostgreSQL_TLS_SCRAM_extended_query",
+        "Redis_cluster_RESP3",
+        "MySQL_caching_sha2_auth_switch_prepared_statements",
+        "Memcached_text_meta_SASL_UDP",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "0ef14263054646612a18bad155ef46b5a187859661145e839a3353706932945c",
+          "image": "mysql@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b",
+          "image_id": "sha256:6cd09145362dfe6831b14545de3d5fd6cc75c37cfd6ef8561429c1fc73518b39",
+          "internal_network": true,
+          "network_id": "bddbd3599b3cb9024ee883c83b9a240dd18edc3dd0c2b9ec4fe8a0555eaafa61",
+          "observations": [
+            {
+              "captured_result": {
+                "auth": {
+                  "error": 1045,
+                  "sqlstate": "28000"
+                },
+                "ping": false,
+                "results": []
+              },
+              "captured_sha256": "6799fa830b69bf92267f49027dd1c2bc8703a3e03cd0f9057314acb4cdacc3cf",
+              "client_result": {
+                "auth": {
+                  "error": 1045,
+                  "sqlstate": "28000"
+                },
+                "ping": false,
+                "results": []
+              },
+              "control": false,
+              "cookie": 12335,
+              "response_bytes": 155,
+              "response_sha256": "6799fa830b69bf92267f49027dd1c2bc8703a3e03cd0f9057314acb4cdacc3cf"
+            },
+            {
+              "captured_result": {
+                "auth": {
+                  "ok": true
+                },
+                "ping": true,
+                "results": [
+                  {
+                    "row": "42"
+                  },
+                  {
+                    "error": 1064,
+                    "sqlstate": "42000"
+                  },
+                  {
+                    "row": null
+                  },
+                  {
+                    "row": ""
+                  },
+                  {
+                    "row": "43"
+                  }
+                ]
+              },
+              "captured_sha256": "0c383af50ff2f4a4861ceb4bef21457b740d0f18a891c474aaec5d7c5d5e0699",
+              "client_result": {
+                "auth": {
+                  "ok": true
+                },
+                "ping": true,
+                "results": [
+                  {
+                    "row": "42"
+                  },
+                  {
+                    "error": 1064,
+                    "sqlstate": "42000"
+                  },
+                  {
+                    "row": null
+                  },
+                  {
+                    "row": ""
+                  },
+                  {
+                    "row": "43"
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 12336,
+              "response_bytes": 495,
+              "response_sha256": "0c383af50ff2f4a4861ceb4bef21457b740d0f18a891c474aaec5d7c5d5e0699"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 22,
+              "matched_cookies": [
+                12335
+              ],
+              "path": "protocols/mysql/auth-denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "d0812316a267fa51a49d99bbf6a3fb903a551b6d49a66f3eee08d317d523aeab",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 22,
+              "matched_cookies": [
+                12336
+              ],
+              "path": "protocols/mysql/error/main.gewy",
+              "phase": "receive_error",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "291714570839dd1caf08dfa338a2e41e276c8f963c5f06310cd9aed11c39c2a6",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 22,
+              "matched_cookies": [
+                12336
+              ],
+              "path": "protocols/mysql/auth/main.gewy",
+              "phase": "receive_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "49e62f41c578a56b3e3a740d59a8565638d4b75a73e87bad227324b788929e2f",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 12
+          },
+          "protocol": "mysql",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            12335,
+            12336
+          ],
+          "selected_query_or_command_count": 5,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 12337,
+          "unselected_neighbor_result": {
+            "auth": {
+              "error": 1045,
+              "sqlstate": "28000"
+            },
+            "ping": false,
+            "results": []
+          }
+        },
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "client_read_chunk_bytes": 7,
+          "client_reads_are_packet_boundaries": false,
+          "container_id": "f311e9594458a09d533f70a4b330811fe576161564582d255e7cce51d1516061",
+          "image": "memcached@sha256:084fb554292d1447bc2c68b80c2331b98834514f56c866bc21a61be3c2ee376d",
+          "image_id": "sha256:f6f3ee535ae89d4575d0348a2c0bda0447f259f96b195687683c737ce36085d8",
+          "internal_network": true,
+          "network_id": "a0fa0d9cc3c3a145f9a9ef5e52779fe7a4a4d0e1bf4e29ba68998d911aa53ab5",
+          "observations": [
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "opaque": 1,
+                    "opcode": 0,
+                    "status": 1
+                  },
+                  {
+                    "opaque": 2,
+                    "opcode": 14,
+                    "status": 5
+                  },
+                  {
+                    "opaque": 3,
+                    "opcode": 1,
+                    "status": 3
+                  },
+                  {
+                    "opaque": 4,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 5,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 2,
+                    "value_hex": "3432"
+                  },
+                  {
+                    "opaque": 6,
+                    "opcode": 127,
+                    "status": 129
+                  },
+                  {
+                    "opaque": 7,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 2,
+                    "value_hex": "3432"
+                  },
+                  {
+                    "opaque": 8,
+                    "opcode": 7,
+                    "status": 0
+                  }
+                ]
+              },
+              "captured_sha256": "08f87a28e050a45c394d0ba337e8e113578a18adaa8339e16391bc76902567b2",
+              "client_result": {
+                "replies": [
+                  {
+                    "opaque": 1,
+                    "opcode": 0,
+                    "status": 1
+                  },
+                  {
+                    "opaque": 2,
+                    "opcode": 14,
+                    "status": 5
+                  },
+                  {
+                    "opaque": 3,
+                    "opcode": 1,
+                    "status": 3
+                  },
+                  {
+                    "opaque": 4,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 5,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 2,
+                    "value_hex": "3432"
+                  },
+                  {
+                    "opaque": 6,
+                    "opcode": 127,
+                    "status": 129
+                  },
+                  {
+                    "opaque": 7,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 2,
+                    "value_hex": "3432"
+                  },
+                  {
+                    "opaque": 8,
+                    "opcode": 7,
+                    "status": 0
+                  }
+                ]
+              },
+              "control": false,
+              "cookie": 4169,
+              "response_bytes": 249,
+              "response_sha256": "08f87a28e050a45c394d0ba337e8e113578a18adaa8339e16391bc76902567b2"
+            },
+            {
+              "captured_result": {
+                "replies": [
+                  {
+                    "opaque": 1,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 2,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 0,
+                    "value_hex": ""
+                  },
+                  {
+                    "opaque": 3,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 4,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "opaque": 5,
+                    "opcode": 7,
+                    "status": 0
+                  }
+                ]
+              },
+              "captured_sha256": "009ce77acdaf69f6650c54fb231461a8bac2804aca54dd8a04c7fb611ef2a003",
+              "client_result": {
+                "replies": [
+                  {
+                    "opaque": 1,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 2,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 0,
+                    "value_hex": ""
+                  },
+                  {
+                    "opaque": 3,
+                    "opcode": 1,
+                    "status": 0
+                  },
+                  {
+                    "opaque": 4,
+                    "opcode": 0,
+                    "status": 0,
+                    "value_bytes": 8,
+                    "value_hex": "00ff0d0a2d455252"
+                  },
+                  {
+                    "opaque": 5,
+                    "opcode": 7,
+                    "status": 0
+                  }
+                ]
+              },
+              "control": true,
+              "cookie": 4170,
+              "response_bytes": 136,
+              "response_sha256": "009ce77acdaf69f6650c54fb231461a8bac2804aca54dd8a04c7fb611ef2a003"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "package_failures": [],
+          "packages": [
+            {
+              "facts": 25,
+              "matched_cookies": [
+                4169,
+                4170
+              ],
+              "path": "protocols/memcached/get/main.gewy",
+              "phase": "receive_value",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "57d642a60b160e691168f67e55a3dda4eb11276408ad65791959acc317361166",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 25,
+              "matched_cookies": [
+                4169,
+                4170
+              ],
+              "path": "protocols/memcached/set/main.gewy",
+              "phase": "receive_stored",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "3ae36caa3d730120397b72a392e9f703c210c1621249e5c309b6f9f0963314be",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 25,
+              "matched_cookies": [
+                4169
+              ],
+              "path": "protocols/memcached/miss/main.gewy",
+              "phase": "receive_not_found",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "f156ec01a0a8d747feaf78e13f3d6ad7d19a5c89b92d79f7316e64d6a4324060",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 25,
+              "matched_cookies": [
+                4169
+              ],
+              "path": "protocols/memcached/not-stored/main.gewy",
+              "phase": "receive_not_stored",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "c57af0939121b4c02c21d27976f90228e43872986cbca38baea899ce480fd6f3",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 15
+          },
+          "protocol": "memcached",
+          "published_ports": false,
+          "redis_pipeline_commands": 0,
+          "schema_version": 2,
+          "selected_cookies": [
+            4169,
+            4170
+          ],
+          "selected_query_or_command_count": 13,
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_cookie": 12338,
+          "unselected_neighbor_result": {
+            "replies": [
+              {
+                "opaque": 1,
+                "opcode": 0,
+                "status": 1
+              },
+              {
+                "opaque": 2,
+                "opcode": 14,
+                "status": 5
+              },
+              {
+                "opaque": 3,
+                "opcode": 1,
+                "status": 3
+              },
+              {
+                "opaque": 4,
+                "opcode": 1,
+                "status": 0
+              },
+              {
+                "opaque": 5,
+                "opcode": 0,
+                "status": 0,
+                "value_bytes": 2,
+                "value_hex": "3432"
+              },
+              {
+                "opaque": 6,
+                "opcode": 127,
+                "status": 129
+              },
+              {
+                "opaque": 7,
+                "opcode": 0,
+                "status": 0,
+                "value_bytes": 2,
+                "value_hex": "3432"
+              },
+              {
+                "opaque": 8,
+                "opcode": 7,
+                "status": 0
+              }
+            ]
+          }
+        }
+      ],
+      "schema_version": 2
+    }
+  ],
+  "post_campaign_http": [
+    {
+      "cgroup_removed": true,
+      "checks": [
+        "captured_syn_ack_origins",
+        "real_split_status_line",
+        "body_prefix_candidate_not_promoted",
+        "derived_prefix_provenance",
+        "raw_packets_unchanged",
+        "export_and_derived_replay",
+        "decoy_exclusion",
+        "zero_reported_capture_loss",
+        "owned_pins_and_cgroup_removed"
+      ],
+      "clock_anchor_monotonic_ns": 52547751512498,
+      "clock_anchor_unix_ns": "1794550075894885953",
+      "decoy_cookie": 32828,
+      "decoy_events": 0,
+      "derived_prefix_limit": 13,
+      "dropped_events": 0,
+      "flows": 2,
+      "ingest_trust_mode": "unverified-local",
+      "kernel": "7.0.0-42-generic",
+      "kernel_events": 10,
+      "mode": "http-boundaries",
+      "not_proven": [
+        "general-TCP-stream-reassembly",
+        "subsequent-HTTP-responses",
+        "HTTP-informational-responses",
+        "TLS",
+        "TCP-Fast-Open",
+        "vulnerability-detection"
+      ],
+      "ok": true,
+      "packet_dropped_events": 0,
+      "packet_dsl_status_candidates": [
+        [
+          16428,
+          500
+        ]
+      ],
+      "packet_events": 6,
+      "pins_removed": true,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          16427,
+          35079,
+          46019,
+          4026531833
+        ],
+        [
+          16428,
+          35413,
+          46019,
+          4026531833
+        ]
+      ],
+      "verified_http_statuses": [
+        [
+          16427,
+          403
+        ],
+        [
+          16428,
+          200
+        ]
+      ]
+    },
+    {
+      "cgroup_removed": true,
+      "checks": [
+        "captured_syn_ack_origins",
+        "real_split_status_line",
+        "body_prefix_candidate_not_promoted",
+        "derived_prefix_provenance",
+        "raw_packets_unchanged",
+        "export_and_derived_replay",
+        "decoy_exclusion",
+        "zero_reported_capture_loss",
+        "owned_pins_and_cgroup_removed"
+      ],
+      "clock_anchor_monotonic_ns": 52584993449687,
+      "clock_anchor_unix_ns": "1794550113136823111",
+      "decoy_cookie": 20520,
+      "decoy_events": 0,
+      "derived_prefix_limit": 13,
+      "dropped_events": 0,
+      "flows": 2,
+      "ingest_trust_mode": "unverified-local",
+      "kernel": "7.0.0-42-generic",
+      "kernel_events": 10,
+      "mode": "http-boundaries",
+      "not_proven": [
+        "general-TCP-stream-reassembly",
+        "subsequent-HTTP-responses",
+        "HTTP-informational-responses",
+        "TLS",
+        "TCP-Fast-Open",
+        "vulnerability-detection"
+      ],
+      "ok": true,
+      "packet_dropped_events": 0,
+      "packet_dsl_status_candidates": [
+        [
+          45119,
+          500
+        ]
+      ],
+      "packet_events": 6,
+      "pins_removed": true,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          45118,
+          50623,
+          46827,
+          4026531833
+        ],
+        [
+          45119,
+          41763,
+          46827,
+          4026531833
+        ]
+      ],
+      "verified_http_statuses": [
+        [
+          45118,
+          403
+        ],
+        [
+          45119,
+          200
+        ]
+      ]
+    },
+    {
+      "cgroup_removed": true,
+      "checks": [
+        "captured_syn_ack_origins",
+        "real_split_status_line",
+        "body_prefix_candidate_not_promoted",
+        "derived_prefix_provenance",
+        "raw_packets_unchanged",
+        "export_and_derived_replay",
+        "decoy_exclusion",
+        "zero_reported_capture_loss",
+        "owned_pins_and_cgroup_removed"
+      ],
+      "clock_anchor_monotonic_ns": 52625590475464,
+      "clock_anchor_unix_ns": "1794550153733849300",
+      "decoy_cookie": 32830,
+      "decoy_events": 0,
+      "derived_prefix_limit": 13,
+      "dropped_events": 0,
+      "flows": 2,
+      "ingest_trust_mode": "unverified-local",
+      "kernel": "7.0.0-42-generic",
+      "kernel_events": 10,
+      "mode": "http-boundaries",
+      "not_proven": [
+        "general-TCP-stream-reassembly",
+        "subsequent-HTTP-responses",
+        "HTTP-informational-responses",
+        "TLS",
+        "TCP-Fast-Open",
+        "vulnerability-detection"
+      ],
+      "ok": true,
+      "packet_dropped_events": 0,
+      "packet_dsl_status_candidates": [
+        [
+          8244,
+          500
+        ]
+      ],
+      "packet_events": 6,
+      "pins_removed": true,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          8243,
+          49903,
+          39575,
+          4026531833
+        ],
+        [
+          8244,
+          55195,
+          39575,
+          4026531833
+        ]
+      ],
+      "verified_http_statuses": [
+        [
+          8243,
+          403
+        ],
+        [
+          8244,
+          200
+        ]
+      ]
+    }
+  ],
+  "postgres_redis_control": {
+    "checks": [
+      "real_PostgreSQL_and_Redis",
+      "auth_denial_query_error_then_recovery",
+      "PostgreSQL_failed_transaction_rollback_and_null_empty",
+      "Redis_empty_nil_binary_and_pipelined_replies",
+      "bounded_partial_client_reads_not_packet_segmentation",
+      "same_target_unselected_denial_excluded",
+      "kernel_bytes_match_independent_client",
+      "existing_protocol_packages_and_replay",
+      "unobserved_process_route_and_egress_not_invented",
+      "owned_internal_network_and_anonymous_volume_cleanup",
+      "fresh_HTTP_capture_after_data"
+    ],
+    "ingest_trust_mode": "unverified-local",
+    "mode": "data-breadth",
+    "not_proven": [
+      "TLS_decryption",
+      "arbitrary_protocol_detection",
+      "general_TCP_reassembly",
+      "vulnerability_exploitation_detection",
+      "PostgreSQL_TLS_SCRAM_extended_query",
+      "Redis_cluster_RESP3",
+      "MySQL_caching_sha2_auth_switch_prepared_statements",
+      "Memcached_text_meta_SASL_UDP",
+      "PID_or_container_process_attribution",
+      "request_payload_capture",
+      "IPv6_or_UDP",
+      "multiple_hosts_or_kernels"
+    ],
+    "ok": true,
+    "phases": [
+      {
+        "anonymous_volume_ids": [],
+        "anonymous_volumes_removed_with_container": true,
+        "client_read_chunk_bytes": 7,
+        "client_reads_are_packet_boundaries": false,
+        "container_id": "16fc7044b057f2a202a8daedbec94cadbb8bd5635809d46e433da14bef9fc392",
+        "image": "postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777",
+        "image_id": "sha256:de3a4eab8fdfa507ea92aac488b916b08089e515db49b055fe71dfa271ba3a28",
+        "internal_network": true,
+        "network_id": "bcb7e5a8f4db6ea523acfc04d683ab3eba22b0fa8e6ec7857dff611e90234456",
+        "observations": [
+          {
+            "captured_result": {
+              "auth": [
+                3
+              ],
+              "command_tags": [],
+              "completed_queries": 0,
+              "ready": 0,
+              "ready_states": [],
+              "rows": [],
+              "sqlstates": [
+                "28P01"
+              ]
+            },
+            "captured_sha256": "98f547a4143c9d5be1e9faba09e7899a0eb90c2ae448bd977de550902159bf38",
+            "client_result": {
+              "auth": [
+                3
+              ],
+              "command_tags": [],
+              "completed_queries": 0,
+              "ready": 0,
+              "ready_states": [],
+              "rows": [],
+              "sqlstates": [
+                "28P01"
+              ]
+            },
+            "control": false,
+            "cookie": 28697,
+            "response_bytes": 110,
+            "response_sha256": "98f547a4143c9d5be1e9faba09e7899a0eb90c2ae448bd977de550902159bf38"
+          },
+          {
+            "captured_result": {
+              "auth": [
+                3,
+                0
+              ],
+              "command_tags": [
+                "SELECT 1",
+                "SELECT 1",
+                "SELECT 1",
+                "SELECT 1",
+                "BEGIN",
+                "ROLLBACK",
+                "SELECT 1"
+              ],
+              "completed_queries": 7,
+              "ready": 11,
+              "ready_states": [
+                "I",
+                "I",
+                "I",
+                "I",
+                "I",
+                "I",
+                "T",
+                "E",
+                "E",
+                "I",
+                "I"
+              ],
+              "rows": [
+                "42",
+                "43",
+                null,
+                "",
+                "45"
+              ],
+              "sqlstates": [
+                "22012",
+                "22012",
+                "25P02"
+              ]
+            },
+            "captured_sha256": "d0865847478aa98c313fe9000bd795f6d22634fa4dcdef3fd37a148c6989de80",
+            "client_result": {
+              "auth": [
+                3,
+                0
+              ],
+              "command_tags": [
+                "SELECT 1",
+                "SELECT 1",
+                "SELECT 1",
+                "SELECT 1",
+                "BEGIN",
+                "ROLLBACK",
+                "SELECT 1"
+              ],
+              "completed_queries": 7,
+              "ready": 11,
+              "ready_states": [
+                "I",
+                "I",
+                "I",
+                "I",
+                "I",
+                "I",
+                "T",
+                "E",
+                "E",
+                "I",
+                "I"
+              ],
+              "rows": [
+                "42",
+                "43",
+                null,
+                "",
+                "45"
+              ],
+              "sqlstates": [
+                "22012",
+                "22012",
+                "25P02"
+              ]
+            },
+            "control": true,
+            "cookie": 28698,
+            "response_bytes": 1056,
+            "response_sha256": "d0865847478aa98c313fe9000bd795f6d22634fa4dcdef3fd37a148c6989de80"
+          }
+        ],
+        "ok": true,
+        "owned_resources_removed": true,
+        "package_failures": [],
+        "packages": [
+          {
+            "facts": 29,
+            "matched_cookies": [
+              28697
+            ],
+            "path": "protocols/postgres/auth-denied/main.gewy",
+            "phase": "receive_auth_denied",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "329a23c8a2faeee3bf39587caafa32278af7650d63699a469a311817fa1679e1",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 29,
+            "matched_cookies": [
+              28698
+            ],
+            "path": "protocols/postgres/error/main.gewy",
+            "phase": "receive_error",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "dd4fb60095014bea28f18af8093e98f666be9f05914991368aa06f99e78ade83",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 29,
+            "matched_cookies": [
+              28697,
+              28698
+            ],
+            "path": "protocols/postgres/auth/main.gewy",
+            "phase": "receive_auth",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "4cd13df0f49c7a21587b4f1464c2a695b9ef6ea64f5344e98c7744a433927084",
+            "unobserved_fragments_explicit": true
+          }
+        ],
+        "packet_counts": {
+          "dropped": 0,
+          "total": 19
+        },
+        "protocol": "postgres",
+        "published_ports": false,
+        "redis_pipeline_commands": 0,
+        "schema_version": 2,
+        "selected_cookies": [
+          28697,
+          28698
+        ],
+        "selected_query_or_command_count": 10,
+        "tcp_state_counts": {
+          "dropped": 0,
+          "total": 10
+        },
+        "unselected_neighbor_cookie": 61450,
+        "unselected_neighbor_result": {
+          "auth": [
+            3
+          ],
+          "command_tags": [],
+          "completed_queries": 0,
+          "ready": 0,
+          "ready_states": [],
+          "rows": [],
+          "sqlstates": [
+            "28P01"
+          ]
+        }
+      },
+      {
+        "anonymous_volume_ids": [],
+        "anonymous_volumes_removed_with_container": true,
+        "client_read_chunk_bytes": 7,
+        "client_reads_are_packet_boundaries": false,
+        "container_id": "aac1a8b400c22f6b1a64aa199e02a11cd7d68da5da98e979861833e9a857a1b1",
+        "image": "redis@sha256:7958cfbb9d152f87dadfbc89f1b0b15938f0b81ff8982feb327476f4911935c3",
+        "image_id": "sha256:d8642290c6a46f22d8ba0de16c5006b66a63b13412e5b8624912aaeecbc7f525",
+        "internal_network": true,
+        "network_id": "e3e2241dadaf117419c25b2f76448322920c1295ffe88e4baa949dc1eb63e415",
+        "observations": [
+          {
+            "captured_result": {
+              "replies": [
+                {
+                  "code": "NOAUTH",
+                  "kind": "error"
+                },
+                {
+                  "code": "WRONGPASS",
+                  "kind": "error"
+                },
+                {
+                  "kind": "simple",
+                  "value": "OK"
+                },
+                {
+                  "kind": "simple",
+                  "value": "OK"
+                },
+                {
+                  "kind": "bulk",
+                  "value": "42"
+                },
+                {
+                  "code": "WRONGTYPE",
+                  "kind": "error"
+                },
+                {
+                  "code": "ERR",
+                  "kind": "error"
+                },
+                {
+                  "kind": "bulk",
+                  "value": "42"
+                },
+                {
+                  "kind": "simple",
+                  "value": "OK"
+                }
+              ]
+            },
+            "captured_sha256": "5333258b7d40a6817298372e459bcfd8e8a7c39343b6e075017528d4634fb5f1",
+            "client_result": {
+              "replies": [
+                {
+                  "code": "NOAUTH",
+                  "kind": "error"
+                },
+                {
+                  "code": "WRONGPASS",
+                  "kind": "error"
+                },
+                {
+                  "kind": "simple",
+                  "value": "OK"
+                },
+                {
+                  "kind": "simple",
+                  "value": "OK"
+                },
+                {
+                  "kind": "bulk",
+                  "value": "42"
+                },
+                {
+                  "code": "WRONGTYPE",
+                  "kind": "error"
+                },
+                {
+                  "code": "ERR",
+                  "kind": "error"
+                },
+                {
+                  "kind": "bulk",
+                  "value": "42"
+                },
+                {
+                  "kind": "simple",
+                  "value": "OK"
+                }
+              ]
+            },
+            "control": false,
+            "cookie": 24639,
+            "response_bytes": 230,
+            "response_sha256": "5333258b7d40a6817298372e459bcfd8e8a7c39343b6e075017528d4634fb5f1"
+          },
+          {
+            "captured_result": {
+              "replies": [
+                {
+                  "kind": "simple",
+                  "value": "OK"
+                },
+                {
+                  "kind": "nil"
+                },
+                {
+                  "kind": "simple",
+                  "value": "OK"
+                },
+                {
+                  "kind": "bulk",
+                  "value": "-ERR not-an-error"
+                },
+                {
+                  "kind": "simple",
+                  "value": "OK"
+                },
+                {
+                  "kind": "bulk",
+                  "value": ""
+                },
+                {
+                  "kind": "simple",
+                  "value": "OK"
+                },
+                {
+                  "bytes": 8,
+                  "kind": "bulk",
+                  "value_hex": "00ff0d0a2d455252"
+                },
+                {
+                  "kind": "bulk",
+                  "value": "-ERR not-an-error"
+                },
+                {
+                  "kind": "nil"
+                },
+                {
+                  "kind": "bulk",
+                  "value": ""
+                },
+                {
+                  "kind": "simple",
+                  "value": "OK"
+                }
+              ]
+            },
+            "captured_sha256": "5c2912eb8b531a829fc1f6bfd7a026c1255eb78736ded51282e57d0c75c6b916",
+            "client_result": {
+              "replies": [
+                {
+                  "kind": "simple",
+                  "value": "OK"
+                },
+                {
+                  "kind": "nil"
+                },
+                {
+                  "kind": "simple",
+                  "value": "OK"
+                },
+                {
+                  "kind": "bulk",
+                  "value": "-ERR not-an-error"
+                },
+                {
+                  "kind": "simple",
+                  "value": "OK"
+                },
+                {
+                  "kind": "bulk",
+                  "value": ""
+                },
+                {
+                  "kind": "simple",
+                  "value": "OK"
+                },
+                {
+                  "bytes": 8,
+                  "kind": "bulk",
+                  "value_hex": "00ff0d0a2d455252"
+                },
+                {
+                  "kind": "bulk",
+                  "value": "-ERR not-an-error"
+                },
+                {
+                  "kind": "nil"
+                },
+                {
+                  "kind": "bulk",
+                  "value": ""
+                },
+                {
+                  "kind": "simple",
+                  "value": "OK"
+                }
+              ]
+            },
+            "control": true,
+            "cookie": 24640,
+            "response_bytes": 109,
+            "response_sha256": "5c2912eb8b531a829fc1f6bfd7a026c1255eb78736ded51282e57d0c75c6b916"
+          }
+        ],
+        "ok": true,
+        "owned_resources_removed": true,
+        "package_failures": [],
+        "packages": [
+          {
+            "facts": 31,
+            "matched_cookies": [
+              24639
+            ],
+            "path": "protocols/redis/auth-denied/main.gewy",
+            "phase": "receive_auth_denied",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "4dd11db6ddfb6e9d23515f7423f70206d5f4e2908dc92bc7640500cec9dc4ecc",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 31,
+            "matched_cookies": [
+              24639
+            ],
+            "path": "protocols/redis/error/main.gewy",
+            "phase": "receive_error",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "ffad0645b9b8ee570c3fde77318008ed4b983afbc7c090d54db8c2f7b56526eb",
+            "unobserved_fragments_explicit": true
+          },
+          {
+            "facts": 31,
+            "matched_cookies": [
+              24639,
+              24640
+            ],
+            "path": "protocols/redis/get/main.gewy",
+            "phase": "receive_bulk",
+            "process_attribution": false,
+            "replay_identical": true,
+            "request_payload_observed": false,
+            "source_sha256": "7dfe57a644f4f6cd574ebb14d5cc9d57ea8873d0fac91b6d58edde585de4ff16",
+            "unobserved_fragments_explicit": true
+          }
+        ],
+        "packet_counts": {
+          "dropped": 0,
+          "total": 21
+        },
+        "protocol": "redis",
+        "published_ports": false,
+        "redis_pipeline_commands": 3,
+        "schema_version": 2,
+        "selected_cookies": [
+          24639,
+          24640
+        ],
+        "selected_query_or_command_count": 21,
+        "tcp_state_counts": {
+          "dropped": 0,
+          "total": 10
+        },
+        "unselected_neighbor_cookie": 24641,
+        "unselected_neighbor_result": {
+          "replies": [
+            {
+              "code": "NOAUTH",
+              "kind": "error"
+            },
+            {
+              "code": "WRONGPASS",
+              "kind": "error"
+            },
+            {
+              "kind": "simple",
+              "value": "OK"
+            },
+            {
+              "kind": "simple",
+              "value": "OK"
+            },
+            {
+              "kind": "bulk",
+              "value": "42"
+            },
+            {
+              "code": "WRONGTYPE",
+              "kind": "error"
+            },
+            {
+              "code": "ERR",
+              "kind": "error"
+            },
+            {
+              "kind": "bulk",
+              "value": "42"
+            },
+            {
+              "kind": "simple",
+              "value": "OK"
+            }
+          ]
+        }
+      }
+    ],
+    "schema_version": 2
+  },
+  "totals": {
+    "campaigns": 3,
+    "selected_connections": 12,
+    "unselected_neighbors": 6,
+    "packet_events": 81,
+    "tcp_state_events": 60,
+    "reported_packet_drops": 0,
+    "reported_tcp_state_drops": 0,
+    "server_response_bytes": 3105,
+    "mysql_query_messages": 15,
+    "memcached_commands": 39,
+    "package_replays": 21,
+    "fresh_http_captures": 3,
+    "owned_targets_removed": 6,
+    "owned_networks_removed": 6
+  },
+  "verification": {
+    "related_tests_passed": 1534,
+    "related_tests_failed": 0,
+    "closure_tests_passed": 344,
+    "closure_tests_failed": 0,
+    "total_tests_passed": 1878,
+    "preexisting_diagnostic_tests_ignored": 1,
+    "clippy_all_targets_all_features": true,
+    "fmt_check": true,
+    "scope": "Gewyvern library and five targeted integration suites, plus native validation and status catalog closure suites; not a whole-workspace test or release gate"
+  },
+  "cleanup": {
+    "existing_container_identities_unchanged": true,
+    "existing_network_identities_unchanged": true,
+    "existing_volume_inventory_unchanged": true,
+    "inventory_counts": {
+      "containers_including_temporary_build": 16,
+      "final_containers_after_owned_build_removal": 15,
+      "networks": 6,
+      "volumes": 54
+    },
+    "global_prune_used": false,
+    "temporary_build_container_removed": true,
+    "only_owned_build_removed_from_final_container_inventory": true,
+    "note": "Before/after campaign inventories are identical; final inventory then removes only the temporary build container. PostgreSQL/Redis control is separate from MySQL/Memcached totals."
+  },
+  "limitations": [
+    "single physical host/kernel; not cross-host qualification",
+    "plaintext test fixtures, no TLS decryption",
+    "no arbitrary protocol detection or vulnerability-exploitation claim",
+    "bounded complete server-stream oracle, not general TCP reassembly",
+    "no request payload capture or PID/container-process attribution",
+    "MySQL protocol 4.1 direct native-password only, no caching-SHA2/auth switch/compression/prepared/extended results",
+    "Memcached binary only; no text/meta/SASL/UDP or caching-policy certification",
+    "not a high-load benchmark, leak test or release artifact"
+  ]
+}

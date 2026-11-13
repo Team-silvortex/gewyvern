@@ -387,7 +387,7 @@ pub(super) fn memcached_entry_semantics(entry: &str) -> Option<ProtocolEntrySema
         ),
         "not-stored" => (
             "cache-not-stored-path",
-            "Memcached binary SET response with NOT_STORED status",
+            "Memcached binary SET/APPEND/PREPEND response with NOT_STORED status",
             Some("NOT_STORED"),
         ),
         _ => return None,

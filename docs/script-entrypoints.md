@@ -1502,6 +1502,82 @@ detection, arbitrary process attribution or database/cache performance.
 `receive_bulk` includes nil bulk replies, not proof that a key exists. The
 bounded framed results carry those distinctions separately.
 
+Schema-2 data reports add PostgreSQL `ready_states` and `command_tags`, and
+preserve SQL NULL separately from empty text. The explicit transaction fails,
+rejects a subsequent query with `25P02`, then recovers only after `ROLLBACK`.
+Redis also distinguishes nil from empty bulk values, preserves an eight-byte
+non-UTF-8 value containing NUL/CRLF/error-looking text, and receives three
+pipelined replies. Valid UTF-8 bulk values keep `value`; other byte strings use
+lossless `value_hex` plus `bytes`, never replacement characters. This is still a
+small RESP2 scalar fixture, not general RESP3/array/cluster support.
+
+Client reads are capped at seven bytes to exercise partial-I/O handling while
+retaining the absolute exchange deadline. This cap does not force or measure
+TCP packet segmentation. Only actual captured packets enter runtime projections;
+the unit test's fragmented writes and malformed frames are separate synthetic
+controls, not additional real-target observations. Historical schema-1 evidence
+is retained unchanged.
+
+The next database/cache family uses the same bounded capture, client deadline,
+replay and owned cleanup path:
+
+```bash
+sudo target/debug/gewyvern_validate --json linux-tcp-capture --mysql-memcached --out-dir target/validation/mysql-memcached-new
+```
+
+This separate mutually exclusive mode requires the cached official MySQL 8.0
+and Memcached 1.6 images pinned in `data_breadth.rs` and `data_breadth/memcached.rs`.
+MySQL uses a disposable native-password account on an internal bridge, a 1-GiB
+memory limit and 512-MiB data tmpfs. This legacy authentication fixture is not a
+production authentication recommendation or TLS/caching-SHA2 coverage. Memcached
+uses one worker, a 16-MiB cache, 1-KiB item/slab limits and disabled UDP; the
+container is limited to one CPU, 512 MiB and 128 tasks, with no published ports.
+
+The native clients check MySQL packet lengths/sequences, login refusal, one-column
+text results, NULL/empty values, syntax error followed by a successful query and
+PING. Memcached checks binary framing and opaque correlation for hits, misses,
+append refusal, oversized SET, unknown opcode, empty/binary values and recovery.
+Each package candidate must reference an actual packet with the expected status;
+a later successful packet cannot excuse an earlier false success stage. Server
+bytes are never replaced by client data or fabricated at message boundaries.
+Text/meta/SASL Memcached, MySQL auth switching/prepared statements/compression,
+general TCP reassembly, TLS, throughput and arbitrary process attribution remain
+separate gates. Startup exits retain logs before owned cleanup.
+
+To extend the same capture/replay path to real message brokers:
+
+```bash
+sudo target/debug/gewyvern_validate --json linux-tcp-capture --messaging-breadth --out-dir target/validation/messaging-new
+```
+
+This mutually exclusive mode requires preloaded digest-pinned official Mosquitto
+and NATS images from `data_breadth.rs`. Both targets use owned internal bridges,
+one CPU, 512 MiB and 128 tasks, with no published ports or host data mounts.
+Fixed generated broker configurations are copied into the stopped targets.
+Mosquitto allows anonymous clients only inside this isolated fixture and disables
+disk persistence. NATS uses disposable credentials and `gewy.>` permissions.
+Readiness uses a clean MQTT session; a separate uncaptured seed establishes the
+persistent subscription before the two selected sockets are attached.
+
+MQTT 3.1.1 checks identifier refusal, resumed Session Present, QoS 1/2 packet IDs,
+delivery through the resumed subscription, SUBACK and PINGRESP. NATS checks
+authentication refusal, permission-denied publishing followed by PONG and later
+successful delivery, zero-length messages, and binary/control-looking bodies.
+MSG bodies are consumed by their declared byte length, not split as commands.
+Negative control-looking bodies precede the permission error so that a prior
+error stage cannot deduplicate away a false positive; a final message then proves
+post-error recovery.
+Protocol-1 asynchronous INFO updates are bounded and retained in both raw bytes
+and decoded transcripts; only command expectation matching ignores extra INFO.
+The native clients use bounded reads and deadlines, and the capture still checks
+the full server byte stream independently of packet-local package candidates.
+MQTT `connack` and NATS `INFO`/`-ERR` stages are not successful authentication
+claims. PUBACK candidates do not validate or correlate IDs; the fixed client does.
+This does not cover MQTT 5, TLS, offline queued delivery, broker crash durability,
+NATS headers/JetStream/clusters, or general TCP stream reconstruction. See the
+[MQTT specification](https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html)
+and [NATS core protocol](https://docs.nats.io/reference/protocols/client).
+
 To validate real DNS datagrams rather than TCP state transitions:
 
 ```bash

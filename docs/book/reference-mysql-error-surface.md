@@ -30,6 +30,21 @@ Coarse response shape:
 - query send
 - error receive
 
+An ERR tag alone cannot distinguish login refusal from a query error. The
+`auth-denied` packet candidate now requires error 1045 and `#28000`; `error`
+requires a sequence-1 ERR with an observed protocol-4.1 SQLSTATE field. These are
+conservative initial-response prefixes, not general message decoding: other
+authentication refusals, errors later in a result stream, split headers, TLS,
+compression and authentication switching can remain unmatched.
+
+The real `--mysql-memcached` fixture separately checks complete framed messages,
+packet sequences and native-password authentication. It compares login refusal
+`1045/28000` with syntax error `1064/42000`, then verifies later query results and
+PING on the same connection. NULL and empty text remain distinct. Raw OK tags in
+the existing auth/query packages are still packet observations, not independent
+proof of the command that produced them. See the official
+[ERR packet format](https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_err_packet.html).
+
 ## Machine-Readable Surface Semantics
 
 The `protocol_surface("mysql", "error")` contract now publishes

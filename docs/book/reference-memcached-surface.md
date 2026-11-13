@@ -18,7 +18,7 @@ over an established TCP session:
 - send `get` and receive a value response
 - observe a binary `get` response with `NOT_FOUND`
 - send `set` and receive a stored response
-- observe a binary `set` response with `NOT_STORED`
+- observe SET/APPEND/PREPEND candidates with `NOT_STORED` status
 
 Across the subpages, the lookup contract focuses on:
 

@@ -32,6 +32,13 @@ The publish path currently uses this staging model:
 5. `PUBLISH`
 6. publish acknowledgement
 
+The MQTT 3.1.1 PUBACK candidate requires `40 02` and both observed packet-ID
+bytes; the ID is variable, not a literal zero. This remains a packet-prefix
+candidate, not a nonzero-ID validator or a request/acknowledgement correlation
+engine. The native messaging fixture separately requires the exact nonzero ID
+sent by its client, and checks PUBREC/PUBCOMP identifiers for its QoS 2 exchange.
+QoS acknowledgements alone do not prove subscriber delivery or durable storage.
+
 ## Operator Reading Order
 
 If you are reviewing MQTT publish coverage, read it in this order:

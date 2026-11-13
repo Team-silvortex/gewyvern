@@ -25,6 +25,13 @@ Coarse response shape:
 - outbound MQTT session request
 - broker acknowledgement
 
+The `connect` success candidate accepts both MQTT 3.1.1 CONNACK prefixes
+`20 02 00 00` (new session) and `20 02 01 00` (resumed session). Nonzero return
+codes, reserved flags and truncated prefixes do not establish success. The
+separate `connack` entry observes a response, including refusals, not a successful
+login. The Session Present bit is part of the
+[MQTT 3.1.1 connection contract](https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html).
+
 ### `connack`
 
 Aliases:

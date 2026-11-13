@@ -476,17 +476,25 @@ fn mysql_query_error_path_materializes_query_and_error_phases() {
         None,
         Some(0x03),
     ));
-    session.ingest(packet_fact_with_dir_and_payload_and_byte4(
+    session.ingest(packet_fact_with_dir_and_payload_bytes(
         6,
         514,
         0,
         PacketDir::Ingress,
         Some(43133),
         Some(3306),
-        None,
-        None,
-        None,
-        Some(0xff),
+        &[
+            (3, 1),
+            (4, 255),
+            (5, 0x28),
+            (6, 4),
+            (7, b'#'),
+            (8, b'4'),
+            (9, b'2'),
+            (10, b'0'),
+            (11, b'0'),
+            (12, b'0'),
+        ],
     ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(70));
 

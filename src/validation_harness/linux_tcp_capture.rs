@@ -109,6 +109,34 @@ pub fn run_linux_data_breadth_validation(
     }
 }
 
+pub fn run_linux_messaging_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_messaging(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "messaging capture validation requires Linux",
+        ))
+    }
+}
+
+pub fn run_linux_mysql_memcached_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_mysql_memcached(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "linux-tcp-capture --mysql-memcached requires Linux and BPF privileges",
+        ))
+    }
+}
+
 pub fn run_linux_http_boundaries_validation(
     out_dir: Option<PathBuf>,
 ) -> Result<ValidationReport, ValidationError> {

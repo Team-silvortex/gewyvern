@@ -24,6 +24,15 @@ mod data_breadth;
 pub(super) fn run_data_breadth(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
     data_breadth::run(out)
 }
+pub(super) fn run_messaging(out_dir: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    data_breadth::run_messaging(out_dir)
+}
+
+pub(super) fn run_mysql_memcached(
+    out: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    data_breadth::run_mysql_memcached(out)
+}
 mod bpf_link;
 mod docker_target;
 mod http_boundaries;
