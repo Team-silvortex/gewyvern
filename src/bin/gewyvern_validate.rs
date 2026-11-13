@@ -22,9 +22,11 @@ use gewyvern::validation_harness::{
     run_leselang_fuzz_validation, run_leserpent_accessibility_validation,
     run_leserpent_aot_validation, run_leserpent_benchmark_validation,
     run_leserpent_parity_recovery_validation, run_leserpent_schema_freeze_validation,
-    run_leserpent_transport_validation, run_linux_attach_smoke, run_linux_capture_load_validation,
+    run_leserpent_transport_validation, run_linux_attach_smoke, run_linux_auth_breadth_validation,
+    run_linux_capture_load_validation, run_linux_capture_memory_control_validation,
     run_linux_capture_mixed_validation, run_linux_capture_recovery_validation,
-    run_linux_capture_runtime_validation, run_linux_capture_stream_validation,
+    run_linux_capture_runtime_validation, run_linux_capture_soak_hour_validation,
+    run_linux_capture_soak_validation, run_linux_capture_stream_validation,
     run_linux_http_boundaries_validation, run_linux_kprobe_smoke, run_linux_tc_smoke,
     run_linux_tcp_capture_validation, run_linux_tcp_juice_shop_validation,
     run_package_install_smoke, run_pathological_container_validation, run_registry_validation,
@@ -81,6 +83,10 @@ const TOP_LEVEL_COMMANDS: &[&str] = &[
     "training-roundtrip",
 ];
 const JSON_SCHEMA_VERSION: u32 = 1;
+#[cfg(feature = "capture-allocation-audit")]
+#[global_allocator]
+static AUDIT_ALLOCATOR: gewyvern::validation_harness::allocation_audit::AuditSystem =
+    gewyvern::validation_harness::allocation_audit::AuditSystem;
 const CLI_SOCKET_TARGET_MAX_LEN: usize = 4096;
 const MAX_VALIDATION_JSON_OUTPUT_BYTES: u64 = 16 * 1024 * 1024;
 
@@ -96,6 +102,8 @@ fn listed_commands() -> Vec<&'static str> {
 }
 
 fn main() {
+    #[cfg(feature = "capture-allocation-audit")]
+    gewyvern::validation_harness::allocation_audit::activate();
     let raw_args = env::args().skip(1).collect::<Vec<_>>();
     let (global_options, args) = parse_global_cli_options(raw_args);
     let json_enabled = global_options.json;
@@ -547,7 +555,7 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
         "linux-tcp-capture" => {
             if wants_subcommand_help(&rest) {
                 println!(
-                    "Usage: gewyvern_validate linux-tcp-capture [--juice-shop | --http-boundaries | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed] [--out-dir <new-path>]"
+                    "Usage: gewyvern_validate linux-tcp-capture [--juice-shop | --http-boundaries | --auth-breadth | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed | --capture-soak | --capture-soak-hour | --capture-memory-control] [--out-dir <new-path>]"
                 );
                 println!(
                     "Default mode captures only owned IPv4 loopback socket cookies, reconstructs real TCP states, and verifies half-close/refusal/decoy behavior. Requires Linux, BTF, clang, bpftool and BPF privileges. No payload capture or PID attribution."
@@ -573,6 +581,12 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
                 println!(
                     "--capture-mixed runs bounded variable-size, split/coalesced-write and half-close cases on fresh owned sockets, with a same-endpoint unselected neighbor. Reconciles TCP byte ranges rather than equating messages with packets. Not general retransmission reassembly or a throughput benchmark."
                 );
+                println!(
+                    "--auth-breadth uses cached digest-pinned FTP/LDAP images on private internal networks. Checks selected success/denial, an unselected denied neighbor, complete bounded ingress bytes, existing package rules and replay. No published ports, image pulls, request payload or process attribution; anonymous volumes are removed with owned targets."
+                );
+                println!(
+                    "--capture-soak runs three 300-second runtime load cycles; --capture-soak-hour runs three 1200-second cycles and requires --features capture-allocation-audit. Each has teardown and 30 seconds idle, constant-space journals and report-free checkpoints. Records glibc/RSS/thread/FD observations and one final diagnostic-only malloc_trim. --capture-memory-control requires the same audit feature but no BPF privilege: 256 observer-only checkpoints on each of main/worker threads, with no traffic. No indefinite leak-freedom or production allocator policy change. Audit counters affect throughput and are not C/RSS measurements."
+                );
                 return Ok(());
             }
             let (mode, out_dir) = parse_tcp_capture_options(rest)?;
@@ -581,8 +595,14 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
                 TcpCaptureMode::HttpBoundaries => run_linux_http_boundaries_validation(out_dir)?,
                 TcpCaptureMode::Recovery => run_linux_capture_recovery_validation(out_dir)?,
                 TcpCaptureMode::Load => run_linux_capture_load_validation(out_dir)?,
+                TcpCaptureMode::AuthBreadth => run_linux_auth_breadth_validation(out_dir)?,
                 TcpCaptureMode::Stream => run_linux_capture_stream_validation(out_dir)?,
                 TcpCaptureMode::Runtime => run_linux_capture_runtime_validation(out_dir)?,
+                TcpCaptureMode::Soak => run_linux_capture_soak_validation(out_dir)?,
+                TcpCaptureMode::SoakHour => run_linux_capture_soak_hour_validation(out_dir)?,
+                TcpCaptureMode::MemoryControl => {
+                    run_linux_capture_memory_control_validation(out_dir)?
+                }
                 TcpCaptureMode::Mixed => run_linux_capture_mixed_validation(out_dir)?,
                 TcpCaptureMode::Loopback => run_linux_tcp_capture_validation(out_dir)?,
             };
@@ -1244,6 +1264,7 @@ fn parse_linux_ebpf_smoke_options(
 
 #[derive(Debug, PartialEq, Eq)]
 enum TcpCaptureMode {
+    AuthBreadth,
     Loopback,
     JuiceShop,
     HttpBoundaries,
@@ -1251,6 +1272,9 @@ enum TcpCaptureMode {
     Load,
     Stream,
     Runtime,
+    Soak,
+    SoakHour,
+    MemoryControl,
     Mixed,
 }
 
@@ -1262,6 +1286,9 @@ fn parse_tcp_capture_options(
     let mut iter = args.into_iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
+            "--auth-breadth" if mode == TcpCaptureMode::Loopback => {
+                mode = TcpCaptureMode::AuthBreadth
+            }
             "--juice-shop" if mode == TcpCaptureMode::Loopback => mode = TcpCaptureMode::JuiceShop,
             "--http-boundaries" if mode == TcpCaptureMode::Loopback => {
                 mode = TcpCaptureMode::HttpBoundaries
@@ -1273,6 +1300,13 @@ fn parse_tcp_capture_options(
             "--capture-stream" if mode == TcpCaptureMode::Loopback => mode = TcpCaptureMode::Stream,
             "--capture-runtime" if mode == TcpCaptureMode::Loopback => {
                 mode = TcpCaptureMode::Runtime
+            }
+            "--capture-soak" if mode == TcpCaptureMode::Loopback => mode = TcpCaptureMode::Soak,
+            "--capture-soak-hour" if mode == TcpCaptureMode::Loopback => {
+                mode = TcpCaptureMode::SoakHour
+            }
+            "--capture-memory-control" if mode == TcpCaptureMode::Loopback => {
+                mode = TcpCaptureMode::MemoryControl
             }
             "--capture-mixed" if mode == TcpCaptureMode::Loopback => mode = TcpCaptureMode::Mixed,
             "--out-dir" if out_dir.is_none() => {
@@ -1378,7 +1412,7 @@ fn print_help() {
     println!("  linux-attach-smoke [--hookpoint <category/event>] [--out-dir <path>]");
     println!("  linux-kprobe-smoke [--symbol <kernel-symbol>] [--out-dir <path>]");
     println!(
-        "  linux-tcp-capture [--juice-shop | --http-boundaries | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed] [--out-dir <new-path>]"
+        "  linux-tcp-capture [--juice-shop | --http-boundaries | --auth-breadth | --capture-recovery | --capture-load | --capture-stream | --capture-runtime | --capture-mixed | --capture-soak | --capture-soak-hour | --capture-memory-control] [--out-dir <new-path>]"
     );
     println!("  linux-tc-smoke --dev <netdev> [--out-dir <path>]");
     println!("  package-install-smoke [--deb|--rpm]");
@@ -3163,6 +3197,14 @@ mod tests {
     #[test]
     fn tcp_capture_options_keep_target_selection_explicit_and_reject_ambiguity() {
         assert_eq!(
+            parse_tcp_capture_options(vec!["--auth-breadth".into()]).unwrap(),
+            (TcpCaptureMode::AuthBreadth, None)
+        );
+        assert_eq!(
+            parse_tcp_capture_options(vec!["--capture-memory-control".into()]).unwrap(),
+            (TcpCaptureMode::MemoryControl, None)
+        );
+        assert_eq!(
             parse_tcp_capture_options(vec!["--capture-mixed".into()]).unwrap(),
             (TcpCaptureMode::Mixed, None)
         );
@@ -3191,6 +3233,14 @@ mod tests {
             (TcpCaptureMode::Runtime, None)
         );
         assert_eq!(
+            parse_tcp_capture_options(vec!["--capture-soak".into()]).unwrap(),
+            (TcpCaptureMode::Soak, None)
+        );
+        assert_eq!(
+            parse_tcp_capture_options(vec!["--capture-soak-hour".into()]).unwrap(),
+            (TcpCaptureMode::SoakHour, None)
+        );
+        assert_eq!(
             parse_tcp_capture_options(vec![
                 "--juice-shop".into(),
                 "--out-dir".into(),
@@ -3201,6 +3251,18 @@ mod tests {
         );
         for args in [
             vec!["--capture-mixed", "--capture-mixed"],
+            vec!["--auth-breadth", "--auth-breadth"],
+            vec!["--auth-breadth", "--juice-shop"],
+            vec!["--capture-soak-hour", "--auth-breadth"],
+            vec!["--capture-soak", "--capture-soak"],
+            vec!["--capture-soak-hour", "--capture-soak-hour"],
+            vec!["--capture-memory-control", "--capture-memory-control"],
+            vec!["--capture-memory-control", "--capture-soak-hour"],
+            vec!["--capture-soak-hour", "--capture-memory-control"],
+            vec!["--capture-soak", "--capture-soak-hour"],
+            vec!["--capture-soak-hour", "--capture-soak"],
+            vec!["--capture-runtime", "--capture-soak"],
+            vec!["--capture-soak", "--capture-runtime"],
             vec!["--capture-mixed", "--capture-runtime"],
             vec!["--capture-runtime", "--capture-mixed"],
             vec!["--juice-shop", "--juice-shop"],

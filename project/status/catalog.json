@@ -703,9 +703,9 @@
       "independence": "reusable-library",
       "contract": {
         "id": "silvortex-bounded-io",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "stability": "stable",
-        "surfaces": ["bounded-regular-file-open", "atomic-unix-symlink-rejection", "post-open-growth-rejection", "bounded-private-atomic-replace", "bounded-private-locked-append", "bounded-cross-process-file-lock", "bounded-address-resolution", "deadline-tcp-connect", "absolute-tcp-io-deadline", "strict-http-header-token-grammar", "compatibility-reexports"]
+        "surfaces": ["bounded-regular-file-open", "atomic-unix-symlink-rejection", "post-open-growth-rejection", "bounded-private-atomic-replace", "bounded-private-locked-append", "bounded-cross-process-file-lock", "bounded-address-resolution", "deadline-tcp-connect", "absolute-tcp-io-deadline", "strict-http-header-token-grammar", "compatibility-reexports", "shared-command-io-deadline", "cancellable-unix-child-pipes", "unreaped-leader-process-group-cleanup", "fail-fast-command-output-limits", "bounded-command-worker-admission", "repeated-command-resource-recovery"]
       },
       "depends_on": [],
       "blockers": [],
@@ -714,9 +714,15 @@
         { "kind": "documentation", "path": "docs/architecture-blueprint.md", "state": "present" },
         { "kind": "source", "path": "crates/silvortex-bounded-io/Cargo.toml", "state": "present" },
         { "kind": "source", "path": "crates/silvortex-bounded-io/src/lib.rs", "state": "present" },
-        { "kind": "test", "path": "crates/silvortex-bounded-io/src/lib.rs", "state": "present" }
+        { "kind": "test", "path": "crates/silvortex-bounded-io/src/lib.rs", "state": "present" },
+        { "kind": "source", "path": "crates/silvortex-bounded-io/src/process.rs", "state": "present" },
+        { "kind": "test", "path": "crates/silvortex-bounded-io/src/process/tests.rs", "state": "present" },
+        { "kind": "source", "path": "src/external_analysis.rs", "state": "present" },
+        { "kind": "test", "path": "src/external_analysis/tests.rs", "state": "present" },
+        { "kind": "test", "path": "tests/reliability_gate_tdd.rs", "state": "present" },
+        { "kind": "documentation", "path": "docs/external-engine-contract.md", "state": "present" }
       ],
-      "next_gate": "Preserve zero business dependencies and add native Windows reparse-point and deadline proof before claiming the same atomic file posture there."
+      "next_gate": "Preserve zero business dependencies and shared command I/O deadlines. Retain native Windows reparse-point, deadline and process-tree cancellation proof before claiming Unix-equivalent file/process posture; blocking inherited handles remain worker-budget fenced on non-Unix hosts."
     },
     {
       "id": "shared-foundation/identity/validated-identities",
@@ -802,6 +808,10 @@
         { "kind": "source", "path": "src/runtime.rs", "state": "present" },
         { "kind": "source", "path": "crates/silvortex-bounded-io/src/lib.rs", "state": "present" },
         { "kind": "source", "path": "src/serve_runtime.rs", "state": "present" },
+        { "kind": "source", "path": "src/external_analysis.rs", "state": "present" },
+        { "kind": "test", "path": "tests/external_analysis_recovery_tdd.rs", "state": "present" },
+        { "kind": "test", "path": "tests/fixtures/external_recovery_engine.rs", "state": "present" },
+        { "kind": "documentation", "path": "docs/external-engine-contract.md", "state": "present" },
         { "kind": "source", "path": "src/bin/gewyvern_validate.rs", "state": "present" },
         { "kind": "source", "path": "src/bin/gewyvern_socket_send.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/http_probe.rs", "state": "present" },
@@ -810,7 +820,7 @@
         { "kind": "test", "path": "tests/runtime_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/machine-contract.md", "state": "present" }
       ],
-      "next_gate": "Keep the 1.x contract stable and preserve loss accounting across future runtime evidence filters."
+      "next_gate": "Keep the machine contract stable and preserve loss accounting across future runtime evidence filters. Retain real production-service proofs for identical-input external failure/circuit recovery, failed capability handshake expiry and successful-cache reuse. This does not replace sustained eBPF load or additional kernel/platform qualification."
     },
     {
       "id": "gewyvern-core/linux-ebpf/linux-attach",
@@ -825,7 +835,7 @@
       "independence": "internal",
       "contract": {
         "id": "linux-attach-validation",
-        "version": "1.9.0",
+        "version": "1.13.0",
         "stability": "stable",
         "surfaces": [
           "attach-smoke",
@@ -833,6 +843,20 @@
           "tc-smoke",
           "non-destructive-tc-smoke",
           "build-time-pinned-smoke-source-root",
+          "artifact-embedded-fixed-smoke-sources",
+          "exclusive-private-smoke-source-materialization",
+          "terminal-wildcard-sudo-rs-policy",
+          "same-process-runtime-memory-soak",
+          "post-teardown-all-arena-retention-diagnosis",
+          "diagnostic-only-final-allocator-trim",
+          "hour-scale-audited-runtime-soak",
+          "constant-space-diagnostic-journals",
+          "report-free-rust-live-allocation-checkpoints",
+          "traffic-free-observer-thread-exit-control",
+          "real-ftp-ldap-authentication-capture",
+          "existing-package-wire-evidence-cross-validation",
+          "unobserved-package-fragment-availability-fence",
+          "owned-target-anonymous-volume-cleanup",
           "ambient-cwd-source-rejection",
           "authenticated-rsync-identity-parity",
           "failure-path-transcript-cleanup",
@@ -925,6 +949,14 @@
         { "kind": "source", "path": "scripts/remote/run_on_linux_host.sh", "state": "present" },
         { "kind": "test", "path": "tests/script_portability_tdd.rs", "state": "present" },
         { "kind": "release", "path": "docs/fixtures/linux_attach_pinned_source_root.json", "state": "present" },
+        { "kind": "release", "path": "docs/fixtures/gewyvern_ebpf_reliability_linux_x86_64_20261113.json", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/linux_tcp_capture/linux/stream/soak.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_capture_memory_soak_linux_x86_64_20261113.json", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/allocation_audit.rs", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/linux_tcp_capture/linux/stream/soak/journal.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_capture_memory_hour_linux_x86_64_20261113.json", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/linux_tcp_capture/linux/auth_breadth.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_auth_breadth_linux_x86_64_20261113.json", "state": "present" },
         { "kind": "release", "path": "docs/fixtures/gewyvern_remote_linux_workspace_identity_physical_20260824.json", "state": "present" },
         { "kind": "release", "path": "docs/fixtures/gewyvern_remote_linux_vm_kernel_compatibility_20260824.json", "state": "present" },
         { "kind": "release", "path": "docs/fixtures/gewyvern_remote_linux_vm_hwe_compatibility_20260824.json", "state": "present" },
@@ -933,7 +965,7 @@
         { "kind": "test", "path": "tests/packaging_compat_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/remote-docker.md", "state": "present" }
       ],
-      "next_gate": "Preserve the current physical-host, two-kernel VM, package, eBPF, recovery, and performance baseline through 2.0; expand independent physical-host and kernel breadth after 2.0."
+      "next_gate": "Preserve owned-resource cleanup, explicit loss accounting and recovery under bounded Linux pressure. Keep installed helpers independent of mutable build workspaces and verify both sudo implementations without broadening command authority. The hour-scale audited soak has identical report-free clean Rust counters across three twenty-minute phases. No-traffic cache controls and a separate fifteen-minute cache-disabled capture support allocator retention, with flat warmed nonfree estimates; they do not certify every C allocation or ordinary-build performance. Longer-duration RSS behavior beyond these bounded fixtures, continuous cross-batch production sessions, supervisor/host crash recovery and independent physical-host/kernel breadth remain open."
     },
     {
       "id": "gewylang/language-syntax/standalone-frontend",
@@ -1260,9 +1292,10 @@
         { "kind": "test", "path": "tests/protocol_registry_tdd.rs", "state": "present" },
         { "kind": "test", "path": "crates/gewyc/src/tests.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/performance-baselines.md", "state": "present" },
-        { "kind": "documentation", "path": "docs/book/reference-protocol-surface.md", "state": "present" }
+        { "kind": "documentation", "path": "docs/book/reference-protocol-surface.md", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_auth_breadth_linux_x86_64_20261113.json", "state": "present" }
       ],
-      "next_gate": "Preserve package compatibility, deterministic strict diagnostics, package-root confinement, and request-local snapshot freshness; future catalog filters must reuse snapshots rather than install a process-wide cache."
+      "next_gate": "Preserve package compatibility, deterministic strict diagnostics, package-root confinement, and request-local snapshot freshness; future catalog filters must reuse snapshots rather than install a process-wide cache. Real FTP/LDAP authentication evidence covers four unchanged packages only; registry size does not establish full-catalog wire validation. UDP/DNS, IPv6, encrypted transports and real database/cache exchanges remain separate breadth gates."
     },
     {
       "id": "leserpent-1x/control-plane/orchestration-persistence",

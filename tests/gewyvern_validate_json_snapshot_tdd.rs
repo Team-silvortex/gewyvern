@@ -126,9 +126,114 @@ fn normalize_release_gate_snapshot(mut report: Value) -> Value {
     report
 }
 
+#[cfg(all(target_os = "linux", not(feature = "capture-allocation-audit")))]
+#[test]
+fn unaudited_memory_diagnostics_reject_before_creating_output() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    for mode in ["--capture-soak-hour", "--capture-memory-control"] {
+        let path = std::env::temp_dir().join(format!(
+            "gewyvern-no-audit-{}-{unique}-{mode}",
+            std::process::id()
+        ));
+        let (ok, stdout, stderr) = run_validate_json(&[
+            "--json",
+            "linux-tcp-capture",
+            mode,
+            "--out-dir",
+            path.to_str().unwrap(),
+        ]);
+        assert!(!ok, "{mode} unexpectedly ran: {stdout} {stderr}");
+        assert!(stdout.trim().is_empty());
+        let report = parse_single_json(&stderr);
+        assert_eq!(report["ok"], false);
+        assert!(
+            report["message"]
+                .as_str()
+                .unwrap()
+                .contains("capture-allocation-audit")
+        );
+        assert!(!path.exists());
+    }
+}
+
 #[test]
 fn container_capture_rejects_ambiguous_targets_before_any_lab_effects() {
     for args in [
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--auth-breadth",
+            "--auth-breadth",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--auth-breadth",
+            "--juice-shop",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--capture-runtime",
+            "--auth-breadth",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--capture-memory-control",
+            "--capture-memory-control",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--capture-memory-control",
+            "--capture-soak-hour",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--capture-soak-hour",
+            "--capture-memory-control",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--capture-soak-hour",
+            "--capture-soak-hour",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--capture-soak",
+            "--capture-soak-hour",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--capture-soak-hour",
+            "--capture-soak",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--capture-soak",
+            "--capture-soak",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--capture-soak",
+            "--capture-runtime",
+        ],
+        vec![
+            "--json",
+            "linux-tcp-capture",
+            "--capture-runtime",
+            "--capture-soak",
+        ],
         vec![
             "--json",
             "linux-tcp-capture",

@@ -43,6 +43,167 @@ For those, use:
 - [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
 - [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
 
+## `2026-11-13` Real FTP/LDAP Responses Close A Protocol Breadth Gap
+
+Three independent physical-Linux `--auth-breadth` campaigns used fresh private
+vsftpd and OpenLDAP containers and unmodified protocol packages. Across twelve
+selected connections, FTP 530/230 and LDAP 49/0 responses matched independently
+parsed client responses byte-for-byte. Six additional denied connections to the
+same targets were excluded by owned socket identity. All 42 packet events and
+60 TCP state events were retained without reported loss. See the
+[source-bound breadth proof](fixtures/gewyvern_auth_breadth_linux_x86_64_20261113.json).
+The recorded final-build campaigns are `run-4` through `run-6`; three earlier
+development campaigns are excluded from these totals. Partial response reads
+and writes share an absolute exchange deadline instead of restarting a timeout
+for each fragment.
+
+The same facts exercised `ftp/denied`, `ftp/session`, `ldap/bind-denied` and
+`ldap/bind`: twelve package projections preserved facts, flows, reasons, stages
+and IR through JSON replay. Each matching stage referenced a captured packet.
+The generic LDAP bind-response phase is not an authentication-success label;
+the framed BER result code supplies that distinction. Process and route probes
+declared by the packages but not collected here are now explicitly marked
+unavailable in the generalized capture adapter. No process identity, route or
+request-side payload fact was fabricated.
+
+The old container cleanup could leave anonymous image-declared volumes behind.
+Owned-container cleanup now includes anonymous volumes and this campaign checks
+their absence. All six target containers, six internal networks and six FTP
+volumes were removed. Existing container identities and the 54-volume inventory
+were unchanged. No images were pulled or ports published, and fresh HTTP
+capture/replay passed after each campaign.
+
+This is evidence of bounded plaintext authentication diagnosis across text and
+binary protocols, not arbitrary protocol recognition or exploit detection.
+Responses must fit the complete captured ranges; truncated packet prefixes,
+gaps, conflicts, malformed frames and unsupported extensions are rejected.
+UDP/DNS, IPv6, encrypted-transport observability, real database/cache exchanges,
+FTP data channels and LDAP search/modify/SASL remain separate breadth gates.
+
+## `2026-11-13` Hour-Scale Soak Separates Live Objects From Observer And Cache Retention
+
+Three twenty-minute physical-Linux capture/runtime windows in one process
+delivered and analyzed **287,594,379** measured events with zero ring loss. Each
+window ended with full teardown and thirty seconds idle; fresh HTTP capture and
+reanalysis passed afterward. The two-core/512-MiB fixture, 1-MiB ring, two clients
+and independent 256-fact batches were unchanged. No builds or tests ran during
+load. See the [source-bound hour proof](fixtures/gewyvern_capture_memory_hour_linux_x86_64_20261113.json).
+
+The earlier diagnostic retained sample trees and compact reports in memory.
+That observer bias is now removed: complete samples stream to private JSONL
+files through two fixed 8-KiB buffers; cycle reports are dropped before clean
+checkpoints. The final result tree is assembled afterward. A validator-only,
+opt-in forwarding System allocator counts live requested Rust bytes and blocks
+across threads without allocation inside its callbacks. Services retain their
+normal allocator, even when the feature is enabled. Audited throughput has
+additional counter overhead and is not an ordinary-build performance comparison.
+
+All three clean checkpoints returned to **6,529 live Rust bytes / 80 blocks**,
+one thread and four observed descriptors. Load RSS peaks were 26,604 / 43,088 /
+43,600 KiB; clean RSS was 24,428 / 24,716 / 27,416 KiB. The final diagnostic-only
+trim reclaimed 16,944 KiB, reducing RSS to 10,472 KiB without changing live Rust
+counts. No forced trim occurred during load. This establishes reusable free-page
+retention rather than equating resident pages with live application objects.
+
+The remaining default-cache nonfree estimates were 130,476 / 156,176 / 171,409
+bytes. Two separate no-traffic controls each performed 256 main-thread and 256
+worker-thread snapshots, retaining no history until measurement ended. Rust live
+counts stayed exactly flat within each series. With normal caching, observer
+nonfree estimates grew; worker exit released 26,428 bytes of that estimate.
+With `glibc.malloc.tcache_count=0` applied only to the diagnostic process, all
+256 main-thread estimates were exactly 7,646 bytes and all 256 worker estimates
+exactly 10,526 bytes. Output-argument lengths explain the different absolute
+Rust baselines between processes; comparisons use each series' own baseline.
+
+A separate cache-disabled **three-by-five-minute real capture** control then
+delivered another 73,906,197 events without loss. Its clean Rust counters were
+6,540 bytes / 80 blocks throughout; nonfree estimates warmed from 35,468 to
+38,283 bytes and stayed exactly 38,283 in the third cycle. Recovery passed again.
+This supports cache fill, allocator bookkeeping and reclaimable pages as the
+observed growth mechanisms. It does not provide exact attribution of every C
+allocation, indefinite leak freedom, continuous cross-batch session coverage,
+or independent-host/kernel breadth. No production cache setting or automatic
+trimming policy was introduced. The historical schema-1 proof below is preserved
+as originally measured, not relabeled as report-free evidence.
+
+## `2026-11-13` Fifteen-Minute Same-Process Soak Identifies Allocator Retention
+
+Three consecutive 300-second capture/runtime windows, each followed by teardown
+and thirty seconds idle, delivered and analyzed 72,427,397 measured kernel events
+without ring loss. They ran on one physical Linux 7.0.0-42/glibc 2.43 host with the
+existing two-core/512-MiB fixture limits and independent 256-fact batches. No
+builds or tests ran concurrently. Delivery was 82,326 / 76,930 / 82,150 events/s;
+analysis-completion p99 was 22.608 / 22.684 / 22.693 ms. This is a retention
+diagnostic, not a new no-capture throughput comparison. See the
+[source-bound memory soak proof](fixtures/gewyvern_capture_memory_soak_linux_x86_64_20261113.json).
+
+Sampled load RSS peaks were 26,840 / 39,664 / 37,332 KiB. After teardown and idle,
+RSS was 20,764 / 17,872 / 22,944 KiB; every cycle returned to one thread and four
+observed descriptors. All eight allocator arenas remained reusable. The final
+snapshot classified 22,558,560 bytes as free arena space versus approximately
+194,736 nonfree bytes. A single diagnostic-only trim reduced RSS from 22,944 to
+10,576 KiB, releasing 12,368 KiB. Fresh HTTP capture/replay then passed. No trim
+occurred during load, and no production allocator setting was changed.
+
+This supports allocator retention as the dominant observed RSS increase, not a
+demonstrated batch-object leak. The allocator's nonfree estimate includes metadata,
+caches and compact diagnostic reports; its small per-cycle increase is not fully
+attributed or certified leak-free. A separate warmed, thread-local Rust allocation
+regression covers normal completion, abandoned partial batches and rejected input:
+all 131,186,836 requested bytes and 799,705 allocations were released. That test
+does not account for C allocations, RSS, other execution paths or indefinite runs.
+
+The new `--capture-soak` entrypoint also keeps missing/duplicate allocator totals
+fail-closed. Real-host preflight exposed glibc 2.43's omission of the old fastbin
+totals; the parser now handles both schemas explicitly and rejects a per-arena
+fastbin whose global total is missing. Private exclusive snapshot files reject
+existing files and symlinks. Longer sessions, slow residual growth, paused-consumer
+retention and additional physical hosts/kernels remain separate follow-ups.
+
+## `2026-11-13` Load Recovery Passes And Installed Helper Boundaries Are Hardened
+
+The owned-loopback runtime campaign ran on the physical Linux 7.0.0-42 host,
+with two clients, a two-core quota, 512 MiB limit, 1-MiB ring and independent
+256-fact analysis batches. Both sixty-second normal windows were complete:
+4,525,422 and 4,676,915 measured events, with zero ring output failures.
+Mean analyzed delivery was 76,665 events/s against the same campaign's 91,478
+requests/s no-capture baseline (ratio 0.8381). CPU was approximately the full
+two-core quota for the entire fixture, not just the collector. Analysis p99
+upper bounds were 23.411/23.200 ms. See the
+[source-bound reliability proof](fixtures/gewyvern_ebpf_reliability_linux_x86_64_20261113.json).
+
+Pausing consumption for about two seconds lost 176,969 of 793,060 events;
+the remaining 616,091 were delivered and analyzed. Accounting reconciled and
+the phase remained explicitly incomplete. Its p99 exceeded the 100-ms histogram
+range and stayed null, not zero; the exact maximum was about two seconds.
+The following normal window and fresh HTTP capture/replay passed. Separate
+real-kernel map loss, event-budget overflow, snapshot-gap, error, abort and
+SIGKILL cases all rejected incomplete evidence and recovered with fresh capture.
+
+No new capture correctness failure was observed in this bounded campaign.
+Later-window process RSS still increased by 1,288 KiB and peaked at 60,348 KiB
+(58.93 MiB); after capture, baseline RSS was 47,488 KiB. No OOM or memory-limit
+event occurred. This does not establish long-duration leak freedom, and retained
+RSS must not be equated with live collector allocations or cgroup charges.
+
+The preflight did expose an installed-policy failure: the generated nonterminal
+wildcard was rejected by the host's default sudo-rs. The template and native
+provisioner now use terminal wildcards, with exact command arity/order and
+bounded identifiers still enforced by the helper. Both policy parsers accepted
+the template; the native provisioner prevalidated the installed policy. The
+original UID 1001 stayed authorized; missing device arguments and arbitrary
+passwordless commands remained rejected. No unrestricted sudo rule was added.
+
+The fixed helper was also still version 2.0.0 and its source path design relied
+on the build checkout. Five allowlisted BPF/loader sources now ship inside the
+binary and are exclusively materialized in a private directory. This removes
+runtime dependency on mutable or removed workspace C files. The installed helper
+was updated to the current Cargo package version 2.5.0 (the source commit is
+labelled 2.6.1; this is not a release artifact). Dedicated-account tracepoint,
+kprobe and TC tests passed through default sudo on an owned dummy interface.
+The old binary/policy backups remain on Linux only. This is one physical host
+and one kernel, not a replacement for the wider compatibility matrix.
+
 ## `2026-11-11` Mixed Packetization Validates Byte Ranges Beyond Fixed Echoes
 
 The native `linux-tcp-capture --capture-mixed` campaign extends the owned-loopback

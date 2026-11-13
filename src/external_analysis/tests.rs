@@ -2,6 +2,19 @@ use super::*;
 use std::fs;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+#[test]
+fn unavailable_capability_cache_expires_at_the_retry_boundary() {
+    let now = Instant::now();
+    let retry_at = now + EXTERNAL_CAPABILITY_RETRY_DELAY;
+    let cached = CachedCapabilities::Unavailable { retry_at };
+    assert!(cached.is_current(now));
+    assert!(cached.is_current(retry_at - Duration::from_nanos(1)));
+    assert!(!cached.is_current(retry_at));
+    assert!(!cached.is_current(retry_at + Duration::from_nanos(1)));
+    assert!(cached.profile().is_none());
+    assert!(!CachedCapabilities::Unknown.is_current(now));
+}
+
 #[cfg(target_family = "unix")]
 fn write_test_script(body: &str) -> std::path::PathBuf {
     use std::os::unix::fs::PermissionsExt;
@@ -22,8 +35,90 @@ fn write_test_script(body: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn read_capped_stream_rejects_oversized_output() {
-    let result = read_capped_stream("abcdef".as_bytes(), 4, "stdout");
+fn external_command_child_probe() {
+    let Ok(mode) = std::env::var("GEWY_EXTERNAL_PIPE_PROBE") else {
+        return;
+    };
+    if mode == "holder" {
+        std::thread::sleep(Duration::from_millis(1500));
+    } else if mode == "output" {
+        print!("{}", "x".repeat(4096));
+    } else {
+        let mut child = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "external_analysis::tests::external_command_child_probe",
+                "--nocapture",
+            ])
+            .env("GEWY_EXTERNAL_PIPE_PROBE", "holder")
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .unwrap();
+        std::thread::spawn(move || {
+            let _ = child.wait();
+        });
+    }
+}
+
+#[test]
+fn inherited_output_cannot_extend_external_command_deadline() {
+    let mut command = Command::new(std::env::current_exe().unwrap());
+    command
+        .args([
+            "--exact",
+            "external_analysis::tests::external_command_child_probe",
+            "--nocapture",
+        ])
+        .env("GEWY_EXTERNAL_PIPE_PROBE", "parent");
+    let started = Instant::now();
+    let result = run_external_command(command, None, Duration::from_millis(150), 4096, 4096);
+    assert!(result.unwrap_err().contains("timed out"));
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "inherited output defeated timeout: {:?}",
+        started.elapsed()
+    );
+}
+
+#[test]
+fn inherited_input_cannot_extend_external_command_deadline() {
+    let mut command = Command::new(std::env::current_exe().unwrap());
+    command
+        .args([
+            "--exact",
+            "external_analysis::tests::external_command_child_probe",
+            "--nocapture",
+        ])
+        .env("GEWY_EXTERNAL_PIPE_PROBE", "parent");
+    let started = Instant::now();
+    let result = run_external_command(
+        command,
+        Some(&vec![b'x'; 1024 * 1024]),
+        Duration::from_millis(150),
+        4096,
+        4096,
+    );
+    assert!(result.unwrap_err().contains("timed out"));
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "inherited input defeated timeout: {:?}",
+        started.elapsed()
+    );
+}
+
+#[test]
+fn run_external_command_rejects_oversized_output() {
+    let mut command = Command::new(std::env::current_exe().unwrap());
+    command
+        .args([
+            "--exact",
+            "external_analysis::tests::external_command_child_probe",
+            "--nocapture",
+        ])
+        .env("GEWY_EXTERNAL_PIPE_PROBE", "output");
+    let result = run_external_command(command, None, Duration::from_secs(5), 1024, 1024);
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("exceeded"));
 }

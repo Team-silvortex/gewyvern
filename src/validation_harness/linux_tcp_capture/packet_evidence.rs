@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime};
 use serde::{Deserialize, Serialize};
 
 use super::{CaptureEvent, ExportBundle, ValidationError};
-use crate::fragment::{FragmentRegistry, HookPoint, MapKind, MapSpec};
+use crate::fragment::{AttachFailure, FragmentRegistry, HookPoint, MapKind, MapSpec};
 use crate::ledger::{CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, SessionId};
 use crate::runtime::{RuntimeSession, SessionConfig};
 
@@ -66,6 +66,18 @@ pub(super) fn reconstruct_packets(
     packets: &[PacketEvent],
     clock: (u64, SystemTime),
 ) -> Result<ExportBundle, ValidationError> {
+    let port = states.first().map_or(0, |state| state.dport);
+    let rules = RULES.replace("remote:3000:", &format!("remote:{port}:"));
+    reconstruct_packets_with_rules(tcp, states, packets, clock, &rules)
+}
+
+pub(super) fn reconstruct_packets_with_rules(
+    tcp: &ExportBundle,
+    states: &[CaptureEvent],
+    packets: &[PacketEvent],
+    clock: (u64, SystemTime),
+    rules: &str,
+) -> Result<ExportBundle, ValidationError> {
     if packets.is_empty() || packets.len() > 128 || states.len() != tcp.facts.len() {
         return Err(ValidationError::new("invalid packet evidence count"));
     }
@@ -78,15 +90,14 @@ pub(super) fn reconstruct_packets(
             "packet fixture requires one owned server port",
         ));
     }
-    let rules = RULES.replace("remote:3000:", &format!("remote:{remote_port}:"));
     let binding =
-        crate::dsl::compile_str(&rules).map_err(|e| ValidationError::new(format!("{e:?}")))?;
+        crate::dsl::compile_str(rules).map_err(|e| ValidationError::new(format!("{e:?}")))?;
     let mut config =
         SessionConfig::for_binding(binding).map_err(|e| ValidationError::new(e.to_string()))?;
     let mut registry = FragmentRegistry::new();
-    for id in ["tcp_state_fragment", "tcp_packet_meta_fragment"] {
+    for id in &config.template.fragment_set {
         let mut descriptor = if id == "tcp_state_fragment" {
-            tcp.attach_plan.fragments.iter().find(|f| f.id == id)
+            tcp.attach_plan.fragments.iter().find(|f| f.id == *id)
         } else {
             config.registry.descriptor(id)
         }
@@ -113,6 +124,16 @@ pub(super) fn reconstruct_packets(
             descriptor
                 .evidence_classes
                 .retain(|spec| spec.fact_kind == crate::ledger::FactKindTag::PacketMeta);
+        } else if id != "tcp_state_fragment" {
+            // A package can declare more probes than this fixture actually observes.
+            // Preserve those declarations as unavailable, never successful attachments.
+            config
+                .attach_failures
+                .extend(descriptor.hookpoints.iter().map(|hookpoint| AttachFailure {
+                    fragment_id: id.clone(),
+                    hookpoint: hookpoint.clone(),
+                    error: "not observed by bounded ingress/state validation capture".into(),
+                }));
         }
         registry
             .register(descriptor)
@@ -352,6 +373,69 @@ mod tests {
                 .hookpoints,
             vec![HookPoint::CgroupSkbIngress]
         );
+    }
+
+    #[test]
+    fn existing_ftp_rules_preserve_missing_process_and_route_capture() {
+        let (_, mut states, mut packets) = sample();
+        for state in &mut states {
+            state.dport = 21;
+        }
+        for (packet, bytes) in packets
+            .iter_mut()
+            .zip([b"530 Denied\r\n".as_slice(), b"230 Welcome\r\n"])
+        {
+            packet.sport = 21;
+            packet.prefix.fill(0);
+            packet.prefix[..bytes.len()].copy_from_slice(bytes);
+            packet.payload_len = bytes.len() as u16;
+            packet.prefix_len = bytes.len() as u16;
+            packet.total_len = 40 + bytes.len() as u16;
+        }
+        let tcp = reconstruct_at(
+            &states,
+            &[(1, 4000, 21, 42), (2, 4001, 21, 42)],
+            4,
+            0,
+            (0, SystemTime::UNIX_EPOCH),
+            ([172, 20, 0, 1], [172, 20, 0, 2]),
+        )
+        .unwrap();
+        let export = reconstruct_packets_with_rules(
+            &tcp,
+            &states,
+            &packets,
+            (0, SystemTime::UNIX_EPOCH),
+            include_str!("../../../protocols/ftp/denied/main.gewy"),
+        )
+        .unwrap();
+        assert_eq!(export.facts.len(), 6);
+        for id in ["route_meta_fragment", "sock_lineage_fragment"] {
+            assert!(
+                !export
+                    .attach_report
+                    .fragments_loaded
+                    .iter()
+                    .any(|name| name == id)
+            );
+            assert!(
+                export
+                    .attach_report
+                    .hookpoints_failed
+                    .iter()
+                    .any(|name| name.starts_with(id))
+            );
+        }
+        let denied: Vec<_> = export
+            .program_flows
+            .iter()
+            .flat_map(|flow| &flow.stages)
+            .filter(|stage| stage.phase.as_deref() == Some("receive_auth_denied"))
+            .collect();
+        assert_eq!(denied.len(), 1);
+        assert!(export.facts.iter().any(|fact| fact.id == denied[0].at
+            && matches!(&fact.kind, FactKind::PacketMeta(packet) if packet.sk_cookie == Some(1))));
+        assert!(export.flows.iter().all(|flow| flow.process.is_none()));
     }
 
     #[test]

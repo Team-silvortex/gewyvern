@@ -2,7 +2,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use russh::{ChannelMsg, client, keys::HashAlg};
+use russh::{
+    ChannelMsg, client,
+    keys::{HashAlg, PublicKeyOrCertificate},
+};
 use russh_sftp::{
     client::SftpSession,
     protocol::{FileAttributes, OpenFlags, StatusCode},
@@ -94,10 +97,15 @@ impl client::Handler for PinnedHostKey {
 
     async fn check_server_key(
         &mut self,
-        server_public_key: &russh::keys::ssh_key::PublicKey,
+        server_public_key: &PublicKeyOrCertificate,
     ) -> Result<bool, Self::Error> {
-        let actual = server_public_key.fingerprint(HashAlg::Sha256).to_string();
-        let matched = actual == self.expected;
+        let matched = match server_public_key {
+            PublicKeyOrCertificate::PublicKey { key, .. } => {
+                key.fingerprint(HashAlg::Sha256).to_string() == self.expected
+            }
+            // Bootstrap pins a raw host key; it has no certificate/CA trust policy.
+            PublicKeyOrCertificate::Certificate(_) => false,
+        };
         self.matched.store(matched, Ordering::Release);
         self.checked.store(true, Ordering::Release);
         Ok(matched)
@@ -282,4 +290,80 @@ async fn remove_timed_out_staging_once(job: &NativeSshJob<'_>) -> Result<(), Nat
         .disconnect(russh::Disconnect::ByApplication, "", "English")
         .await;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use russh::client::Handler;
+    use russh::keys::ssh_key::{
+        PrivateKey,
+        certificate::{Builder, CertType},
+        private::Ed25519Keypair,
+    };
+
+    fn key(seed: u8) -> PrivateKey {
+        Ed25519Keypair::from_seed(&[seed; 32]).into()
+    }
+
+    #[test]
+    fn pinned_host_key_accepts_only_the_configured_raw_key() {
+        let trusted = key(1);
+        let foreign = key(2);
+        let mut handler = PinnedHostKey {
+            expected: trusted
+                .public_key()
+                .fingerprint(HashAlg::Sha256)
+                .to_string(),
+            checked: Arc::new(AtomicBool::new(false)),
+            matched: Arc::new(AtomicBool::new(false)),
+        };
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        for (presented, expected) in [(trusted, true), (foreign, false), (key(1), true)] {
+            handler.checked.store(false, Ordering::Release);
+            assert_eq!(
+                runtime
+                    .block_on(handler.check_server_key(&presented.public_key().clone().into()))
+                    .unwrap(),
+                expected
+            );
+            assert!(handler.checked.load(Ordering::Acquire));
+            assert_eq!(handler.matched.load(Ordering::Acquire), expected);
+        }
+    }
+
+    #[test]
+    fn matching_subject_key_does_not_implicitly_trust_a_host_certificate() {
+        let trusted = key(1);
+        let mut builder =
+            Builder::new(vec![0; 32], trusted.public_key().clone(), 0, u64::MAX).unwrap();
+        builder.cert_type(CertType::Host).unwrap();
+        builder.valid_principal("localhost").unwrap();
+        let certificate = builder.sign(&key(2)).unwrap();
+        let presented = PublicKeyOrCertificate::Certificate(certificate);
+        assert_eq!(
+            presented.public_key().key_data(),
+            trusted.public_key().key_data()
+        );
+        let mut handler = PinnedHostKey {
+            expected: trusted
+                .public_key()
+                .fingerprint(HashAlg::Sha256)
+                .to_string(),
+            checked: Arc::new(AtomicBool::new(false)),
+            matched: Arc::new(AtomicBool::new(true)),
+        };
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        assert!(
+            !runtime
+                .block_on(handler.check_server_key(&presented))
+                .unwrap()
+        );
+        assert!(handler.checked.load(Ordering::Acquire));
+        assert!(!handler.matched.load(Ordering::Acquire));
+    }
 }

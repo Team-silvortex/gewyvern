@@ -90,6 +90,7 @@ fn critical_runtime_sources_do_not_use_panic_shortcuts_in_production() {
         "crates/leserpent-cli/src/main.rs",
         "crates/leserpent-domain/src/lib.rs",
         "crates/silvortex-bounded-io/src/lib.rs",
+        "crates/silvortex-bounded-io/src/process.rs",
         "crates/leserpentd/src/main.rs",
         "crates/leserpentd/src/debugger.rs",
         "crates/leserpentd/src/events.rs",
@@ -105,6 +106,33 @@ fn critical_runtime_sources_do_not_use_panic_shortcuts_in_production() {
                 "{relative} production code contains forbidden panic shortcut '{forbidden}'"
             );
         }
+    }
+}
+
+#[test]
+fn external_analysis_and_validation_share_the_cancellable_process_boundary() {
+    let root = repository_root();
+    for path in ["src/external_analysis.rs", "src/bounded_process.rs"] {
+        // The external adapter has test-only statics before production functions.
+        let source = upstream::read_source(root.join(path)).expect("process adapter must exist");
+        assert!(source.contains("silvortex_bounded_io::process::run_command_output"));
+        assert!(
+            !source.contains(".join()"),
+            "{path} must not own unbounded pipe joins"
+        );
+    }
+    let source = production_source(root.join("crates/silvortex-bounded-io/src/process.rs"));
+    for boundary in [
+        "MAX_IO_WORKERS",
+        "nonblocking",
+        "check_deadline",
+        "process_group(0)",
+        "impl Drop for Session",
+    ] {
+        assert!(
+            source.contains(boundary),
+            "missing shared process boundary: {boundary}"
+        );
     }
 }
 
@@ -380,12 +408,15 @@ fn workflow_run_delimiters_require_yaml_quoting_or_block_scalars() {
 }
 
 #[test]
-fn locked_native_ssh_dependencies_retain_reviewed_security_patches() {
+fn locked_native_dependencies_retain_reviewed_security_patches() {
     let lock = fs::read_to_string(repository_root().join("Cargo.lock")).unwrap();
     for (name, minimum) in [
         ("ctutils", "0.4.4"),
         ("tokio", "1.53.3"),
         ("crypto-bigint", "0.7.6"),
+        ("rusqlite", "0.41.0"),
+        ("libsqlite3-sys", "0.39.0"),
+        ("russh", "0.65.0"),
     ] {
         let versions = lock
             .split("[[package]]")

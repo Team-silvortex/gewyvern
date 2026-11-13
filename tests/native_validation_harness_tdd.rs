@@ -324,7 +324,7 @@ fn leserpent_transport_proof_covers_contract_parity_and_real_ipc() {
 fn leserpent_benchmark_proof_has_bounded_native_workloads() {
     let harness = read_repo_file("src/validation_harness/leserpent_benchmark.rs");
     let command_harness = read_repo_file("src/validation_harness/command.rs");
-    let bounded_process = read_repo_file("src/bounded_process.rs");
+    let bounded_process = read_repo_file("crates/silvortex-bounded-io/src/process.rs");
     let runtime = read_repo_file("crates/leserpent-runtime/examples/runtime_benchmark.rs");
     let language = read_repo_file("crates/leserpent-vm/examples/language_benchmark.rs");
     let ui = read_repo_file("crates/leselang-ui/examples/ui_benchmark.rs");
@@ -582,7 +582,7 @@ fn leserpent_schema_freeze_inventory_is_bounded_non_vacuous_and_candidate_only()
 #[test]
 fn linux_ebpf_smokes_are_native_with_legacy_wrappers() {
     let smoke = read_repo_file("src/linux_ebpf_smoke.rs");
-    let bounded_process = read_repo_file("src/bounded_process.rs");
+    let bounded_process = read_repo_file("crates/silvortex-bounded-io/src/process.rs");
     let harness = read_repo_file("src/validation_harness/linux_ebpf.rs");
     let binary = read_repo_file("src/bin/gewyvern_validate.rs");
     let attach_script = read_repo_file("scripts/linux/linux_attach_smoke.sh");
@@ -604,10 +604,23 @@ fn linux_ebpf_smokes_are_native_with_legacy_wrappers() {
     assert!(smoke.contains("LINUX_SMOKE_COMMAND_OUTPUT_LIMIT_BYTES"));
     assert!(smoke.contains("run_bounded_command_output"));
     assert!(!smoke.contains(".output()"));
-    assert!(bounded_process.contains("recv_timeout"));
-    assert!(bounded_process.contains("terminate_child"));
-    assert!(smoke.contains("env!(\"CARGO_MANIFEST_DIR\")"));
+    assert!(bounded_process.contains("check_deadline"));
+    assert!(bounded_process.contains("impl Drop for Session"));
+    assert!(bounded_process.contains("MAX_IO_WORKERS"));
+    assert!(!smoke.contains("env!(\"CARGO_MANIFEST_DIR\")"));
+    assert!(smoke.contains("materialize_smoke_source"));
+    assert!(smoke.contains("create_new(true)"));
+    for source in [
+        "tracepoint_min.bpf.c",
+        "kprobe_min.bpf.c",
+        "tc_min.bpf.c",
+        "attach_smoke.c",
+        "attach_kprobe_smoke.c",
+    ] {
+        assert!(smoke.contains(&format!("include_str!(\"../ebpf/smoke/{source}\")")));
+    }
     assert!(!smoke.contains("std::env::current_dir()"));
+    // Keep historical source-root evidence, without confusing it with today's artifact boundary.
     assert_eq!(
         pinned_source_evidence["source_root_policy"],
         "build_time_cargo_manifest_dir"
@@ -655,6 +668,351 @@ fn linux_ebpf_smokes_are_native_with_legacy_wrappers() {
     assert!(entrypoints.contains("thin compatibility"));
     assert!(entrypoints.contains("environment.txt"));
     assert!(entrypoints.contains("evidence-index.json"));
+}
+
+#[test]
+fn linux_field_reliability_proof_keeps_loss_and_memory_limits_explicit() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_ebpf_reliability_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["execution"]["unique_hosts"], 1);
+    assert_eq!(
+        proof["execution"]["builds_or_tests_concurrent_with_load"],
+        false
+    );
+    let phases = proof["runtime"]["phases"].as_array().unwrap();
+    assert_eq!(phases.len(), 5);
+    for phase in phases
+        .iter()
+        .filter(|p| !p["name"].as_str().unwrap().starts_with("baseline"))
+    {
+        let result = &phase["result"];
+        let delivered = result["measured_delivered_events"].as_u64().unwrap();
+        let lost = result["measured_output_failures"].as_u64().unwrap();
+        assert!(delivered > 8192);
+        assert_eq!(
+            delivered.checked_add(lost),
+            result["measured_events"].as_u64()
+        );
+        assert_eq!(result["runtime"]["measured_analyzed_facts"], delivered);
+        if phase["name"] == "paused-consumer" {
+            assert!(lost > 0);
+            assert_eq!(result["observation_complete"], false);
+        } else {
+            assert_eq!(lost, 0);
+            assert_eq!(result["observation_complete"], true);
+        }
+    }
+    for mode in ["error", "abort", "kill"] {
+        assert_eq!(
+            proof["recovery"]["cases"][mode]["links_detached_before_cleanup"],
+            true
+        );
+        assert_eq!(
+            proof["recovery"]["cases"][format!("after-{mode}-restart")]["replay_verified"],
+            true
+        );
+    }
+    assert_eq!(proof["deployment_fix"]["account_changed"], false);
+    assert_eq!(
+        proof["deployment_fix"]["arbitrary_command_passwordless_access"],
+        false
+    );
+    assert!(
+        proof["interpretation"]["not_claimed"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item == "long-duration leak freedom")
+    );
+}
+
+#[test]
+fn hour_soak_keeps_observers_bounded_and_audit_allocator_out_of_services() {
+    let audit = read_repo_file("src/validation_harness/allocation_audit.rs");
+    let binary = read_repo_file("src/bin/gewyvern_validate.rs");
+    let soak = read_repo_file("src/validation_harness/linux_tcp_capture/linux/stream/soak.rs");
+    let journal =
+        read_repo_file("src/validation_harness/linux_tcp_capture/linux/stream/soak/journal.rs");
+    assert!(!audit.contains("#[global_allocator]"));
+    assert!(binary.contains("#[cfg(feature = \"capture-allocation-audit\")]\n#[global_allocator]"));
+    assert!(!read_repo_file("src/main.rs").contains("AuditSystem"));
+    assert!(soak.contains("no_retained_cycle_reports_at_clean_checkpoints"));
+    assert!(soak.contains("constant_space_sample_journals"));
+    assert!(soak.contains("observer_only_control_snapshots"));
+    assert!(!soak.contains("cycles.push("));
+    assert!(journal.contains("BufWriter::with_capacity"));
+    assert!(!journal.contains("Vec<Value>"));
+}
+
+#[test]
+fn real_authentication_breadth_proof_keeps_oracles_packages_and_missing_evidence_separate() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_auth_breadth_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    assert_eq!(proof["execution"]["protocol_rule_sources_changed"], false);
+    assert_eq!(
+        proof["interpretation"]["ldap_bind_phase_is_success_classification"],
+        false
+    );
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let mut cookies = std::collections::BTreeSet::new();
+    let mut containers = std::collections::BTreeSet::new();
+    let mut events = 0;
+    let mut states = 0;
+    let mut volumes = 0;
+    for run in runs {
+        assert_eq!(run["ok"], true);
+        let phases = run["phases"].as_array().unwrap();
+        assert_eq!(phases.len(), 2);
+        for (phase, codes) in phases.iter().zip([[530, 230], [49, 0]]) {
+            assert_eq!(phase["internal_network"], true);
+            assert_eq!(phase["published_ports"], false);
+            assert_eq!(phase["owned_resources_removed"], true);
+            assert_eq!(phase["anonymous_volumes_removed_with_container"], true);
+            assert!(containers.insert(phase["container_id"].as_str().unwrap()));
+            assert_eq!(phase["packet_counts"]["dropped"], 0);
+            assert_eq!(phase["tcp_state_counts"]["dropped"], 0);
+            events += phase["packet_counts"]["total"].as_u64().unwrap();
+            states += phase["tcp_state_counts"]["total"].as_u64().unwrap();
+            volumes += phase["anonymous_volume_ids"].as_array().unwrap().len();
+            let selected = phase["selected_cookies"].as_array().unwrap();
+            assert_eq!(selected.len(), 2);
+            assert!(cookies.insert(phase["unselected_neighbor_cookie"].as_u64().unwrap()));
+            assert_eq!(phase["unselected_neighbor_code"], codes[0]);
+            let observations = phase["observations"].as_array().unwrap();
+            assert_eq!(observations.len(), 2);
+            for (index, observation) in observations.iter().enumerate() {
+                assert!(cookies.insert(selected[index].as_u64().unwrap()));
+                assert_eq!(observation["cookie"], selected[index]);
+                assert_eq!(observation["client_code"], codes[index]);
+                assert_eq!(observation["captured_code"], codes[index]);
+                assert_eq!(
+                    observation["captured_sha256"],
+                    observation["response_sha256"]
+                );
+                assert!(observation["response_bytes"].as_u64().unwrap() > 0);
+            }
+            let packages = phase["packages"].as_array().unwrap();
+            assert_eq!(packages.len(), 2);
+            assert_eq!(
+                packages[0]["matched_cookies"],
+                serde_json::json!([selected[0]])
+            );
+            let expected = if phase["protocol"] == "ftp" {
+                serde_json::json!([selected[1]])
+            } else {
+                serde_json::json!(selected)
+            };
+            assert_eq!(packages[1]["matched_cookies"], expected);
+            for package in packages {
+                assert_eq!(package["replay_identical"], true);
+                assert_eq!(package["process_attribution"], false);
+                assert_eq!(package["request_payload_observed"], false);
+                assert_eq!(package["unobserved_fragments_explicit"], true);
+            }
+        }
+    }
+    assert_eq!(cookies.len(), 18);
+    assert_eq!(containers.len(), 6);
+    assert_eq!(proof["totals"]["packet_events"], events);
+    assert_eq!(proof["totals"]["tcp_state_events"], states);
+    assert_eq!(proof["totals"]["anonymous_volumes_removed"], volumes);
+    assert_eq!(
+        proof["cleanup"]["existing_container_identities_unchanged"],
+        true
+    );
+    assert_eq!(
+        proof["cleanup"]["existing_volume_inventory_unchanged"],
+        true
+    );
+    assert_eq!(proof["cleanup"]["global_prune_used"], false);
+    assert!(
+        read_repo_file("src/validation_harness/linux_tcp_capture/linux/docker_target.rs")
+            .contains("[\"--force\", \"--volumes\"]")
+    );
+}
+
+#[test]
+fn linux_memory_soak_proof_distinguishes_reclaimable_pages_from_live_objects() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_capture_memory_soak_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(
+        proof["execution"]["builds_or_tests_concurrent_with_load"],
+        false
+    );
+    let result = &proof["result"];
+    assert_eq!(result["total_load_seconds"], 900);
+    assert_eq!(result["forced_trim_during_load"], false);
+    let cycles = result["cycles"].as_array().unwrap();
+    assert_eq!(cycles.len(), 3);
+    let mut measured = 0;
+    for cycle in cycles {
+        let load = &cycle["load"];
+        assert!(load["elapsed_seconds"].as_f64().unwrap() >= 300.0);
+        assert_eq!(load["measured_output_failures"], 0);
+        assert_eq!(load["measured_events"], load["measured_delivered_events"]);
+        measured += load["measured_events"].as_u64().unwrap();
+        for counter in ["threads", "file_descriptors"] {
+            assert_eq!(cycle["idle"][counter], result["before"][counter]);
+        }
+    }
+    assert!(measured > 70_000_000);
+    assert_eq!(proof["interpretation"]["measured_events"], measured);
+    let reclaimed = result["before_trim"]["rss_kib"]
+        .as_u64()
+        .unwrap()
+        .checked_sub(result["after_trim"]["rss_kib"].as_u64().unwrap())
+        .unwrap();
+    assert_eq!(proof["interpretation"]["trim_reclaimed_rss_kib"], reclaimed);
+    assert!(reclaimed > 0);
+    assert_eq!(
+        proof["interpretation"]["post_teardown_nonfree_is_exact_live_rust"],
+        false
+    );
+    assert_eq!(
+        proof["interpretation"]["normal_capture_allocator_policy_changed"],
+        false
+    );
+    for case in proof["allocation_lifetime_regression"]["cases"]
+        .as_array()
+        .unwrap()
+    {
+        assert_eq!(case["requested_bytes"], case["released_bytes"]);
+        assert_eq!(case["alloc_calls"], case["dealloc_calls"]);
+    }
+    assert!(
+        proof["interpretation"]["not_claimed"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v == "indefinite leak freedom")
+    );
+}
+
+#[test]
+fn hour_memory_proof_separates_live_objects_samples_and_allocator_caches() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_capture_memory_hour_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(
+        proof["execution"]["builds_or_tests_concurrent_with_load"],
+        false
+    );
+    let result = &proof["result"];
+    assert_eq!(result["schema_version"], 2);
+    assert_eq!(result["total_load_seconds"], 3600);
+    assert_eq!(result["forced_trim_during_load"], false);
+    let cycles = result["cycles"].as_array().unwrap();
+    assert_eq!(cycles.len(), 3);
+    let baseline = &cycles[0]["clean"]["rust_allocations"];
+    assert!(baseline["live_requested_bytes"].as_u64().unwrap() > 0);
+    let mut events = 0;
+    for cycle in cycles {
+        let load = &cycle["load"];
+        assert!(load["elapsed_seconds"].as_f64().unwrap() >= 1200.0);
+        assert_eq!(load["measured_output_failures"], 0);
+        assert_eq!(load["measured_events"], load["measured_delivered_events"]);
+        assert_eq!(
+            load["analysis_latency"]["requests"],
+            load["measured_events"]
+        );
+        assert_eq!(load["observation_complete"], true);
+        events += load["measured_events"].as_u64().unwrap();
+        let journal = &load["observation_journal"];
+        assert!(journal["memory_sample_count"].as_u64().unwrap() >= 1200);
+        assert_eq!(journal["heap_sample_count"], 41);
+        assert_eq!(journal["retained_memory_samples"], 0);
+        assert_eq!(journal["retained_heap_samples"], 0);
+        assert_eq!(journal["journal_buffer_bytes"], 16384);
+        assert_eq!(&cycle["clean"]["rust_allocations"], baseline);
+        for counter in ["threads", "file_descriptors"] {
+            assert_eq!(cycle["clean"][counter], result["before"][counter]);
+        }
+    }
+    assert!(events > 250_000_000);
+    assert_eq!(proof["interpretation"]["measured_events"], events);
+    let reclaimed = result["before_trim"]["rss_kib"].as_u64().unwrap()
+        - result["after_trim"]["rss_kib"].as_u64().unwrap();
+    assert_eq!(proof["interpretation"]["trim_reclaimed_rss_kib"], reclaimed);
+    assert!(reclaimed > 0);
+    for name in ["default_cache", "disabled_cache"] {
+        let control = &proof["observer_controls"][name];
+        assert_eq!(control["traffic_generated"], false);
+        assert_eq!(control["bpf_attached"], false);
+        assert_eq!(control["iterations_per_thread"], 256);
+        for series in ["main", "worker"] {
+            let samples = &control[series];
+            assert_eq!(samples["sample_count"], 256);
+            for counter in ["rust_live_requested_bytes", "rust_live_allocations"] {
+                assert_eq!(samples[counter]["min"], samples[counter]["max"]);
+            }
+            if name == "disabled_cache" {
+                assert_eq!(
+                    samples["allocator_nonfree_bytes"]["min"],
+                    samples["allocator_nonfree_bytes"]["max"]
+                );
+            }
+        }
+        assert_eq!(
+            control["after_thread_exit"]["rust_allocations"],
+            control["before"]["rust_allocations"]
+        );
+        assert_eq!(control["after_thread_exit"]["threads"], 1);
+    }
+    assert_eq!(
+        proof["interpretation"]["normal_capture_allocator_policy_changed"],
+        false
+    );
+    assert_eq!(
+        proof["interpretation"]["audited_throughput_is_ordinary_build_benchmark"],
+        false
+    );
+    let cache_capture = &proof["cache_disabled_capture"];
+    assert_eq!(cache_capture["total_load_seconds"], 900);
+    assert_eq!(cache_capture["forced_trim_during_load"], false);
+    let controls = cache_capture["cycles"].as_array().unwrap();
+    assert_eq!(controls.len(), 3);
+    let mut control_events = 0;
+    for cycle in controls {
+        assert!(cycle["load"]["elapsed_seconds"].as_f64().unwrap() >= 300.0);
+        assert_eq!(cycle["load"]["measured_output_failures"], 0);
+        assert_eq!(
+            cycle["load"]["measured_events"],
+            cycle["load"]["measured_delivered_events"]
+        );
+        assert_eq!(
+            cycle["clean"]["rust_allocations"],
+            controls[0]["clean"]["rust_allocations"]
+        );
+        control_events += cycle["load"]["measured_events"].as_u64().unwrap();
+    }
+    assert_eq!(
+        proof["interpretation"]["cache_disabled_measured_events"],
+        control_events
+    );
+    assert_eq!(
+        controls[1]["clean"]["allocator"]["nonfree_upper_bound_bytes"],
+        controls[2]["clean"]["allocator"]["nonfree_upper_bound_bytes"]
+    );
+    assert!(
+        proof["interpretation"]["not_claimed"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|claim| claim == "indefinite leak freedom")
+    );
 }
 
 #[test]

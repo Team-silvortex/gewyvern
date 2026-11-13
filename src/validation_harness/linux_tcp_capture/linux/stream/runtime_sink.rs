@@ -374,6 +374,43 @@ mod tests {
     }
 
     #[test]
+    fn whole_sink_lifetime_balances_allocations_after_completed_and_abandoned_batches() {
+        fn cycle(records: usize, flush: bool) {
+            let mut sink = RuntimeSink::new().unwrap();
+            for index in 0..records {
+                let mut input = record(monotonic_ns().unwrap());
+                input.cookie += (index % 2) as u64;
+                input.prefix[..8].copy_from_slice(&(index as u64).to_le_bytes());
+                sink.accept(&input, 42, true).unwrap();
+            }
+            if flush {
+                sink.flush(true).unwrap();
+            }
+            let mut bad = record(monotonic_ns().unwrap());
+            bad.prefix_len = u16::MAX;
+            assert!(sink.accept(&bad, 42, true).is_err());
+            // Both the empty context/pool and any unfinished batch must be released.
+            drop(sink);
+        }
+        cycle(BATCH_LIMIT + 1, true);
+        for (records, flush) in [
+            (BATCH_LIMIT * 8 + 1, true),
+            (BATCH_LIMIT * 4 + 7, false),
+            (17, true),
+        ] {
+            let guard = timing::allocations::enable();
+            cycle(records, flush);
+            let counts = guard.finish();
+            assert!(counts["requested_bytes"].as_u64().unwrap() > 0);
+            assert_eq!(
+                counts["requested_bytes"], counts["released_bytes"],
+                "{counts}"
+            );
+            println!("sink_lifetime_balance records={records} flush={flush}: {counts}");
+        }
+    }
+
+    #[test]
     fn reanalysis_detects_changed_program_results_instead_of_copying_them() {
         let mut sink = RuntimeSink::new().unwrap();
         sink.accept(&record(monotonic_ns().unwrap()), 42, true)

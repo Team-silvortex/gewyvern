@@ -17,6 +17,7 @@ use crate::validation_harness::command::{default_out_dir, repo_root};
 
 const TOOL_TIMEOUT: Duration = Duration::from_secs(20);
 
+mod auth_breadth;
 mod bpf_link;
 mod docker_target;
 mod http_boundaries;
@@ -26,6 +27,10 @@ mod load;
 mod packet_capture;
 mod recovery;
 mod stream;
+
+pub(super) fn run_auth_breadth(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    auth_breadth::run(out)
+}
 
 pub(super) fn run_juice_shop(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
     juice_shop::run(out)
@@ -57,6 +62,22 @@ pub(super) fn run_capture_runtime(
     out: Option<PathBuf>,
 ) -> Result<ValidationReport, ValidationError> {
     stream::run(out, true)
+}
+
+pub(super) fn run_capture_soak(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    stream::soak::run(out)
+}
+
+pub(super) fn run_capture_soak_hour(
+    out: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    stream::soak::run_hour(out)
+}
+
+pub(super) fn run_capture_memory_control(
+    out: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    stream::soak::run_control(out)
 }
 
 pub(super) fn run_capture_mixed(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {

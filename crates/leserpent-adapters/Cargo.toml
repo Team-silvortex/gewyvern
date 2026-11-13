@@ -18,7 +18,8 @@ serde.workspace = true
 serde_json.workspace = true
 rustls.workspace = true
 ring = "0.17"
-russh = { version = "0.62.3", default-features = false, features = ["ring"], optional = true }
+# RUSTSEC-2026-0492/0495: validate client channels and honor agent confirmation.
+russh = { version = "0.65.0", default-features = false, features = ["ring"], optional = true }
 russh-sftp = { version = "2.3.0", optional = true }
 # RUSTSEC-2026-0386: retain the AsyncFd I/O-safety fix on the current minor line.
 tokio = { version = "1.53.3", default-features = false, features = ["io-util", "net", "rt", "time"], optional = true }

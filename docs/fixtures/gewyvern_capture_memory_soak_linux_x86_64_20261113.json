@@ -1,0 +1,376 @@
+{
+  "schema_version": 1,
+  "proof": "linux-same-process-ebpf-runtime-memory-retention-soak",
+  "captured_on": "2026-11-13",
+  "source_base_revision": "e4df3079eebd39c035dab45e72c20085cbe97eb3",
+  "working_tree_changes": true,
+  "release_artifact": false,
+  "execution": {
+    "kernel": "7.0.0-42-generic",
+    "arch": "x86_64",
+    "glibc": "2.43",
+    "host_count": 1,
+    "kernel_count": 1,
+    "live_capture": "physical host, not build container",
+    "build_toolchain": "Rust 1.98.0",
+    "optimization": "gewyvern dev opt-level 2, dependency defaults, no debug info",
+    "limits": {
+      "cpu_cores": 2,
+      "memory_bytes": 536870912,
+      "pids": 32
+    },
+    "concurrency": 2,
+    "ring_bytes": 1048576,
+    "batch_limit": 256,
+    "builds_or_tests_concurrent_with_load": false,
+    "macos_builds": false,
+    "remote_evidence": "/home/chiharukiryu/.cache/gewyvern/evidence/20261113-memory-soak",
+    "local_evidence": "target/validation/memory-soak-20261113"
+  },
+  "artifact_bindings": {
+    "validator_sha256": "9a10e298ba7af2d96a90aba0e85aa18bfa494620a0fe867fcac84380bcb512eb",
+    "summary_sha256": "6a747c100ff79c431c72f49edc0b969ae1ff9003b81e7af5e626d3bd882ef9df",
+    "sources": {
+      "src/validation_harness/linux_tcp_capture/linux/stream.rs": "8da990a9b69de255a5fd06255f88fc8c2739096ef8c27dbc680e9ac14f61b28d",
+      "src/validation_harness/linux_tcp_capture/linux/stream/soak.rs": "fb185881bfeecf6c0808ca1004382ee91c7a23015078ed0a2afd25a3f1f85391",
+      "src/validation_harness/linux_tcp_capture/linux/stream/runtime_sink.rs": "c19ba4e646582ea455e93c4d58127ae70fdd18e806bc476617ffaace1651424f"
+    }
+  },
+  "result": {
+    "after_trim": {
+      "allocator": {
+        "arena_free_bytes": 22320772,
+        "arena_system_bytes": 22515712,
+        "arenas": 8,
+        "fastbin_total_present": false,
+        "mmap_bytes": 16,
+        "nonfree_upper_bound_bytes": 194956,
+        "scope": "all-glibc-arenas; nonfree includes metadata, tcache and instrumentation, not exact live Rust bytes"
+      },
+      "anonymous_rss_kib": 3468,
+      "file_descriptors": 4,
+      "rss_kib": 10576,
+      "threads": 1,
+      "virtual_kib": 483924
+    },
+    "before": {
+      "allocator": {
+        "arena_free_bytes": 124530,
+        "arena_system_bytes": 135168,
+        "arenas": 1,
+        "fastbin_total_present": false,
+        "mmap_bytes": 0,
+        "nonfree_upper_bound_bytes": 10638,
+        "scope": "all-glibc-arenas; nonfree includes metadata, tcache and instrumentation, not exact live Rust bytes"
+      },
+      "anonymous_rss_kib": 316,
+      "file_descriptors": 4,
+      "rss_kib": 4028,
+      "threads": 1,
+      "virtual_kib": 9488
+    },
+    "before_trim": {
+      "allocator": {
+        "arena_free_bytes": 22558560,
+        "arena_system_bytes": 22753280,
+        "arenas": 8,
+        "fastbin_total_present": false,
+        "mmap_bytes": 16,
+        "nonfree_upper_bound_bytes": 194736,
+        "scope": "all-glibc-arenas; nonfree includes metadata, tcache and instrumentation, not exact live Rust bytes"
+      },
+      "anonymous_rss_kib": 15836,
+      "file_descriptors": 4,
+      "rss_kib": 22944,
+      "threads": 1,
+      "virtual_kib": 484156
+    },
+    "checks": [
+      "three_same_process_load_cycles",
+      "load_loss_accounting",
+      "post_teardown_idle_observations",
+      "all_arena_allocator_snapshots",
+      "no_retained_threads_or_descriptors",
+      "owned_bpf_and_cgroup_cleanup",
+      "diagnostic_only_final_trim",
+      "fresh_capture_replay_after_soak"
+    ],
+    "cycles": [
+      {
+        "idle": {
+          "allocator": {
+            "arena_free_bytes": 14833668,
+            "arena_system_bytes": 14962688,
+            "arenas": 8,
+            "fastbin_total_present": false,
+            "mmap_bytes": 16,
+            "nonfree_upper_bound_bytes": 129036,
+            "scope": "all-glibc-arenas; nonfree includes metadata, tcache and instrumentation, not exact live Rust bytes"
+          },
+          "anonymous_rss_kib": 13216,
+          "file_descriptors": 4,
+          "rss_kib": 20764,
+          "threads": 1,
+          "virtual_kib": 484156
+        },
+        "load": {
+          "analysis_latency": {
+            "histogram_overflow_count": 0,
+            "histogram_overflow_threshold_us": 100000,
+            "histogram_resolution_us": 1,
+            "max_us": 28712.996,
+            "mean_us": 1733.9101621361763,
+            "null_percentile_means": "empty-or-overflow-not-zero",
+            "p50_us_upper_bound": 1362,
+            "p95_us_upper_bound": 2565,
+            "p99_us_upper_bound": 22608,
+            "requests": 24700638
+          },
+          "cpu": {
+            "percent_one_core": 200.00385648189962,
+            "percent_two_core_quota": 100.00192824094981,
+            "system_seconds": 479.130585,
+            "throttled_periods": 2999,
+            "throttled_seconds": 137.221569,
+            "usage_seconds": 600.08025,
+            "user_seconds": 120.949666
+          },
+          "delivered_events_per_second": 82326.03651867156,
+          "elapsed_seconds": 300.034339615,
+          "measured_delivered_events": 24700638,
+          "measured_events": 24700638,
+          "measured_output_failures": 0,
+          "observation_complete": true,
+          "rss_kib": {
+            "first": 25884,
+            "last": 26840,
+            "last_minus_first": 956,
+            "peak": 26840
+          }
+        },
+        "released": {
+          "allocator": {
+            "arena_free_bytes": 14833726,
+            "arena_system_bytes": 14962688,
+            "arenas": 8,
+            "fastbin_total_present": false,
+            "mmap_bytes": 16,
+            "nonfree_upper_bound_bytes": 128978,
+            "scope": "all-glibc-arenas; nonfree includes metadata, tcache and instrumentation, not exact live Rust bytes"
+          },
+          "anonymous_rss_kib": 13216,
+          "file_descriptors": 4,
+          "rss_kib": 20764,
+          "threads": 1,
+          "virtual_kib": 484156
+        }
+      },
+      {
+        "idle": {
+          "allocator": {
+            "arena_free_bytes": 18348116,
+            "arena_system_bytes": 18513920,
+            "arenas": 8,
+            "fastbin_total_present": false,
+            "mmap_bytes": 16,
+            "nonfree_upper_bound_bytes": 165820,
+            "scope": "all-glibc-arenas; nonfree includes metadata, tcache and instrumentation, not exact live Rust bytes"
+          },
+          "anonymous_rss_kib": 11212,
+          "file_descriptors": 4,
+          "rss_kib": 17872,
+          "threads": 1,
+          "virtual_kib": 484156
+        },
+        "load": {
+          "analysis_latency": {
+            "histogram_overflow_count": 0,
+            "histogram_overflow_threshold_us": 100000,
+            "histogram_resolution_us": 1,
+            "max_us": 28917.788,
+            "mean_us": 1861.4171224806278,
+            "null_percentile_means": "empty-or-overflow-not-zero",
+            "p50_us_upper_bound": 1446,
+            "p95_us_upper_bound": 3192,
+            "p99_us_upper_bound": 22684,
+            "requests": 23080254
+          },
+          "cpu": {
+            "percent_one_core": 197.39545603093998,
+            "percent_two_core_quota": 98.69772801546999,
+            "system_seconds": 475.62058,
+            "throttled_periods": 2730,
+            "throttled_seconds": 122.504442,
+            "usage_seconds": 592.214757,
+            "user_seconds": 116.594176
+          },
+          "delivered_events_per_second": 76930.49201811643,
+          "elapsed_seconds": 300.014381743,
+          "measured_delivered_events": 23080254,
+          "measured_events": 23080254,
+          "measured_output_failures": 0,
+          "observation_complete": true,
+          "rss_kib": {
+            "first": 38664,
+            "last": 32968,
+            "last_minus_first": -5696,
+            "peak": 39664
+          }
+        },
+        "released": {
+          "allocator": {
+            "arena_free_bytes": 18348176,
+            "arena_system_bytes": 18513920,
+            "arenas": 8,
+            "fastbin_total_present": false,
+            "mmap_bytes": 16,
+            "nonfree_upper_bound_bytes": 165760,
+            "scope": "all-glibc-arenas; nonfree includes metadata, tcache and instrumentation, not exact live Rust bytes"
+          },
+          "anonymous_rss_kib": 11212,
+          "file_descriptors": 4,
+          "rss_kib": 17872,
+          "threads": 1,
+          "virtual_kib": 484156
+        }
+      },
+      {
+        "idle": {
+          "allocator": {
+            "arena_free_bytes": 22559035,
+            "arena_system_bytes": 22753280,
+            "arenas": 8,
+            "fastbin_total_present": false,
+            "mmap_bytes": 16,
+            "nonfree_upper_bound_bytes": 194261,
+            "scope": "all-glibc-arenas; nonfree includes metadata, tcache and instrumentation, not exact live Rust bytes"
+          },
+          "anonymous_rss_kib": 15836,
+          "file_descriptors": 4,
+          "rss_kib": 22944,
+          "threads": 1,
+          "virtual_kib": 484156
+        },
+        "load": {
+          "analysis_latency": {
+            "histogram_overflow_count": 0,
+            "histogram_overflow_threshold_us": 100000,
+            "histogram_resolution_us": 1,
+            "max_us": 28964.391,
+            "mean_us": 1732.322676226751,
+            "null_percentile_means": "empty-or-overflow-not-zero",
+            "p50_us_upper_bound": 1357,
+            "p95_us_upper_bound": 2547,
+            "p99_us_upper_bound": 22693,
+            "requests": 24646505
+          },
+          "cpu": {
+            "percent_one_core": 199.4241164939981,
+            "percent_two_core_quota": 99.71205824699905,
+            "system_seconds": 494.052172,
+            "throttled_periods": 2950,
+            "throttled_seconds": 136.650621,
+            "usage_seconds": 598.307663,
+            "user_seconds": 104.25549
+          },
+          "delivered_events_per_second": 82150.16768538207,
+          "elapsed_seconds": 300.017707747,
+          "measured_delivered_events": 24646505,
+          "measured_events": 24646505,
+          "measured_output_failures": 0,
+          "observation_complete": true,
+          "rss_kib": {
+            "first": 36828,
+            "last": 37332,
+            "last_minus_first": 504,
+            "peak": 37332
+          }
+        },
+        "released": {
+          "allocator": {
+            "arena_free_bytes": 22559192,
+            "arena_system_bytes": 22753280,
+            "arenas": 8,
+            "fastbin_total_present": false,
+            "mmap_bytes": 16,
+            "nonfree_upper_bound_bytes": 194104,
+            "scope": "all-glibc-arenas; nonfree includes metadata, tcache and instrumentation, not exact live Rust bytes"
+          },
+          "anonymous_rss_kib": 15836,
+          "file_descriptors": 4,
+          "rss_kib": 22944,
+          "threads": 1,
+          "virtual_kib": 484156
+        }
+      }
+    ],
+    "forced_trim_during_load": false,
+    "idle_seconds": 30,
+    "interpretation": "Compare post-teardown nonfree bytes across cycles and RSS before/after trim; allocator free space is retention, not an exact object liveness census.",
+    "mode": "capture-soak",
+    "normal_windows_complete": true,
+    "not_proven": [
+      "unbounded-duration leak freedom",
+      "exact live Rust allocation accounting",
+      "production continuous cross-batch sessions",
+      "multiple hosts or kernels"
+    ],
+    "ok": true,
+    "phase_seconds": 300,
+    "schema_version": 1,
+    "total_load_seconds": 900,
+    "trim_returned_memory": true
+  },
+  "allocation_lifetime_regression": {
+    "scope": "test-only thread-local Rust System requested/released bytes after a warmup; not C allocations or RSS",
+    "test": "whole_sink_lifetime_balances_allocations_after_completed_and_abandoned_batches",
+    "passed": true,
+    "cases": [
+      {
+        "records": 2049,
+        "flush": true,
+        "alloc_calls": 380287,
+        "dealloc_calls": 380287,
+        "realloc_calls": 94427,
+        "requested_bytes": 62923066,
+        "released_bytes": 62923066
+      },
+      {
+        "records": 1031,
+        "flush": false,
+        "alloc_calls": 370651,
+        "dealloc_calls": 370651,
+        "realloc_calls": 91272,
+        "requested_bytes": 61605328,
+        "released_bytes": 61605328
+      },
+      {
+        "records": 17,
+        "flush": true,
+        "alloc_calls": 48767,
+        "dealloc_calls": 48767,
+        "realloc_calls": 8941,
+        "requested_bytes": 6658442,
+        "released_bytes": 6658442
+      }
+    ]
+  },
+  "interpretation": {
+    "measured_events": 72427397,
+    "loss_events": 0,
+    "conclusion": "Observed dominant RSS growth is reclaimable allocator retention, not a demonstrated runtime-batch leak.",
+    "post_teardown_nonfree_is_exact_live_rust": false,
+    "nonfree_growth_note": "Idle nonfree includes glibc metadata, caches, retained compact diagnostic reports and observation overhead. The small residual increase is not attributed entirely to one cause or certified leak-free.",
+    "retained_arena_count": 8,
+    "trim_reclaimed_rss_kib": 12368,
+    "normal_capture_allocator_policy_changed": false,
+    "not_claimed": [
+      "indefinite leak freedom",
+      "absence of small or slow leaks in other paths",
+      "exact attribution of every retained byte",
+      "reproduction of every earlier paused-consumer RSS peak",
+      "continuous cross-batch session stability",
+      "multiple hosts or kernels"
+    ]
+  }
+}

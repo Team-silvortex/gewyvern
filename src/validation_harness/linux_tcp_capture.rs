@@ -65,6 +65,20 @@ pub fn run_linux_tcp_juice_shop_validation(
     }
 }
 
+pub fn run_linux_auth_breadth_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_auth_breadth(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "linux-tcp-capture --auth-breadth requires Linux and BPF privileges",
+        ))
+    }
+}
+
 pub fn run_linux_http_boundaries_validation(
     out_dir: Option<PathBuf>,
 ) -> Result<ValidationReport, ValidationError> {
@@ -145,6 +159,48 @@ pub fn run_linux_capture_mixed_validation(
         let _ = out_dir;
         Err(ValidationError::new(
             "linux-tcp-capture --capture-mixed requires Linux, libbpf and BPF privileges",
+        ))
+    }
+}
+
+pub fn run_linux_capture_soak_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_capture_soak(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "linux-tcp-capture --capture-soak requires Linux, glibc and BPF privileges",
+        ))
+    }
+}
+
+pub fn run_linux_capture_soak_hour_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_capture_soak_hour(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "linux-tcp-capture --capture-soak-hour requires Linux, glibc and BPF privileges",
+        ))
+    }
+}
+
+pub fn run_linux_capture_memory_control_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_capture_memory_control(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "capture-memory-control requires Linux and glibc",
         ))
     }
 }

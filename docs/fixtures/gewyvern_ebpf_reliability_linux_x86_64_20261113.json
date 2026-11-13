@@ -1,0 +1,688 @@
+{
+  "schema_version": 1,
+  "proof": "owned-linux-ebpf-load-loss-crash-recovery-and-installed-helper-hardening",
+  "captured_on": "2026-11-13",
+  "source_base_revision": "e4df3079eebd39c035dab45e72c20085cbe97eb3",
+  "source_release_label": "2.6.1",
+  "package_version": "2.5.0",
+  "working_tree_changes": true,
+  "release_artifact": false,
+  "execution": {
+    "host_kernel": "7.0.0-42-generic",
+    "arch": "x86_64",
+    "unique_hosts": 1,
+    "unique_kernels": 1,
+    "toolchain": "Rust 1.98.0",
+    "build": "cargo --config profile.dev.package.gewyvern.opt-level=2 build --locked -p gewyvern --bin gewyvern_validate",
+    "optimization": "project opt-level 2, dependency dev defaults, debug info disabled",
+    "live_capture": "physical Linux host, not the build container",
+    "builds_or_tests_concurrent_with_load": false,
+    "remote_evidence": "/home/chiharukiryu/.cache/gewyvern/evidence/20261113-ebpf-reliability",
+    "macos_builds": false,
+    "local_evidence": "target/validation/ebpf-reliability-20261113"
+  },
+  "artifact_bindings": {
+    "capture_validator_sha256": "f355a9ff604ae4ec7144985081f18cbb7b36d8ddbc942ec1b5e6fe95eef0448c",
+    "installed_helper_sha256": "7d75580f7d1bf080003dd71a9f775cf0f4f53fcd5cb864e25933572fbd9c5dc1",
+    "runtime_summary_sha256": "72225cacc5a6625f65fe59cf56e96afb0fb21d876149da58e8cdf0af869f6c56",
+    "recovery_summary_sha256": "e9bca1cdb75b0bf6dc21143a85951f22362f560ac3ea45c88992d25669b3baa2",
+    "capture_bpf_source_sha256": "9fb343a1ce54bd8374e61b0e788659f87c6c837d3074fd12ed445d9fa3a47a6e",
+    "stream_driver_source_sha256": "d36a11496ae088607946460f7e2502c06b8585c51dc6680ac10d2f1974094e56"
+  },
+  "runtime": {
+    "ok": true,
+    "kernel": "7.0.0-42-generic",
+    "normal_windows_complete": true,
+    "comparison": {
+      "baseline_mean_requests_per_second": 91477.84240089916,
+      "delivered_rate_change_from_baseline_percent": -16.192815189212496,
+      "normal_mean_delivered_events_per_second": 76665.0044418425
+    },
+    "limits": {
+      "cpu_cores": 2,
+      "memory_bytes": 536870912,
+      "pids": 32
+    },
+    "concurrency": 2,
+    "ring_bytes": 1048576,
+    "record_bytes": 128,
+    "phases": [
+      {
+        "name": "baseline-before",
+        "result": {
+          "ok": true,
+          "elapsed_seconds": 60.001240583,
+          "requests": 5472701,
+          "requests_per_second": 91209.79744459761,
+          "observation_complete": null,
+          "measured_events": null,
+          "measured_delivered_events": null,
+          "measured_output_failures": null,
+          "measured_loss_percent": null,
+          "delivered_events_per_second": null,
+          "consumer_pause_seconds": null,
+          "cpu": {
+            "percent_one_core": 200.00260466947822,
+            "percent_two_core_quota": 100.00130233473911,
+            "system_seconds": 105.242855,
+            "throttled_periods": 599,
+            "throttled_seconds": 11.733652,
+            "usage_seconds": 120.004044,
+            "user_seconds": 14.761188
+          },
+          "rss_kib": {
+            "first": 6188,
+            "last": 6340,
+            "last_minus_first": 152,
+            "peak": 6612
+          },
+          "cgroup_memory_bytes": {
+            "first": 1290240,
+            "last": 2306048,
+            "last_minus_first": 1015808,
+            "peak": 2621440
+          },
+          "memory_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+          "transport_errors": 0,
+          "byte_integrity_errors": 0,
+          "request_rtt": {
+            "histogram_overflow_count": 0,
+            "histogram_overflow_threshold_us": 100000,
+            "histogram_resolution_us": 1,
+            "max_us": 14340.091,
+            "mean_us": 21.853585913610118,
+            "null_percentile_means": "empty-or-overflow-not-zero",
+            "p50_us_upper_bound": 19,
+            "p95_us_upper_bound": 27,
+            "p99_us_upper_bound": 33,
+            "requests": 5472701
+          },
+          "delivery_latency": null,
+          "runtime": null
+        }
+      },
+      {
+        "name": "stream-1",
+        "result": {
+          "ok": true,
+          "elapsed_seconds": 60.021538945,
+          "requests": 4525422,
+          "requests_per_second": 75396.63393414179,
+          "observation_complete": true,
+          "measured_events": 4525422,
+          "measured_delivered_events": 4525422,
+          "measured_output_failures": 0,
+          "measured_loss_percent": 0,
+          "delivered_events_per_second": 75396.63393414179,
+          "consumer_pause_seconds": null,
+          "cpu": {
+            "percent_one_core": 199.96797667914245,
+            "percent_two_core_quota": 99.98398833957123,
+            "system_seconds": 95.922029,
+            "throttled_periods": 599,
+            "throttled_seconds": 28.543279,
+            "usage_seconds": 120.023857,
+            "user_seconds": 24.101828
+          },
+          "rss_kib": {
+            "first": 25900,
+            "last": 25280,
+            "last_minus_first": -620,
+            "peak": 26460
+          },
+          "cgroup_memory_bytes": {
+            "first": 62828544,
+            "last": 62504960,
+            "last_minus_first": -323584,
+            "peak": 63938560
+          },
+          "memory_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+          "transport_errors": 0,
+          "byte_integrity_errors": 0,
+          "request_rtt": {
+            "histogram_overflow_count": 0,
+            "histogram_overflow_threshold_us": 100000,
+            "histogram_resolution_us": 1,
+            "max_us": 26272.362,
+            "mean_us": 26.44438406031526,
+            "null_percentile_means": "empty-or-overflow-not-zero",
+            "p50_us_upper_bound": 20,
+            "p95_us_upper_bound": 28,
+            "p99_us_upper_bound": 35,
+            "requests": 4525422
+          },
+          "delivery_latency": {
+            "histogram_overflow_count": 0,
+            "histogram_overflow_threshold_us": 100000,
+            "histogram_resolution_us": 1,
+            "max_us": 24369.292,
+            "mean_us": 42.40044661978485,
+            "null_percentile_means": "empty-or-overflow-not-zero",
+            "p50_us_upper_bound": 5,
+            "p95_us_upper_bound": 79,
+            "p99_us_upper_bound": 197,
+            "requests": 4525422
+          },
+          "runtime": {
+            "analyzed_facts": 4681501,
+            "analyzed_batches": 18288,
+            "replayed_sample_batches": 3,
+            "measured_analyzed_facts": 4525422,
+            "max_pending_facts": 256,
+            "analysis_completion_latency": {
+              "histogram_overflow_count": 0,
+              "histogram_overflow_threshold_us": 100000,
+              "histogram_resolution_us": 1,
+              "max_us": 29172.297,
+              "mean_us": 1903.6320671079957,
+              "null_percentile_means": "empty-or-overflow-not-zero",
+              "p50_us_upper_bound": 1496,
+              "p95_us_upper_bound": 2843,
+              "p99_us_upper_bound": 23411,
+              "requests": 4525422
+            },
+            "release_stage": {
+              "calls": 18288,
+              "cpu_exceeded_enclosing_wall_samples": 0,
+              "cpu_samples": 18288,
+              "max_us": 24068.553,
+              "mean_us": 23.846171861329832,
+              "sampled_cpu_max_us": 140.633,
+              "sampled_cpu_mean_us": 19.300797080052494,
+              "sampled_cpu_ms": 352.972977,
+              "sampled_non_cpu_residual_ms": 83.125814,
+              "sampled_wall_ms": 436.098791,
+              "total_ms": 436.098791
+            }
+          }
+        }
+      },
+      {
+        "name": "paused-consumer",
+        "result": {
+          "ok": true,
+          "elapsed_seconds": 10.02603075,
+          "requests": 793060,
+          "requests_per_second": 79100.09651626094,
+          "observation_complete": false,
+          "measured_events": 793060,
+          "measured_delivered_events": 616091,
+          "measured_output_failures": 176969,
+          "measured_loss_percent": 22.314705066451467,
+          "delivered_events_per_second": 61449.14327137885,
+          "consumer_pause_seconds": 2.000245366,
+          "cpu": {
+            "percent_one_core": 199.98358772238953,
+            "percent_two_core_quota": 99.99179386119476,
+            "system_seconds": 16.107886,
+            "throttled_periods": 99,
+            "throttled_seconds": 4.338522,
+            "usage_seconds": 20.050416,
+            "user_seconds": 3.94253
+          },
+          "rss_kib": {
+            "first": 42336,
+            "last": 43284,
+            "last_minus_first": 948,
+            "peak": 43284
+          },
+          "cgroup_memory_bytes": {
+            "first": 18386944,
+            "last": 18292736,
+            "last_minus_first": -94208,
+            "peak": 20086784
+          },
+          "memory_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+          "transport_errors": 0,
+          "byte_integrity_errors": 0,
+          "request_rtt": {
+            "histogram_overflow_count": 0,
+            "histogram_overflow_threshold_us": 100000,
+            "histogram_resolution_us": 1,
+            "max_us": 24084.15,
+            "mean_us": 25.14536570120798,
+            "null_percentile_means": "empty-or-overflow-not-zero",
+            "p50_us_upper_bound": 20,
+            "p95_us_upper_bound": 28,
+            "p99_us_upper_bound": 34,
+            "requests": 793060
+          },
+          "delivery_latency": {
+            "histogram_overflow_count": 7710,
+            "histogram_overflow_threshold_us": 100000,
+            "histogram_resolution_us": 1,
+            "max_us": 2000352.789,
+            "mean_us": 24653.308223754284,
+            "null_percentile_means": "empty-or-overflow-not-zero",
+            "p50_us_upper_bound": 5,
+            "p95_us_upper_bound": 111,
+            "p99_us_upper_bound": null,
+            "requests": 616091
+          },
+          "runtime": {
+            "analyzed_facts": 766570,
+            "analyzed_batches": 2995,
+            "replayed_sample_batches": 3,
+            "measured_analyzed_facts": 616091,
+            "max_pending_facts": 256,
+            "analysis_completion_latency": {
+              "histogram_overflow_count": 7710,
+              "histogram_overflow_threshold_us": 100000,
+              "histogram_resolution_us": 1,
+              "max_us": 2000859.149,
+              "mean_us": 26483.77963518052,
+              "null_percentile_means": "empty-or-overflow-not-zero",
+              "p50_us_upper_bound": 1503,
+              "p95_us_upper_bound": 2917,
+              "p99_us_upper_bound": null,
+              "requests": 616091
+            },
+            "release_stage": {
+              "calls": 2995,
+              "cpu_exceeded_enclosing_wall_samples": 0,
+              "cpu_samples": 2995,
+              "max_us": 94.568,
+              "mean_us": 20.187989649415695,
+              "sampled_cpu_max_us": 93.365,
+              "sampled_cpu_mean_us": 19.31336427378965,
+              "sampled_cpu_ms": 57.843526,
+              "sampled_non_cpu_residual_ms": 2.619503,
+              "sampled_wall_ms": 60.463029,
+              "total_ms": 60.463029
+            }
+          }
+        }
+      },
+      {
+        "name": "stream-2",
+        "result": {
+          "ok": true,
+          "elapsed_seconds": 60.011708758,
+          "requests": 4676915,
+          "requests_per_second": 77933.37494954321,
+          "observation_complete": true,
+          "measured_events": 4676915,
+          "measured_delivered_events": 4676915,
+          "measured_output_failures": 0,
+          "measured_loss_percent": 0,
+          "delivered_events_per_second": 77933.37494954321,
+          "consumer_pause_seconds": null,
+          "cpu": {
+            "percent_one_core": 200.06148880737393,
+            "percent_two_core_quota": 100.03074440368697,
+            "system_seconds": 95.490987,
+            "throttled_periods": 599,
+            "throttled_seconds": 27.648131,
+            "usage_seconds": 120.060318,
+            "user_seconds": 24.569332
+          },
+          "rss_kib": {
+            "first": 59028,
+            "last": 60316,
+            "last_minus_first": 1288,
+            "peak": 60348
+          },
+          "cgroup_memory_bytes": {
+            "first": 18624512,
+            "last": 19656704,
+            "last_minus_first": 1032192,
+            "peak": 20897792
+          },
+          "memory_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+          "transport_errors": 0,
+          "byte_integrity_errors": 0,
+          "request_rtt": {
+            "histogram_overflow_count": 0,
+            "histogram_overflow_threshold_us": 100000,
+            "histogram_resolution_us": 1,
+            "max_us": 25001.649,
+            "mean_us": 25.585754206779466,
+            "null_percentile_means": "empty-or-overflow-not-zero",
+            "p50_us_upper_bound": 20,
+            "p95_us_upper_bound": 27,
+            "p99_us_upper_bound": 33,
+            "requests": 4676915
+          },
+          "delivery_latency": {
+            "histogram_overflow_count": 0,
+            "histogram_overflow_threshold_us": 100000,
+            "histogram_resolution_us": 1,
+            "max_us": 25203.737,
+            "mean_us": 34.60823514560346,
+            "null_percentile_means": "empty-or-overflow-not-zero",
+            "p50_us_upper_bound": 5,
+            "p95_us_upper_bound": 63,
+            "p99_us_upper_bound": 173,
+            "requests": 4676915
+          },
+          "runtime": {
+            "analyzed_facts": 4826774,
+            "analyzed_batches": 18856,
+            "replayed_sample_batches": 3,
+            "measured_analyzed_facts": 4676915,
+            "max_pending_facts": 256,
+            "analysis_completion_latency": {
+              "histogram_overflow_count": 0,
+              "histogram_overflow_threshold_us": 100000,
+              "histogram_resolution_us": 1,
+              "max_us": 27732.518,
+              "mean_us": 1829.5562911376408,
+              "null_percentile_means": "empty-or-overflow-not-zero",
+              "p50_us_upper_bound": 1441,
+              "p95_us_upper_bound": 2717,
+              "p99_us_upper_bound": 23200,
+              "requests": 4676915
+            },
+            "release_stage": {
+              "calls": 18856,
+              "cpu_exceeded_enclosing_wall_samples": 0,
+              "cpu_samples": 18856,
+              "max_us": 21437.337,
+              "mean_us": 20.647701686465847,
+              "sampled_cpu_max_us": 156.202,
+              "sampled_cpu_mean_us": 17.52986015061519,
+              "sampled_cpu_ms": 330.543043,
+              "sampled_non_cpu_residual_ms": 58.79002,
+              "sampled_wall_ms": 389.333063,
+              "total_ms": 389.333063
+            }
+          }
+        }
+      },
+      {
+        "name": "baseline-after",
+        "result": {
+          "ok": true,
+          "elapsed_seconds": 60.000476954,
+          "requests": 5504797,
+          "requests_per_second": 91745.88735720069,
+          "observation_complete": null,
+          "measured_events": null,
+          "measured_delivered_events": null,
+          "measured_output_failures": null,
+          "measured_loss_percent": null,
+          "delivered_events_per_second": null,
+          "consumer_pause_seconds": null,
+          "cpu": {
+            "percent_one_core": 199.99762183890456,
+            "percent_two_core_quota": 99.99881091945228,
+            "system_seconds": 104.141602,
+            "throttled_periods": 600,
+            "throttled_seconds": 11.816498,
+            "usage_seconds": 119.999527,
+            "user_seconds": 15.857925
+          },
+          "rss_kib": {
+            "first": 47488,
+            "last": 47488,
+            "last_minus_first": 0,
+            "peak": 47488
+          },
+          "cgroup_memory_bytes": {
+            "first": 663552,
+            "last": 1687552,
+            "last_minus_first": 1024000,
+            "peak": 1957888
+          },
+          "memory_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+          "transport_errors": 0,
+          "byte_integrity_errors": 0,
+          "request_rtt": {
+            "histogram_overflow_count": 0,
+            "histogram_overflow_threshold_us": 100000,
+            "histogram_resolution_us": 1,
+            "max_us": 13542.57,
+            "mean_us": 21.7246387539813,
+            "null_percentile_means": "empty-or-overflow-not-zero",
+            "p50_us_upper_bound": 19,
+            "p95_us_upper_bound": 27,
+            "p99_us_upper_bound": 33,
+            "requests": 5504797
+          },
+          "delivery_latency": null,
+          "runtime": null
+        }
+      }
+    ],
+    "checks": [
+      "continuous_delivery_beyond_fixed_slots",
+      "bounded_ring_and_batches",
+      "checked_kernel_payloads",
+      "emitted_received_dropped_reconcile",
+      "paused_consumer_overflow_and_resume",
+      "no_incomplete_runtime_exports",
+      "cpu_memory_and_delivery_latency",
+      "owned_resource_cleanup",
+      "fresh_capture_replay_after_stream",
+      "bounded_runtime_ingest_and_analysis",
+      "same_adapter_json_reanalysis"
+    ],
+    "not_proven": [
+      "cross-batch-continuous-session-semantics",
+      "full-stream-export-and-serialization-throughput",
+      "durable-storage",
+      "general-network-retransmission-reassembly",
+      "wire-packet-rate",
+      "open-loop-tail-latency",
+      "multi-host-kernel-matrix",
+      "long-duration-leak-freedom",
+      "supervisor-or-host-crash-recovery"
+    ]
+  },
+  "recovery": {
+    "cases": {
+      "abort": {
+        "core_dumped": false,
+        "exit_code": null,
+        "link_ids": [
+          208,
+          209
+        ],
+        "links_detached_before_cleanup": true,
+        "owned_resources_removed": true,
+        "reaped_owned_directories": 3,
+        "signal": 6,
+        "success_artifacts_absent": true,
+        "test_passed": true
+      },
+      "after-abort-restart": {
+        "accepted": true,
+        "counts": {
+          "dropped": 0,
+          "total": 5
+        },
+        "packet_facts": 5,
+        "replay_verified": true
+      },
+      "after-error-restart": {
+        "accepted": true,
+        "counts": {
+          "dropped": 0,
+          "total": 5
+        },
+        "packet_facts": 5,
+        "replay_verified": true
+      },
+      "after-kill-restart": {
+        "accepted": true,
+        "counts": {
+          "dropped": 0,
+          "total": 5
+        },
+        "packet_facts": 5,
+        "replay_verified": true
+      },
+      "after-loss-restart": {
+        "accepted": true,
+        "counts": {
+          "dropped": 0,
+          "total": 5
+        },
+        "packet_facts": 5,
+        "replay_verified": true
+      },
+      "error": {
+        "core_dumped": false,
+        "exit_code": 1,
+        "link_ids": [
+          204,
+          205
+        ],
+        "links_detached_before_cleanup": true,
+        "owned_resources_removed": true,
+        "reaped_owned_directories": 0,
+        "signal": null,
+        "success_artifacts_absent": true,
+        "test_passed": true
+      },
+      "exact-capacity": {
+        "accepted": true,
+        "counts": {
+          "dropped": 0,
+          "total": 128
+        },
+        "packet_facts": 128,
+        "replay_verified": true
+      },
+      "kill": {
+        "core_dumped": false,
+        "exit_code": null,
+        "link_ids": [
+          212,
+          213
+        ],
+        "links_detached_before_cleanup": true,
+        "owned_resources_removed": true,
+        "reaped_owned_directories": 3,
+        "signal": 9,
+        "success_artifacts_absent": true,
+        "test_passed": true
+      },
+      "over-capacity": {
+        "accepted": false,
+        "error": "packet capture rejected: capacity_exceeded",
+        "rejection": {
+          "accepted": false,
+          "code": "capacity_exceeded",
+          "counts": {
+            "dropped": 3,
+            "total": 131
+          },
+          "observed_entries": null,
+          "packet_export_produced": false,
+          "schema_version": 1
+        }
+      },
+      "reported-loss": {
+        "accepted": false,
+        "error": "packet capture rejected: reported_loss",
+        "rejection": {
+          "accepted": false,
+          "code": "reported_loss",
+          "counts": {
+            "dropped": 3,
+            "total": 5
+          },
+          "observed_entries": null,
+          "packet_export_produced": false,
+          "schema_version": 1
+        }
+      },
+      "snapshot-gap": {
+        "accepted": false,
+        "error": "packet capture rejected: snapshot_incomplete",
+        "rejection": {
+          "accepted": false,
+          "code": "snapshot_incomplete",
+          "counts": {
+            "dropped": 0,
+            "total": 5
+          },
+          "observed_entries": 4,
+          "packet_export_produced": false,
+          "schema_version": 1
+        }
+      },
+      "tcp-over-capacity": {
+        "accepted": false,
+        "connect_attempts": 160,
+        "rejection": {
+          "accepted": false,
+          "code": "capacity_exceeded",
+          "counts": {
+            "dropped": 32,
+            "total": 160
+          },
+          "schema_version": 1,
+          "tcp_export_produced": false
+        },
+        "tcp_export_produced": false,
+        "test_passed": true
+      }
+    },
+    "checks": [
+      "exact_128_event_acceptance",
+      "tcp_state_budget_overflow_rejected",
+      "real_map_write_loss_rejected",
+      "event_budget_overflow_rejected",
+      "unreported_snapshot_gap_rejected",
+      "no_partial_packet_exports",
+      "worker_error_unwinds",
+      "abort_and_sigkill_detach_both_links",
+      "owned_orphans_reaped",
+      "fresh_capture_after_each_exit"
+    ],
+    "ingest_trust_mode": "unverified-local",
+    "kernel": "7.0.0-42-generic",
+    "mode": "capture-recovery",
+    "not_proven": [
+      "sustained-load-performance",
+      "production-ring-buffer-loss",
+      "supervisor-SIGKILL-or-host-reboot",
+      "kill-during-pre-ready-attachment",
+      "multi-host-kernel-matrix"
+    ],
+    "ok": true,
+    "schema_version": 1
+  },
+  "deployment_fix": {
+    "observed_failure": "default sudo-rs rejected the nonterminal run-id wildcard",
+    "policy": "fixed helper only; probe, run --run-id * and cleanup --run-id *; terminal standalone wildcards",
+    "authorized_account": "kyuubiki-dev",
+    "authorized_uid": 1001,
+    "account_changed": false,
+    "arbitrary_command_passwordless_access": false,
+    "missing_device_rejected": true,
+    "template_parsed_by": [
+      "sudo-rs visudo",
+      "legacy visudo.ws"
+    ],
+    "active_policy_prevalidated": true,
+    "old_helper_version": "2.0.0",
+    "installed_helper_version": "2.5.0",
+    "helper_protocol": 1,
+    "installed_probe": "ready",
+    "installed_tracepoint": "passed",
+    "installed_kprobe": "passed",
+    "installed_tc": "passed",
+    "tc_device": "gwv261113 (owned temporary dummy, removed)",
+    "source_boundary": "five allowlisted C sources embedded at build time; exclusive private temporary materialization, no runtime reads from the build checkout",
+    "backups_retained_on_linux_only": true
+  },
+  "interpretation": {
+    "normal_measured_events": 9202337,
+    "normal_measured_loss": 0,
+    "paused_loss": 176969,
+    "loss_kind": "BPF ring output failures, not network packet loss",
+    "CPU": "whole test cgroup, including clients, servers, consumer and monitor; not isolated BPF cost",
+    "latency": "kernel timestamp to independent batch analysis completion, including fill and scheduling delays",
+    "memory": "process RSS and cgroup charges are different scopes; later phase grew 1288 KiB and peaked at 60348 KiB",
+    "not_claimed": [
+      "long-duration leak freedom",
+      "universal lossless capture",
+      "supervisor or host crash recovery",
+      "general continuous cross-batch sessions",
+      "multiple physical hosts or kernels"
+    ]
+  }
+}

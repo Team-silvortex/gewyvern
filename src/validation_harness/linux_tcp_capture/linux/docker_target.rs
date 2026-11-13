@@ -77,7 +77,7 @@ impl OwnedResource {
         let mut command = docker();
         command.args([self.kind, "rm"]);
         if self.kind == "container" {
-            command.arg("--force");
+            command.args(["--force", "--volumes"]);
         }
         tool(command.arg(id), &self.out)?;
         self.removed = true;

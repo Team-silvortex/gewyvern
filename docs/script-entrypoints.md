@@ -336,9 +336,10 @@ numeric owner through `stat`, rejects malformed ownership values, and restores
 the eBPF evidence directory to that owner on every exit path. This prevents an
 admin fallback from moving source, caches, or build products into the admin
 home while keeping `ssh` and `rsync` aligned on the workspace identity. Those
-privileged commands compile smoke sources only from the validator's build-time
-workspace root; changing the remote working directory cannot substitute loader
-or BPF source files.
+privileged smoke commands materialize only the five allowlisted sources embedded
+at build time into a fresh private work directory. Neither the remote current
+directory nor a changed/deleted build workspace can substitute loader or BPF
+source files after installation. Existing files and symlinks are rejected.
 This is a compatibility path. New hosts should install the fixed helper and
 must not grant the validation account unrestricted passwordless `sudo`, or
 authorize `env`, a shell, or workspace binaries in `sudoers`.
@@ -347,6 +348,17 @@ Packaged hosts can configure the fixed path with
 validate the account and installed helper without writing configuration. This
 root-only management binary is deliberately absent from the generated sudoers
 allowlist.
+The generated policy uses only terminal standalone `*` arguments so it also
+parses with current `sudo-rs`. It still names only the fixed helper's `probe`,
+`run --run-id ...` and `cleanup --run-id ...` prefixes. The helper, not wildcard
+matching, enforces exact argument count/order, `--device`, bounded identifiers,
+caller UID and root-owned paths. Never replace this with unrestricted sudo or a
+shell wrapper. Existing policies containing `run --run-id * --device *` must be
+regenerated with the current native provisioner and checked with the active
+`visudo` before installation. See the upstream
+[sudo-rs compatibility restrictions](https://github.com/trifectatechfoundation/sudo-rs#compatibility)
+for argument-wildcard support; older implementations can still refuse the policy,
+in which case provisioning must fail without replacing the existing file.
 One run can cover package/runtime smoke, the Leserpent
 control-plane NativeAOT persistence proof, and attach/kprobe/tc in one evidence
 transaction. A first run under a new workspace identity may report `watch`
@@ -1418,8 +1430,43 @@ reads each response piece before sending the next, and checks the actual BPF
 events rather than assuming write boundaries equal packet boundaries. The raw
 DSL must expose the body candidate; the origin-checked result must remain 200,
 while the split response becomes 403. `--juice-shop`, `--http-boundaries`,
-`--capture-recovery`, `--capture-load`, `--capture-stream`, `--capture-runtime` and `--capture-mixed` are mutually exclusive and reject mixed/duplicate flags
+`--auth-breadth`, `--capture-recovery`, `--capture-load`, `--capture-stream`, `--capture-runtime`, `--capture-mixed`, `--capture-soak`, `--capture-soak-hour` and `--capture-memory-control` are mutually exclusive and reject mixed/duplicate flags
 before creating resources.
+
+To cross-check existing packages against real text/binary authentication protocols:
+
+```bash
+sudo target/debug/gewyvern_validate --json linux-tcp-capture --auth-breadth --out-dir target/validation/auth-breadth-new
+```
+
+This native Rust entrypoint requires the cached digest-pinned `fauria/vsftpd`
+and `osixia/openldap` images named in `auth_breadth.rs`. It never pulls images,
+publishes ports or uses host credentials. Each target gets a new internal Docker
+network, a one-core/512-MiB/128-process limit and only fixture-required capabilities.
+Owned containers, anonymous volumes and networks are removed by identity; no
+global Docker cleanup occurs. Mac does not need either image.
+
+For each target, selected success and denial connections are compared with an
+unselected denied connection to the same server. The client parses bounded
+single-line [FTP replies](https://www.rfc-editor.org/rfc/rfc959.html) or framed
+[LDAP simple-bind results](https://www.rfc-editor.org/rfc/rfc4511.html).
+Independently captured server bytes must cover a contiguous range from a real
+SYN-ACK and exactly match the client response. Gaps, conflicting bytes, truncated
+packet prefixes, unsupported framing and the 4-KiB stream bound fail closed.
+The client has an absolute exchange deadline and never exports request passwords.
+
+The same facts exercise `ftp/denied`, `ftp/session`, `ldap/bind-denied` and
+`ldap/bind` without changing their rule sources. The generic LDAP bind package
+means a response was observed, not authentication succeeded; the framed result
+code supplies that distinction. Every matching stage must reference captured
+packet evidence. JSON replay preserves facts, flows, reasons, stages and IR.
+Declared route/process probes not collected by this fixture are marked unavailable,
+not successful attachments. Requests are not captured and process IDs are not
+inferred. After both targets, fresh HTTP capture/replay must pass again.
+
+This is bounded plaintext authentication diagnosis, not vulnerability detection,
+arbitrary protocol identification, generic TCP reassembly, FTP data transfer,
+LDAP search/modify/SASL, TLS decryption, IPv6 or UDP coverage.
 
 To inject bounded collection faults and verify recovery, without Docker:
 
@@ -1577,6 +1624,85 @@ explicitly incomplete. Runtime batch analysis is not a continuous stateful
 session: TCP context does not cross batch boundaries. Full-stream serialization,
 durable storage, generic-adapter offline replay and long-duration memory behavior
 remain separate acceptance work.
+
+For bounded same-process memory retention diagnosis on glibc Linux, use:
+
+```bash
+sudo target/debug/gewyvern_validate --json linux-tcp-capture --capture-soak --out-dir target/validation/capture-soak-new
+```
+
+Three 300-second runtime capture windows use the same limits and independent
+batches, each followed by full teardown and 30 seconds idle. Every window writes
+one-second RSS/cgroup samples and roughly thirty-second allocator snapshots to
+private JSONL journals, using two fixed 8-KiB buffers and scalar first/last/peak values.
+No historical sample trees or cycle reports survive at the clean checkpoints.
+The final summary is reconstructed from small disk reports only after measurement.
+Eight observer-only checkpoints provide a no-traffic control for probe overhead.
+Post-teardown thread and file-descriptor counts must return to baseline. The
+final fresh HTTP capture/replay still has to pass. `ok` means the diagnostic
+campaign completed, not that all events were delivered or memory is leak-free.
+
+The [glibc allocator snapshot](https://man7.org/linux/man-pages/man3/malloc_info.3.html)
+covers all arenas. Nonfree space is an upper-bound diagnostic including allocator
+metadata, thread caches and measurement overhead, not exact live Rust objects.
+After all three normal windows and idle observations, one
+[diagnostic trim](https://man7.org/linux/man-pages/man3/malloc_trim.3.html)
+tests whether free pages can be returned. No trim occurs during load, no global
+allocator settings change, and this does not add trimming to production code.
+Compare both post-teardown nonfree growth and reclaimable RSS; RSS alone cannot
+distinguish a leak from allocator retention. XML snapshots are created exclusively
+with private permissions; unsupported/ambiguous totals fail instead of becoming
+zero. A fifteen-minute single-host run is not an indefinite soak guarantee.
+
+For one hour of load (three twenty-minute windows plus idle/restart), build the
+optional allocation witness and use the distinct hour mode:
+
+```bash
+cargo --config profile.dev.package.gewyvern.opt-level=2 build --locked --features capture-allocation-audit --bin gewyvern_validate
+sudo target/debug/gewyvern_validate --json linux-tcp-capture --capture-soak-hour --out-dir target/validation/capture-soak-hour-new
+```
+
+The feature installs a forwarding `System` allocator only in `gewyvern_validate`,
+not in the library or services. Two process-wide atomic counters track successful
+Rust allocations/reallocations and their frees, including cross-thread ownership.
+The allocator callback never allocates or keeps pointer maps. Snapshots contain
+requested live Rust bytes/blocks, not C allocations, allocator cache sizes or RSS.
+During load the pair is not an atomic census; compare quiescent clean checkpoints.
+The hour mode rejects an inactive witness before creating the output directory.
+Normal builds keep the default allocator. The diagnostic counters add overhead,
+so audited throughput must not be presented as an ordinary-build benchmark.
+Historical schema-1 evidence retains its original sample/report retention;
+schema 2 explicitly records journals, observer controls and clean checkpoints.
+
+After the traffic campaign, the same audited binary can isolate observer/cache
+behavior without network activity or BPF privileges:
+
+```bash
+target/debug/gewyvern_validate --json linux-tcp-capture --capture-memory-control --out-dir target/validation/capture-memory-control-new
+```
+
+This runs 256 report-free observations on the main thread and another 256 on a
+temporary worker, then joins the worker before the final snapshots and trim.
+Compare points within the same thread series: the worker includes a waiting
+parent's bookkeeping. Results are assembled after measurement, and no full
+series stays resident during the observations. Main-thread caches can remain
+after its objects are freed; worker exit provides an independent cache-lifetime
+control. Do not run this probe or builds concurrently with a throughput campaign.
+
+For a diagnostic-only cache sensitivity comparison, start a fresh control process:
+
+```bash
+env GLIBC_TUNABLES=glibc.malloc.tcache_count=0 target/debug/gewyvern_validate --json linux-tcp-capture --capture-memory-control --out-dir target/validation/capture-memory-control-no-tcache-new
+```
+
+The [glibc tunable](https://sourceware.org/glibc/manual/latest/html_node/Memory-Allocation-Tunables.html)
+disables per-thread caching for that invocation only. Compare each run's own
+first/last and min/max values, since argument lengths and thread bookkeeping
+affect absolute Rust counts. To check the actual capture path, apply the same
+per-process environment to a separate `--capture-soak` campaign. Never silently
+apply it to production or mix its throughput with a default-cache benchmark.
+Flat no-cache counters support cache retention in the paired experiment, not
+an exact attribution of every C byte or an indefinite leak-freedom guarantee.
 
 To vary packetization and connection identities, rather than equating each
 64-byte echo with one kernel event, use the separate finite campaign:

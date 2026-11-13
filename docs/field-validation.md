@@ -30,6 +30,21 @@ parallel harness. The next campaign should cover these ordered layers:
 8. Use `linux-tcp-capture --capture-stream` for the bounded 1-MiB ring-to-Rust path: baseline, continuous consumption, paused-consumer overflow/resume, repeated consumption and final baseline. Preserve counter reconciliation, per-phase completeness and actual kernel-to-sink latency. A successful fault campaign does not turn the intentionally lossy phase into complete evidence. Full runtime-ledger ingest, durable storage, arbitrary-network loss and open-loop tails remain separate acceptance work.
 9. Use `linux-tcp-capture --capture-runtime` to add actual runtime ingestion and analysis in independent, bounded 256-fact sessions. Reconcile analyzed facts with deliveries, verify representative JSON samples through fresh-session reanalysis, and preserve explicit incompleteness under a slow consumer. Batch completion latency is distinct from sink acceptance; cross-batch session state, full-stream exports and durability are not covered.
 10. Use `linux-tcp-capture --capture-mixed` for variable payloads, split/coalesced writes, half-close completion, fresh socket identities and a same-endpoint unselected neighbor. Check contiguous TCP byte ranges and actual prefixes independently of application message counts. Reject gaps/retransmission/overlap rather than claiming generalized reassembly; keep full-byte application checks separate from prefix-only capture. This is a finite correctness campaign, not a throughput or vulnerability-detection claim.
+11. Use `linux-tcp-capture --auth-breadth` to connect real FTP control and LDAP simple-bind targets to the same kernel evidence path. For each protocol, compare selected success/denial with an unselected denied neighbor, reconstruct only complete bounded server bytes, and run the existing protocol packages with JSON replay. Unsupported process/route probes remain explicitly unavailable. This does not certify the whole protocol catalog, TLS decryption, request-side payloads, FTP data transfer or LDAP search/modify/SASL.
+
+### Breadth Acceptance
+
+Count a capability by its evidence chain, not by the number of package files:
+real target response -> owned kernel identity/bytes -> runtime facts -> existing
+package stages -> replay -> negative controls -> cleanup and fresh capture.
+Keep packet-local candidates separate from framed, origin-checked conclusions.
+Client responses and target logs are independent oracles, never replacement facts.
+
+The HTTP and FTP/LDAP fixtures cover different response framing on IPv4 TCP.
+Next breadth work should target UDP/DNS, IPv6, encrypted-transport observability,
+and a database/cache exchange with real implementations. Those are separate
+gates: neither the hour-scale load proof nor the protocol registry count closes
+them. A failed or unsupported row stays visible rather than becoming a skip-pass.
 
 For runtime batch profiling, compare wall time with `CLOCK_THREAD_CPUTIME_ID`.
 Batch stages sample every call; conversion and ingestion sample every 257th

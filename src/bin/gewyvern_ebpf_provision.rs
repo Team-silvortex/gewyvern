@@ -239,8 +239,10 @@ fn render_config(uid: u32) -> String {
 }
 
 fn render_sudoers(user: &str) -> String {
+    // sudo-rs permits only a final standalone wildcard. The helper validates
+    // exact arity, flag order and bounded identifiers before any operation.
     format!(
-        "Cmnd_Alias GEWYVERN_EBPF_VALIDATION = {HELPER_PATH} probe, {HELPER_PATH} run --run-id * --device *, {HELPER_PATH} cleanup --run-id *\n{user} ALL=(root) NOPASSWD: GEWYVERN_EBPF_VALIDATION\n"
+        "Cmnd_Alias GEWYVERN_EBPF_VALIDATION = {HELPER_PATH} probe, {HELPER_PATH} run --run-id *, {HELPER_PATH} cleanup --run-id *\n{user} ALL=(root) NOPASSWD: GEWYVERN_EBPF_VALIDATION\n"
     )
 }
 
@@ -355,5 +357,30 @@ mod tests {
         assert!(!policy.contains("/bin/sh"));
         assert!(!policy.contains(" env "));
         assert_eq!(render_config(1001), "allowed_uid=1001\n");
+    }
+
+    #[test]
+    fn policy_example_matches_generator_and_uses_only_terminal_wildcards() {
+        let example = include_str!("../../packaging/gewyvern-ebpf-validation.sudoers.example")
+            .lines()
+            .filter(|line| !line.starts_with('#') && !line.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        let policy = render_sudoers("VALIDATION_USER");
+        assert_eq!(policy.trim_end(), example);
+        let commands = policy.lines().next().unwrap().split_once(" = ").unwrap().1;
+        assert_eq!(commands.split(", ").count(), 3);
+        for command in commands.split(", ") {
+            let mut words = command.split_whitespace();
+            assert_eq!(words.next(), Some(HELPER_PATH));
+            assert!(matches!(words.next(), Some("probe" | "run" | "cleanup")));
+            let arguments = words.collect::<Vec<_>>();
+            for (index, argument) in arguments.iter().enumerate() {
+                if argument.contains('*') {
+                    assert_eq!(*argument, "*");
+                    assert_eq!(index + 1, arguments.len());
+                }
+            }
+        }
     }
 }

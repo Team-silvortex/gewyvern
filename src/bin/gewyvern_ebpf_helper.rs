@@ -31,23 +31,38 @@ fn run(args: Vec<String>) -> Result<(), String> {
         return Err("sudo caller is not authorized by helper configuration".to_string());
     }
 
-    match args.as_slice() {
-        [command] if command == "probe" => {
+    match parse_command(&args)? {
+        HelperCommand::Probe => {
             println!("status=ready");
             println!("protocol={HELPER_PROTOCOL_VERSION}");
             println!("version={}", env!("CARGO_PKG_VERSION"));
             println!("allowed_uid={caller_uid}");
             Ok(())
         }
+        HelperCommand::Run { run_id, device } => run_smokes(run_id, device, caller_uid),
+        HelperCommand::Cleanup { run_id } => cleanup_run(run_id),
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+enum HelperCommand<'a> {
+    Probe,
+    Run { run_id: &'a str, device: &'a str },
+    Cleanup { run_id: &'a str },
+}
+
+fn parse_command(args: &[String]) -> Result<HelperCommand<'_>, String> {
+    match args {
+        [command] if command == "probe" => Ok(HelperCommand::Probe),
         [command, run_flag, run_id, device_flag, device]
-            if command == "run" && run_flag == "--run-id" && device_flag == "--device" =>
-        {
-            run_smokes(run_id, device, caller_uid)
-        }
-        [command, run_flag, run_id]
-            if command == "cleanup" && run_flag == "--run-id" =>
-        {
-            cleanup_run(run_id)
+            if command == "run" && run_flag == "--run-id" && device_flag == "--device" => {
+                validate_run_id(run_id)?;
+                validate_device(device)?;
+                Ok(HelperCommand::Run { run_id, device })
+            }
+        [command, run_flag, run_id] if command == "cleanup" && run_flag == "--run-id" => {
+            validate_run_id(run_id)?;
+            Ok(HelperCommand::Cleanup { run_id })
         }
         _ => Err(
             "usage: gewyvern_ebpf_helper probe | run --run-id ID --device IFACE | cleanup --run-id ID"
@@ -261,6 +276,40 @@ fn validate_device(value: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn command_parser_enforces_the_boundary_behind_terminal_sudoers_wildcards() {
+        for accepted in [
+            vec!["probe"],
+            vec!["run", "--run-id", "run-123_ok", "--device", "gwtest0"],
+            vec!["cleanup", "--run-id", "run-123_ok"],
+        ] {
+            let args = accepted.into_iter().map(str::to_owned).collect::<Vec<_>>();
+            assert!(parse_command(&args).is_ok(), "{args:?}");
+        }
+        for rejected in [
+            vec![],
+            vec!["probe", "--run-id", "other"],
+            vec!["run", "--run-id", "id"],
+            vec!["run", "--run-id", "id", "--device", "gwtest0", "extra"],
+            vec!["run", "--device", "gwtest0", "--run-id", "id"],
+            vec!["run", "--run-id", "../outside", "--device", "gwtest0"],
+            vec![
+                "run",
+                "--run-id",
+                "id --device gwtest0",
+                "--device",
+                "gwtest0",
+            ],
+            vec!["run", "--run-id", "id", "--device", "gwtest0;sh"],
+            vec!["cleanup", "--run-id", "../outside"],
+            vec!["cleanup", "--run-id", "id", "--device", "gwtest0"],
+            vec!["/bin/sh"],
+        ] {
+            let args = rejected.into_iter().map(str::to_owned).collect::<Vec<_>>();
+            assert!(parse_command(&args).is_err(), "{args:?}");
+        }
+    }
 
     #[test]
     fn config_is_unique_bounded_and_never_authorizes_root() {

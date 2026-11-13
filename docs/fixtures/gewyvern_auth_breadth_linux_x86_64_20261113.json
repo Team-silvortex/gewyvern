@@ -1,0 +1,652 @@
+{
+  "schema_version": 1,
+  "proof": "linux-real-ftp-ldap-authentication-capture-breadth",
+  "captured_on": "2026-11-13",
+  "source_base_revision": "e4df3079eebd39c035dab45e72c20085cbe97eb3",
+  "working_tree_changes": true,
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "execution": {
+    "kernel": "7.0.0-42-generic",
+    "arch": "x86_64",
+    "host_count": 1,
+    "kernel_count": 1,
+    "live_capture": "physical host, not build container",
+    "build_toolchain": "Rust 1.98.0",
+    "optimization": "gewyvern dev opt-level 2, no allocation audit",
+    "native_client": "bounded Rust FTP control and LDAP simple-bind wire clients",
+    "target_limits": {
+      "cpu_cores": 1,
+      "memory_bytes": 536870912,
+      "pids": 128
+    },
+    "protocol_rule_sources_changed": false,
+    "images_pulled": false,
+    "ports_published": false,
+    "disposable_test_credentials_only": true,
+    "macos_builds": false,
+    "macos_image_pulls": false,
+    "remote_evidence": "/home/chiharukiryu/.cache/gewyvern/evidence/20261113-auth-breadth",
+    "local_evidence": "target/validation/auth-breadth-20261113",
+    "final_campaign_directories": [
+      "run-4",
+      "run-5",
+      "run-6"
+    ],
+    "development_campaigns_excluded_from_totals": 3,
+    "client_exchange_absolute_deadline_seconds": 12
+  },
+  "artifact_bindings": {
+    "build": {
+      "target/debug/gewyvern_validate": "4488549c0039db75278064cf9c3bb2c0e48782175c9137cf560780f0c8cf46a9",
+      "src/validation_harness/linux_tcp_capture/packet_evidence.rs": "b341b5a650786657b39b41da11113b74d9cbc39282b1c30b7f164281f4e81a58",
+      "src/validation_harness/linux_tcp_capture/linux/auth_breadth.rs": "87cf75db7968e1755248ed9dd472975ba59bda7eb5156f508a4bba74981bae43",
+      "src/validation_harness/linux_tcp_capture/linux/auth_breadth/wire.rs": "d228c699d9e95ab853d0783457ec74acff98198399a60b4e26258293a4e887cb",
+      "src/validation_harness/linux_tcp_capture/linux/docker_target.rs": "e097ffded3ac1a9d45d59925fb2f97aa3ca553d896136612094d5062f79b512a"
+    },
+    "reports": {
+      "run-4/summary.json": "f6433d5b1e424c89c3cda1bb57a3e761089e392c9cd527acbd74e97ec5200755",
+      "run-5/summary.json": "60bba1d1b3d55e483d1e1e80bf1271d6fb76328b3aa05b1aa043680f22521085",
+      "run-6/summary.json": "64ff2364b7fd7c0e27a92366063239e2a14fddc2897001d131cb8510325f60e3"
+    }
+  },
+  "runs": [
+    {
+      "checks": [
+        "two_real_protocol_implementations",
+        "selected_success_and_denial",
+        "same_target_unselected_denial_excluded",
+        "kernel_bytes_match_independent_client",
+        "existing_protocol_packages_and_replay",
+        "unobserved_process_route_and_egress_not_invented",
+        "owned_internal_network_and_anonymous_volume_cleanup",
+        "fresh_HTTP_capture_after_auth"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "auth-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "FTP_data_channel",
+        "LDAP_search_modify_or_SASL",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [
+            "187fa4dfb13af19e687cd9edc493b37ee5cf22cf168386317bacba9b37ea8680",
+            "ce77d7194b449b016e91447d246ccf31839a2c568f1babd48146842a9de8741c"
+          ],
+          "anonymous_volumes_removed_with_container": true,
+          "container_id": "f2e31cf69e15329a1540eb3041ba6376dd3c5f96641f2677cff74ba278ec1fec",
+          "image": "fauria/vsftpd@sha256:6d71d7c7f1b0ab2844ec7dc7999a30aef6d758b6d8179cf5967513f87c79c177",
+          "image_id": "sha256:9bfb39139661b5c342c0200866f2bd9808e5032948f2f75c06974813d0ea38db",
+          "internal_network": true,
+          "network_id": "82a2d58963a534353db95cd66a61ad25f51a8dc4a15a1c775aac30b1fbba85ec",
+          "observations": [
+            {
+              "captured_code": 530,
+              "captured_sha256": "bf7d88115721cf635e6ec918e0e814ccd6392989739838c70b58bd62da70e7df",
+              "client_code": 530,
+              "cookie": 4146,
+              "expected_accepted": false,
+              "response_bytes": 90,
+              "response_sha256": "bf7d88115721cf635e6ec918e0e814ccd6392989739838c70b58bd62da70e7df"
+            },
+            {
+              "captured_code": 230,
+              "captured_sha256": "c98726d7d6358c5366bea28e87a387e431531517779135c4cd4bcd374a04264a",
+              "client_code": 230,
+              "cookie": 4147,
+              "expected_accepted": true,
+              "response_bytes": 91,
+              "response_sha256": "c98726d7d6358c5366bea28e87a387e431531517779135c4cd4bcd374a04264a"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "facts": 20,
+              "matched_cookies": [
+                4146
+              ],
+              "path": "protocols/ftp/denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "71690a2336c335e98018d8eb05bab48c300e8fb88f748a86ea78350d2ef62f8e",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                4147
+              ],
+              "path": "protocols/ftp/session/main.gewy",
+              "phase": "receive_auth_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "02c0dfcac1e7cdbc2b4de59bd09f4a2f5e8d0230fa04a41213d7ba8194a8f2df",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "protocol": "ftp",
+          "published_ports": false,
+          "schema_version": 1,
+          "selected_cookies": [
+            4146,
+            4147
+          ],
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_code": 530,
+          "unselected_neighbor_cookie": 12320
+        },
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "container_id": "3b98fce849de6f6eb6c0a563e3401617b349f813f90d4e3221248dc9eae17114",
+          "image": "osixia/openldap@sha256:18742e9c449c9c1afe129d3f2f3ee15fb34cc43e5f940a20f3399728f41d7c28",
+          "image_id": "sha256:2da3cf664891c7393a5a2a1b0a4d7d354f7c63491fae94e0f60a2d66519865e1",
+          "internal_network": true,
+          "network_id": "fa59d7028fe8b22f7fd88614854ccf39c7c52be7b193c0fb58e387aab7a092bd",
+          "observations": [
+            {
+              "captured_code": 49,
+              "captured_sha256": "54a0178055fb3f96546043d4c4b517e9d8a79057725e4497a65e7069d2a7cdf9",
+              "client_code": 49,
+              "cookie": 57,
+              "expected_accepted": false,
+              "response_bytes": 14,
+              "response_sha256": "54a0178055fb3f96546043d4c4b517e9d8a79057725e4497a65e7069d2a7cdf9"
+            },
+            {
+              "captured_code": 0,
+              "captured_sha256": "4ce375608c7d03787c65cf5cc8034c8366cf86d99057c403e2a9abed0cd7dd2e",
+              "client_code": 0,
+              "cookie": 58,
+              "expected_accepted": true,
+              "response_bytes": 14,
+              "response_sha256": "4ce375608c7d03787c65cf5cc8034c8366cf86d99057c403e2a9abed0cd7dd2e"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "facts": 14,
+              "matched_cookies": [
+                57
+              ],
+              "path": "protocols/ldap/bind-denied/main.gewy",
+              "phase": "receive_bind_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "f1ff21f3a74f43c360f6d41fbd37b8b80aea805b5c0eee762e659a5c829468a8",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 14,
+              "matched_cookies": [
+                57,
+                58
+              ],
+              "path": "protocols/ldap/bind/main.gewy",
+              "phase": "receive_bind_response",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "7a6671db0781b1001e244fa270c1b6a5bc4285bf24dc7555d006fb2eb6a1f730",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 4
+          },
+          "protocol": "ldap",
+          "published_ports": false,
+          "schema_version": 1,
+          "selected_cookies": [
+            57,
+            58
+          ],
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_code": 49,
+          "unselected_neighbor_cookie": 53253
+        }
+      ],
+      "schema_version": 1
+    },
+    {
+      "checks": [
+        "two_real_protocol_implementations",
+        "selected_success_and_denial",
+        "same_target_unselected_denial_excluded",
+        "kernel_bytes_match_independent_client",
+        "existing_protocol_packages_and_replay",
+        "unobserved_process_route_and_egress_not_invented",
+        "owned_internal_network_and_anonymous_volume_cleanup",
+        "fresh_HTTP_capture_after_auth"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "auth-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "FTP_data_channel",
+        "LDAP_search_modify_or_SASL",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [
+            "3f95336e375d1298787a0791bba45aa5932c52a6a5fdb010cfa9e0961a6b807c",
+            "2a0d288974920decdcc69c6d8bf2efbfd7353f7066e61cc71ba38fdc95a93dd0"
+          ],
+          "anonymous_volumes_removed_with_container": true,
+          "container_id": "1d0fdfa1bbaadf356d74e44eefba0db0b09cbb7bf152e8df28a121567007e677",
+          "image": "fauria/vsftpd@sha256:6d71d7c7f1b0ab2844ec7dc7999a30aef6d758b6d8179cf5967513f87c79c177",
+          "image_id": "sha256:9bfb39139661b5c342c0200866f2bd9808e5032948f2f75c06974813d0ea38db",
+          "internal_network": true,
+          "network_id": "0848333e4e75b9d8c64557be3ffa3b4e6e6cfae6b5af7d18d622f828b2d8f1f7",
+          "observations": [
+            {
+              "captured_code": 530,
+              "captured_sha256": "bf7d88115721cf635e6ec918e0e814ccd6392989739838c70b58bd62da70e7df",
+              "client_code": 530,
+              "cookie": 59,
+              "expected_accepted": false,
+              "response_bytes": 90,
+              "response_sha256": "bf7d88115721cf635e6ec918e0e814ccd6392989739838c70b58bd62da70e7df"
+            },
+            {
+              "captured_code": 230,
+              "captured_sha256": "c98726d7d6358c5366bea28e87a387e431531517779135c4cd4bcd374a04264a",
+              "client_code": 230,
+              "cookie": 60,
+              "expected_accepted": true,
+              "response_bytes": 91,
+              "response_sha256": "c98726d7d6358c5366bea28e87a387e431531517779135c4cd4bcd374a04264a"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "facts": 20,
+              "matched_cookies": [
+                59
+              ],
+              "path": "protocols/ftp/denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "71690a2336c335e98018d8eb05bab48c300e8fb88f748a86ea78350d2ef62f8e",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                60
+              ],
+              "path": "protocols/ftp/session/main.gewy",
+              "phase": "receive_auth_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "02c0dfcac1e7cdbc2b4de59bd09f4a2f5e8d0230fa04a41213d7ba8194a8f2df",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "protocol": "ftp",
+          "published_ports": false,
+          "schema_version": 1,
+          "selected_cookies": [
+            59,
+            60
+          ],
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_code": 530,
+          "unselected_neighbor_cookie": 12321
+        },
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "container_id": "92eb2f410fa0486af8158256ba62203288a082c3a0958725271c40d3fcdc99e2",
+          "image": "osixia/openldap@sha256:18742e9c449c9c1afe129d3f2f3ee15fb34cc43e5f940a20f3399728f41d7c28",
+          "image_id": "sha256:2da3cf664891c7393a5a2a1b0a4d7d354f7c63491fae94e0f60a2d66519865e1",
+          "internal_network": true,
+          "network_id": "8b59e0d0d9df0cf6ed635aba83372a7f7ef9357b92e230d4f52fa7918423fac2",
+          "observations": [
+            {
+              "captured_code": 49,
+              "captured_sha256": "54a0178055fb3f96546043d4c4b517e9d8a79057725e4497a65e7069d2a7cdf9",
+              "client_code": 49,
+              "cookie": 28689,
+              "expected_accepted": false,
+              "response_bytes": 14,
+              "response_sha256": "54a0178055fb3f96546043d4c4b517e9d8a79057725e4497a65e7069d2a7cdf9"
+            },
+            {
+              "captured_code": 0,
+              "captured_sha256": "4ce375608c7d03787c65cf5cc8034c8366cf86d99057c403e2a9abed0cd7dd2e",
+              "client_code": 0,
+              "cookie": 28690,
+              "expected_accepted": true,
+              "response_bytes": 14,
+              "response_sha256": "4ce375608c7d03787c65cf5cc8034c8366cf86d99057c403e2a9abed0cd7dd2e"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "facts": 14,
+              "matched_cookies": [
+                28689
+              ],
+              "path": "protocols/ldap/bind-denied/main.gewy",
+              "phase": "receive_bind_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "f1ff21f3a74f43c360f6d41fbd37b8b80aea805b5c0eee762e659a5c829468a8",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 14,
+              "matched_cookies": [
+                28689,
+                28690
+              ],
+              "path": "protocols/ldap/bind/main.gewy",
+              "phase": "receive_bind_response",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "7a6671db0781b1001e244fa270c1b6a5bc4285bf24dc7555d006fb2eb6a1f730",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 4
+          },
+          "protocol": "ldap",
+          "published_ports": false,
+          "schema_version": 1,
+          "selected_cookies": [
+            28689,
+            28690
+          ],
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_code": 49,
+          "unselected_neighbor_cookie": 61
+        }
+      ],
+      "schema_version": 1
+    },
+    {
+      "checks": [
+        "two_real_protocol_implementations",
+        "selected_success_and_denial",
+        "same_target_unselected_denial_excluded",
+        "kernel_bytes_match_independent_client",
+        "existing_protocol_packages_and_replay",
+        "unobserved_process_route_and_egress_not_invented",
+        "owned_internal_network_and_anonymous_volume_cleanup",
+        "fresh_HTTP_capture_after_auth"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "auth-breadth",
+      "not_proven": [
+        "TLS_decryption",
+        "arbitrary_protocol_detection",
+        "general_TCP_reassembly",
+        "vulnerability_exploitation_detection",
+        "FTP_data_channel",
+        "LDAP_search_modify_or_SASL",
+        "PID_or_container_process_attribution",
+        "request_payload_capture",
+        "IPv6_or_UDP",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "anonymous_volume_ids": [
+            "6b732b57464f4f8d323e730ca9958d7730b87768fc6ff68fb34dc62e90f22fe3",
+            "a4e44a3ca6852ec57edbcc2f611a281a7ab6ffb535f699fb643f5340380a9e50"
+          ],
+          "anonymous_volumes_removed_with_container": true,
+          "container_id": "621784aec661cd19c5207ad9dafc8d7d7c531b6e300a29189fc27ebc37110cff",
+          "image": "fauria/vsftpd@sha256:6d71d7c7f1b0ab2844ec7dc7999a30aef6d758b6d8179cf5967513f87c79c177",
+          "image_id": "sha256:9bfb39139661b5c342c0200866f2bd9808e5032948f2f75c06974813d0ea38db",
+          "internal_network": true,
+          "network_id": "5a3c1620b03bbf7d000ead61b56aa8348cc964b7e341b59faac1285b99269544",
+          "observations": [
+            {
+              "captured_code": 530,
+              "captured_sha256": "bf7d88115721cf635e6ec918e0e814ccd6392989739838c70b58bd62da70e7df",
+              "client_code": 530,
+              "cookie": 28691,
+              "expected_accepted": false,
+              "response_bytes": 90,
+              "response_sha256": "bf7d88115721cf635e6ec918e0e814ccd6392989739838c70b58bd62da70e7df"
+            },
+            {
+              "captured_code": 230,
+              "captured_sha256": "c98726d7d6358c5366bea28e87a387e431531517779135c4cd4bcd374a04264a",
+              "client_code": 230,
+              "cookie": 28692,
+              "expected_accepted": true,
+              "response_bytes": 91,
+              "response_sha256": "c98726d7d6358c5366bea28e87a387e431531517779135c4cd4bcd374a04264a"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "facts": 20,
+              "matched_cookies": [
+                28691
+              ],
+              "path": "protocols/ftp/denied/main.gewy",
+              "phase": "receive_auth_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "71690a2336c335e98018d8eb05bab48c300e8fb88f748a86ea78350d2ef62f8e",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 20,
+              "matched_cookies": [
+                28692
+              ],
+              "path": "protocols/ftp/session/main.gewy",
+              "phase": "receive_auth_ok",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "02c0dfcac1e7cdbc2b4de59bd09f4a2f5e8d0230fa04a41213d7ba8194a8f2df",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "protocol": "ftp",
+          "published_ports": false,
+          "schema_version": 1,
+          "selected_cookies": [
+            28691,
+            28692
+          ],
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_code": 530,
+          "unselected_neighbor_cookie": 62
+        },
+        {
+          "anonymous_volume_ids": [],
+          "anonymous_volumes_removed_with_container": true,
+          "container_id": "2bd6f3db367b84905074ff2f673fe550e1f4c3030535331ba2ad2893ed5e7631",
+          "image": "osixia/openldap@sha256:18742e9c449c9c1afe129d3f2f3ee15fb34cc43e5f940a20f3399728f41d7c28",
+          "image_id": "sha256:2da3cf664891c7393a5a2a1b0a4d7d354f7c63491fae94e0f60a2d66519865e1",
+          "internal_network": true,
+          "network_id": "389d708b8925e988ff24c26691e911138836209638aef1cd2377bfa648ec21ae",
+          "observations": [
+            {
+              "captured_code": 49,
+              "captured_sha256": "54a0178055fb3f96546043d4c4b517e9d8a79057725e4497a65e7069d2a7cdf9",
+              "client_code": 49,
+              "cookie": 20510,
+              "expected_accepted": false,
+              "response_bytes": 14,
+              "response_sha256": "54a0178055fb3f96546043d4c4b517e9d8a79057725e4497a65e7069d2a7cdf9"
+            },
+            {
+              "captured_code": 0,
+              "captured_sha256": "4ce375608c7d03787c65cf5cc8034c8366cf86d99057c403e2a9abed0cd7dd2e",
+              "client_code": 0,
+              "cookie": 20511,
+              "expected_accepted": true,
+              "response_bytes": 14,
+              "response_sha256": "4ce375608c7d03787c65cf5cc8034c8366cf86d99057c403e2a9abed0cd7dd2e"
+            }
+          ],
+          "ok": true,
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "facts": 14,
+              "matched_cookies": [
+                20510
+              ],
+              "path": "protocols/ldap/bind-denied/main.gewy",
+              "phase": "receive_bind_denied",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "f1ff21f3a74f43c360f6d41fbd37b8b80aea805b5c0eee762e659a5c829468a8",
+              "unobserved_fragments_explicit": true
+            },
+            {
+              "facts": 14,
+              "matched_cookies": [
+                20510,
+                20511
+              ],
+              "path": "protocols/ldap/bind/main.gewy",
+              "phase": "receive_bind_response",
+              "process_attribution": false,
+              "replay_identical": true,
+              "request_payload_observed": false,
+              "source_sha256": "7a6671db0781b1001e244fa270c1b6a5bc4285bf24dc7555d006fb2eb6a1f730",
+              "unobserved_fragments_explicit": true
+            }
+          ],
+          "packet_counts": {
+            "dropped": 0,
+            "total": 4
+          },
+          "protocol": "ldap",
+          "published_ports": false,
+          "schema_version": 1,
+          "selected_cookies": [
+            20510,
+            20511
+          ],
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "unselected_neighbor_code": 49,
+          "unselected_neighbor_cookie": 8223
+        }
+      ],
+      "schema_version": 1
+    }
+  ],
+  "totals": {
+    "campaigns": 3,
+    "protocol_phases": 6,
+    "selected_connections": 12,
+    "unselected_denied_connections": 6,
+    "packet_events": 42,
+    "tcp_state_events": 60,
+    "dropped_events": 0,
+    "package_projections": 12,
+    "anonymous_volumes_removed": 6
+  },
+  "cleanup": {
+    "containers_removed": 6,
+    "networks_removed": 6,
+    "existing_container_identities_unchanged": true,
+    "existing_volume_inventory_unchanged": true,
+    "existing_volume_count": 54,
+    "global_prune_used": false
+  },
+  "interpretation": {
+    "byte_source": "kernel ingress, joined by owned socket cookie, tuple and lifetime; bounded stream anchored to captured SYN-ACK",
+    "oracle": "independently read and framed client response; never copied into kernel facts",
+    "package_scope": "four unchanged existing rule sources; packet-local stage candidates are cross-checked against complete bounded response framing",
+    "ldap_bind_phase_is_success_classification": false,
+    "missing_process_route_and_request_evidence_explicit": true,
+    "conclusion": "Repeated real plaintext authentication success/denial diagnosis and replay, not a whole-catalog or vulnerability-detection claim"
+  },
+  "not_proven": [
+    "TLS_decryption",
+    "arbitrary_protocol_detection",
+    "general_TCP_reassembly",
+    "vulnerability_exploitation_detection",
+    "FTP_data_channel",
+    "LDAP_search_modify_or_SASL",
+    "PID_or_container_process_attribution",
+    "request_payload_capture",
+    "IPv6_or_UDP",
+    "multiple_hosts_or_kernels"
+  ]
+}

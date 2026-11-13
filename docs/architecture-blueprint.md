@@ -135,7 +135,9 @@ Three narrow crates sit below product semantics rather than forming another
 authority plane:
 
 - `silvortex-bounded-io` owns security-sensitive bounded file and transport
-  mechanics without depending on any product crate.
+  mechanics, plus deadline-bounded process capture, without depending on any
+  product crate. Gewyvern's external-engine hook and native validators share its
+  cancellation, output-limit and worker-budget boundary.
 - `silvortex-identity` owns validated runtime, provisioning, retirement, and
   credential identities plus their stable scalar wire representation.
 - `gewyvern-install-contract` owns the strict installation and retirement wire

@@ -1,5 +1,6 @@
 use std::ffi::OsStr;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -198,8 +199,47 @@ fn temp_work_dir(prefix: &str) -> Result<PathBuf, LinuxEbpfSmokeError> {
     ))
 }
 
-fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+fn embedded_smoke_source(source_file: &str) -> Result<&'static str, LinuxEbpfSmokeError> {
+    match source_file {
+        "ebpf/smoke/tracepoint_min.bpf.c" => Ok(include_str!("../ebpf/smoke/tracepoint_min.bpf.c")),
+        "ebpf/smoke/kprobe_min.bpf.c" => Ok(include_str!("../ebpf/smoke/kprobe_min.bpf.c")),
+        "ebpf/smoke/tc_min.bpf.c" => Ok(include_str!("../ebpf/smoke/tc_min.bpf.c")),
+        "ebpf/smoke/attach_smoke.c" => Ok(include_str!("../ebpf/smoke/attach_smoke.c")),
+        "ebpf/smoke/attach_kprobe_smoke.c" => {
+            Ok(include_str!("../ebpf/smoke/attach_kprobe_smoke.c"))
+        }
+        _ => Err(LinuxEbpfSmokeError::InvalidTarget(
+            "unknown embedded smoke source".into(),
+        )),
+    }
+}
+
+fn materialize_smoke_source(
+    source_file: &str,
+    output_file: &Path,
+) -> Result<PathBuf, LinuxEbpfSmokeError> {
+    let source = embedded_smoke_source(source_file)?;
+    let parent = output_file.parent().ok_or_else(|| {
+        LinuxEbpfSmokeError::InvalidTarget("smoke output has no parent directory".into())
+    })?;
+    let name = Path::new(source_file)
+        .file_name()
+        .ok_or_else(|| LinuxEbpfSmokeError::InvalidTarget("smoke source has no filename".into()))?;
+    // The caller owns a fresh 0700 work directory. Refuse collisions rather than
+    // following a planted file/symlink or compiling mutable workspace source as root.
+    let path = parent.join(name);
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options
+        .open(&path)
+        .and_then(|mut file| file.write_all(source.as_bytes()))
+        .map_err(io_err)?;
+    Ok(path)
 }
 
 fn compile_bpf_smoke_object(
@@ -207,6 +247,7 @@ fn compile_bpf_smoke_object(
     output_file: &Path,
     transcript: &mut String,
 ) -> Result<(), LinuxEbpfSmokeError> {
+    let source = materialize_smoke_source(source_file, output_file)?;
     let arch_include = format!("/usr/include/{}-linux-gnu", std::env::consts::ARCH);
     let mut command = Command::new("clang");
     command
@@ -217,7 +258,7 @@ fn compile_bpf_smoke_object(
         .arg("-I/usr/include")
         .arg(format!("-I{arch_include}"))
         .arg("-c")
-        .arg(repo_root().join(source_file))
+        .arg(source)
         .arg("-o")
         .arg(output_file);
     run_command(&mut command, transcript)
@@ -228,11 +269,12 @@ fn compile_linux_smoke_loader(
     output_file: &Path,
     transcript: &mut String,
 ) -> Result<(), LinuxEbpfSmokeError> {
+    let source = materialize_smoke_source(source_file, output_file)?;
     let mut command = Command::new("cc");
     command
         .arg("-O2")
         .arg("-g")
-        .arg(repo_root().join(source_file))
+        .arg(source)
         .arg("-lbpf")
         .arg("-lelf")
         .arg("-lz")
@@ -461,14 +503,15 @@ fn io_err(err: std::io::Error) -> LinuxEbpfSmokeError {
 #[cfg(test)]
 mod tests {
     use std::env;
+    use std::fs;
     use std::io::Write as _;
     use std::path::Path;
     use std::process::{Command, ExitStatus, Output};
     use std::time::{Duration, Instant};
 
     use super::{
-        LinuxEbpfSmokeError, finalize_run_result, render_command, repo_root,
-        run_command_output_with_limits, run_tc_attach_commands_with, temp_work_dir,
+        LinuxEbpfSmokeError, embedded_smoke_source, finalize_run_result, materialize_smoke_source,
+        render_command, run_command_output_with_limits, run_tc_attach_commands_with, temp_work_dir,
         validate_netdev_name, validate_symbol_name, validate_tracepoint_name,
     };
 
@@ -483,8 +526,48 @@ mod tests {
     }
 
     #[test]
-    fn smoke_sources_are_pinned_to_the_build_workspace() {
-        assert_eq!(repo_root(), Path::new(env!("CARGO_MANIFEST_DIR")));
+    fn smoke_sources_are_embedded_in_the_artifact_and_materialized_privately() {
+        let root = temp_work_dir("embedded-source-test").unwrap();
+        for name in [
+            "tracepoint_min.bpf.c",
+            "kprobe_min.bpf.c",
+            "tc_min.bpf.c",
+            "attach_smoke.c",
+            "attach_kprobe_smoke.c",
+        ] {
+            let input = format!("ebpf/smoke/{name}");
+            let path = materialize_smoke_source(&input, &root.join("output")).unwrap();
+            assert_eq!(
+                fs::read_to_string(&path).unwrap(),
+                embedded_smoke_source(&input).unwrap()
+            );
+            assert!(materialize_smoke_source(&input, &root.join("output")).is_err());
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                assert_eq!(
+                    fs::metadata(path).unwrap().permissions().mode() & 0o777,
+                    0o600
+                );
+            }
+        }
+        assert!(embedded_smoke_source("/tmp/attach_smoke.c").is_err());
+        assert!(embedded_smoke_source("ebpf/smoke/../smoke/attach_smoke.c").is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn embedded_smoke_source_never_follows_a_preexisting_symlink() {
+        let root = temp_work_dir("embedded-source-symlink").unwrap();
+        let outside = root.join("outside");
+        fs::write(&outside, "unchanged").unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("attach_smoke.c")).unwrap();
+        assert!(
+            materialize_smoke_source("ebpf/smoke/attach_smoke.c", &root.join("loader")).is_err()
+        );
+        assert_eq!(fs::read_to_string(outside).unwrap(), "unchanged");
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[cfg(unix)]

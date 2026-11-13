@@ -38,6 +38,15 @@ pub(super) fn snapshot() -> Counts {
 
 pub(in super::super) struct Guard;
 
+impl Guard {
+    pub(in super::super) fn finish(self) -> Value {
+        let counts = snapshot();
+        drop(self);
+        // Report allocation is outside the measured lifetime.
+        counts.report()
+    }
+}
+
 pub(in super::super) fn enable() -> Guard {
     COUNTS.with(|cell| {
         assert!(cell.get().is_none());

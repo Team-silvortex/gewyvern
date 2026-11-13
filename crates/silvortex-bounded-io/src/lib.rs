@@ -1,5 +1,7 @@
 //! Product-neutral bounded I/O primitives for native service boundaries.
 
+pub mod process;
+
 use std::fs::{self, File, Metadata, OpenOptions};
 use std::io::{self, Read, Write};
 use std::net::{Ipv4Addr, Ipv6Addr, TcpStream, ToSocketAddrs};

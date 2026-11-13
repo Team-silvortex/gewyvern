@@ -111,6 +111,66 @@ current integration mode and return a JSON object on stdout.
 `gewyvern` does not assume the engine is `etragon`; `etragon` is only the
 current sibling implementation used in examples.
 
+### Failure Isolation
+
+Each process-hook invocation, including the capability handshake, has one
+five-second deadline covering stdin delivery, stdout/stderr capture and child
+completion. A leader exiting does not turn inherited open pipes into success.
+Stdout is limited to 1 MiB and stderr to 256 KiB; overflow is rejected immediately,
+without waiting for EOF. Timeout, incomplete input or oversized output produces
+the existing explicit external-engine fallback, preserving built-in diagnosis.
+The handshake and analysis are separate invocations, not one shared five-second
+budget. No-payload capability queries receive closed stdin.
+
+The hook and native validation commands share
+`silvortex_bounded_io::process::run_command_output`. On Unix, parent pipe handles
+are nonblocking and cancellation-aware; failure signals only the private process
+group created for that invocation, then reaps the direct child and joins pipe
+workers. The leader is not reaped while inherited pipes remain outstanding,
+avoiding stale process-group IDs during failure cleanup. Successful commands may
+leave descendants only if they close captured pipes. This is resource containment,
+not a security sandbox: descendants that deliberately leave the process group are
+not killed, but cannot keep the host's pipe workers alive on Unix.
+
+At most 64 I/O workers may be reserved in one process, before child creation.
+Exhaustion returns a retryable I/O error rather than creating unbounded threads.
+On non-Unix hosts, blocking inherited handles can retain a worker slot until they
+close; returning on timeout does not replenish that slot. Native Windows process
+tree cancellation still needs separate implementation and platform evidence.
+OS process creation/reaping and uninterruptible kernel waits are not preemptible;
+the deadline is not a hard real-time guarantee. Linux regressions cover inherited
+input/output, output flooding, repeated resource recovery and process-group isolation.
+
+### Recovery and Caching
+
+Only successful analysis results enter the bounded snapshot cache. Failure and
+circuit-open fallbacks are never cached: identical input can retry, contribute to
+the failure circuit, and recover after its cooldown without restarting Gewyvern.
+Cache hits on earlier successful analyses do not reset failure counters. The
+default circuit opens after three failures for 30 seconds; the existing
+`GEWY_EXTERNAL_FAILURE_CIRCUIT_THRESHOLD` and
+`GEWY_EXTERNAL_FAILURE_CIRCUIT_COOLDOWN_SECONDS` settings control these values.
+
+Failed capability handshakes are retained for five seconds, measured after the
+attempt completes, rather than forever. During that interval, successful analysis
+results may be cached with conservative advisory metadata. After it expires, the
+next uncached-eligible request retries the handshake and clears results derived
+from the old capability state before analyzing again. An open circuit still
+prevents launching either child. This is demand-driven recovery, not a background
+retry loop; it also rate-limits legacy engines that do not implement capabilities.
+Successfully parsed capability profiles remain cached until configuration changes.
+
+`tests/external_analysis_recovery_tdd.rs` starts the production Gewyvern binary,
+feeds identical facts through its socket service and reads the actual runtime API.
+A native Rust fixture injects nonzero exit, malformed output, oversized output,
+timeout and capability-only failure. The tests check fallback, circuit bypass,
+recovery without restart, capability-cache refresh, unchanged built-in evidence
+and retention of successful cache hits. Run this proof on Linux with:
+
+```sh
+cargo test -p gewyvern --locked --test external_analysis_recovery_tdd -- --nocapture
+```
+
 ## Capability Handshake
 
 Before trusting sidecar collaboration hints too strongly, `gewyvern` may also

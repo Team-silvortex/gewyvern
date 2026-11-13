@@ -10937,10 +10937,14 @@ fn shared_native_foundations_cut_the_reverse_protocol_dependency() {
     let bounded_source =
         std::fs::read_to_string(root.join("crates/silvortex-bounded-io/src/lib.rs"))
             .expect("bounded I/O source must exist");
+    let bounded_process =
+        std::fs::read_to_string(root.join("crates/silvortex-bounded-io/src/process.rs"))
+            .expect("bounded process source must exist");
     for product in ["gewyvern", "leserpent", "leselang", "etragon"] {
         assert!(
             !bounded_manifest.to_ascii_lowercase().contains(product)
-                && !bounded_source.to_ascii_lowercase().contains(product),
+                && !bounded_source.to_ascii_lowercase().contains(product)
+                && !bounded_process.to_ascii_lowercase().contains(product),
             "product-neutral bounded I/O leaked {product} semantics"
         );
     }
@@ -10983,7 +10987,23 @@ fn shared_native_foundations_cut_the_reverse_protocol_dependency() {
         .expect("bounded I/O foundation must be tracked");
     assert!(bounded.depends_on.is_empty());
     assert_eq!(bounded.independence, Independence::ReusableLibrary);
-    assert_eq!(bounded.contract.version, "1.2.0");
+    assert_eq!(bounded.contract.version, "1.3.0");
+    for surface in [
+        "shared-command-io-deadline",
+        "cancellable-unix-child-pipes",
+        "unreaped-leader-process-group-cleanup",
+        "fail-fast-command-output-limits",
+        "bounded-command-worker-admission",
+        "repeated-command-resource-recovery",
+    ] {
+        assert!(
+            bounded
+                .contract
+                .surfaces
+                .iter()
+                .any(|entry| entry == surface)
+        );
+    }
     assert!(
         bounded
             .contract
@@ -11007,7 +11027,14 @@ fn shared_native_foundations_cut_the_reverse_protocol_dependency() {
                 .contains(&surface.to_string())
         );
     }
-    for path in ["src/serve_runtime.rs", "src/bin/gewyvern_validate.rs"] {
+    for path in [
+        "src/serve_runtime.rs",
+        "src/bin/gewyvern_validate.rs",
+        "src/external_analysis.rs",
+        "tests/external_analysis_recovery_tdd.rs",
+        "tests/fixtures/external_recovery_engine.rs",
+        "docs/external-engine-contract.md",
+    ] {
         assert!(
             machine_contract
                 .evidence
@@ -15941,10 +15968,44 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(linux_attach.maturity, Maturity::Mature);
     assert_eq!(linux_attach.priority, Priority::Maintenance);
     assert_eq!(linux_attach.completion, 100);
-    assert_eq!(linux_attach.contract.version, "1.9.0");
+    assert_eq!(linux_attach.contract.version, "1.13.0");
+    for surface in [
+        "artifact-embedded-fixed-smoke-sources",
+        "exclusive-private-smoke-source-materialization",
+        "terminal-wildcard-sudo-rs-policy",
+        "same-process-runtime-memory-soak",
+        "post-teardown-all-arena-retention-diagnosis",
+        "diagnostic-only-final-allocator-trim",
+        "hour-scale-audited-runtime-soak",
+        "constant-space-diagnostic-journals",
+        "report-free-rust-live-allocation-checkpoints",
+        "traffic-free-observer-thread-exit-control",
+        "real-ftp-ldap-authentication-capture",
+        "existing-package-wire-evidence-cross-validation",
+        "unobserved-package-fragment-availability-fence",
+        "owned-target-anonymous-volume-cleanup",
+    ] {
+        assert!(
+            linux_attach
+                .contract
+                .surfaces
+                .iter()
+                .any(|entry| entry == surface)
+        );
+    }
     assert_eq!(linux_attach.contract.stability, ContractStability::Stable);
     assert!(linux_attach.blockers.is_empty());
-    assert!(linux_attach.next_gate.contains("after 2.0"));
+    assert!(linux_attach.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/gewyvern_capture_memory_hour_linux_x86_64_20261113.json"
+            && item.state == EvidenceState::Present
+    }));
+    for remaining_gate in [
+        "Longer-duration RSS behavior",
+        "supervisor/host crash recovery",
+        "independent physical-host/kernel breadth",
+    ] {
+        assert!(linux_attach.next_gate.contains(remaining_gate));
+    }
     for surface in [
         "dedicated-project-ssh-alias",
         "project-owned-remote-workspace-root",

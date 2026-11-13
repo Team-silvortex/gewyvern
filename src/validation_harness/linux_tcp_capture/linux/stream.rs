@@ -14,6 +14,7 @@ mod consumer;
 pub(super) mod mixed;
 mod ring;
 mod runtime_sink;
+pub(super) mod soak;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 struct Counts {
@@ -36,6 +37,16 @@ fn reconcile(counts: Counts, received: u64, gaps: u64) -> Result<bool, Validatio
 }
 
 fn phase(out: &Path, pause: bool, runtime: bool) -> Result<Value, ValidationError> {
+    phase_with_duration(out, pause, runtime, if pause { 10 } else { 60 }, false)
+}
+
+fn phase_with_duration(
+    out: &Path,
+    pause: bool,
+    runtime: bool,
+    seconds: u64,
+    heap_diagnostics: bool,
+) -> Result<Value, ValidationError> {
     let out = prepare_output(Some(out.to_owned()), "capture-stream")?;
     let Fixture {
         mut scope,
@@ -54,9 +65,21 @@ fn phase(out: &Path, pause: bool, runtime: bool) -> Result<Value, ValidationErro
             "stream warmup checkpoint is incomplete",
         ));
     }
-    let mut samples = vec![metrics::memory(scope.path(), 0.0)?];
+    let mut samples = Vec::new();
+    let mut journal = heap_diagnostics
+        .then(|| soak::Journal::new(&out))
+        .transpose()?;
+    let first_memory = metrics::memory(scope.path(), 0.0)?;
+    if let Some(journal) = &mut journal {
+        journal.record(&first_memory)?;
+    } else {
+        samples.push(first_memory);
+    }
+    let mut sample_count = 1usize;
     let cpu_before = metrics::Cpu::read(scope.path())?;
-    let seconds = if pause { 10 } else { 60 };
+    if let Some(journal) = &mut journal {
+        journal.record_heap(&soak::snapshot(&out, "heap-start")?)?;
+    }
     consumer.begin_measurement()?;
     let started = Instant::now();
     if !pause {
@@ -73,10 +96,28 @@ fn phase(out: &Path, pause: bool, runtime: bool) -> Result<Value, ValidationErro
             resumed_after = Some(started.elapsed().as_secs_f64());
             consumer.resume();
         }
-        samples.push(metrics::memory(
-            scope.path(),
-            started.elapsed().as_secs_f64(),
-        )?);
+        let sample = metrics::memory(scope.path(), started.elapsed().as_secs_f64())?;
+        sample_count += 1;
+        if let Some(journal) = &mut journal {
+            journal.record(&sample)?;
+        } else {
+            samples.push(sample);
+        }
+        if let Some(journal) = &mut journal
+            && sample_count.is_multiple_of(30)
+        {
+            let mut sample = soak::snapshot(&out, &format!("heap-{sample_count}"))?;
+            sample["elapsed_seconds"] = json!(started.elapsed().as_secs_f64());
+            journal.record_heap(&sample)?;
+            if sample_count.is_multiple_of(60) {
+                eprintln!(
+                    "capture soak progress: {:.0}s rss={}KiB rust_live={}B",
+                    started.elapsed().as_secs_f64(),
+                    sample["rss_kib"],
+                    sample["rust_allocations"]["live_requested_bytes"]
+                );
+            }
+        }
     }
     if consumer.failed() {
         // Stop producers before joining a failed consumer, rather than waiting out the load window.
@@ -136,14 +177,25 @@ fn phase(out: &Path, pause: bool, runtime: bool) -> Result<Value, ValidationErro
             "stream cgroup hit memory pressure or OOM",
         ));
     }
+    let observation = journal.as_ref().map(soak::Journal::report);
+    let rss = if let Some(report) = &observation {
+        report["rss_kib"].clone()
+    } else {
+        memory_summary(&samples, "rss_kib")?
+    };
+    let cgroup_memory = if let Some(report) = &observation {
+        report["cgroup_memory_bytes"].clone()
+    } else {
+        memory_summary(&samples, "cgroup_memory_bytes")?
+    };
     let report = json!({"schema_version":1,"ok":true,"observation_complete":complete,"elapsed_seconds":elapsed,
         "ring_bytes":1048576,"record_bytes":128,"consumer_batch_limit":512,"loss_policy":"nonblocking-drop-newest-no-overwrite",
         "warmup_counts":before,"final_counts":after,"requests":rtt.count(),"requests_per_second":rtt.count() as f64/elapsed,
         "measured_events":measured_total,"measured_delivered_events":measured_received,"measured_output_failures":measured_dropped,
         "delivered_events_per_second":measured_received as f64/elapsed,"measured_loss_percent":measured_dropped as f64*100.0/measured_total as f64,
         "consumer_pause_seconds":resumed_after,"delivery":delivery,"request_rtt":rtt.report(),"cpu":cpu,
-        "rss_kib":memory_summary(&samples,"rss_kib")?,"cgroup_memory_bytes":memory_summary(&samples,"cgroup_memory_bytes")?,
-        "memory_samples":samples,"memory_events":events,"transport_errors":0,"byte_integrity_errors":0,
+        "rss_kib":rss,"cgroup_memory_bytes":cgroup_memory,
+        "memory_samples":samples,"observation_journal":observation,"memory_events":events,"transport_errors":0,"byte_integrity_errors":0,
         "full_runtime_export_produced":false,"loadavg_after":fs::read_to_string("/proc/loadavg")?.trim()});
     drop(capture);
     let bytes = tool(Command::new("bpftool").args(["-j", "link", "show"]), &out)?;

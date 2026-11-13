@@ -105,10 +105,11 @@ sudo cargo run --quiet --bin gewyvern_validate -- linux-tc-smoke --dev eth0
 Each smoke writes `run.log`, `target.txt`, `environment.txt`, and
 `evidence-index.json` under `target/validation/...`; the tc path also writes
 `netdev.txt` so interface state is captured next to the attach transcript.
-Native loaders and BPF objects are compiled only from the build-time
-`CARGO_MANIFEST_DIR`; the privileged path never discovers C or BPF source from
-the caller's current directory. A relocated binary without its pinned source
-tree fails closed rather than compiling ambient files.
+The five fixed loader/BPF sources are embedded in the build artifact, then
+materialized with exclusive creation in a fresh private work directory.
+The privileged path reads neither ambient C files nor mutable files from the
+build workspace. Relocating the installed helper does not require retaining its
+source checkout; unknown source names and preexisting files/symlinks fail closed.
 Every `clang`, `cc`, loader, and `tc` subprocess has a 30-second native deadline
 and independently caps stdout and stderr at 1 MiB. Timeout kills and reaps the
 child; oversized output fails the smoke without allowing its transcript to grow

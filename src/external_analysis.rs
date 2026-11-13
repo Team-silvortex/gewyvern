@@ -1,14 +1,12 @@
 use std::collections::{HashMap, VecDeque, hash_map::DefaultHasher};
 use std::fs;
 use std::hash::{Hash, Hasher};
-use std::io::{Read, Write};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
-use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::diagnosis_runtime::{AnalysisAugmentation, AnalysisSnapshot, analysis_snapshot_json};
@@ -25,6 +23,7 @@ use self::capabilities::{ExternalCapabilityProfile, parse_external_capability_pr
 use self::parse::{parse_external_augmentations, single_json_string_field};
 
 const EXTERNAL_ENGINE_TIMEOUT: Duration = Duration::from_secs(5);
+const EXTERNAL_CAPABILITY_RETRY_DELAY: Duration = Duration::from_secs(5);
 const MAX_EXTERNAL_ENGINE_STDOUT_BYTES: usize = 1024 * 1024;
 const MAX_EXTERNAL_ENGINE_STDERR_BYTES: usize = 256 * 1024;
 const MAX_EXTERNAL_CACHE_ENTRIES: usize = 128;
@@ -72,7 +71,27 @@ struct ExternalAnalysisState {
 enum CachedCapabilities {
     #[default]
     Unknown,
-    Loaded(Option<ExternalCapabilityProfile>),
+    Loaded(ExternalCapabilityProfile),
+    Unavailable {
+        retry_at: Instant,
+    },
+}
+
+impl CachedCapabilities {
+    fn is_current(&self, now: Instant) -> bool {
+        match self {
+            Self::Loaded(_) => true,
+            Self::Unavailable { retry_at } => now < *retry_at,
+            Self::Unknown => false,
+        }
+    }
+
+    fn profile(&self) -> Option<&ExternalCapabilityProfile> {
+        match self {
+            Self::Loaded(profile) => Some(profile),
+            Self::Unknown | Self::Unavailable { .. } => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -283,38 +302,48 @@ pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot) {
         let cache_key = snapshot_cache_key(&snapshot_json);
         let cached = {
             let guard = lock_state();
-            if let Some(items) = guard.cache.get(&cache_key) {
-                items.clone()
-            } else {
-                drop(guard);
-                if let Some(reason) = current_external_circuit_block(&config.engine_bin) {
-                    external_fallback_augmentations(&reason)
-                } else {
-                    let capabilities = capability_profile_for_config(&config);
-                    let items =
-                        run_external_analysis(&config, capabilities.as_ref(), &snapshot_json)
-                            .inspect(|_| {
-                                note_external_analysis_success(&config.engine_bin);
-                            })
-                            .unwrap_or_else(|err| {
-                                note_external_analysis_failure(&config.engine_bin, &err);
-                                external_fallback_augmentations(&err)
-                            });
+            guard
+                .cache
+                .get(&cache_key)
+                .filter(|_| {
+                    guard.config.as_ref() == Some(&config)
+                        && guard.capabilities.is_current(Instant::now())
+                })
+                .cloned()
+        };
+        let items = if let Some(items) = cached {
+            items
+        } else if let Some(reason) = current_external_circuit_block(&config.engine_bin) {
+            external_fallback_augmentations(&reason)
+        } else {
+            let capabilities = capability_profile_for_config(&config);
+            match run_external_analysis(&config, capabilities.as_ref(), &snapshot_json) {
+                Ok(items) => {
+                    note_external_analysis_success(&config.engine_bin);
                     let mut guard = lock_state();
-                    if !guard.cache.contains_key(&cache_key) {
-                        guard.cache_order.push_back(cache_key);
-                    }
-                    guard.cache.insert(cache_key, items.clone());
-                    while guard.cache_order.len() > MAX_EXTERNAL_CACHE_ENTRIES {
-                        if let Some(evicted) = guard.cache_order.pop_front() {
-                            guard.cache.remove(&evicted);
+                    if guard.config.as_ref() == Some(&config)
+                        && guard.capabilities.profile() == capabilities.as_ref()
+                    {
+                        if !guard.cache.contains_key(&cache_key) {
+                            guard.cache_order.push_back(cache_key);
+                        }
+                        guard.cache.insert(cache_key, items.clone());
+                        while guard.cache_order.len() > MAX_EXTERNAL_CACHE_ENTRIES {
+                            if let Some(evicted) = guard.cache_order.pop_front() {
+                                guard.cache.remove(&evicted);
+                            }
                         }
                     }
                     items
                 }
+                Err(err) => {
+                    // A fallback is an observation of failure, not a reusable analysis result.
+                    note_external_analysis_failure(&config.engine_bin, &err);
+                    external_fallback_augmentations(&err)
+                }
             }
         };
-        snapshot.augmentations.extend(cached);
+        snapshot.augmentations.extend(items);
     }
 }
 
@@ -379,15 +408,24 @@ fn capability_profile_for_config(
         let guard = lock_state();
         guard.capabilities.clone()
     };
-    match cached {
-        CachedCapabilities::Loaded(profile) => profile,
-        CachedCapabilities::Unknown => {
-            let profile = query_external_capabilities(config);
-            let mut guard = lock_state();
-            guard.capabilities = CachedCapabilities::Loaded(profile.clone());
-            profile
-        }
+    if cached.is_current(Instant::now()) {
+        return cached.profile().cloned();
     }
+    let profile = query_external_capabilities(config);
+    let mut guard = lock_state();
+    if guard.config.as_ref() == Some(config) {
+        // Cached augmentations contain capability-adjusted metadata; never reuse
+        // that old downgrade after refreshing a failed handshake.
+        guard.cache.clear();
+        guard.cache_order.clear();
+        guard.capabilities = match profile.clone() {
+            Some(profile) => CachedCapabilities::Loaded(profile),
+            None => CachedCapabilities::Unavailable {
+                retry_at: Instant::now() + EXTERNAL_CAPABILITY_RETRY_DELAY,
+            },
+        };
+    }
+    profile
 }
 
 fn query_external_capabilities(
@@ -421,12 +459,7 @@ fn query_external_capabilities(
     parse_external_capability_profile(&String::from_utf8_lossy(&output.stdout)).ok()
 }
 
-#[derive(Debug)]
-struct ExternalCommandOutput {
-    status: std::process::ExitStatus,
-    stdout: Vec<u8>,
-    stderr: Vec<u8>,
-}
+type ExternalCommandOutput = std::process::Output;
 
 fn run_external_command(
     mut command: Command,
@@ -435,65 +468,17 @@ fn run_external_command(
     max_stdout_bytes: usize,
     max_stderr_bytes: usize,
 ) -> Result<ExternalCommandOutput, String> {
-    if stdin_payload.is_some() {
-        command.stdin(Stdio::piped());
+    if stdin_payload.is_none() {
+        command.stdin(Stdio::null());
     }
-    let mut child = command
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|err| format!("failed to launch external engine command: {err}"))?;
-    let stdin_writer = if let Some(payload) = stdin_payload {
-        let mut stdin = child
-            .stdin
-            .take()
-            .ok_or_else(|| "external engine stdin unavailable".to_string())?;
-        let payload = payload.to_vec();
-        Some(thread::spawn(move || {
-            stdin
-                .write_all(&payload)
-                .map_err(|err| format!("failed to write snapshot to external engine stdin: {err}"))
-        }))
-    } else {
-        None
-    };
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| "external engine stdout unavailable".to_string())?;
-    let stderr = child
-        .stderr
-        .take()
-        .ok_or_else(|| "external engine stderr unavailable".to_string())?;
-    let stdout_reader =
-        thread::spawn(move || read_capped_stream(stdout, max_stdout_bytes, "stdout"));
-    let stderr_reader =
-        thread::spawn(move || read_capped_stream(stderr, max_stderr_bytes, "stderr"));
-    let wait_result = wait_for_child_with_timeout(&mut child, timeout);
-    let stdin_result = if let Some(writer) = stdin_writer {
-        Some(
-            writer
-                .join()
-                .map_err(|_| "external engine stdin writer thread panicked".to_string())?,
-        )
-    } else {
-        None
-    };
-    let stdout = stdout_reader
-        .join()
-        .map_err(|_| "external engine stdout reader thread panicked".to_string())??;
-    let stderr = stderr_reader
-        .join()
-        .map_err(|_| "external engine stderr reader thread panicked".to_string())??;
-    let status = wait_result?;
-    if let Some(result) = stdin_result {
-        result?;
-    }
-    Ok(ExternalCommandOutput {
-        status,
-        stdout,
-        stderr,
-    })
+    silvortex_bounded_io::process::run_command_output(
+        &mut command,
+        stdin_payload,
+        timeout,
+        silvortex_bounded_io::process::OutputLimits::new(max_stdout_bytes, max_stderr_bytes),
+        "external engine",
+    )
+    .map_err(|error| error.to_string())
 }
 
 fn validate_external_analysis_binary(path: &str) -> Result<(), String> {
@@ -566,64 +551,6 @@ fn snapshot_cache_key(snapshot_json: &str) -> SnapshotCacheKey {
     SnapshotCacheKey {
         len: snapshot_json.len(),
         hash: hasher.finish(),
-    }
-}
-
-fn wait_for_child_with_timeout(
-    child: &mut std::process::Child,
-    timeout: Duration,
-) -> Result<std::process::ExitStatus, String> {
-    let deadline = Instant::now() + timeout;
-    loop {
-        if let Some(status) = child
-            .try_wait()
-            .map_err(|err| format!("failed waiting for external engine: {err}"))?
-        {
-            return Ok(status);
-        }
-        if Instant::now() >= deadline {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(format!(
-                "external engine timed out after {}s",
-                timeout.as_secs().max(1)
-            ));
-        }
-        thread::sleep(Duration::from_millis(25));
-    }
-}
-
-fn read_capped_stream<R: Read>(
-    mut reader: R,
-    max_bytes: usize,
-    stream_name: &str,
-) -> Result<Vec<u8>, String> {
-    let mut output = Vec::new();
-    let mut buf = [0u8; 8192];
-    let mut overflowed = false;
-    loop {
-        let read = reader
-            .read(&mut buf)
-            .map_err(|err| format!("failed reading external engine {stream_name}: {err}"))?;
-        if read == 0 {
-            break;
-        }
-        if !overflowed {
-            let remaining = max_bytes.saturating_sub(output.len());
-            let take = remaining.min(read);
-            output.extend_from_slice(&buf[..take]);
-            if take < read {
-                overflowed = true;
-            }
-        }
-    }
-    if overflowed {
-        Err(format!(
-            "external engine {stream_name} exceeded {} bytes",
-            max_bytes
-        ))
-    } else {
-        Ok(output)
     }
 }
 
