@@ -31,7 +31,7 @@ that owns your question; do not scan the repository by filename.
 - Real DNS target through the formal CLI: [production DNS field check](production-dns-field.md)
 - Real SNMP/NTP/STUN targets through the formal CLI: [management UDP field checks](production-management-udp-field.md)
 - Formal collector packet/socket limits: [UDP boundary checks](production-udp-boundaries.md)
-- Formal collector across namespaces and MTU boundaries: [UDP network checks](production-udp-network.md)
+- Formal collector across namespaces, MTU and network faults: [UDP network checks](production-udp-network.md)
 - Live progress and evidence: [status entry](../STATUS.md)
 - Local cache retention and cleanup: [workspace hygiene](development.md#workspace-hygiene)
 

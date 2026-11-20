@@ -1,0 +1,2348 @@
+{
+  "schema_version": 1,
+  "campaign": "production-cli-private-veth-selected-port-network-loss",
+  "date": "2026-11-20",
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "source_base_commit": "69091c90bc37df328de494be1b1d63ee0b5eb04f",
+  "source_commit_subject": "2.6.6",
+  "source_worktree_dirty": true,
+  "source_sha256": {
+    "tests/production_capture_linux_tdd.rs": "7919c47c9c65bbe50ff740ce2146d08881fad10709d46a34873f0a6f0edd25ed",
+    "tests/production_capture_linux_tdd/boundaries.rs": "d4873971eeea71cac35c43f553439664ef03558a0dca4729b95ce294e2426921",
+    "tests/production_capture_linux_tdd/network.rs": "cacbcbed586e88c933277fc5c4c1e5fbead18b760d8685f00f56de90a5f891d9",
+    "tests/production_capture_linux_tdd/network/faults.rs": "77df3b7c4766a756148d413af5a25d9d0bcd124c911f2eb9df4bb62c13ffe70f",
+    "tests/native_validation_harness_tdd.rs": "a4d711d06db1dd07d0a7e0fb585f9770f75b722fdbadaf10caafb9dbc1e6ed5c",
+    "src/live_capture.rs": "fd14b4925528b4c8b22ebc3a3d0f1890c098d862fa5df8f0fdb9a59eb42448ab",
+    "src/live_capture/linux.rs": "1e166da359d5f11624e545fc2fef57182fa1a48b76c4dbc4d34dd5cd9ac084ed",
+    "src/live_capture/linux/api.rs": "77426bb0cee7018f88a3d1a0cc24d316f99ad8df35e05c962fab8382942b7d0d",
+    "src/main.rs": "c898522bdfc59485d4375b180a15f7a68ac1b5358c4dd2da18f5a2ca7bf6b5e0",
+    "src/main/capture_cli.rs": "92fa52a61995c9cf3e5fbff54d24238a26bad53ecd9f3c99c105d596d103f0c3",
+    "src/main/capture_runtime.rs": "80836255e2c49daa600ec4457faf7da9bce429faf875e2358a6a26f5dbdd1462",
+    "src/packet_capture.rs": "50cf644ff5bf466169296b79850bd8e128df60734978ee500ddb1d3c70ac8014",
+    "src/export.rs": "58691c97e23343d041630d3aafd63febb8568f0eb0114b43dbb3b45ad96b78c4",
+    "src/export/capture_codec.rs": "55c07226d16d934f7c0586e26c42fca419f46d4daab5fb9b6784ace76f6243da",
+    "ebpf/production/udp.bpf.c": "867e71774df6c9bbf69370ce712d527c0d7a8dede8eba1eff0975d76e1c1c1e3",
+    "Cargo.toml": "b4e09c55b8497e1c30df15836bbf94caaa8e34f58d3a4f926e6a9454a9817827",
+    "Cargo.lock": "e2bb05484df435e37cca096402a22f3f7480581d851cab7009b645de0630fb11"
+  },
+  "source_scope": "17 selected production, ABI, adapter, test and build inputs match the Linux workspace byte-for-byte; not a hermetic whole-worktree release manifest.",
+  "binary_sha256": {
+    "target/debug/gewyvern": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+    "target/debug/deps/production_capture_linux_tdd-297444ef8a6b069b": "7bc5aee47b3bc2240d04943dd3b7412ea348b4cbd5156ce2b50433568ae10576",
+    "target/debug/deps/native_validation_harness_tdd-b32603401b9582d2": "36c60a05f55d9effd59aa6094516675a37523739f3ff649412771da186bf0c3f"
+  },
+  "execution": {
+    "kernel": "7.0.0-43-generic",
+    "architecture": "x86_64",
+    "tc": "iproute2-6.19.0, libbpf 1.6.3",
+    "cargo_package_version": "2.5.0",
+    "build_image": "rust:1.98",
+    "build_location": "remote Linux temporary unprivileged container",
+    "build_limits": {
+      "cpus": 2,
+      "memory_gib": 4,
+      "pids": 512
+    },
+    "build_profile": "dev/test, gewyvern opt-level=2, debug=0, incremental=0",
+    "runtime": "native root host CLI, two private network namespaces with MTU-1500 veth, one selected cgroup, persistent IPv4/IPv6 UDP sockets",
+    "evidence_root": "/home/chiharukiryu/.cache/gewyvern/evidence/20261120-product-udp-network-loss",
+    "run_directories": [
+      "final-1",
+      "final-2",
+      "final-3"
+    ],
+    "test_selector": "--ignored --exact network::faults::production_capture_network_loss --nocapture",
+    "lifecycle_service_count": 200,
+    "normal_receive_deadline_ms": 3000,
+    "injected_loss_receive_deadline_ms": 350,
+    "docker_runtime_targets": false,
+    "host_network_configuration_changed": false
+  },
+  "results": {
+    "accepted_runs": 3,
+    "product_capture_sessions": 3,
+    "selected_requests": 30,
+    "successful_exchanges": 18,
+    "client_timeouts": 12,
+    "tc_drops": 12,
+    "retained_packet_facts": 96,
+    "recorded_collector_loss_in_network_runs": 0
+  },
+  "findings": {
+    "new_product_capture_defect_reproduced": false,
+    "product_binary_unchanged": true,
+    "change": "Add native persistent-worker network loss acceptance with independent selected-port TC counters and exact per-endpoint packet multisets. Share network namespace/socket setup with the earlier MTU test. No product runtime fix needed.",
+    "interpretation": "Complete capture means hook observation delivery is accounted for, not that a peer received every datagram. TC egress drops after the sender hook cause application timeouts without collector loss. Received facts are never filled from the oracle.",
+    "product_cause_classifier_claim": false,
+    "development_attempts": [
+      "attempt-1: normal receive deadline too short for fresh neighbors; corrected to 3 seconds while keeping only injected timeout paths at 350ms",
+      "attempt-2: actual TC uses flat stats.packets/stats.drops, not assumed nested basic/queue fields; corrected parser and added wrong-port rejection"
+    ],
+    "failed_attempts_counted": false
+  },
+  "runs": [
+    {
+      "binary_sha256": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+      "capture": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3484913-1795172480806960996",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "32",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "32",
+        "retained": "32",
+        "run_id": "3484926-93655803683070",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "client_timeouts": 4,
+      "facts": 32,
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "injections": [
+        {
+          "destination_port": 41002,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "actions": [
+                  {
+                    "bind": 1,
+                    "control_action": {
+                      "type": "drop"
+                    },
+                    "first_used": 0,
+                    "index": 1,
+                    "installed": 0,
+                    "kind": "gact",
+                    "last_used": 0,
+                    "order": 1,
+                    "prob": {
+                      "control_action": {
+                        "type": "pass"
+                      },
+                      "random_type": "none",
+                      "val": 0
+                    },
+                    "ref": 1,
+                    "stats": {
+                      "backlog": 0,
+                      "bytes": 74,
+                      "drops": 1,
+                      "overlimits": 0,
+                      "packets": 1,
+                      "qlen": 0,
+                      "requeues": 0
+                    }
+                  }
+                ],
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "actions": [
+                  {
+                    "bind": 1,
+                    "control_action": {
+                      "type": "drop"
+                    },
+                    "first_used": 0,
+                    "index": 2,
+                    "installed": 0,
+                    "kind": "gact",
+                    "last_used": 0,
+                    "order": 1,
+                    "prob": {
+                      "control_action": {
+                        "type": "pass"
+                      },
+                      "random_type": "none",
+                      "val": 0
+                    },
+                    "ref": 1,
+                    "stats": {
+                      "backlog": 0,
+                      "bytes": 94,
+                      "drops": 1,
+                      "overlimits": 0,
+                      "packets": 1,
+                      "qlen": 0,
+                      "requeues": 0
+                    }
+                  }
+                ],
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "namespace": "gewyvern-udp-client-3484913-1795172480785785930",
+          "phase": "request-loss",
+          "rules_removed": true
+        },
+        {
+          "destination_port": 41001,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "actions": [
+                  {
+                    "bind": 1,
+                    "control_action": {
+                      "type": "drop"
+                    },
+                    "first_used": 0,
+                    "index": 1,
+                    "installed": 0,
+                    "kind": "gact",
+                    "last_used": 0,
+                    "order": 1,
+                    "prob": {
+                      "control_action": {
+                        "type": "pass"
+                      },
+                      "random_type": "none",
+                      "val": 0
+                    },
+                    "ref": 1,
+                    "stats": {
+                      "backlog": 0,
+                      "bytes": 74,
+                      "drops": 1,
+                      "overlimits": 0,
+                      "packets": 1,
+                      "qlen": 0,
+                      "requeues": 0
+                    }
+                  }
+                ],
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "actions": [
+                  {
+                    "bind": 1,
+                    "control_action": {
+                      "type": "drop"
+                    },
+                    "first_used": 0,
+                    "index": 2,
+                    "installed": 0,
+                    "kind": "gact",
+                    "last_used": 0,
+                    "order": 1,
+                    "prob": {
+                      "control_action": {
+                        "type": "pass"
+                      },
+                      "random_type": "none",
+                      "val": 0
+                    },
+                    "ref": 1,
+                    "stats": {
+                      "backlog": 0,
+                      "bytes": 94,
+                      "drops": 1,
+                      "overlimits": 0,
+                      "packets": 1,
+                      "qlen": 0,
+                      "requeues": 0
+                    }
+                  }
+                ],
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "namespace": "gewyvern-udp-server-3484913-1795172480785785930",
+          "phase": "response-loss",
+          "rules_removed": true
+        }
+      ],
+      "limits": [
+        "single_host_private_veth",
+        "selected_udp_only",
+        "not_random_loss_or_reordering",
+        "network_loss_is_not_capture_loss",
+        "no_automatic_root_cause_or_remote_delivery_proof"
+      ],
+      "namespace_ids": [
+        1,
+        2
+      ],
+      "ok": true,
+      "oracles": [
+        {
+          "cookies": [
+            "36",
+            "37"
+          ],
+          "ifindex": 2,
+          "namespace": "net:[4026534049]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "36",
+                  "elapsed_ms": 0.068631,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "f097a0c2d4c778d5ec56193db387935bbfd8481e8de0981bcb023b99bfa29e73",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "37",
+                  "elapsed_ms": 1058.233775,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "f097a0c2d4c778d5ec56193db387935bbfd8481e8de0981bcb023b99bfa29e73",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "36",
+                  "elapsed_ms": 353.34236400000003,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "f58010cd0d2c39897d8c8168ecfa3a5e9625d550aebca9801a75b635b72a13f2",
+                  "received": false,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": true
+                },
+                {
+                  "cookie": "37",
+                  "elapsed_ms": 352.009841,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "f58010cd0d2c39897d8c8168ecfa3a5e9625d550aebca9801a75b635b72a13f2",
+                  "received": false,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": true
+                }
+              ],
+              "phase": "request-loss"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "36",
+                  "elapsed_ms": 0.051941999999999995,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "da2bcaaa892c0be51891889f5f2a4af06ae6e3018d4deaa7ca25ce451acbd39c",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "37",
+                  "elapsed_ms": 0.027809,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "da2bcaaa892c0be51891889f5f2a4af06ae6e3018d4deaa7ca25ce451acbd39c",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "request-recovery"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "36",
+                  "elapsed_ms": 355.004097,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "8b3764f7ea61b891d0644496e28dbb995467453129e26b83137086fb5f52f0e8",
+                  "received": false,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": true
+                },
+                {
+                  "cookie": "37",
+                  "elapsed_ms": 351.970691,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "8b3764f7ea61b891d0644496e28dbb995467453129e26b83137086fb5f52f0e8",
+                  "received": false,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": true
+                }
+              ],
+              "phase": "response-loss"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "36",
+                  "elapsed_ms": 0.044368,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "d2b8bf86f59a3ed0fe47560f0c146d26601a17fddebe2940b7471cd59425d4c3",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "37",
+                  "elapsed_ms": 0.030344,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "d2b8bf86f59a3ed0fe47560f0c146d26601a17fddebe2940b7471cd59425d4c3",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "response-recovery"
+            }
+          ],
+          "role": "client",
+          "same_sockets_all_phases": true
+        },
+        {
+          "cookies": [
+            "49159",
+            "49160"
+          ],
+          "ifindex": 2,
+          "namespace": "net:[4026534225]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "49159",
+                  "elapsed_ms": 0.121235,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "f097a0c2d4c778d5ec56193db387935bbfd8481e8de0981bcb023b99bfa29e73",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "49160",
+                  "elapsed_ms": 1058.257246,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "f097a0c2d4c778d5ec56193db387935bbfd8481e8de0981bcb023b99bfa29e73",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "49159",
+                  "elapsed_ms": 353.364132,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "f58010cd0d2c39897d8c8168ecfa3a5e9625d550aebca9801a75b635b72a13f2",
+                  "received": false,
+                  "remote_port": 41001,
+                  "sent": false,
+                  "timeout": true
+                },
+                {
+                  "cookie": "49160",
+                  "elapsed_ms": 352.041587,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "f58010cd0d2c39897d8c8168ecfa3a5e9625d550aebca9801a75b635b72a13f2",
+                  "received": false,
+                  "remote_port": 41001,
+                  "sent": false,
+                  "timeout": true
+                }
+              ],
+              "phase": "request-loss"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "49159",
+                  "elapsed_ms": 0.086323,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "da2bcaaa892c0be51891889f5f2a4af06ae6e3018d4deaa7ca25ce451acbd39c",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "49160",
+                  "elapsed_ms": 0.049387,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "da2bcaaa892c0be51891889f5f2a4af06ae6e3018d4deaa7ca25ce451acbd39c",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "request-recovery"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "49159",
+                  "elapsed_ms": 0.052483,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "8b3764f7ea61b891d0644496e28dbb995467453129e26b83137086fb5f52f0e8",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "49160",
+                  "elapsed_ms": 355.128607,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "8b3764f7ea61b891d0644496e28dbb995467453129e26b83137086fb5f52f0e8",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "response-loss"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "49159",
+                  "elapsed_ms": 0.095588,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "d2b8bf86f59a3ed0fe47560f0c146d26601a17fddebe2940b7471cd59425d4c3",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "49160",
+                  "elapsed_ms": 0.047654,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "d2b8bf86f59a3ed0fe47560f0c146d26601a17fddebe2940b7471cd59425d4c3",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "response-recovery"
+            }
+          ],
+          "role": "server",
+          "same_sockets_all_phases": true
+        }
+      ],
+      "owned_resources_removed": true,
+      "packet_multiset_matches": true,
+      "product_cause_classifier_claim": false,
+      "production_cli": true,
+      "replay_identical": true,
+      "same_socket_recovery": true,
+      "schema_version": 1,
+      "selected_requests": 10,
+      "successful_exchanges": 6,
+      "tc_drops": 4,
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+      "capture": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3487949-1795172540069718063",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "32",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "32",
+        "retained": "32",
+        "run_id": "3487962-93715012052218",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "client_timeouts": 4,
+      "facts": 32,
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "injections": [
+        {
+          "destination_port": 41002,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "actions": [
+                  {
+                    "bind": 1,
+                    "control_action": {
+                      "type": "drop"
+                    },
+                    "first_used": 0,
+                    "index": 1,
+                    "installed": 0,
+                    "kind": "gact",
+                    "last_used": 0,
+                    "order": 1,
+                    "prob": {
+                      "control_action": {
+                        "type": "pass"
+                      },
+                      "random_type": "none",
+                      "val": 0
+                    },
+                    "ref": 1,
+                    "stats": {
+                      "backlog": 0,
+                      "bytes": 74,
+                      "drops": 1,
+                      "overlimits": 0,
+                      "packets": 1,
+                      "qlen": 0,
+                      "requeues": 0
+                    }
+                  }
+                ],
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "actions": [
+                  {
+                    "bind": 1,
+                    "control_action": {
+                      "type": "drop"
+                    },
+                    "first_used": 0,
+                    "index": 2,
+                    "installed": 0,
+                    "kind": "gact",
+                    "last_used": 0,
+                    "order": 1,
+                    "prob": {
+                      "control_action": {
+                        "type": "pass"
+                      },
+                      "random_type": "none",
+                      "val": 0
+                    },
+                    "ref": 1,
+                    "stats": {
+                      "backlog": 0,
+                      "bytes": 94,
+                      "drops": 1,
+                      "overlimits": 0,
+                      "packets": 1,
+                      "qlen": 0,
+                      "requeues": 0
+                    }
+                  }
+                ],
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "namespace": "gewyvern-udp-client-3487949-1795172540050277670",
+          "phase": "request-loss",
+          "rules_removed": true
+        },
+        {
+          "destination_port": 41001,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "actions": [
+                  {
+                    "bind": 1,
+                    "control_action": {
+                      "type": "drop"
+                    },
+                    "first_used": 0,
+                    "index": 1,
+                    "installed": 0,
+                    "kind": "gact",
+                    "last_used": 0,
+                    "order": 1,
+                    "prob": {
+                      "control_action": {
+                        "type": "pass"
+                      },
+                      "random_type": "none",
+                      "val": 0
+                    },
+                    "ref": 1,
+                    "stats": {
+                      "backlog": 0,
+                      "bytes": 74,
+                      "drops": 1,
+                      "overlimits": 0,
+                      "packets": 1,
+                      "qlen": 0,
+                      "requeues": 0
+                    }
+                  }
+                ],
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "actions": [
+                  {
+                    "bind": 1,
+                    "control_action": {
+                      "type": "drop"
+                    },
+                    "first_used": 0,
+                    "index": 2,
+                    "installed": 0,
+                    "kind": "gact",
+                    "last_used": 0,
+                    "order": 1,
+                    "prob": {
+                      "control_action": {
+                        "type": "pass"
+                      },
+                      "random_type": "none",
+                      "val": 0
+                    },
+                    "ref": 1,
+                    "stats": {
+                      "backlog": 0,
+                      "bytes": 94,
+                      "drops": 1,
+                      "overlimits": 0,
+                      "packets": 1,
+                      "qlen": 0,
+                      "requeues": 0
+                    }
+                  }
+                ],
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "namespace": "gewyvern-udp-server-3487949-1795172540050277670",
+          "phase": "response-loss",
+          "rules_removed": true
+        }
+      ],
+      "limits": [
+        "single_host_private_veth",
+        "selected_udp_only",
+        "not_random_loss_or_reordering",
+        "network_loss_is_not_capture_loss",
+        "no_automatic_root_cause_or_remote_delivery_proof"
+      ],
+      "namespace_ids": [
+        1,
+        2
+      ],
+      "ok": true,
+      "oracles": [
+        {
+          "cookies": [
+            "53253",
+            "53254"
+          ],
+          "ifindex": 2,
+          "namespace": "net:[4026534049]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "53253",
+                  "elapsed_ms": 0.123804,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "f097a0c2d4c778d5ec56193db387935bbfd8481e8de0981bcb023b99bfa29e73",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "53254",
+                  "elapsed_ms": 1034.793324,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "f097a0c2d4c778d5ec56193db387935bbfd8481e8de0981bcb023b99bfa29e73",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "53253",
+                  "elapsed_ms": 350.557776,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "f58010cd0d2c39897d8c8168ecfa3a5e9625d550aebca9801a75b635b72a13f2",
+                  "received": false,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": true
+                },
+                {
+                  "cookie": "53254",
+                  "elapsed_ms": 352.67642900000004,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "f58010cd0d2c39897d8c8168ecfa3a5e9625d550aebca9801a75b635b72a13f2",
+                  "received": false,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": true
+                }
+              ],
+              "phase": "request-loss"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "53253",
+                  "elapsed_ms": 0.07087299999999999,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "da2bcaaa892c0be51891889f5f2a4af06ae6e3018d4deaa7ca25ce451acbd39c",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "53254",
+                  "elapsed_ms": 0.027268,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "da2bcaaa892c0be51891889f5f2a4af06ae6e3018d4deaa7ca25ce451acbd39c",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "request-recovery"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "53253",
+                  "elapsed_ms": 356.615556,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "8b3764f7ea61b891d0644496e28dbb995467453129e26b83137086fb5f52f0e8",
+                  "received": false,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": true
+                },
+                {
+                  "cookie": "53254",
+                  "elapsed_ms": 351.540826,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "8b3764f7ea61b891d0644496e28dbb995467453129e26b83137086fb5f52f0e8",
+                  "received": false,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": true
+                }
+              ],
+              "phase": "response-loss"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "53253",
+                  "elapsed_ms": 0.041161,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "d2b8bf86f59a3ed0fe47560f0c146d26601a17fddebe2940b7471cd59425d4c3",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "53254",
+                  "elapsed_ms": 0.030753000000000003,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "d2b8bf86f59a3ed0fe47560f0c146d26601a17fddebe2940b7471cd59425d4c3",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "response-recovery"
+            }
+          ],
+          "role": "client",
+          "same_sockets_all_phases": true
+        },
+        {
+          "cookies": [
+            "16411",
+            "16412"
+          ],
+          "ifindex": 2,
+          "namespace": "net:[4026534225]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "16411",
+                  "elapsed_ms": 0.1615,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "f097a0c2d4c778d5ec56193db387935bbfd8481e8de0981bcb023b99bfa29e73",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "16412",
+                  "elapsed_ms": 1034.796339,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "f097a0c2d4c778d5ec56193db387935bbfd8481e8de0981bcb023b99bfa29e73",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "16411",
+                  "elapsed_ms": 350.556694,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "f58010cd0d2c39897d8c8168ecfa3a5e9625d550aebca9801a75b635b72a13f2",
+                  "received": false,
+                  "remote_port": 41001,
+                  "sent": false,
+                  "timeout": true
+                },
+                {
+                  "cookie": "16412",
+                  "elapsed_ms": 352.70358600000003,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "f58010cd0d2c39897d8c8168ecfa3a5e9625d550aebca9801a75b635b72a13f2",
+                  "received": false,
+                  "remote_port": 41001,
+                  "sent": false,
+                  "timeout": true
+                }
+              ],
+              "phase": "request-loss"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "16411",
+                  "elapsed_ms": 0.101465,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "da2bcaaa892c0be51891889f5f2a4af06ae6e3018d4deaa7ca25ce451acbd39c",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "16412",
+                  "elapsed_ms": 0.052851,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "da2bcaaa892c0be51891889f5f2a4af06ae6e3018d4deaa7ca25ce451acbd39c",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "request-recovery"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "16411",
+                  "elapsed_ms": 0.027398,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "8b3764f7ea61b891d0644496e28dbb995467453129e26b83137086fb5f52f0e8",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "16412",
+                  "elapsed_ms": 356.723793,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "8b3764f7ea61b891d0644496e28dbb995467453129e26b83137086fb5f52f0e8",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "response-loss"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "16411",
+                  "elapsed_ms": 0.06798699999999999,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "d2b8bf86f59a3ed0fe47560f0c146d26601a17fddebe2940b7471cd59425d4c3",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "16412",
+                  "elapsed_ms": 0.048765,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "d2b8bf86f59a3ed0fe47560f0c146d26601a17fddebe2940b7471cd59425d4c3",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "response-recovery"
+            }
+          ],
+          "role": "server",
+          "same_sockets_all_phases": true
+        }
+      ],
+      "owned_resources_removed": true,
+      "packet_multiset_matches": true,
+      "product_cause_classifier_claim": false,
+      "production_cli": true,
+      "replay_identical": true,
+      "same_socket_recovery": true,
+      "schema_version": 1,
+      "selected_requests": 10,
+      "successful_exchanges": 6,
+      "tc_drops": 4,
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+      "capture": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3488036-1795172542787783571",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "32",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "32",
+        "retained": "32",
+        "run_id": "3488049-93717729655510",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "client_timeouts": 4,
+      "facts": 32,
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "injections": [
+        {
+          "destination_port": 41002,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "actions": [
+                  {
+                    "bind": 1,
+                    "control_action": {
+                      "type": "drop"
+                    },
+                    "first_used": 0,
+                    "index": 1,
+                    "installed": 0,
+                    "kind": "gact",
+                    "last_used": 0,
+                    "order": 1,
+                    "prob": {
+                      "control_action": {
+                        "type": "pass"
+                      },
+                      "random_type": "none",
+                      "val": 0
+                    },
+                    "ref": 1,
+                    "stats": {
+                      "backlog": 0,
+                      "bytes": 74,
+                      "drops": 1,
+                      "overlimits": 0,
+                      "packets": 1,
+                      "qlen": 0,
+                      "requeues": 0
+                    }
+                  }
+                ],
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "actions": [
+                  {
+                    "bind": 1,
+                    "control_action": {
+                      "type": "drop"
+                    },
+                    "first_used": 0,
+                    "index": 2,
+                    "installed": 0,
+                    "kind": "gact",
+                    "last_used": 0,
+                    "order": 1,
+                    "prob": {
+                      "control_action": {
+                        "type": "pass"
+                      },
+                      "random_type": "none",
+                      "val": 0
+                    },
+                    "ref": 1,
+                    "stats": {
+                      "backlog": 0,
+                      "bytes": 94,
+                      "drops": 1,
+                      "overlimits": 0,
+                      "packets": 1,
+                      "qlen": 0,
+                      "requeues": 0
+                    }
+                  }
+                ],
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "namespace": "gewyvern-udp-client-3488036-1795172542768158013",
+          "phase": "request-loss",
+          "rules_removed": true
+        },
+        {
+          "destination_port": 41001,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "actions": [
+                  {
+                    "bind": 1,
+                    "control_action": {
+                      "type": "drop"
+                    },
+                    "first_used": 0,
+                    "index": 1,
+                    "installed": 0,
+                    "kind": "gact",
+                    "last_used": 0,
+                    "order": 1,
+                    "prob": {
+                      "control_action": {
+                        "type": "pass"
+                      },
+                      "random_type": "none",
+                      "val": 0
+                    },
+                    "ref": 1,
+                    "stats": {
+                      "backlog": 0,
+                      "bytes": 74,
+                      "drops": 1,
+                      "overlimits": 0,
+                      "packets": 1,
+                      "qlen": 0,
+                      "requeues": 0
+                    }
+                  }
+                ],
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "actions": [
+                  {
+                    "bind": 1,
+                    "control_action": {
+                      "type": "drop"
+                    },
+                    "first_used": 0,
+                    "index": 2,
+                    "installed": 0,
+                    "kind": "gact",
+                    "last_used": 0,
+                    "order": 1,
+                    "prob": {
+                      "control_action": {
+                        "type": "pass"
+                      },
+                      "random_type": "none",
+                      "val": 0
+                    },
+                    "ref": 1,
+                    "stats": {
+                      "backlog": 0,
+                      "bytes": 94,
+                      "drops": 1,
+                      "overlimits": 0,
+                      "packets": 1,
+                      "qlen": 0,
+                      "requeues": 0
+                    }
+                  }
+                ],
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "namespace": "gewyvern-udp-server-3488036-1795172542768158013",
+          "phase": "response-loss",
+          "rules_removed": true
+        }
+      ],
+      "limits": [
+        "single_host_private_veth",
+        "selected_udp_only",
+        "not_random_loss_or_reordering",
+        "network_loss_is_not_capture_loss",
+        "no_automatic_root_cause_or_remote_delivery_proof"
+      ],
+      "namespace_ids": [
+        1,
+        2
+      ],
+      "ok": true,
+      "oracles": [
+        {
+          "cookies": [
+            "20513",
+            "20514"
+          ],
+          "ifindex": 2,
+          "namespace": "net:[4026534226]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "20513",
+                  "elapsed_ms": 0.089144,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "f097a0c2d4c778d5ec56193db387935bbfd8481e8de0981bcb023b99bfa29e73",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "20514",
+                  "elapsed_ms": 1004.616221,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "f097a0c2d4c778d5ec56193db387935bbfd8481e8de0981bcb023b99bfa29e73",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20513",
+                  "elapsed_ms": 357.920421,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "f58010cd0d2c39897d8c8168ecfa3a5e9625d550aebca9801a75b635b72a13f2",
+                  "received": false,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": true
+                },
+                {
+                  "cookie": "20514",
+                  "elapsed_ms": 352.008589,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "f58010cd0d2c39897d8c8168ecfa3a5e9625d550aebca9801a75b635b72a13f2",
+                  "received": false,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": true
+                }
+              ],
+              "phase": "request-loss"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20513",
+                  "elapsed_ms": 0.055926,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "da2bcaaa892c0be51891889f5f2a4af06ae6e3018d4deaa7ca25ce451acbd39c",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "20514",
+                  "elapsed_ms": 0.030252,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "da2bcaaa892c0be51891889f5f2a4af06ae6e3018d4deaa7ca25ce451acbd39c",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "request-recovery"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20513",
+                  "elapsed_ms": 354.172326,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "8b3764f7ea61b891d0644496e28dbb995467453129e26b83137086fb5f52f0e8",
+                  "received": false,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": true
+                },
+                {
+                  "cookie": "20514",
+                  "elapsed_ms": 351.945174,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "8b3764f7ea61b891d0644496e28dbb995467453129e26b83137086fb5f52f0e8",
+                  "received": false,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": true
+                }
+              ],
+              "phase": "response-loss"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20513",
+                  "elapsed_ms": 0.04001,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "d2b8bf86f59a3ed0fe47560f0c146d26601a17fddebe2940b7471cd59425d4c3",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "20514",
+                  "elapsed_ms": 0.021477,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41001,
+                  "payload_sha256": "d2b8bf86f59a3ed0fe47560f0c146d26601a17fddebe2940b7471cd59425d4c3",
+                  "received": true,
+                  "remote_port": 41002,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "response-recovery"
+            }
+          ],
+          "role": "client",
+          "same_sockets_all_phases": true
+        },
+        {
+          "cookies": [
+            "8213",
+            "8214"
+          ],
+          "ifindex": 2,
+          "namespace": "net:[4026534279]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "8213",
+                  "elapsed_ms": 0.147455,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "f097a0c2d4c778d5ec56193db387935bbfd8481e8de0981bcb023b99bfa29e73",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "8214",
+                  "elapsed_ms": 1004.643478,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "f097a0c2d4c778d5ec56193db387935bbfd8481e8de0981bcb023b99bfa29e73",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8213",
+                  "elapsed_ms": 358.916071,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "f58010cd0d2c39897d8c8168ecfa3a5e9625d550aebca9801a75b635b72a13f2",
+                  "received": false,
+                  "remote_port": 41001,
+                  "sent": false,
+                  "timeout": true
+                },
+                {
+                  "cookie": "8214",
+                  "elapsed_ms": 351.044613,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "f58010cd0d2c39897d8c8168ecfa3a5e9625d550aebca9801a75b635b72a13f2",
+                  "received": false,
+                  "remote_port": 41001,
+                  "sent": false,
+                  "timeout": true
+                }
+              ],
+              "phase": "request-loss"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8213",
+                  "elapsed_ms": 0.086179,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "da2bcaaa892c0be51891889f5f2a4af06ae6e3018d4deaa7ca25ce451acbd39c",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "8214",
+                  "elapsed_ms": 0.053082,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "da2bcaaa892c0be51891889f5f2a4af06ae6e3018d4deaa7ca25ce451acbd39c",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "request-recovery"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8213",
+                  "elapsed_ms": 0.06936,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "8b3764f7ea61b891d0644496e28dbb995467453129e26b83137086fb5f52f0e8",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "8214",
+                  "elapsed_ms": 354.24798699999997,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "8b3764f7ea61b891d0644496e28dbb995467453129e26b83137086fb5f52f0e8",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "response-loss"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8213",
+                  "elapsed_ms": 0.070461,
+                  "family": 4,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "d2b8bf86f59a3ed0fe47560f0c146d26601a17fddebe2940b7471cd59425d4c3",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                },
+                {
+                  "cookie": "8214",
+                  "elapsed_ms": 0.036533,
+                  "family": 6,
+                  "length": 32,
+                  "local_port": 41002,
+                  "payload_sha256": "d2b8bf86f59a3ed0fe47560f0c146d26601a17fddebe2940b7471cd59425d4c3",
+                  "received": true,
+                  "remote_port": 41001,
+                  "sent": true,
+                  "timeout": false
+                }
+              ],
+              "phase": "response-recovery"
+            }
+          ],
+          "role": "server",
+          "same_sockets_all_phases": true
+        }
+      ],
+      "owned_resources_removed": true,
+      "packet_multiset_matches": true,
+      "product_cause_classifier_claim": false,
+      "production_cli": true,
+      "replay_identical": true,
+      "same_socket_recovery": true,
+      "schema_version": 1,
+      "selected_requests": 10,
+      "successful_exchanges": 6,
+      "tc_drops": 4,
+      "validation_capture_used": false
+    }
+  ],
+  "lifecycle_regression": {
+    "cases": [
+      {
+        "case": "oneshot_ipv4_ipv6",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-3488349-1795172547878711629",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "64",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "64",
+          "retained": "64",
+          "run_id": "3488354-93722837645422",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 46606,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "service_api_sigterm_and_exclusion",
+        "nonempty_windows": 15,
+        "running_history_snapshots": 0,
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-3488349-1795172547878711629",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "800",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "800",
+          "retained": "800",
+          "run_id": "3488450-93724997134429",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 46606,
+          "userspace_dropped": "0"
+        },
+        "terminal_history_snapshots": 1
+      },
+      {
+        "case": "kernel_overflow_and_resume",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-3488349-1795172547878711629",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "10016",
+            "no_cookie": "0",
+            "ring_dropped": "9982",
+            "unsupported": "0"
+          },
+          "received": "34",
+          "retained": "34",
+          "run_id": "3488713-93730253334364",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 46606,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "userspace_budget",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-3488349-1795172547878711629",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "64",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "64",
+          "retained": "1",
+          "run_id": "3488723-93730729257463",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 46606,
+          "userspace_dropped": "63"
+        }
+      },
+      {
+        "case": "sigkill_detaches_unpinned_links",
+        "final_counters_available": false,
+        "ok": true
+      },
+      {
+        "case": "output_failure_detaches",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-3488349-1795172547878711629",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "0",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "0",
+          "retained": "0",
+          "run_id": "3488785-93732989481704",
+          "schema_version": 1,
+          "state": "failed",
+          "udp_port": 46606,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "scope_removal_stops_capture",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-3488349-1795172547878711629",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "0",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "0",
+          "retained": "0",
+          "run_id": "3488804-93733630399158",
+          "schema_version": 1,
+          "state": "failed",
+          "udp_port": 46606,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "bounded_service_idle_shutdown",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-3488349-1795172547878711629",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "0",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "0",
+          "retained": "0",
+          "run_id": "3488809-93733732713297",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 46606,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "restart_after_kill_and_output_failure",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-3488349-1795172547878711629",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "32",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "32",
+          "retained": "32",
+          "run_id": "3488839-93734008648972",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 46606,
+          "userspace_dropped": "0"
+        }
+      }
+    ],
+    "docker_targets_used": false,
+    "no_pinned_objects": true,
+    "ok": true,
+    "owned_cgroup_removed": true,
+    "pid_attribution": false,
+    "real_production_binary": true,
+    "schema_version": 1,
+    "traffic": "native IPv4/IPv6 loopback DNS-shaped peers",
+    "udp_port": 46606,
+    "validation_capture_used": false
+  },
+  "network_regression": {
+    "binary_sha256": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+    "cases": [
+      {
+        "capture": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3488252-1795172545485612386",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "72",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "72",
+          "retained": "72",
+          "run_id": "3488265-93720427405179",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "facts": 72,
+        "fragmentation": false,
+        "hooks_detached": true,
+        "mtu": 1500,
+        "namespace_ids": [
+          1,
+          2
+        ],
+        "ok": true,
+        "oracles": [
+          {
+            "cookies": [
+              "8215",
+              "8216"
+            ],
+            "fragment_counters_delta": {
+              "Ip6FragCreates": 0,
+              "Ip6FragFails": 0,
+              "Ip6FragOKs": 0,
+              "Ip6ReasmFails": 0,
+              "Ip6ReasmOKs": 0,
+              "Ip6ReasmReqds": 0,
+              "Ip6ReasmTimeout": 0,
+              "IpFragCreates": 0,
+              "IpFragFails": 0,
+              "IpFragOKs": 0,
+              "IpReasmFails": 0,
+              "IpReasmOKs": 0,
+              "IpReasmReqds": 0,
+              "IpReasmTimeout": 0
+            },
+            "ifindex": 2,
+            "namespace": "net:[4026534049]",
+            "native_io_verified": true,
+            "role": "client"
+          },
+          {
+            "cookies": [
+              "49161",
+              "49162"
+            ],
+            "fragment_counters_delta": {
+              "Ip6FragCreates": 0,
+              "Ip6FragFails": 0,
+              "Ip6FragOKs": 0,
+              "Ip6ReasmFails": 0,
+              "Ip6ReasmOKs": 0,
+              "Ip6ReasmReqds": 0,
+              "Ip6ReasmTimeout": 0,
+              "IpFragCreates": 0,
+              "IpFragFails": 0,
+              "IpFragOKs": 0,
+              "IpReasmFails": 0,
+              "IpReasmOKs": 0,
+              "IpReasmReqds": 0,
+              "IpReasmTimeout": 0
+            },
+            "ifindex": 2,
+            "namespace": "net:[4026534225]",
+            "native_io_verified": true,
+            "role": "server"
+          }
+        ],
+        "owned_cgroups_removed": true,
+        "owned_namespaces_removed": true,
+        "payload_lengths": [
+          0,
+          1,
+          128,
+          129,
+          1400,
+          1452,
+          1,
+          0,
+          32
+        ],
+        "prefix_and_lengths_match": true,
+        "replay_identical": true
+      },
+      {
+        "capture": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3488252-1795172546658027608",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "48",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "48",
+          "retained": "48",
+          "run_id": "3488323-93721600192913",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "facts": 48,
+        "fragmentation": true,
+        "hooks_detached": true,
+        "mtu": 1500,
+        "namespace_ids": [
+          1,
+          2
+        ],
+        "ok": true,
+        "oracles": [
+          {
+            "cookies": [
+              "16413",
+              "16414"
+            ],
+            "fragment_counters_delta": {
+              "Ip6FragCreates": 47,
+              "Ip6FragFails": 0,
+              "Ip6FragOKs": 3,
+              "Ip6ReasmFails": 0,
+              "Ip6ReasmOKs": 3,
+              "Ip6ReasmReqds": 47,
+              "Ip6ReasmTimeout": 0,
+              "IpFragCreates": 46,
+              "IpFragFails": 0,
+              "IpFragOKs": 3,
+              "IpReasmFails": 0,
+              "IpReasmOKs": 3,
+              "IpReasmReqds": 46,
+              "IpReasmTimeout": 0
+            },
+            "ifindex": 2,
+            "namespace": "net:[4026534226]",
+            "native_io_verified": true,
+            "role": "client"
+          },
+          {
+            "cookies": [
+              "8217",
+              "8218"
+            ],
+            "fragment_counters_delta": {
+              "Ip6FragCreates": 47,
+              "Ip6FragFails": 0,
+              "Ip6FragOKs": 3,
+              "Ip6ReasmFails": 0,
+              "Ip6ReasmOKs": 3,
+              "Ip6ReasmReqds": 47,
+              "Ip6ReasmTimeout": 0,
+              "IpFragCreates": 46,
+              "IpFragFails": 0,
+              "IpFragOKs": 3,
+              "IpReasmFails": 0,
+              "IpReasmOKs": 3,
+              "IpReasmReqds": 46,
+              "IpReasmTimeout": 0
+            },
+            "ifindex": 2,
+            "namespace": "net:[4026534334]",
+            "native_io_verified": true,
+            "role": "server"
+          }
+        ],
+        "owned_cgroups_removed": true,
+        "owned_namespaces_removed": true,
+        "payload_lengths": [
+          1473,
+          4096,
+          60000,
+          1,
+          0,
+          32
+        ],
+        "prefix_and_lengths_match": true,
+        "replay_identical": true
+      }
+    ],
+    "host_network_changed": false,
+    "limits": [
+      "single_host_private_veth",
+      "prefix_only_above_128",
+      "no_raw_fragment_archival",
+      "no_high_load_or_physical_link_claim"
+    ],
+    "ok": true,
+    "owned_resources_removed": true,
+    "production_cli": true,
+    "schema_version": 1,
+    "validation_capture_used": false
+  },
+  "summary_projection": "Expected packet prefix arrays and network-regression observation arrays are omitted here; original worker oracles, exports and full summaries remain under evidence_root. Hashes bind those original summary bytes, not this projection.",
+  "validation": {
+    "nonprivileged_unit_tests_passed": 3,
+    "privileged_network_loss_runs_passed": 3,
+    "privileged_network_regressions_passed": 1,
+    "privileged_lifecycle_regressions_passed": 1,
+    "strict_clippy": true,
+    "clippy_command": "cargo --config profile.dev.package.gewyvern.opt-level=2 clippy --locked --test production_capture_linux_tdd --test native_validation_harness_tdd -- -D warnings",
+    "cargo_fmt_check": true,
+    "git_diff_check": true,
+    "evidence_guard_status": "passed",
+    "native_validation_harness_tests_passed": 56,
+    "native_validation_harness_tests_failed": 0,
+    "status_validation": {
+      "schema_version": 4,
+      "status": "valid",
+      "cells": 39,
+      "coverage_requirements": 37,
+      "gui_operations": 35,
+      "gui_chains": 11,
+      "gui_target_score": 100
+    },
+    "status_validation_scope": "Catalog consistency and declared GUI target coverage, not overall product readiness."
+  },
+  "raw_evidence_sha256": {
+    "final-1/summary.json": "f735683d4e65b2fde1b428737c8863a608bd2ce377c99678f94366fb84608121",
+    "final-2/summary.json": "c3b9e9eded5766d9ee7b6866bd89bb3c1ec0d68c4c52b1d1f65d73100a073f4a",
+    "final-3/summary.json": "cb6dfed7f5713a7d14fbc333d3509a6626c3b858d8d1f02b66ad9bc164d17a1c",
+    "network-regression/summary.json": "4b2be479a977f28f986e9555cacc8f315f6141afc9de066e63ff616537a24452",
+    "lifecycle-regression/summary.json": "238b2ca1b197660215430ea1e094024756dbba2ade8b395ef69aaa21419164bb",
+    "build-unit.log": "1277472b1bb0fe013479919ef3354def7663e34667f2521dd0593ff98fa79c7e",
+    "proof-build.log": "c171f6fc775554459573dbf2d411228e31e8e4c51d635faf3e3e734d7f0a8efe",
+    "clippy.log": "d06c6c282af4a4114526252784be21d605557fb5c972f10c7b3483e336ff68dc",
+    "evidence-tests.log": "786fc256b3d4a92dd34bb45d03e62ecce09bb15eaa78938eb2ec9abced8ebddd",
+    "status-validation.json": "43b0fa3c6bceb9a62b1a5114f32c280642f7308573289e7a0206b070dbada149"
+  },
+  "cleanup": {
+    "docker_inventory_restored": true,
+    "network_namespace_inventory_restored": true,
+    "before": {
+      "containers": 15,
+      "networks": 6,
+      "volumes": 54,
+      "named_network_namespaces": 0
+    },
+    "after": {
+      "containers": 15,
+      "networks": 6,
+      "volumes": 54,
+      "named_network_namespaces": 0
+    },
+    "owned_cgroups_remaining": 0,
+    "bpf_temporary_paths_remaining": 0,
+    "temporary_build_container_removed": true,
+    "removed_build_container_id": "135b4486492a2dca345e39b80b24dd88e632c260150af96f09dbbea254ad8591",
+    "other_workloads_removed": false,
+    "host_services_changed": false
+  },
+  "limits": [
+    "One host, private veth and deterministic selected-port UDP drops, not random loss, reordering, congestion, ICMP/PMTU, physical links or high load.",
+    "TC counters and test coordination establish the fixture's drop location; no automatic product root-cause classifier or remote-delivery guarantee.",
+    "All fault-test payloads are 32 bytes. This does not change the product's 128-byte payload prefix limit.",
+    "Namespace identities are run-local and process lineage remains unverified.",
+    "The lifecycle control intentionally loses records and remains incomplete; SIGKILL cannot produce final complete counters.",
+    "No release-artifact, protocol-count or status-maturity promotion."
+  ]
+}

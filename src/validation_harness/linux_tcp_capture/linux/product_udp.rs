@@ -14,89 +14,6 @@ use std::time::{Duration, Instant};
 
 pub(super) type PacketBytes = (u64, u8, Vec<u8>);
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::flow::{ProgramFlow, ProgramFlowId, ProgramOperation, ProgramStage};
-    use crate::ir::SignalKind;
-    use crate::ledger::{FactId, SessionId};
-    use crate::packet_capture::{CapturedUdpDatagram, PacketObservation};
-    use crate::runtime::{RuntimeSession, SessionConfig};
-
-    #[test]
-    fn phase_oracle_rejects_missing_foreign_and_false_positive_candidates() {
-        let mut export = RuntimeSession::start(
-            SessionConfig::for_template(crate::template::udp_debug_template()).unwrap(),
-        )
-        .unwrap()
-        .into_export_bundle();
-        let payload = vec![1, 2, 3, 4];
-        export.facts.push(
-            CapturedUdpDatagram {
-                source: "127.0.0.1:4000".parse().unwrap(),
-                destination: "127.0.0.2:123".parse().unwrap(),
-                ip_header_len: 20,
-                total_len: 32,
-                payload_len: 4,
-                payload_prefix: &payload,
-            }
-            .into_fact(PacketObservation {
-                id: FactId(1),
-                session: SessionId(1),
-                ts: std::time::UNIX_EPOCH,
-                cpu: 0,
-                ifindex: 1,
-                netns: 1,
-                socket_cookie: 7,
-                direction: PacketDir::Egress,
-            })
-            .unwrap(),
-        );
-        export.program_flows.push(ProgramFlow {
-            id: ProgramFlowId(1),
-            process: None,
-            operation: ProgramOperation::DatagramExchange,
-            transport_flows: vec![],
-            narrative: vec![],
-            stages: vec![ProgramStage::from_signal(
-                FactId(1),
-                SignalKind::DatagramObserved,
-                Some("request".into()),
-            )],
-        });
-        let plan = Plan {
-            protocol: "ntp",
-            entry: "sync",
-            port: 123,
-            request_phase: "request",
-            response_phase: "time",
-        };
-        let mut observations = vec![Observation {
-            cookie: 7,
-            request: payload,
-            response: None,
-            request_matches: true,
-            response_matches: false,
-            detail: Value::Null,
-        }];
-        assert!(check_phases(&export, &observations, &plan).is_ok());
-        observations[0].request_matches = false;
-        assert!(check_phases(&export, &observations, &plan).is_err());
-        observations[0].request_matches = true;
-        observations[0].cookie = 8;
-        assert!(check_phases(&export, &observations, &plan).is_err());
-        observations[0].cookie = 7;
-        observations[0].request[1] ^= 1;
-        assert!(check_phases(&export, &observations, &plan).is_err());
-        observations[0].request[1] ^= 1;
-        let mut missing = export.clone();
-        missing.program_flows.clear();
-        assert!(check_phases(&missing, &observations, &plan).is_err());
-        export.program_flows[0].stages[0].phase = Some("time".into());
-        assert!(check_phases(&export, &observations, &plan).is_err());
-    }
-}
-
 pub(super) struct Plan {
     pub protocol: &'static str,
     pub entry: &'static str,
@@ -448,4 +365,87 @@ pub(super) fn check_bytes(
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::flow::{ProgramFlow, ProgramFlowId, ProgramOperation, ProgramStage};
+    use crate::ir::SignalKind;
+    use crate::ledger::{FactId, SessionId};
+    use crate::packet_capture::{CapturedUdpDatagram, PacketObservation};
+    use crate::runtime::{RuntimeSession, SessionConfig};
+
+    #[test]
+    fn phase_oracle_rejects_missing_foreign_and_false_positive_candidates() {
+        let mut export = RuntimeSession::start(
+            SessionConfig::for_template(crate::template::udp_debug_template()).unwrap(),
+        )
+        .unwrap()
+        .into_export_bundle();
+        let payload = vec![1, 2, 3, 4];
+        export.facts.push(
+            CapturedUdpDatagram {
+                source: "127.0.0.1:4000".parse().unwrap(),
+                destination: "127.0.0.2:123".parse().unwrap(),
+                ip_header_len: 20,
+                total_len: 32,
+                payload_len: 4,
+                payload_prefix: &payload,
+            }
+            .into_fact(PacketObservation {
+                id: FactId(1),
+                session: SessionId(1),
+                ts: std::time::UNIX_EPOCH,
+                cpu: 0,
+                ifindex: 1,
+                netns: 1,
+                socket_cookie: 7,
+                direction: PacketDir::Egress,
+            })
+            .unwrap(),
+        );
+        export.program_flows.push(ProgramFlow {
+            id: ProgramFlowId(1),
+            process: None,
+            operation: ProgramOperation::DatagramExchange,
+            transport_flows: vec![],
+            narrative: vec![],
+            stages: vec![ProgramStage::from_signal(
+                FactId(1),
+                SignalKind::DatagramObserved,
+                Some("request".into()),
+            )],
+        });
+        let plan = Plan {
+            protocol: "ntp",
+            entry: "sync",
+            port: 123,
+            request_phase: "request",
+            response_phase: "time",
+        };
+        let mut observations = vec![Observation {
+            cookie: 7,
+            request: payload,
+            response: None,
+            request_matches: true,
+            response_matches: false,
+            detail: Value::Null,
+        }];
+        assert!(check_phases(&export, &observations, &plan).is_ok());
+        observations[0].request_matches = false;
+        assert!(check_phases(&export, &observations, &plan).is_err());
+        observations[0].request_matches = true;
+        observations[0].cookie = 8;
+        assert!(check_phases(&export, &observations, &plan).is_err());
+        observations[0].cookie = 7;
+        observations[0].request[1] ^= 1;
+        assert!(check_phases(&export, &observations, &plan).is_err());
+        observations[0].request[1] ^= 1;
+        let mut missing = export.clone();
+        missing.program_flows.clear();
+        assert!(check_phases(&missing, &observations, &plan).is_err());
+        export.program_flows[0].stages[0].phase = Some("time".into());
+        assert!(check_phases(&export, &observations, &plan).is_err());
+    }
 }

@@ -31,6 +31,9 @@ after its base header. The observer always allows the original packet. It does
 not intercept, modify or block traffic. Source or destination UDP port may
 match; both endpoints inside the scope can produce two hook observations for
 the same datagram. Counters count observations, not deduplicated wire packets.
+Real duplicate deliveries remain separate observations. The [bounded netem check](production-udp-network.md#delay-duplication-and-reordering)
+verifies multiplicity and per-socket directional sequences under delay and
+reordering; it does not establish a global wire order or transaction de-duplication.
 
 The [private veth check](production-udp-network.md) verifies IPv4/IPv6 datagrams
 that the kernel fragments and reassembles around these hooks. This does not
@@ -131,6 +134,11 @@ retained + userspace_dropped + decode_rejected = received
 ```
 
 `incomplete = true` on loss or failure. A reconciled run can still be incomplete.
+Conversely, a complete capture does not prove delivery: packets may be dropped
+after an egress hook or before reaching a selected ingress hook. Application
+timeouts are not collector-drop counters. The [isolated network-loss check](production-udp-network.md#network-loss-and-recovery)
+verifies both sides of this distinction without inventing remote reception or
+claiming automatic root-cause classification.
 Successful complete stops return 0; accounted but incomplete stops return 3;
 runtime/startup failures return 1 and invalid CLI input returns 2. Monitor the
 capture status/export, not only protocol findings. Use a supervisor policy that

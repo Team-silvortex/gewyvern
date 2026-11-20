@@ -377,18 +377,29 @@ fn check_lockfile(root: &Path, expected: &ProductVersion, errors: &mut Vec<Strin
         {
             continue;
         }
-        local += 1;
         let name = quoted_assignment(block, "name").unwrap_or("<unknown>");
+        let expected_version = independent_local_version(name).unwrap_or(&expected.raw);
+        local += usize::from(independent_local_version(name).is_none());
         match quoted_assignment(block, "version") {
-            Ok(version) if version == expected.raw => {}
+            Ok(version) if version == expected_version => {}
             Ok(version) => errors.push(format!(
-                "Cargo.lock local package {name} has version {version}, expected {expected}"
+                "Cargo.lock local package {name} has version {version}, expected {expected_version}"
             )),
             Err(error) => errors.push(format!("Cargo.lock local package {name}: {error}")),
         }
     }
     if local == 0 {
         errors.push("Cargo.lock contains no local workspace packages".to_string());
+    }
+}
+
+// Temporary third-party backports retain their upstream identity and must not
+// be silently relabeled by a product release. Unknown local crates stay strict.
+fn independent_local_version(name: &str) -> Option<&'static str> {
+    match name {
+        "russh-sftp" => Some("2.3.0"),
+        "russh-util" => Some("0.52.0"),
+        _ => None,
     }
 }
 
@@ -666,8 +677,17 @@ fn update_local_lock_versions(
         if block.starts_with("[[package]]")
             && !block.lines().any(|line| line.starts_with("source = "))
         {
+            let name = quoted_assignment(block, "name")?;
+            if let Some(version) = independent_local_version(name) {
+                if quoted_assignment(block, "version")? != version {
+                    return Err(format!(
+                        "Cargo.lock independent package {name} must retain version {version}"
+                    ));
+                }
+                blocks.push(block.to_string());
+                continue;
+            }
             if block.matches(&expected).count() != 1 {
-                let name = quoted_assignment(block, "name").unwrap_or("<unknown>");
                 return Err(format!(
                     "Cargo.lock local package {name} does not have version {current}"
                 ));
@@ -949,8 +969,15 @@ fn markdown_files(root: &Path) -> Result<Vec<PathBuf>, String> {
 }
 
 fn skipped_version_path(relative: &Path) -> bool {
-    const SKIPPED_COMPONENTS: &[&str] =
-        &[".git", "target", "node_modules", "artifacts", "bin", "obj"];
+    const SKIPPED_COMPONENTS: &[&str] = &[
+        ".git",
+        "target",
+        "node_modules",
+        "artifacts",
+        "bin",
+        "obj",
+        "vendor",
+    ];
     if relative.starts_with("docs/history") || relative.starts_with("docs/fixtures") {
         return true;
     }
@@ -1044,6 +1071,23 @@ mod tests {
         let updated = update_local_lock_versions(lock, "1.16.0", "1.17.4").unwrap();
         assert!(updated.contains("name = \"local\"\nversion = \"1.17.4\""));
         assert!(updated.contains("name = \"remote\"\nversion = \"1.16.0\""));
+    }
+
+    #[test]
+    fn lockfile_update_preserves_and_validates_independent_backports() {
+        let lock = "[[package]]\nname = \"local\"\nversion = \"2.3.0\"\n\n[[package]]\nname = \"russh-sftp\"\nversion = \"2.3.0\"\n\n[[package]]\nname = \"russh-util\"\nversion = \"0.52.0\"\n";
+        let updated = update_local_lock_versions(lock, "2.3.0", "2.4.0").unwrap();
+        assert!(updated.contains("name = \"local\"\nversion = \"2.4.0\""));
+        assert!(updated.contains("name = \"russh-sftp\"\nversion = \"2.3.0\""));
+        assert!(updated.contains("name = \"russh-util\"\nversion = \"0.52.0\""));
+        let drift = lock.replace(
+            "name = \"russh-sftp\"\nversion = \"2.3.0\"",
+            "name = \"russh-sftp\"\nversion = \"2.4.0\"",
+        );
+        assert!(update_local_lock_versions(&drift, "2.3.0", "2.4.0").is_err());
+        assert!(skipped_version_path(Path::new(
+            "vendor/russh-sftp/README.md"
+        )));
     }
 
     #[test]

@@ -30,6 +30,29 @@ If you want the nearby companion shelves around this page, use:
 - [docs/machine-contract.md](docs/machine-contract.md)
   Narrow downstream contract for automation and sidecar consumers.
 
+## Dependency Audit Policy
+
+CI runs `cargo audit --no-yanked -D warnings`; maintenance advisories are not
+silently ignored. RUSTSEC-2026-0543 marks all `chrono` versions unmaintained.
+Native SSH/SFTP remains enabled, using these temporary compatibility fixes:
+
+- `vendor/russh-sftp` retains the 2.3.0 API and replaces only its `chrono` calls
+  with `time`/standard-library timestamps. The upstream 3.0.1 fix requires a
+  newer `serde` than the pinned Leselang core allows. Provenance, retained
+  Apache-2.0 license and removal criteria are in `vendor/russh-sftp/PATCHES.md`.
+- `vendor/russh-util` retains the 0.52.0 API and backports the reviewed,
+  not-yet-merged upstream PR #825 (`1c0ddf4ac390d4cb60a431ab94b42bfd0a2486c3`).
+  It replaces the WebAssembly wall clock with monotonic `web-time`, leaving
+  native `std::time::Instant` intact.
+
+Because cargo-audit skips path/Git packages, CI additionally audits their original
+registry identities in `vendor/advisory.Cargo.lock`. Regression tests bind that
+inventory to both manifests and the actual lockfile; the main audit covers the
+actual transitive dependencies. Replace each patch and its supplemental identity
+with a released version containing the same fix when available;
+rerun the dependency audit, all-feature adapter tests and workspace Clippy/build.
+The upstream repositories' audit ignore lists are not used by this workspace.
+
 ## Intended Deployment Shape
 
 `gewyvern` should currently be treated as:

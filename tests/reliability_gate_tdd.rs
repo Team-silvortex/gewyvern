@@ -410,6 +410,10 @@ fn workflow_run_delimiters_require_yaml_quoting_or_block_scalars() {
 #[test]
 fn locked_native_dependencies_retain_reviewed_security_patches() {
     let lock = fs::read_to_string(repository_root().join("Cargo.lock")).unwrap();
+    assert!(
+        !lock.lines().any(|line| line == "name = \"chrono\""),
+        "RUSTSEC-2026-0543: native SSH/SFTP must not reintroduce unmaintained chrono"
+    );
     for (name, minimum) in [
         ("ctutils", "0.4.4"),
         ("tokio", "1.53.3"),
@@ -450,5 +454,44 @@ fn locked_native_dependencies_retain_reviewed_security_patches() {
                 );
             }
         }
+    }
+}
+
+#[test]
+fn local_compatibility_patches_retain_upstream_advisory_coverage() {
+    let root = repository_root();
+    let lock = fs::read_to_string(root.join("Cargo.lock")).unwrap();
+    let audit = fs::read_to_string(root.join("vendor/advisory.Cargo.lock")).unwrap();
+    let workflow = fs::read_to_string(root.join(".github/workflows/ci.yml")).unwrap();
+    assert!(workflow.contains(
+        "cargo audit --no-fetch --file vendor/advisory.Cargo.lock --no-yanked -D warnings"
+    ));
+    let names = ["russh-sftp", "russh-util"];
+    assert_eq!(audit.matches("[[package]]").count(), names.len());
+    for name in names {
+        let package = |document: &str| {
+            document
+                .split("[[package]]")
+                .find(|block| {
+                    block
+                        .lines()
+                        .any(|line| line == format!("name = \"{name}\""))
+                })
+                .unwrap()
+                .to_owned()
+        };
+        let local = package(&lock);
+        let upstream = package(&audit);
+        let manifest = fs::read_to_string(root.join(format!("vendor/{name}/Cargo.toml"))).unwrap();
+        let version = local
+            .lines()
+            .find(|line| line.starts_with("version = "))
+            .unwrap();
+        assert!(upstream.lines().any(|line| line == version));
+        assert!(manifest.lines().any(|line| line == version));
+        assert!(!local.lines().any(|line| line.starts_with("source = ")));
+        assert!(
+            upstream.contains("source = \"registry+https://github.com/rust-lang/crates.io-index\"")
+        );
     }
 }

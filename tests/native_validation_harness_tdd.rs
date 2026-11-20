@@ -9,6 +9,296 @@ fn read_repo_file(relative: &str) -> String {
 }
 
 #[test]
+fn product_udp_netem_proof_preserves_multiplicity_and_directional_order() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_product_udp_netem_linux_x86_64_20261120.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let phases = [
+        "baseline",
+        "delay",
+        "request-duplicate",
+        "response-duplicate",
+        "reorder",
+        "recovery",
+    ];
+    let mut ids = std::collections::BTreeSet::new();
+    for run in runs {
+        for flag in [
+            "ok",
+            "production_cli",
+            "same_socket_recovery",
+            "packet_multiset_matches",
+            "directional_order_matches",
+            "replay_identical",
+            "hooks_detached",
+            "owned_resources_removed",
+        ] {
+            assert_eq!(run[flag], true);
+        }
+        for flag in [
+            "validation_capture_used",
+            "host_network_changed",
+            "product_cause_classifier_claim",
+        ] {
+            assert_eq!(run[flag], false);
+        }
+        assert_eq!(run["selected_requests"], 48);
+        assert_eq!(run["client_replies"], 64);
+        assert_eq!(run["facts"], 224);
+        let status: gewyvern::live_capture::CaptureSnapshot =
+            serde_json::from_value(run["capture"].clone()).unwrap();
+        assert!(
+            status.final_accounted
+                && status.reconciles()
+                && !status.incomplete
+                && !status.has_loss()
+        );
+        assert_eq!(status.state, gewyvern::live_capture::CaptureState::Stopped);
+        assert_eq!(status.retained, 224);
+        assert!(ids.insert(status.run_id));
+        let oracles = run["oracles"].as_array().unwrap();
+        assert_eq!(oracles.len(), 2);
+        assert_ne!(oracles[0]["namespace"], oracles[1]["namespace"]);
+        for (oracle, server) in oracles.iter().zip([false, true]) {
+            assert_eq!(oracle["role"], if server { "server" } else { "client" });
+            assert_eq!(oracle["same_sockets_all_phases"], true);
+            let observations = oracle["phases"].as_array().unwrap();
+            assert_eq!(observations.len(), phases.len());
+            for (phase, name) in observations.iter().zip(phases) {
+                assert_eq!(phase["phase"], name);
+                let rows = phase["observations"].as_array().unwrap();
+                assert_eq!(rows.len(), 2);
+                for (family, row) in rows.iter().enumerate() {
+                    assert_eq!(row["family"], if family == 0 { 4 } else { 6 });
+                    assert_eq!(row["cookie"], oracle["cookies"][family]);
+                    assert_eq!(row["length"], 32);
+                    assert_eq!(row["extra_datagram_observed"], false);
+                    let received: Vec<u8> =
+                        serde_json::from_value(row["received_ids"].clone()).unwrap();
+                    let sent: Vec<u8> = serde_json::from_value(row["sent_ids"].clone()).unwrap();
+                    let copies = if name == "request-duplicate"
+                        || (!server && name == "response-duplicate")
+                    {
+                        2
+                    } else {
+                        1
+                    };
+                    let expected: Vec<u8> = (0..4)
+                        .flat_map(|id| std::iter::repeat_n(id, copies))
+                        .collect();
+                    let mut sorted = received.clone();
+                    sorted.sort();
+                    assert_eq!(sorted, expected);
+                    assert_eq!(
+                        sent,
+                        if server {
+                            received.clone()
+                        } else {
+                            vec![0, 1, 2, 3]
+                        }
+                    );
+                    if name == "reorder" {
+                        assert!(received.windows(2).any(|pair| pair[0] > pair[1]));
+                    } else if copies == 1 {
+                        assert_eq!(received, vec![0, 1, 2, 3]);
+                    }
+                    if name == "delay" && !server {
+                        assert!(row["receive_elapsed_ms"][0].as_f64().unwrap() >= 100.0);
+                    }
+                }
+            }
+        }
+        let injections = run["injections"].as_array().unwrap();
+        assert_eq!(injections.len(), 4);
+        for (injection, (name, port)) in injections.iter().zip([
+            ("delay", 41001),
+            ("request-duplicate", 41002),
+            ("response-duplicate", 41001),
+            ("reorder", 41002),
+        ]) {
+            assert_eq!(injection["phase"], name);
+            assert_eq!(injection["destination_port"], port);
+            assert_eq!(injection["rules_removed"], true);
+            let queues: Vec<_> = injection["queues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|q| q["kind"] == "netem")
+                .collect();
+            assert_eq!(queues.len(), 1);
+            let q = queues[0];
+            assert_eq!(q["parent"], "1:3");
+            assert_eq!(q["handle"], "30:");
+            assert_eq!(q["drops"], 0);
+            assert_eq!(q["qlen"], 0);
+            assert_eq!(
+                q["packets"],
+                if name.contains("duplicate") { 16 } else { 8 }
+            );
+            assert_eq!(q["options"]["limit"], 128);
+            if name.contains("duplicate") {
+                assert_eq!(q["options"]["duplicate"]["duplicate"], 1);
+            } else {
+                assert_eq!(q["options"]["delay"]["delay"], 0.12);
+            }
+            if name == "reorder" {
+                assert_eq!(q["options"]["gap"], 2);
+                assert_eq!(q["options"]["reorder"]["reorder"], 1);
+            }
+            let mut protocols = std::collections::BTreeSet::new();
+            for filter in injection["filters"].as_array().unwrap() {
+                if filter.get("options").is_none() {
+                    continue;
+                }
+                assert_eq!(filter["kind"], "flower");
+                assert!(protocols.insert(filter["protocol"].as_str().unwrap()));
+                assert_eq!(filter["options"]["classid"], "1:3");
+                assert_eq!(filter["options"]["keys"]["ip_proto"], "udp");
+                assert_eq!(filter["options"]["keys"]["dst_port"], port);
+            }
+            assert_eq!(protocols, std::collections::BTreeSet::from(["ip", "ipv6"]));
+        }
+    }
+    assert_eq!(ids.len(), 3);
+    assert_eq!(proof["cleanup"]["docker_inventory_restored"], true);
+    assert_eq!(
+        proof["cleanup"]["network_namespace_inventory_restored"],
+        true
+    );
+    assert_eq!(proof["cleanup"]["owned_cgroups_remaining"], 0);
+}
+
+#[test]
+fn product_udp_network_loss_proof_keeps_delivery_and_capture_loss_distinct() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_product_udp_network_loss_linux_x86_64_20261120.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let mut ids = std::collections::BTreeSet::new();
+    for run in runs {
+        for flag in [
+            "ok",
+            "production_cli",
+            "same_socket_recovery",
+            "packet_multiset_matches",
+            "replay_identical",
+            "hooks_detached",
+            "owned_resources_removed",
+        ] {
+            assert_eq!(run[flag], true);
+        }
+        for flag in [
+            "validation_capture_used",
+            "host_network_changed",
+            "product_cause_classifier_claim",
+        ] {
+            assert_eq!(run[flag], false);
+        }
+        assert_eq!(run["selected_requests"], 10);
+        assert_eq!(run["successful_exchanges"], 6);
+        assert_eq!(run["client_timeouts"], 4);
+        assert_eq!(run["tc_drops"], 4);
+        assert_eq!(run["facts"], 32);
+        let status: gewyvern::live_capture::CaptureSnapshot =
+            serde_json::from_value(run["capture"].clone()).unwrap();
+        assert!(
+            status.final_accounted
+                && status.reconciles()
+                && !status.incomplete
+                && !status.has_loss()
+        );
+        assert_eq!(status.state, gewyvern::live_capture::CaptureState::Stopped);
+        assert_eq!(status.retained, 32);
+        assert!(ids.insert(status.run_id));
+        let oracles = run["oracles"].as_array().unwrap();
+        assert_eq!(oracles.len(), 2);
+        assert_ne!(oracles[0]["namespace"], oracles[1]["namespace"]);
+        for (oracle, role) in oracles.iter().zip(["client", "server"]) {
+            assert_eq!(oracle["role"], role);
+            assert_eq!(oracle["same_sockets_all_phases"], true);
+            let phases = oracle["phases"].as_array().unwrap();
+            assert_eq!(phases.len(), 5);
+            for (phase, name) in phases.iter().zip([
+                "baseline",
+                "request-loss",
+                "request-recovery",
+                "response-loss",
+                "response-recovery",
+            ]) {
+                assert_eq!(phase["phase"], name);
+                let observations = phase["observations"].as_array().unwrap();
+                assert_eq!(observations.len(), 2);
+                for (family, observation) in observations.iter().enumerate() {
+                    let timeout =
+                        name == "request-loss" || (role == "client" && name == "response-loss");
+                    assert_eq!(observation["family"], if family == 0 { 4 } else { 6 });
+                    assert_eq!(observation["cookie"], oracle["cookies"][family]);
+                    assert_eq!(observation["timeout"], timeout);
+                    assert_eq!(observation["received"], !timeout);
+                    assert_eq!(observation["sent"], role == "client" || !timeout);
+                    assert_eq!(observation["length"], 32);
+                }
+            }
+        }
+        let injections = run["injections"].as_array().unwrap();
+        assert_eq!(injections.len(), 2);
+        for (injection, (phase, port)) in injections
+            .iter()
+            .zip([("request-loss", 41002), ("response-loss", 41001)])
+        {
+            assert_eq!(injection["phase"], phase);
+            assert_eq!(injection["destination_port"], port);
+            assert_eq!(injection["rules_removed"], true);
+            let mut protocols = std::collections::BTreeSet::new();
+            for filter in injection["filters"].as_array().unwrap() {
+                let Some(actions) = filter
+                    .pointer("/options/actions")
+                    .and_then(serde_json::Value::as_array)
+                else {
+                    continue;
+                };
+                assert_eq!(filter["kind"], "flower");
+                assert!(protocols.insert(filter["protocol"].as_str().unwrap()));
+                assert_eq!(filter["options"]["keys"]["dst_port"], port);
+                assert_eq!(filter["options"]["keys"]["ip_proto"], "udp");
+                assert_eq!(actions.len(), 1);
+                assert_eq!(actions[0]["kind"], "gact");
+                assert_eq!(actions[0]["control_action"]["type"], "drop");
+                assert_eq!(actions[0]["stats"]["packets"], 1);
+                assert_eq!(actions[0]["stats"]["drops"], 1);
+            }
+            assert_eq!(protocols, std::collections::BTreeSet::from(["ip", "ipv6"]));
+        }
+    }
+    assert_eq!(ids.len(), 3);
+    let lifecycle = proof["lifecycle_regression"]["cases"].as_array().unwrap();
+    assert_eq!(proof["lifecycle_regression"]["ok"], true);
+    for name in ["kernel_overflow_and_resume", "userspace_budget"] {
+        let case = lifecycle.iter().find(|case| case["case"] == name).unwrap();
+        let status: gewyvern::live_capture::CaptureSnapshot =
+            serde_json::from_value(case["snapshot"].clone()).unwrap();
+        assert!(
+            status.final_accounted && status.reconciles() && status.incomplete && status.has_loss()
+        );
+    }
+    assert_eq!(proof["cleanup"]["docker_inventory_restored"], true);
+    assert_eq!(
+        proof["cleanup"]["network_namespace_inventory_restored"],
+        true
+    );
+    assert_eq!(proof["cleanup"]["owned_cgroups_remaining"], 0);
+}
+
+#[test]
 fn product_udp_network_proof_requires_namespace_separation_and_real_fragmentation() {
     let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
         "docs/fixtures/gewyvern_product_udp_network_linux_x86_64_20261120.json",

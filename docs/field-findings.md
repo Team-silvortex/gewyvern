@@ -1,5 +1,56 @@
 # Field Findings
 
+## `2026-11-20` Formal UDP Capture Preserves Copies And Reordered Delivery
+
+Three final dual-stack netem runs retain 672 observations for 144 application
+requests and 192 response deliveries. The four-packet bursts exercise 120-ms
+response delay, 100% request copies, 100% response copies, deterministic request
+reordering and same-socket recovery. Live selected-port flower classifiers and
+bounded netem queues are checked, including exact transmitted counts and no
+queue drops/backlog. Captured bytes and multiplicities match native I/O; copies
+are not swallowed or attributed as extra sends at the wrong endpoint.
+
+Each socket/direction's captured order also matches native I/O. Both families
+observe `1, 3, 0, 2` during reordering; the normal recovery burst returns to
+`0, 1, 2, 3`. The delayed first replies exceed the fixture's 100-ms lower bound.
+This is an observed deterministic injection, not a general latency benchmark
+or a global order guarantee across sockets, CPUs, windows or hosts.
+
+No product defect was reproduced. The existing loss/recovery and genuinely
+fragmented MTU tests pass fresh regressions after sharing the controlled-worker
+entrypoint. The initial passed development run is not counted among the three
+final runs with stricter classifier and queue-configuration assertions.
+
+See [netem acceptance](production-udp-network.md#delay-duplication-and-reordering)
+and the [source-bound proof](fixtures/gewyvern_product_udp_netem_linux_x86_64_20261120.json).
+No transaction de-duplication, automatic network-cause classifier, random jitter,
+congestion, physical-link or sustained-load claim is made. No protocol count or
+status maturity is promoted.
+
+## `2026-11-20` Network Loss Stays Distinct From Collector Loss
+
+Three final formal-CLI runs use private MTU-1500 veth peers with deterministic
+IPv4/IPv6 request and response drops. Across 30 requests, 18 exchanges succeed
+and 12 client receives time out. TC reports exactly 12 selected-port drops;
+96 retained packet observations match independent native I/O. The same sockets
+recover after each rule is removed, with no invented client reception. Capture
+counters remain complete and loss-free: all observations reaching the selected
+hooks were delivered, despite actual downstream network loss.
+
+No product defect was reproduced. The test first needed longer normal receive
+deadlines for fresh-neighbor resolution, then correction to the host's actual
+flat TC JSON statistics layout. Failed fixture attempts are retained separately,
+not counted as accepted runs. Shared native namespace/socket setup also passes
+the earlier unfragmented and genuinely fragmented network regression. A fresh
+nine-scenario collector lifecycle regression still marks intentional ring and
+user-budget losses incomplete, keeping the two failure categories separate.
+
+See [network loss acceptance](production-udp-network.md#network-loss-and-recovery)
+and the [source-bound proof](fixtures/gewyvern_product_udp_network_loss_linux_x86_64_20261120.json).
+The test oracle, not an automatic product classifier, establishes the TC drop
+location. No random loss, reordering, congestion, physical-network or general
+root-cause claim is made. No protocol count or status maturity is promoted.
+
 ## `2026-11-20` Formal UDP Capture Crosses Private Namespace And MTU Boundaries
 
 Three final runs on kernel 7.0.0-43-generic passed six actual CLI captures over

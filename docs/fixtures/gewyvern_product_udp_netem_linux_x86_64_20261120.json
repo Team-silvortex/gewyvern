@@ -1,0 +1,4635 @@
+{
+  "schema_version": 1,
+  "campaign": "production-cli-private-veth-delay-duplication-reordering",
+  "date": "2026-11-20",
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "source_base_commit": "69091c90bc37df328de494be1b1d63ee0b5eb04f",
+  "source_commit_subject": "2.6.6",
+  "source_worktree_dirty": true,
+  "source_sha256": {
+    "tests/production_capture_linux_tdd.rs": "7919c47c9c65bbe50ff740ce2146d08881fad10709d46a34873f0a6f0edd25ed",
+    "tests/production_capture_linux_tdd/boundaries.rs": "d4873971eeea71cac35c43f553439664ef03558a0dca4729b95ce294e2426921",
+    "tests/production_capture_linux_tdd/network.rs": "93f8498be4378aed9070e5de5c2be08205b5ec4c213e4cedfab76e5311d72a15",
+    "tests/production_capture_linux_tdd/network/faults.rs": "babf573e6eea35b6f68ad64038bd0e31c16d7dd45042191589ff78f006f91939",
+    "tests/native_validation_harness_tdd.rs": "53026e5fde41c6b8c6277b61ed7fb81fa48114507df333f6ddaea217f447d280",
+    "src/live_capture.rs": "fd14b4925528b4c8b22ebc3a3d0f1890c098d862fa5df8f0fdb9a59eb42448ab",
+    "src/live_capture/linux.rs": "1e166da359d5f11624e545fc2fef57182fa1a48b76c4dbc4d34dd5cd9ac084ed",
+    "src/live_capture/linux/api.rs": "77426bb0cee7018f88a3d1a0cc24d316f99ad8df35e05c962fab8382942b7d0d",
+    "src/main.rs": "c898522bdfc59485d4375b180a15f7a68ac1b5358c4dd2da18f5a2ca7bf6b5e0",
+    "src/main/capture_cli.rs": "92fa52a61995c9cf3e5fbff54d24238a26bad53ecd9f3c99c105d596d103f0c3",
+    "src/main/capture_runtime.rs": "80836255e2c49daa600ec4457faf7da9bce429faf875e2358a6a26f5dbdd1462",
+    "src/packet_capture.rs": "50cf644ff5bf466169296b79850bd8e128df60734978ee500ddb1d3c70ac8014",
+    "src/export.rs": "58691c97e23343d041630d3aafd63febb8568f0eb0114b43dbb3b45ad96b78c4",
+    "src/export/capture_codec.rs": "55c07226d16d934f7c0586e26c42fca419f46d4daab5fb9b6784ace76f6243da",
+    "ebpf/production/udp.bpf.c": "867e71774df6c9bbf69370ce712d527c0d7a8dede8eba1eff0975d76e1c1c1e3",
+    "Cargo.toml": "b4e09c55b8497e1c30df15836bbf94caaa8e34f58d3a4f926e6a9454a9817827",
+    "Cargo.lock": "e2bb05484df435e37cca096402a22f3f7480581d851cab7009b645de0630fb11",
+    "tests/production_capture_linux_tdd/network/netem.rs": "d3114ccd6a81b7e8288f446b69540d35dfb25a262a033f16da0d5a2f1c946d73"
+  },
+  "source_scope": "18 selected production, ABI, adapter, test and build inputs match the Linux workspace byte-for-byte; not a hermetic whole-worktree release manifest.",
+  "binary_sha256": {
+    "target/debug/gewyvern": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+    "target/debug/deps/production_capture_linux_tdd-297444ef8a6b069b": "90dcd784af116b5e43d1c484cc1b12984b3ed5a3ca88f82194db0509176c49e9",
+    "target/debug/deps/native_validation_harness_tdd-b32603401b9582d2": "aaf162248e2be58defc1de6828fffc5832a03156d5e47dc54cb250a1f8440acb"
+  },
+  "execution": {
+    "kernel": "7.0.0-43-generic",
+    "architecture": "x86_64",
+    "tc": "iproute2-6.19.0, libbpf 1.6.3",
+    "cargo_package_version": "2.5.0",
+    "build_image": "rust:1.98",
+    "build_location": "remote Linux temporary unprivileged container",
+    "build_limits": {
+      "cpus": 2,
+      "memory_gib": 4,
+      "pids": 512
+    },
+    "build_profile": "dev/test, gewyvern opt-level=2, debug=0, incremental=0",
+    "runtime": "native root host CLI and persistent dual-stack peers in two private MTU-1500 network namespaces, one selected cgroup; selected UDP port routed to child netem queue",
+    "evidence_root": "/home/chiharukiryu/.cache/gewyvern/evidence/20261120-product-udp-netem",
+    "run_directories": [
+      "final-1",
+      "final-2",
+      "final-3"
+    ],
+    "test_selector": "--ignored --exact network::netem::production_capture_network_netem --nocapture",
+    "burst_datagrams_per_family": 4,
+    "payload_bytes": 32,
+    "netem_queue_limit": 128,
+    "delay_ms": 120,
+    "reorder_gap": 2,
+    "receive_deadline_ms": 3000,
+    "extra_receive_guard_ms": 40,
+    "docker_runtime_targets": false,
+    "host_network_configuration_changed": false
+  },
+  "results": {
+    "accepted_runs": 3,
+    "product_capture_sessions": 3,
+    "selected_requests": 144,
+    "client_reply_deliveries": 192,
+    "retained_packet_facts": 672,
+    "request_duplicate_copies": 24,
+    "response_duplicate_copies": 24,
+    "recorded_collector_loss": 0,
+    "recorded_netem_queue_drops": 0,
+    "delayed_first_reply_ms_min": 120.094526,
+    "delayed_first_reply_ms_max": 120.155834,
+    "reordered_client_sequences": [
+      [
+        1,
+        3,
+        0,
+        2
+      ],
+      [
+        1,
+        3,
+        0,
+        2
+      ],
+      [
+        1,
+        3,
+        0,
+        2
+      ],
+      [
+        1,
+        3,
+        0,
+        2
+      ],
+      [
+        1,
+        3,
+        0,
+        2
+      ],
+      [
+        1,
+        3,
+        0,
+        2
+      ]
+    ]
+  },
+  "findings": {
+    "new_product_capture_defect_reproduced": false,
+    "product_binary_unchanged": true,
+    "change": "Add real selected-port delay/duplication/reordering acceptance and per-socket directional-order checks. Reuse the controlled worker and native namespace/socket fixture. No product runtime change.",
+    "interpretation": "Request duplication adds server receives/sends; response duplication adds client receives but not server sends. Each copy is a distinct captured hook observation. Native receive inversions are retained per socket/direction; no global cross-CPU or cross-socket order is claimed.",
+    "product_cause_classifier_claim": false,
+    "development_attempts": [
+      "attempt-1 passed before strict live queue-configuration and flower-classifier assertions; excluded from final accepted runs"
+    ],
+    "latency_scope": "Observed first replies after deliberate 120ms delay in six bounded family/run samples, not latency percentiles, capture overhead or a general RTT benchmark."
+  },
+  "runs": [
+    {
+      "binary_sha256": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+      "capture": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3529720-1795173351618321040",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "224",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "224",
+        "retained": "224",
+        "run_id": "3529734-94526560254905",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "client_replies": 64,
+      "directional_order_matches": true,
+      "facts": 224,
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "injections": [
+        {
+          "destination_port": 41001,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "phase": "delay",
+          "queues": [
+            {
+              "backlog": 0,
+              "bytes": 758,
+              "drops": 0,
+              "handle": "1:",
+              "kind": "prio",
+              "options": {
+                "bands": 3,
+                "multiqueue": false,
+                "priomap": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "overlimits": 0,
+              "packets": 9,
+              "qlen": 0,
+              "refcnt": 17,
+              "requeues": 0,
+              "root": true
+            },
+            {
+              "backlog": 0,
+              "bytes": 672,
+              "drops": 0,
+              "handle": "30:",
+              "kind": "netem",
+              "options": {
+                "delay": {
+                  "correlation": 0,
+                  "delay": 0.12,
+                  "jitter": 0
+                },
+                "ecn": false,
+                "gap": 0,
+                "limit": 128
+              },
+              "overlimits": 0,
+              "packets": 8,
+              "parent": "1:3",
+              "qlen": 0,
+              "requeues": 0
+            }
+          ],
+          "rules_removed": true
+        },
+        {
+          "destination_port": 41002,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "phase": "request-duplicate",
+          "queues": [
+            {
+              "backlog": 0,
+              "bytes": 1344,
+              "drops": 0,
+              "handle": "1:",
+              "kind": "prio",
+              "options": {
+                "bands": 3,
+                "multiqueue": false,
+                "priomap": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "overlimits": 0,
+              "packets": 16,
+              "qlen": 0,
+              "refcnt": 17,
+              "requeues": 0,
+              "root": true
+            },
+            {
+              "backlog": 0,
+              "bytes": 1344,
+              "drops": 0,
+              "handle": "30:",
+              "kind": "netem",
+              "options": {
+                "duplicate": {
+                  "correlation": 0,
+                  "duplicate": 1
+                },
+                "ecn": false,
+                "gap": 0,
+                "limit": 128
+              },
+              "overlimits": 0,
+              "packets": 16,
+              "parent": "1:3",
+              "qlen": 0,
+              "requeues": 0
+            }
+          ],
+          "rules_removed": true
+        },
+        {
+          "destination_port": 41001,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "phase": "response-duplicate",
+          "queues": [
+            {
+              "backlog": 0,
+              "bytes": 1344,
+              "drops": 0,
+              "handle": "1:",
+              "kind": "prio",
+              "options": {
+                "bands": 3,
+                "multiqueue": false,
+                "priomap": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "overlimits": 0,
+              "packets": 16,
+              "qlen": 0,
+              "refcnt": 17,
+              "requeues": 0,
+              "root": true
+            },
+            {
+              "backlog": 0,
+              "bytes": 1344,
+              "drops": 0,
+              "handle": "30:",
+              "kind": "netem",
+              "options": {
+                "duplicate": {
+                  "correlation": 0,
+                  "duplicate": 1
+                },
+                "ecn": false,
+                "gap": 0,
+                "limit": 128
+              },
+              "overlimits": 0,
+              "packets": 16,
+              "parent": "1:3",
+              "qlen": 0,
+              "requeues": 0
+            }
+          ],
+          "rules_removed": true
+        },
+        {
+          "destination_port": 41002,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "phase": "reorder",
+          "queues": [
+            {
+              "backlog": 0,
+              "bytes": 852,
+              "drops": 0,
+              "handle": "1:",
+              "kind": "prio",
+              "options": {
+                "bands": 3,
+                "multiqueue": false,
+                "priomap": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "overlimits": 0,
+              "packets": 10,
+              "qlen": 0,
+              "refcnt": 17,
+              "requeues": 0,
+              "root": true
+            },
+            {
+              "backlog": 0,
+              "bytes": 672,
+              "drops": 0,
+              "handle": "30:",
+              "kind": "netem",
+              "options": {
+                "delay": {
+                  "correlation": 0,
+                  "delay": 0.12,
+                  "jitter": 0
+                },
+                "ecn": false,
+                "gap": 2,
+                "limit": 128,
+                "reorder": {
+                  "correlation": 0,
+                  "reorder": 1
+                }
+              },
+              "overlimits": 0,
+              "packets": 8,
+              "parent": "1:3",
+              "qlen": 0,
+              "requeues": 4
+            }
+          ],
+          "rules_removed": true
+        }
+      ],
+      "limits": [
+        "single_host_private_veth",
+        "small_bounded_bursts",
+        "not_global_wire_order",
+        "not_rtt_benchmark_or_automatic_root_cause",
+        "not_random_jitter_or_high_load"
+      ],
+      "namespace_ids": [
+        1,
+        2
+      ],
+      "ok": true,
+      "oracles": [
+        {
+          "cookies": [
+            "40",
+            "41"
+          ],
+          "ifindex": 2,
+          "namespace": "net:[4026534049]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "40",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.097347,
+                    0.105683,
+                    0.112766,
+                    0.162622
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "41",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    1029.107852,
+                    1029.111579,
+                    1029.120456,
+                    1029.1278109999998
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "40",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    120.094526,
+                    120.099225,
+                    120.100788,
+                    120.101931
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "41",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    120.155834,
+                    120.160673,
+                    120.162316,
+                    120.163999
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "delay"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "40",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.102507,
+                    0.104401,
+                    0.119249,
+                    0.120742,
+                    0.12895800000000002,
+                    0.13874699999999998,
+                    0.14468799999999998,
+                    0.153385
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "41",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.08333,
+                    0.085353,
+                    0.097046,
+                    0.103779,
+                    0.112285,
+                    0.121012,
+                    0.129047,
+                    0.136963
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "request-duplicate"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "40",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.072389,
+                    0.07438199999999999,
+                    0.08189700000000001,
+                    0.08333,
+                    0.090353,
+                    0.101104,
+                    0.102577,
+                    0.103899
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "41",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.07613600000000001,
+                    0.077469,
+                    0.090844,
+                    0.091796,
+                    0.103278,
+                    0.104741,
+                    0.115071,
+                    0.116213
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "response-duplicate"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "40",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.069032,
+                    0.07059499999999999,
+                    120.160954,
+                    120.168007
+                  ],
+                  "received_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "41",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.100693,
+                    0.102947,
+                    120.141286,
+                    120.145784
+                  ],
+                  "received_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "reorder"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "40",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.069243,
+                    0.076988,
+                    0.095624,
+                    0.097227
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "41",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.077709,
+                    0.087688,
+                    0.094782,
+                    0.103428
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "client",
+          "same_sockets_all_phases": true
+        },
+        {
+          "cookies": [
+            "57351",
+            "57352"
+          ],
+          "ifindex": 2,
+          "namespace": "net:[4026534225]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "57351",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.064043,
+                    0.096666,
+                    0.105763,
+                    0.113829
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "57352",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    1028.059667,
+                    1028.090156,
+                    1028.099744,
+                    1028.110665
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "57351",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.039115,
+                    0.057751,
+                    0.062168999999999995,
+                    0.066247
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "57352",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    121.068226,
+                    121.096841,
+                    121.104456,
+                    121.110768
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "delay"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "57351",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.06214,
+                    0.092578,
+                    0.106084,
+                    0.114771,
+                    0.121914,
+                    0.130531,
+                    0.138266,
+                    0.14599099999999998
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "57352",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.052692,
+                    0.075896,
+                    0.085254,
+                    0.094332,
+                    0.102367,
+                    0.110974,
+                    0.118909,
+                    0.12681399999999998
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ]
+                }
+              ],
+              "phase": "request-duplicate"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "57351",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.041389,
+                    0.074744,
+                    0.08422199999999999,
+                    0.092638
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "57352",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.039686,
+                    0.077028,
+                    0.090874,
+                    0.103559
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "response-duplicate"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "57351",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.042772,
+                    0.060786,
+                    120.099626,
+                    120.130785
+                  ],
+                  "received_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ],
+                  "sent_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ]
+                },
+                {
+                  "cookie": "57352",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.065004,
+                    0.097848,
+                    120.094005,
+                    120.119173
+                  ],
+                  "received_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ],
+                  "sent_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ]
+                }
+              ],
+              "phase": "reorder"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "57351",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.066688,
+                    0.090734,
+                    0.106594,
+                    0.11472
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "57352",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.040537,
+                    0.067129,
+                    0.076737,
+                    0.085123
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "server",
+          "same_sockets_all_phases": true
+        }
+      ],
+      "owned_resources_removed": true,
+      "packet_multiset_matches": true,
+      "product_cause_classifier_claim": false,
+      "production_cli": true,
+      "replay_identical": true,
+      "same_socket_recovery": true,
+      "schema_version": 1,
+      "selected_requests": 48,
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+      "capture": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3529897-1795173353996976748",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "224",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "224",
+        "retained": "224",
+        "run_id": "3529910-94528939038871",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "client_replies": 64,
+      "directional_order_matches": true,
+      "facts": 224,
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "injections": [
+        {
+          "destination_port": 41001,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "phase": "delay",
+          "queues": [
+            {
+              "backlog": 0,
+              "bytes": 758,
+              "drops": 0,
+              "handle": "1:",
+              "kind": "prio",
+              "options": {
+                "bands": 3,
+                "multiqueue": false,
+                "priomap": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "overlimits": 0,
+              "packets": 9,
+              "qlen": 0,
+              "refcnt": 17,
+              "requeues": 0,
+              "root": true
+            },
+            {
+              "backlog": 0,
+              "bytes": 672,
+              "drops": 0,
+              "handle": "30:",
+              "kind": "netem",
+              "options": {
+                "delay": {
+                  "correlation": 0,
+                  "delay": 0.12,
+                  "jitter": 0
+                },
+                "ecn": false,
+                "gap": 0,
+                "limit": 128
+              },
+              "overlimits": 0,
+              "packets": 8,
+              "parent": "1:3",
+              "qlen": 0,
+              "requeues": 0
+            }
+          ],
+          "rules_removed": true
+        },
+        {
+          "destination_port": 41002,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "phase": "request-duplicate",
+          "queues": [
+            {
+              "backlog": 0,
+              "bytes": 1344,
+              "drops": 0,
+              "handle": "1:",
+              "kind": "prio",
+              "options": {
+                "bands": 3,
+                "multiqueue": false,
+                "priomap": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "overlimits": 0,
+              "packets": 16,
+              "qlen": 0,
+              "refcnt": 17,
+              "requeues": 0,
+              "root": true
+            },
+            {
+              "backlog": 0,
+              "bytes": 1344,
+              "drops": 0,
+              "handle": "30:",
+              "kind": "netem",
+              "options": {
+                "duplicate": {
+                  "correlation": 0,
+                  "duplicate": 1
+                },
+                "ecn": false,
+                "gap": 0,
+                "limit": 128
+              },
+              "overlimits": 0,
+              "packets": 16,
+              "parent": "1:3",
+              "qlen": 0,
+              "requeues": 0
+            }
+          ],
+          "rules_removed": true
+        },
+        {
+          "destination_port": 41001,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "phase": "response-duplicate",
+          "queues": [
+            {
+              "backlog": 0,
+              "bytes": 1344,
+              "drops": 0,
+              "handle": "1:",
+              "kind": "prio",
+              "options": {
+                "bands": 3,
+                "multiqueue": false,
+                "priomap": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "overlimits": 0,
+              "packets": 16,
+              "qlen": 0,
+              "refcnt": 17,
+              "requeues": 0,
+              "root": true
+            },
+            {
+              "backlog": 0,
+              "bytes": 1344,
+              "drops": 0,
+              "handle": "30:",
+              "kind": "netem",
+              "options": {
+                "duplicate": {
+                  "correlation": 0,
+                  "duplicate": 1
+                },
+                "ecn": false,
+                "gap": 0,
+                "limit": 128
+              },
+              "overlimits": 0,
+              "packets": 16,
+              "parent": "1:3",
+              "qlen": 0,
+              "requeues": 0
+            }
+          ],
+          "rules_removed": true
+        },
+        {
+          "destination_port": 41002,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "phase": "reorder",
+          "queues": [
+            {
+              "backlog": 0,
+              "bytes": 672,
+              "drops": 0,
+              "handle": "1:",
+              "kind": "prio",
+              "options": {
+                "bands": 3,
+                "multiqueue": false,
+                "priomap": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "overlimits": 0,
+              "packets": 8,
+              "qlen": 0,
+              "refcnt": 17,
+              "requeues": 0,
+              "root": true
+            },
+            {
+              "backlog": 0,
+              "bytes": 672,
+              "drops": 0,
+              "handle": "30:",
+              "kind": "netem",
+              "options": {
+                "delay": {
+                  "correlation": 0,
+                  "delay": 0.12,
+                  "jitter": 0
+                },
+                "ecn": false,
+                "gap": 2,
+                "limit": 128,
+                "reorder": {
+                  "correlation": 0,
+                  "reorder": 1
+                }
+              },
+              "overlimits": 0,
+              "packets": 8,
+              "parent": "1:3",
+              "qlen": 0,
+              "requeues": 4
+            }
+          ],
+          "rules_removed": true
+        }
+      ],
+      "limits": [
+        "single_host_private_veth",
+        "small_bounded_bursts",
+        "not_global_wire_order",
+        "not_rtt_benchmark_or_automatic_root_cause",
+        "not_random_jitter_or_high_load"
+      ],
+      "namespace_ids": [
+        1,
+        2
+      ],
+      "ok": true,
+      "oracles": [
+        {
+          "cookies": [
+            "20515",
+            "20516"
+          ],
+          "ifindex": 2,
+          "namespace": "net:[4026534226]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "20515",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.100012,
+                    0.108388,
+                    0.115853,
+                    0.125111
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "20516",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    1029.45951,
+                    1029.463347,
+                    1029.46493,
+                    1029.466443
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20515",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    120.149074,
+                    120.153653,
+                    120.155336,
+                    120.156979
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "20516",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    120.127332,
+                    120.131651,
+                    120.132783,
+                    120.133855
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "delay"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20515",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.090985,
+                    0.092768,
+                    0.094131,
+                    0.096335,
+                    0.097717,
+                    0.101294,
+                    0.111023,
+                    0.112406
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "20516",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.086827,
+                    0.08875999999999999,
+                    0.101615,
+                    0.103058,
+                    0.115121,
+                    0.122515,
+                    0.129529,
+                    0.138466
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "request-duplicate"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20515",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.066958,
+                    0.06861099999999999,
+                    0.076436,
+                    0.077528,
+                    0.084582,
+                    0.09927,
+                    0.100292,
+                    0.101194
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "20516",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.075695,
+                    0.07779900000000001,
+                    0.084482,
+                    0.08583400000000001,
+                    0.09373,
+                    0.095633,
+                    0.102236,
+                    0.103568
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "response-duplicate"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20515",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.067369,
+                    0.07664699999999999,
+                    120.114418,
+                    120.117944
+                  ],
+                  "received_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "20516",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.079673,
+                    0.08916099999999999,
+                    120.16619,
+                    120.170108
+                  ],
+                  "received_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "reorder"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20515",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.06922299999999999,
+                    0.07715799999999999,
+                    0.091245,
+                    0.098229
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "20516",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.06940299999999999,
+                    0.077419,
+                    0.084332,
+                    0.09358
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "client",
+          "same_sockets_all_phases": true
+        },
+        {
+          "cookies": [
+            "42",
+            "43"
+          ],
+          "ifindex": 2,
+          "namespace": "net:[4026534279]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "42",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.050076,
+                    0.079853,
+                    0.08893100000000001,
+                    0.097427
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "43",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    1029.397041,
+                    1029.429904,
+                    1029.439051,
+                    1029.446576
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "42",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.041028,
+                    0.06817000000000001,
+                    0.074843,
+                    0.080905
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "43",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    122.077575,
+                    122.104216,
+                    122.11149,
+                    122.120027
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "delay"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "42",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.047041,
+                    0.075626,
+                    0.08173699999999999,
+                    0.086927,
+                    0.092187,
+                    0.098369,
+                    0.10368,
+                    0.10899
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "43",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.052631,
+                    0.0779,
+                    0.087098,
+                    0.096035,
+                    0.103489,
+                    0.112386,
+                    0.120111,
+                    0.128176
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ]
+                }
+              ],
+              "phase": "request-duplicate"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "42",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.03626,
+                    0.06980399999999999,
+                    0.078902,
+                    0.08734800000000001
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "43",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    1.012634,
+                    1.045046,
+                    1.055015,
+                    1.063932
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "response-duplicate"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "42",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.042752,
+                    0.066107,
+                    120.076725,
+                    120.107074
+                  ],
+                  "received_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ],
+                  "sent_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ]
+                },
+                {
+                  "cookie": "43",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    1.024516,
+                    1.048222,
+                    121.0986,
+                    121.122035
+                  ],
+                  "received_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ],
+                  "sent_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ]
+                }
+              ],
+              "phase": "reorder"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "42",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.042041,
+                    0.06979400000000001,
+                    0.084342,
+                    0.092418
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "43",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.043474,
+                    0.066508,
+                    0.075696,
+                    0.083771
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "server",
+          "same_sockets_all_phases": true
+        }
+      ],
+      "owned_resources_removed": true,
+      "packet_multiset_matches": true,
+      "product_cause_classifier_claim": false,
+      "production_cli": true,
+      "replay_identical": true,
+      "same_socket_recovery": true,
+      "schema_version": 1,
+      "selected_requests": 48,
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+      "capture": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3530076-1795173356361312516",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "224",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "224",
+        "retained": "224",
+        "run_id": "3530089-94531303328163",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "client_replies": 64,
+      "directional_order_matches": true,
+      "facts": 224,
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "injections": [
+        {
+          "destination_port": 41001,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "phase": "delay",
+          "queues": [
+            {
+              "backlog": 0,
+              "bytes": 672,
+              "drops": 0,
+              "handle": "1:",
+              "kind": "prio",
+              "options": {
+                "bands": 3,
+                "multiqueue": false,
+                "priomap": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "overlimits": 0,
+              "packets": 8,
+              "qlen": 0,
+              "refcnt": 17,
+              "requeues": 0,
+              "root": true
+            },
+            {
+              "backlog": 0,
+              "bytes": 672,
+              "drops": 0,
+              "handle": "30:",
+              "kind": "netem",
+              "options": {
+                "delay": {
+                  "correlation": 0,
+                  "delay": 0.12,
+                  "jitter": 0
+                },
+                "ecn": false,
+                "gap": 0,
+                "limit": 128
+              },
+              "overlimits": 0,
+              "packets": 8,
+              "parent": "1:3",
+              "qlen": 0,
+              "requeues": 0
+            }
+          ],
+          "rules_removed": true
+        },
+        {
+          "destination_port": 41002,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "phase": "request-duplicate",
+          "queues": [
+            {
+              "backlog": 0,
+              "bytes": 1344,
+              "drops": 0,
+              "handle": "1:",
+              "kind": "prio",
+              "options": {
+                "bands": 3,
+                "multiqueue": false,
+                "priomap": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "overlimits": 0,
+              "packets": 16,
+              "qlen": 0,
+              "refcnt": 17,
+              "requeues": 0,
+              "root": true
+            },
+            {
+              "backlog": 0,
+              "bytes": 1344,
+              "drops": 0,
+              "handle": "30:",
+              "kind": "netem",
+              "options": {
+                "duplicate": {
+                  "correlation": 0,
+                  "duplicate": 1
+                },
+                "ecn": false,
+                "gap": 0,
+                "limit": 128
+              },
+              "overlimits": 0,
+              "packets": 16,
+              "parent": "1:3",
+              "qlen": 0,
+              "requeues": 0
+            }
+          ],
+          "rules_removed": true
+        },
+        {
+          "destination_port": 41001,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41001,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "phase": "response-duplicate",
+          "queues": [
+            {
+              "backlog": 0,
+              "bytes": 1344,
+              "drops": 0,
+              "handle": "1:",
+              "kind": "prio",
+              "options": {
+                "bands": 3,
+                "multiqueue": false,
+                "priomap": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "overlimits": 0,
+              "packets": 16,
+              "qlen": 0,
+              "refcnt": 17,
+              "requeues": 0,
+              "root": true
+            },
+            {
+              "backlog": 0,
+              "bytes": 1344,
+              "drops": 0,
+              "handle": "30:",
+              "kind": "netem",
+              "options": {
+                "duplicate": {
+                  "correlation": 0,
+                  "duplicate": 1
+                },
+                "ecn": false,
+                "gap": 0,
+                "limit": 128
+              },
+              "overlimits": 0,
+              "packets": 16,
+              "parent": "1:3",
+              "qlen": 0,
+              "requeues": 0
+            }
+          ],
+          "rules_removed": true
+        },
+        {
+          "destination_port": 41002,
+          "filters": [
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv4",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 10,
+              "protocol": "ip"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "pref": 20,
+              "protocol": "ipv6"
+            },
+            {
+              "chain": 0,
+              "kind": "flower",
+              "options": {
+                "classid": "1:3",
+                "handle": 1,
+                "keys": {
+                  "dst_port": 41002,
+                  "eth_type": "ipv6",
+                  "ip_proto": "udp"
+                },
+                "not_in_hw": true
+              },
+              "pref": 20,
+              "protocol": "ipv6"
+            }
+          ],
+          "phase": "reorder",
+          "queues": [
+            {
+              "backlog": 0,
+              "bytes": 962,
+              "drops": 0,
+              "handle": "1:",
+              "kind": "prio",
+              "options": {
+                "bands": 3,
+                "multiqueue": false,
+                "priomap": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "overlimits": 0,
+              "packets": 11,
+              "qlen": 0,
+              "refcnt": 17,
+              "requeues": 0,
+              "root": true
+            },
+            {
+              "backlog": 0,
+              "bytes": 672,
+              "drops": 0,
+              "handle": "30:",
+              "kind": "netem",
+              "options": {
+                "delay": {
+                  "correlation": 0,
+                  "delay": 0.12,
+                  "jitter": 0
+                },
+                "ecn": false,
+                "gap": 2,
+                "limit": 128,
+                "reorder": {
+                  "correlation": 0,
+                  "reorder": 1
+                }
+              },
+              "overlimits": 0,
+              "packets": 8,
+              "parent": "1:3",
+              "qlen": 0,
+              "requeues": 4
+            }
+          ],
+          "rules_removed": true
+        }
+      ],
+      "limits": [
+        "single_host_private_veth",
+        "small_bounded_bursts",
+        "not_global_wire_order",
+        "not_rtt_benchmark_or_automatic_root_cause",
+        "not_random_jitter_or_high_load"
+      ],
+      "namespace_ids": [
+        1,
+        2
+      ],
+      "ok": true,
+      "oracles": [
+        {
+          "cookies": [
+            "40983",
+            "40984"
+          ],
+          "ifindex": 2,
+          "namespace": "net:[4026534049]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "40983",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.120471,
+                    0.129408,
+                    0.137734,
+                    0.145439
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "40984",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    1023.129201,
+                    1023.133429,
+                    1023.134872,
+                    1023.136515
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "40983",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    120.135383,
+                    120.141034,
+                    120.142978,
+                    120.144831
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "40984",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    120.138229,
+                    120.142737,
+                    120.14393,
+                    120.145022
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "delay"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "40983",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.08868,
+                    0.090524,
+                    0.091997,
+                    0.093369,
+                    0.094762,
+                    0.103509,
+                    0.104871,
+                    0.113658
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "40984",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.079052,
+                    0.087979,
+                    0.099391,
+                    0.100844,
+                    0.122826,
+                    0.125341,
+                    0.126964,
+                    0.135129
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "request-duplicate"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "40983",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.085704,
+                    0.08792900000000001,
+                    0.100623,
+                    0.102196,
+                    0.113868,
+                    0.124749,
+                    0.126382,
+                    0.127845
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "40984",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.14565,
+                    0.148084,
+                    0.15765300000000002,
+                    0.159627,
+                    0.181118,
+                    0.183362,
+                    0.184815,
+                    0.186458
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "response-duplicate"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "40983",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.060326,
+                    0.069343,
+                    120.154644,
+                    120.158982
+                  ],
+                  "received_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "40984",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.134869,
+                    0.138155,
+                    120.107133,
+                    120.110409
+                  ],
+                  "received_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "reorder"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "40983",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.052742,
+                    0.061258,
+                    0.071648,
+                    0.073181
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "40984",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.085814,
+                    0.088229,
+                    0.098208,
+                    0.107386
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "client",
+          "same_sockets_all_phases": true
+        },
+        {
+          "cookies": [
+            "32777",
+            "32778"
+          ],
+          "ifindex": 2,
+          "namespace": "net:[4026534225]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "32777",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.076997,
+                    0.107686,
+                    0.117074,
+                    0.12545
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "32778",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    1023.062003,
+                    1023.098924,
+                    1023.108241,
+                    1023.116046
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "32777",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.063712,
+                    0.08781800000000001,
+                    0.095904,
+                    0.103689
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "32778",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    121.052933,
+                    121.076508,
+                    121.084403,
+                    121.091687
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "delay"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "32777",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.053923,
+                    0.07697799999999999,
+                    0.082608,
+                    0.08861,
+                    0.093429,
+                    0.098469,
+                    0.103699,
+                    0.108428
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "32778",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.047481,
+                    0.07315,
+                    0.084682,
+                    0.092688,
+                    0.099962,
+                    0.108428,
+                    0.115421,
+                    0.122555
+                  ],
+                  "received_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    0,
+                    1,
+                    1,
+                    2,
+                    2,
+                    3,
+                    3
+                  ]
+                }
+              ],
+              "phase": "request-duplicate"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "32777",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.042903,
+                    0.08530399999999999,
+                    0.099882,
+                    0.112947
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "32778",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.066637,
+                    0.142132,
+                    0.15770199999999998,
+                    0.17246
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "response-duplicate"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "32777",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.038173,
+                    0.059705,
+                    120.095671,
+                    120.125388
+                  ],
+                  "received_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ],
+                  "sent_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ]
+                },
+                {
+                  "cookie": "32778",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.095764,
+                    0.124048,
+                    120.08453,
+                    120.11074
+                  ],
+                  "received_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ],
+                  "sent_ids": [
+                    1,
+                    3,
+                    0,
+                    2
+                  ]
+                }
+              ],
+              "phase": "reorder"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "32777",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.037111,
+                    0.054465,
+                    0.065245,
+                    0.070946
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "cookie": "32778",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "length": 32,
+                  "receive_elapsed_ms": [
+                    0.04704,
+                    0.072118,
+                    0.081827,
+                    0.091816
+                  ],
+                  "received_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "server",
+          "same_sockets_all_phases": true
+        }
+      ],
+      "owned_resources_removed": true,
+      "packet_multiset_matches": true,
+      "product_cause_classifier_claim": false,
+      "production_cli": true,
+      "replay_identical": true,
+      "same_socket_recovery": true,
+      "schema_version": 1,
+      "selected_requests": 48,
+      "validation_capture_used": false
+    }
+  ],
+  "loss_regression": {
+    "binary_sha256": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+    "capture": {
+      "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3530282-1795173358703878244",
+      "decode_rejected": "0",
+      "final_accounted": true,
+      "incomplete": false,
+      "kernel": {
+        "malformed": "0",
+        "matched": "32",
+        "no_cookie": "0",
+        "ring_dropped": "0",
+        "unsupported": "0"
+      },
+      "received": "32",
+      "retained": "32",
+      "run_id": "3530295-94533645988360",
+      "schema_version": 1,
+      "state": "stopped",
+      "udp_port": 41002,
+      "userspace_dropped": "0"
+    },
+    "client_timeouts": 4,
+    "facts": 32,
+    "hooks_detached": true,
+    "host_network_changed": false,
+    "injections": [
+      {
+        "destination_port": 41002,
+        "filters": [
+          {
+            "chain": 0,
+            "kind": "flower",
+            "pref": 10,
+            "protocol": "ip"
+          },
+          {
+            "chain": 0,
+            "kind": "flower",
+            "options": {
+              "actions": [
+                {
+                  "bind": 1,
+                  "control_action": {
+                    "type": "drop"
+                  },
+                  "first_used": 0,
+                  "index": 1,
+                  "installed": 0,
+                  "kind": "gact",
+                  "last_used": 0,
+                  "order": 1,
+                  "prob": {
+                    "control_action": {
+                      "type": "pass"
+                    },
+                    "random_type": "none",
+                    "val": 0
+                  },
+                  "ref": 1,
+                  "stats": {
+                    "backlog": 0,
+                    "bytes": 74,
+                    "drops": 1,
+                    "overlimits": 0,
+                    "packets": 1,
+                    "qlen": 0,
+                    "requeues": 0
+                  }
+                }
+              ],
+              "handle": 1,
+              "keys": {
+                "dst_port": 41002,
+                "eth_type": "ipv4",
+                "ip_proto": "udp"
+              },
+              "not_in_hw": true
+            },
+            "pref": 10,
+            "protocol": "ip"
+          },
+          {
+            "chain": 0,
+            "kind": "flower",
+            "pref": 20,
+            "protocol": "ipv6"
+          },
+          {
+            "chain": 0,
+            "kind": "flower",
+            "options": {
+              "actions": [
+                {
+                  "bind": 1,
+                  "control_action": {
+                    "type": "drop"
+                  },
+                  "first_used": 0,
+                  "index": 2,
+                  "installed": 0,
+                  "kind": "gact",
+                  "last_used": 0,
+                  "order": 1,
+                  "prob": {
+                    "control_action": {
+                      "type": "pass"
+                    },
+                    "random_type": "none",
+                    "val": 0
+                  },
+                  "ref": 1,
+                  "stats": {
+                    "backlog": 0,
+                    "bytes": 94,
+                    "drops": 1,
+                    "overlimits": 0,
+                    "packets": 1,
+                    "qlen": 0,
+                    "requeues": 0
+                  }
+                }
+              ],
+              "handle": 1,
+              "keys": {
+                "dst_port": 41002,
+                "eth_type": "ipv6",
+                "ip_proto": "udp"
+              },
+              "not_in_hw": true
+            },
+            "pref": 20,
+            "protocol": "ipv6"
+          }
+        ],
+        "namespace": "gewyvern-udp-client-3530282-1795173358681338450",
+        "phase": "request-loss",
+        "rules_removed": true
+      },
+      {
+        "destination_port": 41001,
+        "filters": [
+          {
+            "chain": 0,
+            "kind": "flower",
+            "pref": 10,
+            "protocol": "ip"
+          },
+          {
+            "chain": 0,
+            "kind": "flower",
+            "options": {
+              "actions": [
+                {
+                  "bind": 1,
+                  "control_action": {
+                    "type": "drop"
+                  },
+                  "first_used": 0,
+                  "index": 1,
+                  "installed": 0,
+                  "kind": "gact",
+                  "last_used": 0,
+                  "order": 1,
+                  "prob": {
+                    "control_action": {
+                      "type": "pass"
+                    },
+                    "random_type": "none",
+                    "val": 0
+                  },
+                  "ref": 1,
+                  "stats": {
+                    "backlog": 0,
+                    "bytes": 74,
+                    "drops": 1,
+                    "overlimits": 0,
+                    "packets": 1,
+                    "qlen": 0,
+                    "requeues": 0
+                  }
+                }
+              ],
+              "handle": 1,
+              "keys": {
+                "dst_port": 41001,
+                "eth_type": "ipv4",
+                "ip_proto": "udp"
+              },
+              "not_in_hw": true
+            },
+            "pref": 10,
+            "protocol": "ip"
+          },
+          {
+            "chain": 0,
+            "kind": "flower",
+            "pref": 20,
+            "protocol": "ipv6"
+          },
+          {
+            "chain": 0,
+            "kind": "flower",
+            "options": {
+              "actions": [
+                {
+                  "bind": 1,
+                  "control_action": {
+                    "type": "drop"
+                  },
+                  "first_used": 0,
+                  "index": 2,
+                  "installed": 0,
+                  "kind": "gact",
+                  "last_used": 0,
+                  "order": 1,
+                  "prob": {
+                    "control_action": {
+                      "type": "pass"
+                    },
+                    "random_type": "none",
+                    "val": 0
+                  },
+                  "ref": 1,
+                  "stats": {
+                    "backlog": 0,
+                    "bytes": 94,
+                    "drops": 1,
+                    "overlimits": 0,
+                    "packets": 1,
+                    "qlen": 0,
+                    "requeues": 0
+                  }
+                }
+              ],
+              "handle": 1,
+              "keys": {
+                "dst_port": 41001,
+                "eth_type": "ipv6",
+                "ip_proto": "udp"
+              },
+              "not_in_hw": true
+            },
+            "pref": 20,
+            "protocol": "ipv6"
+          }
+        ],
+        "namespace": "gewyvern-udp-server-3530282-1795173358681338450",
+        "phase": "response-loss",
+        "rules_removed": true
+      }
+    ],
+    "limits": [
+      "single_host_private_veth",
+      "selected_udp_only",
+      "not_random_loss_or_reordering",
+      "network_loss_is_not_capture_loss",
+      "no_automatic_root_cause_or_remote_delivery_proof"
+    ],
+    "namespace_ids": [
+      1,
+      2
+    ],
+    "ok": true,
+    "oracles": [
+      {
+        "cookies": [
+          "49163",
+          "49164"
+        ],
+        "ifindex": 2,
+        "namespace": "net:[4026534224]",
+        "phases": [
+          {
+            "observations": [
+              {
+                "cookie": "49163",
+                "elapsed_ms": 0.096424,
+                "family": 4,
+                "length": 32,
+                "local_port": 41001,
+                "payload_sha256": "f097a0c2d4c778d5ec56193db387935bbfd8481e8de0981bcb023b99bfa29e73",
+                "received": true,
+                "remote_port": 41002,
+                "sent": true,
+                "timeout": false
+              },
+              {
+                "cookie": "49164",
+                "elapsed_ms": 1025.842466,
+                "family": 6,
+                "length": 32,
+                "local_port": 41001,
+                "payload_sha256": "f097a0c2d4c778d5ec56193db387935bbfd8481e8de0981bcb023b99bfa29e73",
+                "received": true,
+                "remote_port": 41002,
+                "sent": true,
+                "timeout": false
+              }
+            ],
+            "phase": "baseline"
+          },
+          {
+            "observations": [
+              {
+                "cookie": "49163",
+                "elapsed_ms": 351.47299999999996,
+                "family": 4,
+                "length": 32,
+                "local_port": 41001,
+                "payload_sha256": "f58010cd0d2c39897d8c8168ecfa3a5e9625d550aebca9801a75b635b72a13f2",
+                "received": false,
+                "remote_port": 41002,
+                "sent": true,
+                "timeout": true
+              },
+              {
+                "cookie": "49164",
+                "elapsed_ms": 351.988502,
+                "family": 6,
+                "length": 32,
+                "local_port": 41001,
+                "payload_sha256": "f58010cd0d2c39897d8c8168ecfa3a5e9625d550aebca9801a75b635b72a13f2",
+                "received": false,
+                "remote_port": 41002,
+                "sent": true,
+                "timeout": true
+              }
+            ],
+            "phase": "request-loss"
+          },
+          {
+            "observations": [
+              {
+                "cookie": "49163",
+                "elapsed_ms": 0.07604499999999999,
+                "family": 4,
+                "length": 32,
+                "local_port": 41001,
+                "payload_sha256": "da2bcaaa892c0be51891889f5f2a4af06ae6e3018d4deaa7ca25ce451acbd39c",
+                "received": true,
+                "remote_port": 41002,
+                "sent": true,
+                "timeout": false
+              },
+              {
+                "cookie": "49164",
+                "elapsed_ms": 0.027393,
+                "family": 6,
+                "length": 32,
+                "local_port": 41001,
+                "payload_sha256": "da2bcaaa892c0be51891889f5f2a4af06ae6e3018d4deaa7ca25ce451acbd39c",
+                "received": true,
+                "remote_port": 41002,
+                "sent": true,
+                "timeout": false
+              }
+            ],
+            "phase": "request-recovery"
+          },
+          {
+            "observations": [
+              {
+                "cookie": "49163",
+                "elapsed_ms": 357.52167299999996,
+                "family": 4,
+                "length": 32,
+                "local_port": 41001,
+                "payload_sha256": "8b3764f7ea61b891d0644496e28dbb995467453129e26b83137086fb5f52f0e8",
+                "received": false,
+                "remote_port": 41002,
+                "sent": true,
+                "timeout": true
+              },
+              {
+                "cookie": "49164",
+                "elapsed_ms": 351.93381800000003,
+                "family": 6,
+                "length": 32,
+                "local_port": 41001,
+                "payload_sha256": "8b3764f7ea61b891d0644496e28dbb995467453129e26b83137086fb5f52f0e8",
+                "received": false,
+                "remote_port": 41002,
+                "sent": true,
+                "timeout": true
+              }
+            ],
+            "phase": "response-loss"
+          },
+          {
+            "observations": [
+              {
+                "cookie": "49163",
+                "elapsed_ms": 0.0524,
+                "family": 4,
+                "length": 32,
+                "local_port": 41001,
+                "payload_sha256": "d2b8bf86f59a3ed0fe47560f0c146d26601a17fddebe2940b7471cd59425d4c3",
+                "received": true,
+                "remote_port": 41002,
+                "sent": true,
+                "timeout": false
+              },
+              {
+                "cookie": "49164",
+                "elapsed_ms": 0.030328,
+                "family": 6,
+                "length": 32,
+                "local_port": 41001,
+                "payload_sha256": "d2b8bf86f59a3ed0fe47560f0c146d26601a17fddebe2940b7471cd59425d4c3",
+                "received": true,
+                "remote_port": 41002,
+                "sent": true,
+                "timeout": false
+              }
+            ],
+            "phase": "response-recovery"
+          }
+        ],
+        "role": "client",
+        "same_sockets_all_phases": true
+      },
+      {
+        "cookies": [
+          "44",
+          "45"
+        ],
+        "ifindex": 2,
+        "namespace": "net:[4026534277]",
+        "phases": [
+          {
+            "observations": [
+              {
+                "cookie": "44",
+                "elapsed_ms": 0.167441,
+                "family": 4,
+                "length": 32,
+                "local_port": 41002,
+                "payload_sha256": "f097a0c2d4c778d5ec56193db387935bbfd8481e8de0981bcb023b99bfa29e73",
+                "received": true,
+                "remote_port": 41001,
+                "sent": true,
+                "timeout": false
+              },
+              {
+                "cookie": "45",
+                "elapsed_ms": 1025.855702,
+                "family": 6,
+                "length": 32,
+                "local_port": 41002,
+                "payload_sha256": "f097a0c2d4c778d5ec56193db387935bbfd8481e8de0981bcb023b99bfa29e73",
+                "received": true,
+                "remote_port": 41001,
+                "sent": true,
+                "timeout": false
+              }
+            ],
+            "phase": "baseline"
+          },
+          {
+            "observations": [
+              {
+                "cookie": "44",
+                "elapsed_ms": 351.49399999999997,
+                "family": 4,
+                "length": 32,
+                "local_port": 41002,
+                "payload_sha256": "f58010cd0d2c39897d8c8168ecfa3a5e9625d550aebca9801a75b635b72a13f2",
+                "received": false,
+                "remote_port": 41001,
+                "sent": false,
+                "timeout": true
+              },
+              {
+                "cookie": "45",
+                "elapsed_ms": 352.018139,
+                "family": 6,
+                "length": 32,
+                "local_port": 41002,
+                "payload_sha256": "f58010cd0d2c39897d8c8168ecfa3a5e9625d550aebca9801a75b635b72a13f2",
+                "received": false,
+                "remote_port": 41001,
+                "sent": false,
+                "timeout": true
+              }
+            ],
+            "phase": "request-loss"
+          },
+          {
+            "observations": [
+              {
+                "cookie": "44",
+                "elapsed_ms": 0.11995,
+                "family": 4,
+                "length": 32,
+                "local_port": 41002,
+                "payload_sha256": "da2bcaaa892c0be51891889f5f2a4af06ae6e3018d4deaa7ca25ce451acbd39c",
+                "received": true,
+                "remote_port": 41001,
+                "sent": true,
+                "timeout": false
+              },
+              {
+                "cookie": "45",
+                "elapsed_ms": 0.044635,
+                "family": 6,
+                "length": 32,
+                "local_port": 41002,
+                "payload_sha256": "da2bcaaa892c0be51891889f5f2a4af06ae6e3018d4deaa7ca25ce451acbd39c",
+                "received": true,
+                "remote_port": 41001,
+                "sent": true,
+                "timeout": false
+              }
+            ],
+            "phase": "request-recovery"
+          },
+          {
+            "observations": [
+              {
+                "cookie": "44",
+                "elapsed_ms": 0.070846,
+                "family": 4,
+                "length": 32,
+                "local_port": 41002,
+                "payload_sha256": "8b3764f7ea61b891d0644496e28dbb995467453129e26b83137086fb5f52f0e8",
+                "received": true,
+                "remote_port": 41001,
+                "sent": true,
+                "timeout": false
+              },
+              {
+                "cookie": "45",
+                "elapsed_ms": 357.600564,
+                "family": 6,
+                "length": 32,
+                "local_port": 41002,
+                "payload_sha256": "8b3764f7ea61b891d0644496e28dbb995467453129e26b83137086fb5f52f0e8",
+                "received": true,
+                "remote_port": 41001,
+                "sent": true,
+                "timeout": false
+              }
+            ],
+            "phase": "response-loss"
+          },
+          {
+            "observations": [
+              {
+                "cookie": "44",
+                "elapsed_ms": 0.082378,
+                "family": 4,
+                "length": 32,
+                "local_port": 41002,
+                "payload_sha256": "d2b8bf86f59a3ed0fe47560f0c146d26601a17fddebe2940b7471cd59425d4c3",
+                "received": true,
+                "remote_port": 41001,
+                "sent": true,
+                "timeout": false
+              },
+              {
+                "cookie": "45",
+                "elapsed_ms": 0.046699,
+                "family": 6,
+                "length": 32,
+                "local_port": 41002,
+                "payload_sha256": "d2b8bf86f59a3ed0fe47560f0c146d26601a17fddebe2940b7471cd59425d4c3",
+                "received": true,
+                "remote_port": 41001,
+                "sent": true,
+                "timeout": false
+              }
+            ],
+            "phase": "response-recovery"
+          }
+        ],
+        "role": "server",
+        "same_sockets_all_phases": true
+      }
+    ],
+    "owned_resources_removed": true,
+    "packet_multiset_matches": true,
+    "product_cause_classifier_claim": false,
+    "production_cli": true,
+    "replay_identical": true,
+    "same_socket_recovery": true,
+    "schema_version": 1,
+    "selected_requests": 10,
+    "successful_exchanges": 6,
+    "tc_drops": 4,
+    "validation_capture_used": false
+  },
+  "network_regression": {
+    "binary_sha256": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+    "cases": [
+      {
+        "capture": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3530403-1795173361407856365",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "72",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "72",
+          "retained": "72",
+          "run_id": "3530416-94536345391174",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "facts": 72,
+        "fragmentation": false,
+        "hooks_detached": true,
+        "mtu": 1500,
+        "namespace_ids": [
+          1,
+          2
+        ],
+        "ok": true,
+        "oracles": [
+          {
+            "cookies": [
+              "40985",
+              "40986"
+            ],
+            "fragment_counters_delta": {
+              "Ip6FragCreates": 0,
+              "Ip6FragFails": 0,
+              "Ip6FragOKs": 0,
+              "Ip6ReasmFails": 0,
+              "Ip6ReasmOKs": 0,
+              "Ip6ReasmReqds": 0,
+              "Ip6ReasmTimeout": 0,
+              "IpFragCreates": 0,
+              "IpFragFails": 0,
+              "IpFragOKs": 0,
+              "IpReasmFails": 0,
+              "IpReasmOKs": 0,
+              "IpReasmReqds": 0,
+              "IpReasmTimeout": 0
+            },
+            "ifindex": 2,
+            "namespace": "net:[4026534049]",
+            "native_io_verified": true,
+            "role": "client"
+          },
+          {
+            "cookies": [
+              "24581",
+              "24582"
+            ],
+            "fragment_counters_delta": {
+              "Ip6FragCreates": 0,
+              "Ip6FragFails": 0,
+              "Ip6FragOKs": 0,
+              "Ip6ReasmFails": 0,
+              "Ip6ReasmOKs": 0,
+              "Ip6ReasmReqds": 0,
+              "Ip6ReasmTimeout": 0,
+              "IpFragCreates": 0,
+              "IpFragFails": 0,
+              "IpFragOKs": 0,
+              "IpReasmFails": 0,
+              "IpReasmOKs": 0,
+              "IpReasmReqds": 0,
+              "IpReasmTimeout": 0
+            },
+            "ifindex": 2,
+            "namespace": "net:[4026534277]",
+            "native_io_verified": true,
+            "role": "server"
+          }
+        ],
+        "owned_cgroups_removed": true,
+        "owned_namespaces_removed": true,
+        "payload_lengths": [
+          0,
+          1,
+          128,
+          129,
+          1400,
+          1452,
+          1,
+          0,
+          32
+        ],
+        "prefix_and_lengths_match": true,
+        "replay_identical": true
+      },
+      {
+        "capture": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3530403-1795173362602765051",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "48",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "48",
+          "retained": "48",
+          "run_id": "3530495-94537544850712",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "facts": 48,
+        "fragmentation": true,
+        "hooks_detached": true,
+        "mtu": 1500,
+        "namespace_ids": [
+          1,
+          2
+        ],
+        "ok": true,
+        "oracles": [
+          {
+            "cookies": [
+              "57353",
+              "57354"
+            ],
+            "fragment_counters_delta": {
+              "Ip6FragCreates": 47,
+              "Ip6FragFails": 0,
+              "Ip6FragOKs": 3,
+              "Ip6ReasmFails": 0,
+              "Ip6ReasmOKs": 3,
+              "Ip6ReasmReqds": 47,
+              "Ip6ReasmTimeout": 0,
+              "IpFragCreates": 46,
+              "IpFragFails": 0,
+              "IpFragOKs": 3,
+              "IpReasmFails": 0,
+              "IpReasmOKs": 3,
+              "IpReasmReqds": 46,
+              "IpReasmTimeout": 0
+            },
+            "ifindex": 2,
+            "namespace": "net:[4026534337]",
+            "native_io_verified": true,
+            "role": "client"
+          },
+          {
+            "cookies": [
+              "12311",
+              "12312"
+            ],
+            "fragment_counters_delta": {
+              "Ip6FragCreates": 47,
+              "Ip6FragFails": 0,
+              "Ip6FragOKs": 3,
+              "Ip6ReasmFails": 0,
+              "Ip6ReasmOKs": 3,
+              "Ip6ReasmReqds": 47,
+              "Ip6ReasmTimeout": 0,
+              "IpFragCreates": 46,
+              "IpFragFails": 0,
+              "IpFragOKs": 3,
+              "IpReasmFails": 0,
+              "IpReasmOKs": 3,
+              "IpReasmReqds": 46,
+              "IpReasmTimeout": 0
+            },
+            "ifindex": 2,
+            "namespace": "net:[4026534390]",
+            "native_io_verified": true,
+            "role": "server"
+          }
+        ],
+        "owned_cgroups_removed": true,
+        "owned_namespaces_removed": true,
+        "payload_lengths": [
+          1473,
+          4096,
+          60000,
+          1,
+          0,
+          32
+        ],
+        "prefix_and_lengths_match": true,
+        "replay_identical": true
+      }
+    ],
+    "host_network_changed": false,
+    "limits": [
+      "single_host_private_veth",
+      "prefix_only_above_128",
+      "no_raw_fragment_archival",
+      "no_high_load_or_physical_link_claim"
+    ],
+    "ok": true,
+    "owned_resources_removed": true,
+    "production_cli": true,
+    "schema_version": 1,
+    "validation_capture_used": false
+  },
+  "summary_projection": "Expected packet arrays and network-regression observations are omitted to avoid duplicating raw exports. Netem's unused random seed is omitted from this projection; 100% deterministic injection does not rely on it. Original summaries retain exact 64-bit seeds. SHA-256 binds original summary bytes, not this projection.",
+  "validation": {
+    "nonprivileged_unit_tests_passed": 4,
+    "privileged_netem_runs_passed": 3,
+    "privileged_loss_regressions_passed": 1,
+    "privileged_network_regressions_passed": 1,
+    "strict_clippy": true,
+    "clippy_command": "cargo --config profile.dev.package.gewyvern.opt-level=2 clippy --locked --test production_capture_linux_tdd --test native_validation_harness_tdd -- -D warnings",
+    "cargo_fmt_check": true,
+    "git_diff_check": true,
+    "evidence_guard_status": "passed",
+    "native_validation_harness_tests_passed": 57,
+    "native_validation_harness_tests_failed": 0,
+    "status_validation": {
+      "schema_version": 4,
+      "status": "valid",
+      "cells": 39,
+      "coverage_requirements": 37,
+      "gui_operations": 35,
+      "gui_chains": 11,
+      "gui_target_score": 100
+    },
+    "status_validation_scope": "Catalog consistency and declared GUI target coverage, not overall product readiness."
+  },
+  "raw_evidence_sha256": {
+    "final-1/summary.json": "4a45d82ad0fbce625f140e6130c80a7aaef0840040c3b9e7b207ae966ef3f3e7",
+    "final-2/summary.json": "31c4dedd3df34fe84aa07ab5178d24ccd789ad7cf0795b4d4ae521017e661141",
+    "final-3/summary.json": "89138ce957f22a61d519aff013aa9beb752f76c92516c7285d465562e80df3b1",
+    "loss-regression/summary.json": "ce674ba6a21807c4b25d6f321f1e9137283cf46d0032601f968c284cbe080261",
+    "network-regression/summary.json": "e83c4c066fa903dceeab472c58b81ea45423a42110c4970a0098086d428d9c9a",
+    "build-unit.log": "580e308e405368f5537c97efb5120166d1886b1302fb7fa780080688fcad4348",
+    "proof-build.log": "6f8b45a1e91845289dbd693b3f56315b31fddf42d8c785ae987d2a023c43c9e6",
+    "clippy.log": "a2b8a318f59fd67824e0f37dbdbd83a4d24d626f1f9b56c66d28782c92109dd7",
+    "evidence-tests.log": "bbebb412d00b34afad5e02206cacc3b983d7d1d52340171a6b487b260a09b0d2",
+    "status-validation.json": "43b0fa3c6bceb9a62b1a5114f32c280642f7308573289e7a0206b070dbada149"
+  },
+  "cleanup": {
+    "docker_inventory_restored": true,
+    "network_namespace_inventory_restored": true,
+    "before": {
+      "containers": 15,
+      "networks": 6,
+      "volumes": 54,
+      "named_network_namespaces": 0
+    },
+    "after": {
+      "containers": 15,
+      "networks": 6,
+      "volumes": 54,
+      "named_network_namespaces": 0
+    },
+    "owned_cgroups_remaining": 0,
+    "bpf_temporary_paths_remaining": 0,
+    "temporary_build_container_removed": true,
+    "removed_build_container_id": "2954fe76dd6a85b818f94ecfbc5e2bfd01833150a87f025fb2b41e5c3a73bdf0",
+    "other_workloads_removed": false,
+    "host_services_changed": false
+  },
+  "limits": [
+    "One host, private veth, deterministic targeted faults and four-packet bursts; not random jitter, congestion, physical links or sustained load.",
+    "Per-socket directional order in these runs is not global wire order across sockets, CPUs, analysis windows or hosts.",
+    "Duplicate observations remain distinct; no transaction de-duplication, exactly-once transport or automatic root-cause classifier is added.",
+    "All netem-test payloads are 32 bytes. The product's 128-byte prefix limit and run-local namespace identities remain unchanged.",
+    "No release-artifact, protocol-count or status-maturity promotion."
+  ]
+}

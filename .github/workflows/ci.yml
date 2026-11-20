@@ -396,9 +396,17 @@ jobs:
       - name: Audit Rust dependencies
         run: cargo audit --no-yanked -D warnings
 
+      - name: Audit upstream identities of local compatibility patches
+        run: cargo audit --no-fetch --file vendor/advisory.Cargo.lock --no-yanked -D warnings
+
+      - name: Test SFTP time compatibility backport
+        run: cargo test --locked -p leserpent-adapters -p russh-sftp --features leserpent-adapters/native-ssh --lib
+
       - name: Check formatting
         run: |
           cargo fmt --all -- --check
+          rustfmt +1.98.0 --edition 2021 --check vendor/russh-sftp/src/utils.rs vendor/russh-sftp/src/protocol/file.rs
+          rustfmt +1.98.0 --edition 2021 --check vendor/russh-util/src/lib.rs
           rustfmt +1.98.0 --edition 2024 --check crates/leserpent-hir/src/computation.rs
           rustfmt +1.98.0 --edition 2024 --check crates/leserpent-hir/src/leserpent_profile.rs
           rustfmt +1.98.0 --edition 2024 --check crates/leserpent-vm/src/leserpent_profile.rs

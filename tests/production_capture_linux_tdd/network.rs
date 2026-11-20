@@ -4,6 +4,11 @@ use super::*;
 use std::collections::{BTreeMap, BTreeSet};
 use std::os::fd::AsRawFd;
 
+#[path = "network/faults.rs"]
+mod faults;
+#[path = "network/netem.rs"]
+mod netem;
+
 const FIT: &[usize] = &[0, 1, 128, 129, 1400, 1452, 1, 0, 32];
 const FRAGMENTED: &[usize] = &[1473, 4096, 60000, 1, 0, 32];
 const PORT: u16 = 41002;
@@ -126,10 +131,7 @@ fn fragment_stats() -> BTreeMap<String, u64> {
     result
 }
 
-#[test]
-#[ignore = "internal worker, spawned inside an owned network namespace"]
-fn udp_network_worker() {
-    let out = PathBuf::from(std::env::var_os("GW_NET_OUT").unwrap());
+fn enter_worker_network() -> u32 {
     let scope = PathBuf::from(std::env::var_os("GW_NET_SCOPE").unwrap());
     assert!(scope.starts_with("/sys/fs/cgroup"));
     assert!(
@@ -139,8 +141,6 @@ fn udp_network_worker() {
             .to_string_lossy()
             .starts_with("gewyvern-production-test-netns-")
     );
-    let server = std::env::var("GW_NET_ROLE").unwrap() == "server";
-    let fragmented = std::env::var("GW_NET_FRAGMENTED").unwrap() == "true";
     fs::write(scope.join("cgroup.procs"), std::process::id().to_string()).unwrap();
     let namespace = std::env::var("GW_NET_NAMESPACE").unwrap();
     assert!(namespace.starts_with("gewyvern-udp-") && !namespace.contains('/'));
@@ -153,7 +153,10 @@ fn udp_network_worker() {
     );
     let ifindex = unsafe { libc::if_nametoindex(c"peer0".as_ptr()) };
     assert_ne!(ifindex, 0);
-    let before = fragment_stats();
+    ifindex
+}
+
+fn network_sockets(server: bool) -> (Vec<UdpSocket>, Vec<String>) {
     let mut cookies = Vec::new();
     let mut sockets = Vec::new();
     for family in 0..2 {
@@ -199,6 +202,18 @@ fn udp_network_worker() {
         cookies.push(socket.cookie().unwrap().to_string());
         sockets.push(UdpSocket::from(socket));
     }
+    (sockets, cookies)
+}
+
+#[test]
+#[ignore = "internal worker, spawned inside an owned network namespace"]
+fn udp_network_worker() {
+    let out = PathBuf::from(std::env::var_os("GW_NET_OUT").unwrap());
+    let server = std::env::var("GW_NET_ROLE").unwrap() == "server";
+    let fragmented = std::env::var("GW_NET_FRAGMENTED").unwrap() == "true";
+    let ifindex = enter_worker_network();
+    let before = fragment_stats();
+    let (sockets, cookies) = network_sockets(server);
     let netns = fs::read_link("/proc/thread-self/ns/net").unwrap();
     fs::write(out.join("ready"), b"ready").unwrap();
     let mut expected = Vec::new();

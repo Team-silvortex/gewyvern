@@ -33,6 +33,10 @@ exclude = [
     "crates/leselang-hir-core",
     "crates/leselang-runtime-core",
     "crates/leselang-syntax",
+    # Third-party compatibility backport, tested explicitly rather than versioned
+    # or linted as a product crate.
+    "vendor/russh-sftp",
+    "vendor/russh-util",
 ]
 resolver = "3"
 
@@ -58,6 +62,13 @@ time = { version = "0.3", features = ["formatting", "parsing"] }
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
 tungstenite = { version = "0.29", default-features = false, features = ["handshake"] }
 socket2 = "0.6.5"
+
+[patch.crates-io]
+# RUSTSEC-2026-0543: backport upstream PR #825's monotonic wasm clock.
+# Original registry identities are audited separately in vendor/advisory.Cargo.lock.
+russh-util = { path = "vendor/russh-util" }
+# Backport the SFTP chrono removal without changing the released 2.x API.
+russh-sftp = { path = "vendor/russh-sftp" }
 
 [package]
 name = "gewyvern"

@@ -67,6 +67,14 @@ traffic through the formal CLI. Require separate run-local namespace identities,
 actual fragmentation/reassembly counter deltas, exact per-socket bounded facts,
 replay and cleanup. Do not infer raw-fragment capture, product-owned reassembly,
 physical-network coverage or persistent namespace identities.
+The [selected-port loss variant](production-udp-network.md#network-loss-and-recovery)
+adds actual request/reply drops and same-socket recovery. Require independent TC
+hit/drop counts and exact per-endpoint packet facts; application timeouts must
+not be confused with collector loss or treated as proof of a specific root cause.
+The [bounded netem variant](production-udp-network.md#delay-duplication-and-reordering)
+adds actual delay, request/response copies and inverted receive sequences. Require
+full multiplicity, exact per-socket directional order, live selected-port queue
+settings/counters and same-socket recovery; do not infer global wire ordering.
 
 The [formal packet/socket boundary check](production-udp-boundaries.md) adds
 empty/short/large native UDP payloads, unconnected clients and servers, and

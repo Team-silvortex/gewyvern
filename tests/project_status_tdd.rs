@@ -16051,11 +16051,17 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             && item.state == EvidenceState::Present
     }));
     for remaining_gate in [
-        "Longer-duration RSS behavior",
-        "supervisor/host crash recovery",
+        "General TCP/extensions capture",
+        "cross-batch transaction continuity",
+        "Leserpent UI/remote-plan selection",
+        "native service activation and reboot/host-crash recovery",
+        "longer-duration production RSS",
         "independent physical-host/kernel breadth",
     ] {
-        assert!(linux_attach.next_gate.contains(remaining_gate));
+        assert!(
+            linux_attach.next_gate.contains(remaining_gate),
+            "Linux attach status lost remaining boundary: {remaining_gate}"
+        );
     }
     for surface in [
         "dedicated-project-ssh-alias",

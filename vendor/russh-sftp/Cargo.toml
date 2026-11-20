@@ -1,0 +1,31 @@
+[package]
+name = "russh-sftp"
+version = "2.3.0"
+edition = "2021"
+description = "SFTP subsystem supported server and client for Russh"
+license = "Apache-2.0"
+repository = "https://github.com/AspectUnk/russh-sftp"
+readme = "README.md"
+autoexamples = false
+autobenches = false
+publish = false
+
+[features]
+async-trait = ["dep:async-trait"]
+
+[dependencies]
+async-trait = { version = "0.1.89", optional = true }
+bitflags = { version = "2.11.1", features = ["serde"] }
+bytes = "1.11.1"
+dashmap = "6.1.0"
+log = "0.4.29"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_bytes = "0.11.19"
+thiserror = "2.0.18"
+time = { version = "0.3", default-features = false, features = ["std"] }
+tokio = { version = "1", default-features = false, features = ["io-util", "rt", "sync", "time", "macros"] }
+tokio-util = { version = "0.7.18", default-features = false, features = ["rt"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-timers = { version = "0.4.0", features = ["futures"] }
+wasm-bindgen-futures = "0.4.71"
