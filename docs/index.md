@@ -33,7 +33,7 @@ that owns your question; do not scan the repository by filename.
 - Formal collector packet/socket limits: [UDP boundary checks](production-udp-boundaries.md)
 - Formal collector across namespaces, MTU and network faults: [UDP network checks](production-udp-network.md)
 - Hook visibility versus socket/application delivery: [UDP receive pressure](production-udp-receive-pressure.md)
-- Truthful UDP GSO/GRO rejection and prepared segment provenance: [offload boundary](production-udp-offload.md)
+- Bounded UDP L4 GSO/GRO normalization, provenance and loss accounting: [offload boundary](production-udp-offload.md)
 - Live progress and evidence: [status entry](../STATUS.md)
 - Local cache retention and cleanup: [workspace hygiene](development.md#workspace-hygiene)
 

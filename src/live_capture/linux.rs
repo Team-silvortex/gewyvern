@@ -14,7 +14,7 @@ use super::{
     CaptureError, CaptureFactBuffer, CaptureOptions, CaptureSnapshot, CaptureState,
     FactBufferAccounting, KernelCounters,
 };
-use crate::ledger::{FactEnvelope, FactId, PacketDir, SessionId};
+use crate::ledger::{FactEnvelope, FactId, PacketDir, SessionId, UdpOffloadSegment};
 use crate::packet_capture::{CapturedUdpDatagram, PacketObservation};
 
 mod api;
@@ -40,6 +40,35 @@ struct Record {
     ip_header_len: u8,
     outbound: u8,
     prefix: [u8; 128],
+    aggregate_id: u64,
+    aggregate_payload_len: u32,
+    segment_size: u32,
+    segment_index: u32,
+    segment_count: u32,
+}
+
+impl Record {
+    fn offload(&self) -> Result<Option<UdpOffloadSegment>, CaptureError> {
+        let invalid = || CaptureError::new("capture_record_invalid", "invalid offload provenance");
+        if self.aggregate_id == 0 {
+            if self.aggregate_payload_len != 0
+                || self.segment_size != 0
+                || self.segment_index != 0
+                || self.segment_count != 0
+            {
+                return Err(invalid());
+            }
+            return Ok(None);
+        }
+        Ok(Some(UdpOffloadSegment {
+            aggregate_id: self.aggregate_id,
+            aggregate_payload_len: self.aggregate_payload_len,
+            segment_size: self.segment_size.try_into().map_err(|_| invalid())?,
+            segment_index: self.segment_index.try_into().map_err(|_| invalid())?,
+            segment_count: self.segment_count.try_into().map_err(|_| invalid())?,
+            ip_header_len: self.ip_header_len,
+        }))
+    }
 }
 
 struct CallbackState {
@@ -89,6 +118,12 @@ fn compile(options: &CaptureOptions) -> Result<(Scratch, PathBuf), CaptureError>
             ))
             .arg(format!("-DUDP_PORT={}", options.udp_port))
             .arg(format!("-DRING_BYTES={}", options.ring_bytes))
+            // Without kernel BTF retain ordinary capture and explicit offload
+            // rejection. Weak kfuncs provide the same fallback on older BTF hosts.
+            .arg(format!(
+                "-DOFFLOAD_CORE={}",
+                u8::from(size_of::<usize>() == 8 && Path::new("/sys/kernel/btf/vmlinux").is_file())
+            ))
             .arg("-c")
             .arg(source)
             .arg("-o")
@@ -330,7 +365,7 @@ impl Collector {
     }
 
     fn decode(&mut self, record: Record) -> Result<FactEnvelope, CaptureError> {
-        if record.version != 1
+        if record.version != 2
             || record.outbound > 1
             || ![4, 6].contains(&record.ip_version)
             || record.prefix_len > 128
@@ -344,6 +379,7 @@ impl Collector {
                 "invalid product event ABI",
             ));
         }
+        let offload = record.offload()?;
         let next = u32::try_from(self.namespaces.len() + 1).unwrap_or(u32::MAX);
         if next > 4096 && !self.namespaces.contains_key(&record.netns_cookie) {
             return Err(CaptureError::new(
@@ -379,15 +415,15 @@ impl Collector {
                 IpAddr::V4([bytes[0], bytes[1], bytes[2], bytes[3]].into())
             }
         };
-        let fact = CapturedUdpDatagram {
+        let datagram = CapturedUdpDatagram {
             source: SocketAddr::new(address(record.source), record.sport),
             destination: SocketAddr::new(address(record.destination), record.dport),
             ip_header_len: record.ip_header_len,
             total_len: record.total_len,
             payload_len: record.payload_len,
             payload_prefix: &record.prefix[..usize::from(record.prefix_len)],
-        }
-        .into_fact(PacketObservation {
+        };
+        let observation = PacketObservation {
             id: FactId(self.next_id),
             session: SessionId(1),
             ts,
@@ -400,7 +436,11 @@ impl Collector {
             } else {
                 PacketDir::Ingress
             },
-        })
+        };
+        let fact = match offload {
+            Some(metadata) => datagram.into_offload_segment_fact(observation, metadata),
+            None => datagram.into_fact(observation),
+        }
         .map_err(|e| CaptureError::new(e.code(), e.to_string()))?;
         self.next_id = self
             .next_id
@@ -480,9 +520,34 @@ mod tests {
     use super::*;
     #[test]
     fn product_record_layout_and_scope_admission() {
-        assert_eq!(size_of::<Record>(), 208);
+        assert_eq!(size_of::<Record>(), 232);
         assert_eq!(std::mem::offset_of!(Record, prefix), 80);
+        assert_eq!(std::mem::offset_of!(Record, aggregate_id), 208);
+        assert_eq!(std::mem::offset_of!(Record, segment_count), 228);
         assert!(open_scope(Path::new("/sys/fs/cgroup")).is_err());
         assert!(open_scope(Path::new("/tmp")).is_err());
+    }
+
+    #[test]
+    fn product_record_provenance_is_not_truncated_or_implicitly_ordinary() {
+        // All fields are integers and byte arrays, including the ABI padding.
+        let mut record: Record = unsafe { std::mem::zeroed() };
+        assert_eq!(record.offload().unwrap(), None);
+        record.segment_count = 4;
+        assert!(record.offload().is_err());
+        record.aggregate_id = 1;
+        record.aggregate_payload_len = 3089;
+        record.segment_size = 1024;
+        record.ip_header_len = 20;
+        assert_eq!(record.offload().unwrap().unwrap().segment_count, 4);
+        for field in ["size", "index", "count"] {
+            let mut bad = record;
+            match field {
+                "size" => bad.segment_size = 65536 + 1024,
+                "index" => bad.segment_index = 65536,
+                _ => bad.segment_count = 65536 + 4,
+            }
+            assert!(bad.offload().is_err());
+        }
     }
 }

@@ -9,14 +9,14 @@ fn proof() -> Value {
     ))
     .unwrap()
 }
-fn hash(bytes: &[u8]) -> String {
+pub(super) fn hash(bytes: &[u8]) -> String {
     ring::digest::digest(&ring::digest::SHA256, bytes)
         .as_ref()
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
 }
-fn payload(phase: usize, family: usize, id: usize, length: usize) -> Vec<u8> {
+pub(super) fn payload(phase: usize, family: usize, id: usize, length: usize) -> Vec<u8> {
     let mut data: Vec<u8> = (0..length)
         .map(|at| ((phase * 19 + at * 31) % 251) as u8)
         .collect();
@@ -24,8 +24,13 @@ fn payload(phase: usize, family: usize, id: usize, length: usize) -> Vec<u8> {
     data
 }
 fn parts(phase: usize, family: usize) -> Vec<Vec<u8>> {
+    parts_with_count(phase, family, 4)
+}
+pub(super) fn parts_with_count(phase: usize, family: usize, count: usize) -> Vec<Vec<u8>> {
     let lengths = if phase == 1 || phase == 2 {
-        vec![1024, 1024, 1024, 17]
+        let mut lengths = vec![1024; count];
+        *lengths.last_mut().unwrap() = 17;
+        lengths
     } else {
         vec![32]
     };
@@ -36,7 +41,17 @@ fn parts(phase: usize, family: usize) -> Vec<Vec<u8>> {
         .collect()
 }
 fn verify_row(row: &Value, phase: usize, family: usize, server: bool, gro: bool) {
-    let parts = parts(phase, family);
+    verify_row_with_count(row, phase, family, server, gro, 4);
+}
+pub(super) fn verify_row_with_count(
+    row: &Value,
+    phase: usize,
+    family: usize,
+    server: bool,
+    gro: bool,
+    count: usize,
+) {
+    let parts = parts_with_count(phase, family, count);
     let request = parts.concat();
     let reply = payload(phase, family, 0, 32);
     assert_eq!(row["family"], if family == 0 { 4 } else { 6 });
@@ -69,7 +84,13 @@ fn verify_row(row: &Value, phase: usize, family: usize, server: bool, gro: bool)
         );
     }
 }
-fn packet(server: bool, family: usize, cookie: &Value, outbound: bool, data: &[u8]) -> Value {
+pub(super) fn packet(
+    server: bool,
+    family: usize,
+    cookie: &Value,
+    outbound: bool,
+    data: &[u8],
+) -> Value {
     json!({"cookie":cookie,"family":if family==0 {0x800} else {0x86dd},
         "local_port":if server {41002} else {41001},"remote_port":if server {41001} else {41002},
         "outbound":outbound,"total_len":data.len()+if family==0 {28} else {48},"prefix":data[..data.len().min(128)]})
@@ -291,10 +312,13 @@ fn production_bpf_offload_boundary_precedes_admission_but_follows_port_filter() 
         .find("if (be16(udp) != UDP_PORT && be16(udp + 2) != UDP_PORT) return 1;")
         .unwrap();
     let reject = source
-        .find("if (ctx->gso_size || ctx->gso_segs > 1) goto unsupported;")
+        .find("if (!udp_l4_offload(ctx)) goto unsupported;")
         .unwrap();
     let admit = source
-        .find("__sync_fetch_and_add(&stats->matched, 1);")
+        .find("__sync_fetch_and_add(&stats->matched, segments);")
         .unwrap();
     assert!(filter < reject && reject < admit);
+    assert!(source.contains("segments > MAX_SEGMENTS"));
+    assert!(source.contains("info->gso_type == (1U << 17)"));
+    assert!(source.contains("__sync_fetch_and_add(&stats->ring_dropped, segments - index)"));
 }

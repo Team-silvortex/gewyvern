@@ -40,20 +40,21 @@ that the kernel fragments and reassembles around these hooks. This does not
 change the direct-header parser restriction or add product-owned reassembly;
 raw fragments and arbitrary extension chains remain unsupported.
 
-GSO/GRO aggregate buffers are also unsupported by ABI v1. For the selected UDP
-port, nonzero `gso_size` or multiple `gso_segs` is explicitly rejected before
-packet admission, counted in `kernel.unsupported` and marked incomplete (exit 3).
-Do not interpret an aggregate as one giant datagram or assume the product splits
-it into wire segments. Ordinary packets and already segmented ingress can still
-be retained; unrelated ports are excluded first. See the [real offload boundary
-and false-completeness repair](production-udp-offload.md).
+Private event ABI v2 normalizes explicitly identified direct UDP L4 GSO/GRO into
+2..16 logical datagrams, each carrying aggregate provenance. It requires kernel
+BTF and read-only SKB cast kfuncs; without those capabilities ordinary UDP still
+works and offload remains explicitly unsupported. Tunnels, UFO, FRAGLIST and
+other combined offload flags, over-limit groups and inconsistent geometry are
+rejected, counted in `kernel.unsupported`, and mark capture incomplete (exit 3).
+Unrelated ports are excluded first. These are derived segment observations,
+not separate wire timestamps or proof of application delivery. See the
+[real offload boundary and normalization](production-udp-offload.md).
 
-The [prepared segment provenance contract](production-udp-offload.md#prepared-segment-contract)
-adds a distinct import/export representation for future bounded normalization.
-It does not change this live producer's rejection policy or private event ABI.
+The [segment provenance contract](production-udp-offload.md#prepared-segment-contract)
+uses a distinct import/export wire tag; ordinary packet JSON is unchanged.
 The [whole-group staging and replay rules](production-udp-offload.md#group-admission-and-replay)
-now prevent partial normalized groups from crossing publication windows. This
-path is prepared in userspace; the current BPF producer still rejects aggregates.
+prevent partial normalized groups from crossing publication windows. Ring loss
+and received-but-rejected incomplete members remain separate, reconciled counts.
 
 ## Start And Consume
 

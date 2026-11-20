@@ -3,6 +3,8 @@ use std::path::Path;
 
 #[path = "native_validation_harness_tdd/udp_errors.rs"]
 mod udp_errors;
+#[path = "native_validation_harness_tdd/udp_normalization.rs"]
+mod udp_normalization;
 #[path = "native_validation_harness_tdd/udp_offload.rs"]
 mod udp_offload;
 #[path = "native_validation_harness_tdd/udp_pressure.rs"]

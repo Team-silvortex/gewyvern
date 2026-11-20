@@ -87,10 +87,11 @@ counter deltas, observed partial bytes and flags, native queue drops reconciled
 with delivered IDs, a matching recovery `SO_RXQ_OVFL` count, and independent
 packet facts. Never equate cgroup ingress with a successful application read.
 The [GSO/GRO boundary variant](production-udp-offload.md) requires native
-segmentation and actual GRO ancillary metadata, rejects selected aggregates
-without inventing single datagrams, preserves truthful incomplete status and
-checks ordinary recovery plus unselected-port exclusion. Treat this as explicit
-unsupported behavior, not successful offload normalization.
+segmentation and actual GRO ancillary metadata. It verifies production UDP L4
+normalization at 4/16 segments, explicit 17-segment rejection, short tails,
+ordinary recovery and unselected-port exclusion. A paused-reader/4 KiB ring case
+must discard received partial groups, reconcile loss and resume correctly.
+Do not extend this single-host veth proof to tunnels or physical NIC offloads.
 
 The [formal packet/socket boundary check](production-udp-boundaries.md) adds
 empty/short/large native UDP payloads, unconnected clients and servers, and

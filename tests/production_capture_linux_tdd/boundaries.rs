@@ -250,6 +250,15 @@ fn udp_boundary_worker() {
 }
 
 pub(super) fn collector(scope: &Scope, port: u16, out: &Path) -> Process {
+    collector_with_options(scope, port, out, &[])
+}
+
+pub(super) fn collector_with_options(
+    scope: &Scope,
+    port: u16,
+    out: &Path,
+    extra: &[&str],
+) -> Process {
     Process(
         Command::new(env!("CARGO_BIN_EXE_gewyvern"))
             .env_clear()
@@ -273,6 +282,7 @@ pub(super) fn collector(scope: &Scope, port: u16, out: &Path) -> Process {
             .arg(out.join("export.json"))
             .arg("--capture-status")
             .arg(out.join("status.json"))
+            .args(extra)
             .stdin(Stdio::null())
             .stdout(fs::File::create(out.join("stdout.log")).unwrap())
             .stderr(fs::File::create(out.join("stderr.log")).unwrap())

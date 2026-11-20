@@ -1,5 +1,38 @@
 # Field Findings
 
+## `2026-11-20` Production UDP L4 Offload Normalizes Bounded Whole Groups
+
+The production BPF producer now emits private ABI-v2 records and uses the existing
+whole-group staging/codec/runtime path. Read-only CO-RE access confirms exact
+`SKB_GSO_UDP_L4` before splitting; size/count alone is not trusted. Groups are
+bounded to 16 segments, have non-reused atomic run-local IDs, retain short tails
+and carry aggregate provenance rather than invented wire timestamps. Other
+offload types and unavailable capabilities remain explicit rejection boundaries.
+
+Seven fresh dual-stack native CLI cases pass on Linux x86_64 with isolated
+veth namespaces. Four- and sixteen-segment runs retain 36/84 facts with no loss
+in both GSO-only and GSO+GRO modes. Seventeen-segment runs retain 54/20 ordinary
+facts, reject 2/4 aggregates and correctly exit 3. Native workers independently
+verify actual segmentation, full payload bytes and GRO ancillary metadata.
+Exports check every normalized index/prefix/length, hook identity and replay.
+
+The paused-reader/4 KiB ring case leaves only nine members of the first group.
+None is published: final counters are 84 matched, 59 ring-dropped, 25 received,
+16 retained and 9 decode-rejected. Baseline and same-socket recovery remain
+intact. Fresh service-window, ring/budget loss, SIGKILL detachment, output/scope
+failure and restart regressions also pass with this producer.
+
+The [normalization proof](production-udp-offload.md#bounded-normalization-proof)
+binds the actual product/test binaries and 16 matching local/remote source inputs.
+Raw evidence stays under Linux `20261120-udp-normalization`; no Mac build cache
+is created. This is not physical-NIC, older-kernel, tunnel or multi-host evidence,
+and no release artifact or status maturity is promoted. Earlier entries below
+describe the preceding provenance/rejection-only stages, not current ABI limits.
+The root-package library/CLI, protocol, export and status selection plus new
+evidence regressions pass 2,152 regular tests; strict all-target/all-feature
+Clippy and formatting pass. The no-CO-RE conservative BPF variant also compiles
+and loads without attachment on this same host, then removes its temporary pins.
+
 ## `2026-11-20` Whole Offload Groups Stay Intact Across Publication Windows
 
 The production collector now uses a bounded fact buffer that reserves a whole

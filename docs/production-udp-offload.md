@@ -1,16 +1,40 @@
 # Production UDP Offload Boundary
 
-The product's ABI v1 represents one UDP datagram. A GSO/GRO aggregate is not
-one datagram, even when its IP/UDP lengths are internally consistent. The
-collector now rejects selected-port aggregates using `gso_size` or `gso_segs`
-before admitting a normal packet fact. It always allows the original traffic.
+The production collector's private event ABI v2 can normalize **direct UDP L4**
+GSO/GRO observations into groups of 2..16 logical datagrams. An aggregate is never
+reported as one ordinary giant datagram. Every path still allows original traffic.
+
+The producer checks the selected port first, then uses CO-RE and the read-only
+`bpf_cast_to_kern_ctx` / `bpf_rdonly_cast` kfuncs to inspect `skb_shared_info`.
+Only exact `SKB_GSO_UDP_L4` is accepted: size/count geometry alone cannot identify
+UDP segmentation. UFO, tunnels, DODGY/PARTIAL/FRAGLIST combinations, more than
+16 segments and inconsistent geometry remain unsupported. Missing kernel BTF
+uses the conservative producer without CO-RE; missing weak kfuncs rejects offload
+while retaining ordinary UDP capture. These compatibility branches do not claim
+an old-kernel certification; the live proof below is one x86_64 Linux host.
+
+The 232-byte record appends provenance to the old 208-byte layout. Ordinary
+records carry zero provenance; userspace rejects partial or narrowing metadata.
+Each accepted aggregate obtains a run-local, cross-CPU atomic ID with bounded
+CAS retries and no wrap/reuse. All its segments share the hook timestamp.
+`kernel.matched` counts planned logical datagrams; `ring_dropped` counts those
+not emitted, including the remainder after the first reserve/read failure.
+Unsupported aggregates count once per hook, without inventing their segments.
+The public capture snapshot schema remains v1 and final accounting stays:
+
+```text
+matched = received + ring_dropped
+received = retained + userspace_dropped + decode_rejected
+```
+
+The type-access approach follows the kernel's
+[BPF type-cast selftest](https://github.com/torvalds/linux/blob/master/tools/testing/selftests/bpf/progs/type_cast.c).
 
 ## Prepared Segment Contract
 
-The Rust capture adapter, fact model, export/import codec and runtime now share
-an explicit **record-level** contract for future bounded normalization. This is
-not enabled in the production BPF producer: ABI v1 still rejects aggregates as
-described below, and its existing Linux before/after evidence remains historical.
+The Rust capture adapter, fact model, export/import codec, runtime and production
+BPF producer share the following explicit **record-level** normalization contract.
+The ABI-v1 rejection-only before/after evidence below remains historical.
 
 `PacketMetaFact.udp_offload` is `None` for ordinary packets. Those packets keep
 the existing `packet_meta` JSON shape, without a new null field. A normalized
@@ -52,8 +76,7 @@ their logical `PacketMeta` kind for existing protocol rules, and retain all
 provenance through export/import and reanalysis. Record validation alone does
 not prove that a complete group was received; the group layer below is separate.
 Neither layer proves application delivery, absence of kernel loss, authenticity
-or individual wire timing. Producer ABI integration and bounded kernel splitting
-must still be verified before production normalization can be enabled.
+or individual wire timing. See the live bounded-normalization checks below.
 
 The contract regressions are in `tests/udp_offload_provenance_tdd.rs`:
 
@@ -64,9 +87,9 @@ cargo test --locked -p gewyvern --test udp_offload_provenance_tdd
 ## Group Admission And Replay
 
 `CaptureFactBuffer` is now the production collector's bounded staging buffer.
-The BPF producer still emits ordinary records only; normalized group scenarios
-are currently exercised through deterministic adapter/buffer tests, not claimed
-as live GSO/GRO normalization.
+The BPF producer emits both ordinary records and explicitly normalized groups.
+Deterministic adapter/buffer tests and the native offload checks exercise this
+same staging path.
 
 - The first segment reserves the **whole group's** slots within `max_facts`.
   Ready ordinary records and reservations share this limit. A refused group
@@ -149,14 +172,43 @@ enabled, it must actually read the joined 3089-byte buffer with a 1024-byte
 `UDP_GRO` ancillary segment size; merely setting the option is insufficient.
 Replies remain ordinary 32-byte datagrams. Fragmentation counters must stay zero.
 
-Selected GSO egress cannot be exported as one giant UDP fact. When GRO is off,
-the separately delivered server ingress datagrams remain valid observations.
-When GRO is on, the aggregate ingress must also be rejected. Baseline, replies
-and recovery retain exact socket/namespace/interface identity, ports, lengths
-and bounded payloads. Unselected-port aggregates must contribute neither facts
-nor unsupported counts. Replay and cleanup must preserve these boundaries.
+The same harness accepts `GEWY_OFFLOAD_SEGMENTS=4|16|17` (default 4), replacing
+the full-sized segment count while retaining a 17-byte tail. Selected GSO egress
+and, when enabled, GRO ingress normalize into complete groups up to 16 segments.
+Already separated ingress stays ordinary. Seventeen-segment aggregates are
+unsupported, not truncated to the bound. Baseline, replies and recovery retain
+exact socket/namespace/interface identity, ports, lengths and bounded payloads.
+Unselected-port aggregates contribute neither facts nor unsupported counts.
+Replay and cleanup must preserve these boundaries.
 
-## Defect And Repair
+Set `GEWY_OFFLOAD_FAULT=ring`, `GEWY_OFFLOAD_GRO=true` and
+`GEWY_OFFLOAD_SEGMENTS=16` together for the paused-reader/4 KiB ring case. Eight
+baseline records and nine members of the first group fit before overflow. The
+partial group must never appear in the export; after resuming, all eight ordinary
+recovery observations must be retained. The exact terminal accounting is
+84 matched, 59 ring-dropped, 25 received, 16 retained and 9 decode-rejected.
+
+## Bounded Normalization Proof
+
+The [ABI-v2 proof](fixtures/gewyvern_product_udp_normalization_linux_x86_64_20261120.json)
+records the six dual-stack 4/16/17-segment mode combinations and the ring-loss
+case using the real product CLI. Four-segment runs retain 36 facts, including
+2 GSO or 4 GSO/GRO groups; sixteen-segment runs retain 84. Both sizes finish
+complete with no loss. The 17-segment runs retain 54/20 ordinary facts, reject
+2/4 aggregates and exit 3. The ring case rejects its nine received partial members,
+retains baseline/recovery and also exits 3 with final reconciled counters.
+
+Each worker byte-checks native sends/reads independently. Each retained group
+checks every segment index, bounded prefix, derived length, identity and shared
+timestamp; the entire bundle is imported and replayed. The compact artifact
+records native hashes and source/binary hashes; raw exports remain on Linux.
+This is not a physical-NIC, older-kernel, tunnel or multi-host certification.
+The status cell is not promoted merely because these cases pass.
+The `OFFLOAD_CORE=0` conservative object also compiles and loads on this host,
+without attaching to traffic; its temporary pins are removed. That check does
+not substitute for executing on an older kernel with unavailable kfuncs.
+
+## Historical Defect And Repair (ABI v1)
 
 The [dated before/after proof](fixtures/gewyvern_product_udp_offload_linux_x86_64_20261120.json)
 reproduces a real false-evidence defect. Before the repair, both modes exited 0
@@ -164,7 +216,7 @@ with `incomplete=false`. GSO-only exported two fictitious aggregate datagrams;
 GSO+GRO exported four, with full IP lengths of 3117/3137 instead of distinct
 UDP datagrams. Native peer I/O independently proved the segmentation/merging.
 
-The fix filters the selected port, rejects offload metadata as `unsupported`,
+The initial fix filtered the selected port, rejected offload metadata as `unsupported`,
 then validates/adopts normal datagrams. Six final runs, three per mode, retain
 144 valid observations and reject 18 aggregate hook observations. All six exit
 3 with truthful incomplete capture, exact accounting and no ring, userspace or
@@ -176,8 +228,8 @@ also pass. Failed reproductions and initial repaired passes are not final runs.
 `unsupported` counts rejected aggregate observations, not missing wire packets
 or segments. Accepted facts still have exact accounting; the run remains
 incomplete after ordinary traffic resumes because its counters are cumulative.
-A new ordinary-only run can be complete. Full selected-traffic evidence requires
-ordinary per-datagram I/O until explicit offload normalization is implemented.
+A new ordinary-only run can be complete. At that stage, full selected-traffic
+evidence required ordinary per-datagram I/O; ABI v2 now adds the bounded path above.
 
 This repairs truthful rejection, not GSO/GRO normalization, hardware-NIC support,
 wire-segment timestamps, full-payload capture or multi-host certification. Raw
