@@ -146,7 +146,10 @@ Each part has a separate job:
 
 ### Template Binding
 
-`TemplateBinding` is the current compile-target skeleton for a future DSL layer.
+`TemplateBinding` is the current Gewyvern materialization of GewyLang source.
+Product-independent parsing, expansion and compiler-stage exchange live in
+`crates/gewylang-*`; `src/dsl/` supplies the product semantic host. It is not a
+placeholder for a future parser or a container for generated eBPF bytecode.
 
 Its role is to carry:
 
@@ -154,8 +157,11 @@ Its role is to carry:
 - fragment-level parameter bindings
 - template-local evidence tier overrides
 
-This boundary is intentional: the future DSL should compile into fragment
-selection plus parameterization, not into generated eBPF bytecode.
+This boundary is intentional: GewyLang lowers into fragment selection,
+parameterization and evidence predicates. Existing kernel probes remain separate
+build inputs; attach and sampling diagnostics determine what can actually be
+observed. A compiled binding is not proof that every required hook or payload
+offset is available on a live host.
 
 ### Runtime Session
 

@@ -387,7 +387,7 @@ fn stun_binding_path_materializes_request_and_response_datagrams() {
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 809, 5000, "webrtc-app"));
     session.ingest(route_fact(2, 809, 7));
-    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+    session.ingest(support::complete_stun_packet(
         3,
         809,
         120,
@@ -397,7 +397,7 @@ fn stun_binding_path_materializes_request_and_response_datagrams() {
         Some(0x00),
         Some(0x0001),
     ));
-    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+    session.ingest(support::complete_stun_packet(
         4,
         809,
         140,
@@ -443,7 +443,7 @@ fn stun_binding_path_does_not_match_wrong_message_type() {
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 810, 5000, "webrtc-app"));
     session.ingest(route_fact(2, 810, 7));
-    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+    session.ingest(support::complete_stun_packet(
         3,
         810,
         120,
@@ -453,7 +453,7 @@ fn stun_binding_path_does_not_match_wrong_message_type() {
         Some(0x00),
         Some(0x0002),
     ));
-    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+    session.ingest(support::complete_stun_packet(
         4,
         810,
         140,

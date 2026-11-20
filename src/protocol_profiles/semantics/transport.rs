@@ -269,17 +269,17 @@ pub(super) fn stun_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantics
     match entry {
         "binding" => summary(
             "nat-binding-path",
-            "STUN binding request and success response for NAT reachability discovery",
+            "bounded modern STUN Binding request and success candidates; no public NAT, ICE, integrity or transaction-correlation proof",
             Some("Binding Request + Binding Success Response"),
             None,
             None,
             Some("protocol_entry_signal"),
         ),
         "binding-error" => failure(
-            "explicit binding failure response instead of successful reachability confirmation",
+            "bounded Binding error candidate with an ERROR-CODE field; not necessarily authentication or access denial",
             None,
-            Some("server_denied"),
-            Some("access_denied"),
+            Some("semantic_error"),
+            Some("protocol_error"),
         ),
         "allocate" => summary(
             "relay-allocation-path",

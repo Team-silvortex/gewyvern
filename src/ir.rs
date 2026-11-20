@@ -4,8 +4,11 @@ pub use crate::ledger::{QuicFrameType, QuicPacketType};
 
 mod matching;
 mod narrative;
+mod ntp;
 mod predicates;
 mod rtsp;
+mod snmp;
+mod stun;
 #[cfg(test)]
 mod tests;
 
@@ -58,9 +61,126 @@ impl RtspResponseKind {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SnmpPduKind {
+    Get,
+    GetNext,
+    GetBulk,
+    Response,
+}
+
+impl SnmpPduKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Get => "get",
+            Self::GetNext => "get_next",
+            Self::GetBulk => "get_bulk",
+            Self::Response => "response",
+        }
+    }
+
+    pub fn from_label(label: &str) -> Option<Self> {
+        match label {
+            "get" => Some(Self::Get),
+            "get_next" => Some(Self::GetNext),
+            "get_bulk" => Some(Self::GetBulk),
+            "response" => Some(Self::Response),
+            _ => None,
+        }
+    }
+
+    pub fn direction(self) -> PacketDir {
+        if self == Self::Response {
+            PacketDir::Ingress
+        } else {
+            PacketDir::Egress
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StunBindingKind {
+    Request,
+    Response,
+    Error,
+}
+
+impl StunBindingKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Request => "request",
+            Self::Response => "response",
+            Self::Error => "error",
+        }
+    }
+
+    pub fn from_label(label: &str) -> Option<Self> {
+        match label {
+            "request" => Some(Self::Request),
+            "response" => Some(Self::Response),
+            "error" => Some(Self::Error),
+            _ => None,
+        }
+    }
+
+    pub fn direction(self) -> PacketDir {
+        if self == Self::Request {
+            PacketDir::Egress
+        } else {
+            PacketDir::Ingress
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NtpMessageKind {
+    Request,
+    Response,
+    TimeReply,
+}
+
+impl NtpMessageKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Request => "request",
+            Self::Response => "response",
+            Self::TimeReply => "time_reply",
+        }
+    }
+
+    pub fn from_label(label: &str) -> Option<Self> {
+        match label {
+            "request" => Some(Self::Request),
+            "response" => Some(Self::Response),
+            "time_reply" => Some(Self::TimeReply),
+            _ => None,
+        }
+    }
+
+    pub fn direction(self) -> PacketDir {
+        if self == Self::Request {
+            PacketDir::Egress
+        } else {
+            PacketDir::Ingress
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FlowPredicate {
     ProcessBound,
+    StunBindingObserved {
+        remote_port: u16,
+        kind: StunBindingKind,
+    },
+    NtpMessageObserved {
+        remote_port: u16,
+        kind: NtpMessageKind,
+    },
+    SnmpPduObserved {
+        remote_port: u16,
+        kind: SnmpPduKind,
+    },
     RtspResponseObserved {
         remote_port: u16,
         kind: RtspResponseKind,

@@ -110,10 +110,15 @@ fn stages_report_summarizes_payload_offset_support() {
         report.validation.sampled_payload_offsets,
         vec![0, 1, 4, 5, 9, 10, 13]
     );
-    assert_eq!(report.validation.required_payload_offsets, vec![13]);
+    assert_eq!(
+        report.validation.required_payload_offsets,
+        (0..128).collect::<Vec<_>>()
+    );
     assert_eq!(
         report.validation.unsupported_payload_offsets,
-        Vec::<u16>::new()
+        (0..128)
+            .filter(|offset| !report.validation.sampled_payload_offsets.contains(offset))
+            .collect::<Vec<_>>()
     );
 }
 

@@ -38,5 +38,12 @@ Read this page after the generic protocol surface when:
 The current entry is transport-oriented and intentionally small. It models the
 coarse UDP request/reply path, not detailed resolver semantics.
 
+The same DNS UDP and error packages have passed bounded real IPv4 and IPv6
+CoreDNS capture/replay. The [IPv6 evidence](../fixtures/gewyvern_ipv6_dns_linux_x86_64_20261113.json)
+uses IPv6-only private bridges and A questions, preserving IP family and packet
+length without inventing process attribution. This is not AAAA-query, public
+IPv6 routing, extension-header, fragmentation, checksum or recursive-resolver
+certification. A captured TC response is not completed resolution.
+
 For the broader family map, see
 [docs/book/reference-dns-surface.md](docs/book/reference-dns-surface.md).

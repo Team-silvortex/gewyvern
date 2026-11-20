@@ -10,12 +10,12 @@ fn ntp_sync_rules() =
   |> reason_model :ntp_sync_path_reason
   |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
   |> program_rule pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true, mod: $module_name, phase: :resolve_upstream
-  |> program_rule pred: "datagram_observed:udp:remote:ntp:local_to_remote:byte0_mask:0xff:0x1b", stage: :datagram_observed, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_sync_request
-  |> program_rule pred: "datagram_observed:udp:remote:ntp:remote_to_local:byte0_mask:0xff:0x24", stage: :datagram_observed, narr: :udp_datagram_received, dedupe: true, mod: $module_name, phase: :receive_sync_response
+  |> program_rule pred: "ntp_message_observed:remote:ntp:request", stage: :datagram_observed, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_sync_request
+  |> program_rule pred: "ntp_message_observed:remote:ntp:time_reply", stage: :datagram_observed, narr: :udp_datagram_received, dedupe: true, mod: $module_name, phase: :receive_sync_response
   |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
   |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_upstream
-  |> reason_rule pred: "datagram_observed:udp:remote:ntp:local_to_remote:byte0_mask:0xff:0x1b", event: :udp_datagram_seen, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_sync_request
-  |> reason_rule pred: "datagram_observed:udp:remote:ntp:remote_to_local:byte0_mask:0xff:0x24", event: :udp_datagram_seen, narr: :udp_datagram_received, dedupe: true, mod: $module_name, phase: :receive_sync_response
+  |> reason_rule pred: "ntp_message_observed:remote:ntp:request", event: :udp_datagram_seen, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_sync_request
+  |> reason_rule pred: "ntp_message_observed:remote:ntp:time_reply", event: :udp_datagram_seen, narr: :udp_datagram_received, dedupe: true, mod: $module_name, phase: :receive_sync_response
 
 template :ntp_sync_path
 |> window(duration_ms: 5000, lateness_ms: 200)

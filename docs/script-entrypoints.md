@@ -1704,6 +1704,126 @@ cgroup, container and network, then a fresh HTTP capture checks continued use.
 This is finite correctness coverage, not a UDP performance benchmark or IPv6,
 fragment reassembly, recursive-cache, DoH/DoT or full-catalog acceptance.
 
+For the same DNS cases over an IPv6-only private bridge:
+
+```bash
+sudo target/debug/gewyvern_validate --json linux-udp-capture --ipv6-dns --out-dir target/validation/udp-dns-ipv6-new
+```
+
+This mutually exclusive mode reuses the pinned CoreDNS image and native Rust
+client. It creates a per-run unique-local /64 using Docker's
+[IPv6-only bridge](https://docs.docker.com/engine/network/drivers/bridge/#ipv6-only-bridge-networks)
+support; no daemon or host sysctl configuration is manually edited. Docker manages
+the temporary bridge and its firewall rules. The inspected
+network must be internal, IPv6-only and unpublished, with exactly one target
+attachment inside that /64. The client uses IPv6-only sockets, not IPv4-mapped
+addresses. This sends DNS A questions over IPv6, not AAAA questions.
+
+The shared validation collector checks all 128 address bits, the IP version and
+complete bounded datagram length. Only a direct UDP next-header after the
+[IPv6 base header](https://www.rfc-editor.org/rfc/rfc8200.html#section-3) is accepted.
+Packets still carrying extension/fragment headers at this hook, and jumbograms,
+are rejected rather than partially decoded; prior kernel reassembly is not
+excluded by this evidence. UDP checksums are not independently verified. DNS summaries use schema 2 and
+record the address family, both endpoints and package-fact EtherType. Raw
+validation events now include explicit IP version and 16-byte addresses (IPv4
+uses four leading bytes plus twelve zero bytes); no production event ABI changes.
+Unsupported or malformed selected traffic makes the capture fail through its
+loss accounting, rather than contributing successful protocol evidence.
+
+To run the same real target through the formal CLI's own production collector,
+use `--production-dns` or `--production-ipv6-dns` instead. These are mutually
+exclusive with the validation-collector modes. Build both native executables
+first; see [production DNS field check](production-dns-field.md) for commands,
+independent byte checks and the outside-cgroup neighbor boundary.
+
+For the real Net-SNMP, chrony and coturn fixtures below, use
+`--production-snmp`, `--production-ntp` or `--production-stun` to exercise the
+formal CLI rather than the validation collector. These modes are also mutually
+exclusive and IPv4-only; each package gets a fresh product process. See
+[production management UDP checks](production-management-udp-field.md) for the
+complete byte/phase oracle, negative cases and clock/relay safety boundaries.
+
+To exercise a real read-only SNMPv2c agent on Linux:
+
+```bash
+docker build --pull=false -t gewyvern-field-snmp:5.9.5.2 ebpf/validation/snmp
+sudo target/debug/gewyvern_validate --json linux-udp-capture --snmp-breadth --out-dir target/validation/udp-snmp-new
+```
+
+Preparation uses a digest-pinned Alpine base and pinned Net-SNMP package; the
+campaign itself never pulls/builds. It resolves the local image to its immutable
+ID, compares the embedded configuration, and starts the native daemon on a new
+internal network with no published ports or host mounts. Limits: one CPU,
+128 MiB, 64 tasks, read-only root and a 4 MiB temporary directory. The only
+community is a disposable fixture credential, not a production secret; its MIB
+view is read-only. No host SNMP configuration or firewall is changed.
+
+The native Rust client checks GET, GETNEXT, one-repetition GETBULK, noSuchObject,
+wrong-community timeout and recovery. Two selected sockets reuse request ID 1;
+a third same-target socket must be excluded. Every selected wire datagram is
+reconciled against the real ingress/egress BPF capture before package replay.
+Both the old fixed-byte-13 miss and new bounded BER candidates are checked on
+the same facts. No client bytes fill missing capture evidence. Resource cleanup
+is followed by a fresh HTTP capture. This does not validate SNMPv3, writes,
+notifications, full MIB walks, request correlation by product rules, IPv6 or
+UDP throughput. `linux-udp-capture` without this option remains the DNS campaign.
+
+To exercise real NTPv3/v4 without changing the host clock:
+
+```bash
+docker build --pull=false -t gewyvern-field-ntp:4.8 ebpf/validation/ntp
+sudo target/debug/gewyvern_validate --json linux-udp-capture --ntp-breadth --out-dir target/validation/udp-ntp-new
+```
+
+This mutually exclusive UDP mode uses a pinned Alpine base and chrony package.
+The runner verifies the native `chronyd -x` entrypoint, drops all capabilities
+except `NET_BIND_SERVICE` (never `SYS_TIME`), uses a read-only root and 4 MiB
+temporary directory, and configures no external time source. Each phase gets
+its own internal network and container, with no published ports or host mounts.
+Targets are limited to one CPU, 64 MiB and 64 tasks; the host time daemon and
+clock configuration are not changed. The daemon's [-x option](https://chrony-project.org/doc/4.6/chronyd.html)
+disables clock control; the [local reference](https://chrony-project.org/doc/4.6/chrony.conf.html#local)
+phase only simulates usable server status, not accurate time.
+
+Two phases cover local-reference and unsynchronised replies. Reports store
+64-bit NTP timestamp fields as fixed-width hex strings to avoid JSON-number
+precision loss in JavaScript and other consumers. The native Rust
+client checks v4/v3, exact echoed origin values, a 12-byte request timeout and
+subsequent recovery, with two selected sockets reusing an origin and one
+excluded neighbor. Each phase captures five requests/four replies and replays
+the client/query/sync packages from actual kernel bytes. The `sync` receive
+phase must stay absent for the unsynchronised target. Generic response phases
+are not success. Cleanup is followed by a fresh HTTP capture. Real KoD rate
+limiting, extensions/MAC/NTS, IPv6, product request correlation, throughput,
+clock accuracy and client clock discipline remain outside this proof.
+
+To exercise real modern STUN Binding without enabling a relay:
+
+```bash
+docker build --pull=false -t gewyvern-field-stun:4.10.0 ebpf/validation/stun
+sudo target/debug/gewyvern_validate --json linux-udp-capture --stun-breadth --out-dir target/validation/udp-stun-new
+```
+
+This mutually exclusive UDP mode runs pinned coturn with `stun-only`, no TCP,
+TLS, DTLS or administration listener, on an internal bridge without published
+ports or host mounts. It runs as UID 65534 with all capabilities dropped, a
+read-only root, 4 MiB temporary storage, one CPU, 128 MiB and 64 tasks. The image
+configuration must match the compiled fixture. Images are built explicitly on
+Linux; the runner never pulls one automatically. coturn's [configuration](https://github.com/coturn/coturn/blob/master/examples/etc/turnserver.conf)
+documents the STUN-only mode.
+
+The native Rust client checks transaction IDs and XOR-mapped local endpoints,
+420/UNKNOWN-ATTRIBUTES, ignored optional-attribute padding, and a two-byte short
+request timeout followed by recovery. Two selected sockets reuse a transaction
+ID; a third neighbor is excluded. Six requests and five replies must reconcile
+exactly with kernel bytes before replaying the Binding and Binding-error packages.
+The old two-byte rules must falsely match the captured short request while the
+new envelope predicate rejects it. A fresh HTTP capture follows owned cleanup.
+This is a local IPv4 correctness campaign, not public NAT/ICE, TURN allocation,
+authentication, FINGERPRINT verification, product transaction correlation,
+throughput or a full STUN conformance suite.
+
 To inject bounded collection faults and verify recovery, without Docker:
 
 ```bash

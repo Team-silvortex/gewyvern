@@ -104,6 +104,12 @@ fn native_installer_entrypoint_prepares_and_replays_a_private_generation() {
         token
     );
     assert_eq!(fs::read(generation.join("gewyvern")).unwrap(), artifact);
+    #[cfg(target_os = "linux")]
+    {
+        let unit = fs::read_to_string(generation.join("service.service")).unwrap();
+        assert!(unit.contains("StartLimitIntervalSec=60\nStartLimitBurst=5\n"));
+        assert!(unit.contains("Restart=on-failure\nRestartSec=2\n"));
+    }
     #[cfg(unix)]
     assert_eq!(
         fs::metadata(generation.join("api.token"))

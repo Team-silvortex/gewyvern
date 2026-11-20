@@ -1,0 +1,2333 @@
+{
+  "schema_version": 1,
+  "campaign": "production-cli-private-veth-network-namespaces",
+  "date": "2026-11-20",
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "source_base_commit": "39eeb7d1f03c92f007daa1ac5d72aee311fead5e",
+  "source_worktree_dirty": true,
+  "source_sha256": {
+    "tests/production_capture_linux_tdd.rs": "7919c47c9c65bbe50ff740ce2146d08881fad10709d46a34873f0a6f0edd25ed",
+    "tests/production_capture_linux_tdd/boundaries.rs": "d4873971eeea71cac35c43f553439664ef03558a0dca4729b95ce294e2426921",
+    "tests/production_capture_linux_tdd/network.rs": "e1f2f56176cd9ea3f9d1b2de3c2a62c7acb23aae88cd69f2d55c8712375976cc",
+    "tests/native_validation_harness_tdd.rs": "114bded577d1de6ed9d8a6fca019f42aa0a2a044130676472d1b4b04718d8c49",
+    "src/live_capture.rs": "fd14b4925528b4c8b22ebc3a3d0f1890c098d862fa5df8f0fdb9a59eb42448ab",
+    "src/live_capture/linux.rs": "1e166da359d5f11624e545fc2fef57182fa1a48b76c4dbc4d34dd5cd9ac084ed",
+    "src/live_capture/linux/api.rs": "77426bb0cee7018f88a3d1a0cc24d316f99ad8df35e05c962fab8382942b7d0d",
+    "src/main.rs": "c898522bdfc59485d4375b180a15f7a68ac1b5358c4dd2da18f5a2ca7bf6b5e0",
+    "src/main/capture_cli.rs": "92fa52a61995c9cf3e5fbff54d24238a26bad53ecd9f3c99c105d596d103f0c3",
+    "src/main/capture_runtime.rs": "80836255e2c49daa600ec4457faf7da9bce429faf875e2358a6a26f5dbdd1462",
+    "src/packet_capture.rs": "50cf644ff5bf466169296b79850bd8e128df60734978ee500ddb1d3c70ac8014",
+    "src/export.rs": "58691c97e23343d041630d3aafd63febb8568f0eb0114b43dbb3b45ad96b78c4",
+    "src/export/capture_codec.rs": "55c07226d16d934f7c0586e26c42fca419f46d4daab5fb9b6784ace76f6243da",
+    "ebpf/production/udp.bpf.c": "867e71774df6c9bbf69370ce712d527c0d7a8dede8eba1eff0975d76e1c1c1e3",
+    "Cargo.toml": "b4e09c55b8497e1c30df15836bbf94caaa8e34f58d3a4f926e6a9454a9817827",
+    "Cargo.lock": "e2bb05484df435e37cca096402a22f3f7480581d851cab7009b645de0630fb11"
+  },
+  "source_scope": "16 selected production, ABI, adapter, test and build inputs match the Linux workspace byte-for-byte; not a hermetic whole-worktree release manifest.",
+  "binary_sha256": {
+    "target/debug/gewyvern": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+    "target/debug/deps/production_capture_linux_tdd-297444ef8a6b069b": "8c52a65fe3a1c4140e1675184132afe804953e97382e8c99f921835d606a05aa",
+    "target/debug/deps/native_validation_harness_tdd-b32603401b9582d2": "231ba1affadb48e8b621afa30ff4d9a1be7e00eb885a11578a6cbd04cbfc0ac8"
+  },
+  "execution": {
+    "kernel": "7.0.0-43-generic",
+    "architecture": "x86_64",
+    "build_image": "rust:1.98",
+    "build_location": "remote Linux temporary unprivileged container",
+    "build_limits": {
+      "cpus": 2,
+      "memory_gib": 4,
+      "pids": 512
+    },
+    "build_profile": "dev/test, gewyvern opt-level=2, debug=0, incremental=0",
+    "runtime": "root native host CLI, private MTU-1500 veth pair, two worker network namespaces sharing one selected cgroup",
+    "evidence_root": "/home/chiharukiryu/.cache/gewyvern/evidence/20261120-product-udp-netns",
+    "test_selector": "--ignored --exact network::production_capture_network_namespaces --nocapture",
+    "run_directories": [
+      "final-1",
+      "final-2",
+      "final-3"
+    ],
+    "docker_runtime_targets": false,
+    "host_network_configuration_changed": false
+  },
+  "results": {
+    "accepted_runs": 3,
+    "product_capture_sessions": 6,
+    "selected_exchanges": 90,
+    "retained_packet_facts": 360,
+    "prefix_only_facts": 144,
+    "ipv4_fragments_created": 276,
+    "ipv6_fragments_created": 282,
+    "ipv4_reassemblies": 18,
+    "ipv6_reassemblies": 18
+  },
+  "findings": {
+    "new_product_capture_defect_reproduced": false,
+    "product_binary_unchanged": true,
+    "change": "Add reproducible cross-namespace and real kernel-fragmented UDP acceptance. No product runtime fix needed in these bounded runs.",
+    "development_attempts": [
+      "attempt-1: ip netns exec remounted sysfs and hid the selected cgroup; fixture fixed to native setns with thread-local proc counters",
+      "attempt-2: passed before adding exact interface-index checking; not counted among final runs"
+    ],
+    "namespace_identity": "Both peers reuse veth ifindex 2 but have distinct run-local namespace IDs. IDs are not stable across captures.",
+    "fragmentation": "Kernel fragment/reassembly counters establish actual MTU pressure. Product hook observations are normalized datagrams, not raw fragment capture or product-owned reassembly."
+  },
+  "runs": [
+    {
+      "binary_sha256": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+      "cases": [
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3398656-1795171629443756232",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "72",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "72",
+            "retained": "72",
+            "run_id": "3398669-92804386402458",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 41002,
+            "userspace_dropped": "0"
+          },
+          "facts": 72,
+          "fragmentation": false,
+          "hooks_detached": true,
+          "mtu": 1500,
+          "namespace_ids": [
+            1,
+            2
+          ],
+          "ok": true,
+          "oracles": [
+            {
+              "cookies": [
+                "20",
+                "21"
+              ],
+              "fragment_counters_delta": {
+                "Ip6FragCreates": 0,
+                "Ip6FragFails": 0,
+                "Ip6FragOKs": 0,
+                "Ip6ReasmFails": 0,
+                "Ip6ReasmOKs": 0,
+                "Ip6ReasmReqds": 0,
+                "Ip6ReasmTimeout": 0,
+                "IpFragCreates": 0,
+                "IpFragFails": 0,
+                "IpFragOKs": 0,
+                "IpReasmFails": 0,
+                "IpReasmOKs": 0,
+                "IpReasmReqds": 0,
+                "IpReasmTimeout": 0
+              },
+              "ifindex": 2,
+              "namespace": "net:[4026534049]",
+              "native_io_verified": true,
+              "observations": [
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "ab897fbdedfa502b2d839b6a56100887dccdc507555c282e59589e06300a62e2"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "ab897fbdedfa502b2d839b6a56100887dccdc507555c282e59589e06300a62e2"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 128,
+                  "sha256": "0ba28ee159e01319074f559f7246f1b3645ed2cf583b8b1fec3dd1779e270b41"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 128,
+                  "sha256": "0ba28ee159e01319074f559f7246f1b3645ed2cf583b8b1fec3dd1779e270b41"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 129,
+                  "sha256": "7a0062e5eac98c837c7ff7339834d2e9caf336d08ca8ab535d07afc74b6b93ff"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 129,
+                  "sha256": "7a0062e5eac98c837c7ff7339834d2e9caf336d08ca8ab535d07afc74b6b93ff"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1400,
+                  "sha256": "93543ea56aada66648669e9b726d850dd25aad35a52cbc97fbbb189d9304cd31"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1400,
+                  "sha256": "93543ea56aada66648669e9b726d850dd25aad35a52cbc97fbbb189d9304cd31"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1452,
+                  "sha256": "e96545f376771534e441c00da31caab0568063b4f7a6829f1fe2ead652fb59b9"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1452,
+                  "sha256": "e96545f376771534e441c00da31caab0568063b4f7a6829f1fe2ead652fb59b9"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "454349e422f05297191ead13e21d3db520e5abef52055e4964b82fb213f593a1"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "454349e422f05297191ead13e21d3db520e5abef52055e4964b82fb213f593a1"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "1d4be89954bc402cf1ed5e19e31585c558d605d80bc1efad6af51a30e0b557bc"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "1d4be89954bc402cf1ed5e19e31585c558d605d80bc1efad6af51a30e0b557bc"
+                }
+              ],
+              "role": "client"
+            },
+            {
+              "cookies": [
+                "4117",
+                "4118"
+              ],
+              "fragment_counters_delta": {
+                "Ip6FragCreates": 0,
+                "Ip6FragFails": 0,
+                "Ip6FragOKs": 0,
+                "Ip6ReasmFails": 0,
+                "Ip6ReasmOKs": 0,
+                "Ip6ReasmReqds": 0,
+                "Ip6ReasmTimeout": 0,
+                "IpFragCreates": 0,
+                "IpFragFails": 0,
+                "IpFragOKs": 0,
+                "IpReasmFails": 0,
+                "IpReasmOKs": 0,
+                "IpReasmReqds": 0,
+                "IpReasmTimeout": 0
+              },
+              "ifindex": 2,
+              "namespace": "net:[4026534225]",
+              "native_io_verified": true,
+              "observations": [
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "ab897fbdedfa502b2d839b6a56100887dccdc507555c282e59589e06300a62e2"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "ab897fbdedfa502b2d839b6a56100887dccdc507555c282e59589e06300a62e2"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 128,
+                  "sha256": "0ba28ee159e01319074f559f7246f1b3645ed2cf583b8b1fec3dd1779e270b41"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 128,
+                  "sha256": "0ba28ee159e01319074f559f7246f1b3645ed2cf583b8b1fec3dd1779e270b41"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 129,
+                  "sha256": "7a0062e5eac98c837c7ff7339834d2e9caf336d08ca8ab535d07afc74b6b93ff"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 129,
+                  "sha256": "7a0062e5eac98c837c7ff7339834d2e9caf336d08ca8ab535d07afc74b6b93ff"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1400,
+                  "sha256": "93543ea56aada66648669e9b726d850dd25aad35a52cbc97fbbb189d9304cd31"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1400,
+                  "sha256": "93543ea56aada66648669e9b726d850dd25aad35a52cbc97fbbb189d9304cd31"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1452,
+                  "sha256": "e96545f376771534e441c00da31caab0568063b4f7a6829f1fe2ead652fb59b9"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1452,
+                  "sha256": "e96545f376771534e441c00da31caab0568063b4f7a6829f1fe2ead652fb59b9"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "454349e422f05297191ead13e21d3db520e5abef52055e4964b82fb213f593a1"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "454349e422f05297191ead13e21d3db520e5abef52055e4964b82fb213f593a1"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "1d4be89954bc402cf1ed5e19e31585c558d605d80bc1efad6af51a30e0b557bc"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "1d4be89954bc402cf1ed5e19e31585c558d605d80bc1efad6af51a30e0b557bc"
+                }
+              ],
+              "role": "server"
+            }
+          ],
+          "owned_cgroups_removed": true,
+          "owned_namespaces_removed": true,
+          "payload_lengths": [
+            0,
+            1,
+            128,
+            129,
+            1400,
+            1452,
+            1,
+            0,
+            32
+          ],
+          "prefix_and_lengths_match": true,
+          "replay_identical": true
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3398656-1795171630723944529",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "48",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "48",
+            "retained": "48",
+            "run_id": "3398746-92805666141320",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 41002,
+            "userspace_dropped": "0"
+          },
+          "facts": 48,
+          "fragmentation": true,
+          "hooks_detached": true,
+          "mtu": 1500,
+          "namespace_ids": [
+            1,
+            2
+          ],
+          "ok": true,
+          "oracles": [
+            {
+              "cookies": [
+                "57347",
+                "57348"
+              ],
+              "fragment_counters_delta": {
+                "Ip6FragCreates": 47,
+                "Ip6FragFails": 0,
+                "Ip6FragOKs": 3,
+                "Ip6ReasmFails": 0,
+                "Ip6ReasmOKs": 3,
+                "Ip6ReasmReqds": 47,
+                "Ip6ReasmTimeout": 0,
+                "IpFragCreates": 46,
+                "IpFragFails": 0,
+                "IpFragOKs": 3,
+                "IpReasmFails": 0,
+                "IpReasmOKs": 3,
+                "IpReasmReqds": 46,
+                "IpReasmTimeout": 0
+              },
+              "ifindex": 2,
+              "namespace": "net:[4026534277]",
+              "native_io_verified": true,
+              "observations": [
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1473,
+                  "sha256": "aba65c0c7a4cd751be1e0a8f1573e0fea641f185596193522824d022fa0ac573"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1473,
+                  "sha256": "aba65c0c7a4cd751be1e0a8f1573e0fea641f185596193522824d022fa0ac573"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 4096,
+                  "sha256": "118b2f9d1424fa74b81c9a8b2567b229739aa86471526f86bc9a3ecbe944d164"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 4096,
+                  "sha256": "118b2f9d1424fa74b81c9a8b2567b229739aa86471526f86bc9a3ecbe944d164"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 60000,
+                  "sha256": "dff3016f333b754b17b0157106bd9a3cd72b1434a241e8dfa73919fcccbde57d"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 60000,
+                  "sha256": "dff3016f333b754b17b0157106bd9a3cd72b1434a241e8dfa73919fcccbde57d"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "e291df7769841479a770468d79a44934e74509a0b3f2ab11f2aef64db6c1c2dc"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "e291df7769841479a770468d79a44934e74509a0b3f2ab11f2aef64db6c1c2dc"
+                }
+              ],
+              "role": "client"
+            },
+            {
+              "cookies": [
+                "36871",
+                "36872"
+              ],
+              "fragment_counters_delta": {
+                "Ip6FragCreates": 47,
+                "Ip6FragFails": 0,
+                "Ip6FragOKs": 3,
+                "Ip6ReasmFails": 0,
+                "Ip6ReasmOKs": 3,
+                "Ip6ReasmReqds": 47,
+                "Ip6ReasmTimeout": 0,
+                "IpFragCreates": 46,
+                "IpFragFails": 0,
+                "IpFragOKs": 3,
+                "IpReasmFails": 0,
+                "IpReasmOKs": 3,
+                "IpReasmReqds": 46,
+                "IpReasmTimeout": 0
+              },
+              "ifindex": 2,
+              "namespace": "net:[4026534334]",
+              "native_io_verified": true,
+              "observations": [
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1473,
+                  "sha256": "aba65c0c7a4cd751be1e0a8f1573e0fea641f185596193522824d022fa0ac573"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1473,
+                  "sha256": "aba65c0c7a4cd751be1e0a8f1573e0fea641f185596193522824d022fa0ac573"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 4096,
+                  "sha256": "118b2f9d1424fa74b81c9a8b2567b229739aa86471526f86bc9a3ecbe944d164"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 4096,
+                  "sha256": "118b2f9d1424fa74b81c9a8b2567b229739aa86471526f86bc9a3ecbe944d164"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 60000,
+                  "sha256": "dff3016f333b754b17b0157106bd9a3cd72b1434a241e8dfa73919fcccbde57d"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 60000,
+                  "sha256": "dff3016f333b754b17b0157106bd9a3cd72b1434a241e8dfa73919fcccbde57d"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "e291df7769841479a770468d79a44934e74509a0b3f2ab11f2aef64db6c1c2dc"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "e291df7769841479a770468d79a44934e74509a0b3f2ab11f2aef64db6c1c2dc"
+                }
+              ],
+              "role": "server"
+            }
+          ],
+          "owned_cgroups_removed": true,
+          "owned_namespaces_removed": true,
+          "payload_lengths": [
+            1473,
+            4096,
+            60000,
+            1,
+            0,
+            32
+          ],
+          "prefix_and_lengths_match": true,
+          "replay_identical": true
+        }
+      ],
+      "host_network_changed": false,
+      "limits": [
+        "single_host_private_veth",
+        "prefix_only_above_128",
+        "no_raw_fragment_archival",
+        "no_high_load_or_physical_link_claim"
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "production_cli": true,
+      "schema_version": 1,
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+      "cases": [
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3400919-1795171664576386429",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "72",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "72",
+            "retained": "72",
+            "run_id": "3400932-92839535301180",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 41002,
+            "userspace_dropped": "0"
+          },
+          "facts": 72,
+          "fragmentation": false,
+          "hooks_detached": true,
+          "mtu": 1500,
+          "namespace_ids": [
+            1,
+            2
+          ],
+          "ok": true,
+          "oracles": [
+            {
+              "cookies": [
+                "22",
+                "23"
+              ],
+              "fragment_counters_delta": {
+                "Ip6FragCreates": 0,
+                "Ip6FragFails": 0,
+                "Ip6FragOKs": 0,
+                "Ip6ReasmFails": 0,
+                "Ip6ReasmOKs": 0,
+                "Ip6ReasmReqds": 0,
+                "Ip6ReasmTimeout": 0,
+                "IpFragCreates": 0,
+                "IpFragFails": 0,
+                "IpFragOKs": 0,
+                "IpReasmFails": 0,
+                "IpReasmOKs": 0,
+                "IpReasmReqds": 0,
+                "IpReasmTimeout": 0
+              },
+              "ifindex": 2,
+              "namespace": "net:[4026534049]",
+              "native_io_verified": true,
+              "observations": [
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "ab897fbdedfa502b2d839b6a56100887dccdc507555c282e59589e06300a62e2"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "ab897fbdedfa502b2d839b6a56100887dccdc507555c282e59589e06300a62e2"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 128,
+                  "sha256": "0ba28ee159e01319074f559f7246f1b3645ed2cf583b8b1fec3dd1779e270b41"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 128,
+                  "sha256": "0ba28ee159e01319074f559f7246f1b3645ed2cf583b8b1fec3dd1779e270b41"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 129,
+                  "sha256": "7a0062e5eac98c837c7ff7339834d2e9caf336d08ca8ab535d07afc74b6b93ff"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 129,
+                  "sha256": "7a0062e5eac98c837c7ff7339834d2e9caf336d08ca8ab535d07afc74b6b93ff"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1400,
+                  "sha256": "93543ea56aada66648669e9b726d850dd25aad35a52cbc97fbbb189d9304cd31"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1400,
+                  "sha256": "93543ea56aada66648669e9b726d850dd25aad35a52cbc97fbbb189d9304cd31"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1452,
+                  "sha256": "e96545f376771534e441c00da31caab0568063b4f7a6829f1fe2ead652fb59b9"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1452,
+                  "sha256": "e96545f376771534e441c00da31caab0568063b4f7a6829f1fe2ead652fb59b9"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "454349e422f05297191ead13e21d3db520e5abef52055e4964b82fb213f593a1"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "454349e422f05297191ead13e21d3db520e5abef52055e4964b82fb213f593a1"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "1d4be89954bc402cf1ed5e19e31585c558d605d80bc1efad6af51a30e0b557bc"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "1d4be89954bc402cf1ed5e19e31585c558d605d80bc1efad6af51a30e0b557bc"
+                }
+              ],
+              "role": "client"
+            },
+            {
+              "cookies": [
+                "20497",
+                "20498"
+              ],
+              "fragment_counters_delta": {
+                "Ip6FragCreates": 0,
+                "Ip6FragFails": 0,
+                "Ip6FragOKs": 0,
+                "Ip6ReasmFails": 0,
+                "Ip6ReasmOKs": 0,
+                "Ip6ReasmReqds": 0,
+                "Ip6ReasmTimeout": 0,
+                "IpFragCreates": 0,
+                "IpFragFails": 0,
+                "IpFragOKs": 0,
+                "IpReasmFails": 0,
+                "IpReasmOKs": 0,
+                "IpReasmReqds": 0,
+                "IpReasmTimeout": 0
+              },
+              "ifindex": 2,
+              "namespace": "net:[4026534225]",
+              "native_io_verified": true,
+              "observations": [
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "ab897fbdedfa502b2d839b6a56100887dccdc507555c282e59589e06300a62e2"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "ab897fbdedfa502b2d839b6a56100887dccdc507555c282e59589e06300a62e2"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 128,
+                  "sha256": "0ba28ee159e01319074f559f7246f1b3645ed2cf583b8b1fec3dd1779e270b41"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 128,
+                  "sha256": "0ba28ee159e01319074f559f7246f1b3645ed2cf583b8b1fec3dd1779e270b41"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 129,
+                  "sha256": "7a0062e5eac98c837c7ff7339834d2e9caf336d08ca8ab535d07afc74b6b93ff"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 129,
+                  "sha256": "7a0062e5eac98c837c7ff7339834d2e9caf336d08ca8ab535d07afc74b6b93ff"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1400,
+                  "sha256": "93543ea56aada66648669e9b726d850dd25aad35a52cbc97fbbb189d9304cd31"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1400,
+                  "sha256": "93543ea56aada66648669e9b726d850dd25aad35a52cbc97fbbb189d9304cd31"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1452,
+                  "sha256": "e96545f376771534e441c00da31caab0568063b4f7a6829f1fe2ead652fb59b9"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1452,
+                  "sha256": "e96545f376771534e441c00da31caab0568063b4f7a6829f1fe2ead652fb59b9"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "454349e422f05297191ead13e21d3db520e5abef52055e4964b82fb213f593a1"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "454349e422f05297191ead13e21d3db520e5abef52055e4964b82fb213f593a1"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "1d4be89954bc402cf1ed5e19e31585c558d605d80bc1efad6af51a30e0b557bc"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "1d4be89954bc402cf1ed5e19e31585c558d605d80bc1efad6af51a30e0b557bc"
+                }
+              ],
+              "role": "server"
+            }
+          ],
+          "owned_cgroups_removed": true,
+          "owned_namespaces_removed": true,
+          "payload_lengths": [
+            0,
+            1,
+            128,
+            129,
+            1400,
+            1452,
+            1,
+            0,
+            32
+          ],
+          "prefix_and_lengths_match": true,
+          "replay_identical": true
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3400919-1795171665930573647",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "48",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "48",
+            "retained": "48",
+            "run_id": "3401020-92840878471594",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 41002,
+            "userspace_dropped": "0"
+          },
+          "facts": 48,
+          "fragmentation": true,
+          "hooks_detached": true,
+          "mtu": 1500,
+          "namespace_ids": [
+            1,
+            2
+          ],
+          "ok": true,
+          "oracles": [
+            {
+              "cookies": [
+                "24",
+                "25"
+              ],
+              "fragment_counters_delta": {
+                "Ip6FragCreates": 47,
+                "Ip6FragFails": 0,
+                "Ip6FragOKs": 3,
+                "Ip6ReasmFails": 0,
+                "Ip6ReasmOKs": 3,
+                "Ip6ReasmReqds": 47,
+                "Ip6ReasmTimeout": 0,
+                "IpFragCreates": 46,
+                "IpFragFails": 0,
+                "IpFragOKs": 3,
+                "IpReasmFails": 0,
+                "IpReasmOKs": 3,
+                "IpReasmReqds": 46,
+                "IpReasmTimeout": 0
+              },
+              "ifindex": 2,
+              "namespace": "net:[4026534277]",
+              "native_io_verified": true,
+              "observations": [
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1473,
+                  "sha256": "aba65c0c7a4cd751be1e0a8f1573e0fea641f185596193522824d022fa0ac573"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1473,
+                  "sha256": "aba65c0c7a4cd751be1e0a8f1573e0fea641f185596193522824d022fa0ac573"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 4096,
+                  "sha256": "118b2f9d1424fa74b81c9a8b2567b229739aa86471526f86bc9a3ecbe944d164"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 4096,
+                  "sha256": "118b2f9d1424fa74b81c9a8b2567b229739aa86471526f86bc9a3ecbe944d164"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 60000,
+                  "sha256": "dff3016f333b754b17b0157106bd9a3cd72b1434a241e8dfa73919fcccbde57d"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 60000,
+                  "sha256": "dff3016f333b754b17b0157106bd9a3cd72b1434a241e8dfa73919fcccbde57d"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "e291df7769841479a770468d79a44934e74509a0b3f2ab11f2aef64db6c1c2dc"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "e291df7769841479a770468d79a44934e74509a0b3f2ab11f2aef64db6c1c2dc"
+                }
+              ],
+              "role": "client"
+            },
+            {
+              "cookies": [
+                "57349",
+                "57350"
+              ],
+              "fragment_counters_delta": {
+                "Ip6FragCreates": 47,
+                "Ip6FragFails": 0,
+                "Ip6FragOKs": 3,
+                "Ip6ReasmFails": 0,
+                "Ip6ReasmOKs": 3,
+                "Ip6ReasmReqds": 47,
+                "Ip6ReasmTimeout": 0,
+                "IpFragCreates": 46,
+                "IpFragFails": 0,
+                "IpFragOKs": 3,
+                "IpReasmFails": 0,
+                "IpReasmOKs": 3,
+                "IpReasmReqds": 46,
+                "IpReasmTimeout": 0
+              },
+              "ifindex": 2,
+              "namespace": "net:[4026534334]",
+              "native_io_verified": true,
+              "observations": [
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1473,
+                  "sha256": "aba65c0c7a4cd751be1e0a8f1573e0fea641f185596193522824d022fa0ac573"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1473,
+                  "sha256": "aba65c0c7a4cd751be1e0a8f1573e0fea641f185596193522824d022fa0ac573"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 4096,
+                  "sha256": "118b2f9d1424fa74b81c9a8b2567b229739aa86471526f86bc9a3ecbe944d164"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 4096,
+                  "sha256": "118b2f9d1424fa74b81c9a8b2567b229739aa86471526f86bc9a3ecbe944d164"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 60000,
+                  "sha256": "dff3016f333b754b17b0157106bd9a3cd72b1434a241e8dfa73919fcccbde57d"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 60000,
+                  "sha256": "dff3016f333b754b17b0157106bd9a3cd72b1434a241e8dfa73919fcccbde57d"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "e291df7769841479a770468d79a44934e74509a0b3f2ab11f2aef64db6c1c2dc"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "e291df7769841479a770468d79a44934e74509a0b3f2ab11f2aef64db6c1c2dc"
+                }
+              ],
+              "role": "server"
+            }
+          ],
+          "owned_cgroups_removed": true,
+          "owned_namespaces_removed": true,
+          "payload_lengths": [
+            1473,
+            4096,
+            60000,
+            1,
+            0,
+            32
+          ],
+          "prefix_and_lengths_match": true,
+          "replay_identical": true
+        }
+      ],
+      "host_network_changed": false,
+      "limits": [
+        "single_host_private_veth",
+        "prefix_only_above_128",
+        "no_raw_fragment_archival",
+        "no_high_load_or_physical_link_claim"
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "production_cli": true,
+      "schema_version": 1,
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+      "cases": [
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3401163-1795171667212372300",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "72",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "72",
+            "retained": "72",
+            "run_id": "3401176-92842159740549",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 41002,
+            "userspace_dropped": "0"
+          },
+          "facts": 72,
+          "fragmentation": false,
+          "hooks_detached": true,
+          "mtu": 1500,
+          "namespace_ids": [
+            1,
+            2
+          ],
+          "ok": true,
+          "oracles": [
+            {
+              "cookies": [
+                "40975",
+                "40976"
+              ],
+              "fragment_counters_delta": {
+                "Ip6FragCreates": 0,
+                "Ip6FragFails": 0,
+                "Ip6FragOKs": 0,
+                "Ip6ReasmFails": 0,
+                "Ip6ReasmOKs": 0,
+                "Ip6ReasmReqds": 0,
+                "Ip6ReasmTimeout": 0,
+                "IpFragCreates": 0,
+                "IpFragFails": 0,
+                "IpFragOKs": 0,
+                "IpReasmFails": 0,
+                "IpReasmOKs": 0,
+                "IpReasmReqds": 0,
+                "IpReasmTimeout": 0
+              },
+              "ifindex": 2,
+              "namespace": "net:[4026534049]",
+              "native_io_verified": true,
+              "observations": [
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "ab897fbdedfa502b2d839b6a56100887dccdc507555c282e59589e06300a62e2"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "ab897fbdedfa502b2d839b6a56100887dccdc507555c282e59589e06300a62e2"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 128,
+                  "sha256": "0ba28ee159e01319074f559f7246f1b3645ed2cf583b8b1fec3dd1779e270b41"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 128,
+                  "sha256": "0ba28ee159e01319074f559f7246f1b3645ed2cf583b8b1fec3dd1779e270b41"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 129,
+                  "sha256": "7a0062e5eac98c837c7ff7339834d2e9caf336d08ca8ab535d07afc74b6b93ff"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 129,
+                  "sha256": "7a0062e5eac98c837c7ff7339834d2e9caf336d08ca8ab535d07afc74b6b93ff"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1400,
+                  "sha256": "93543ea56aada66648669e9b726d850dd25aad35a52cbc97fbbb189d9304cd31"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1400,
+                  "sha256": "93543ea56aada66648669e9b726d850dd25aad35a52cbc97fbbb189d9304cd31"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1452,
+                  "sha256": "e96545f376771534e441c00da31caab0568063b4f7a6829f1fe2ead652fb59b9"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1452,
+                  "sha256": "e96545f376771534e441c00da31caab0568063b4f7a6829f1fe2ead652fb59b9"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "454349e422f05297191ead13e21d3db520e5abef52055e4964b82fb213f593a1"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "454349e422f05297191ead13e21d3db520e5abef52055e4964b82fb213f593a1"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "1d4be89954bc402cf1ed5e19e31585c558d605d80bc1efad6af51a30e0b557bc"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "1d4be89954bc402cf1ed5e19e31585c558d605d80bc1efad6af51a30e0b557bc"
+                }
+              ],
+              "role": "client"
+            },
+            {
+              "cookies": [
+                "26",
+                "27"
+              ],
+              "fragment_counters_delta": {
+                "Ip6FragCreates": 0,
+                "Ip6FragFails": 0,
+                "Ip6FragOKs": 0,
+                "Ip6ReasmFails": 0,
+                "Ip6ReasmOKs": 0,
+                "Ip6ReasmReqds": 0,
+                "Ip6ReasmTimeout": 0,
+                "IpFragCreates": 0,
+                "IpFragFails": 0,
+                "IpFragOKs": 0,
+                "IpReasmFails": 0,
+                "IpReasmOKs": 0,
+                "IpReasmReqds": 0,
+                "IpReasmTimeout": 0
+              },
+              "ifindex": 2,
+              "namespace": "net:[4026534225]",
+              "native_io_verified": true,
+              "observations": [
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "ab897fbdedfa502b2d839b6a56100887dccdc507555c282e59589e06300a62e2"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "ab897fbdedfa502b2d839b6a56100887dccdc507555c282e59589e06300a62e2"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 128,
+                  "sha256": "0ba28ee159e01319074f559f7246f1b3645ed2cf583b8b1fec3dd1779e270b41"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 128,
+                  "sha256": "0ba28ee159e01319074f559f7246f1b3645ed2cf583b8b1fec3dd1779e270b41"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 129,
+                  "sha256": "7a0062e5eac98c837c7ff7339834d2e9caf336d08ca8ab535d07afc74b6b93ff"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 129,
+                  "sha256": "7a0062e5eac98c837c7ff7339834d2e9caf336d08ca8ab535d07afc74b6b93ff"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1400,
+                  "sha256": "93543ea56aada66648669e9b726d850dd25aad35a52cbc97fbbb189d9304cd31"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1400,
+                  "sha256": "93543ea56aada66648669e9b726d850dd25aad35a52cbc97fbbb189d9304cd31"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1452,
+                  "sha256": "e96545f376771534e441c00da31caab0568063b4f7a6829f1fe2ead652fb59b9"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1452,
+                  "sha256": "e96545f376771534e441c00da31caab0568063b4f7a6829f1fe2ead652fb59b9"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "454349e422f05297191ead13e21d3db520e5abef52055e4964b82fb213f593a1"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "454349e422f05297191ead13e21d3db520e5abef52055e4964b82fb213f593a1"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "1d4be89954bc402cf1ed5e19e31585c558d605d80bc1efad6af51a30e0b557bc"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "1d4be89954bc402cf1ed5e19e31585c558d605d80bc1efad6af51a30e0b557bc"
+                }
+              ],
+              "role": "server"
+            }
+          ],
+          "owned_cgroups_removed": true,
+          "owned_namespaces_removed": true,
+          "payload_lengths": [
+            0,
+            1,
+            128,
+            129,
+            1400,
+            1452,
+            1,
+            0,
+            32
+          ],
+          "prefix_and_lengths_match": true,
+          "replay_identical": true
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3401163-1795171668463512228",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "48",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "48",
+            "retained": "48",
+            "run_id": "3401266-92843411099070",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 41002,
+            "userspace_dropped": "0"
+          },
+          "facts": 48,
+          "fragmentation": true,
+          "hooks_detached": true,
+          "mtu": 1500,
+          "namespace_ids": [
+            1,
+            2
+          ],
+          "ok": true,
+          "oracles": [
+            {
+              "cookies": [
+                "8201",
+                "8202"
+              ],
+              "fragment_counters_delta": {
+                "Ip6FragCreates": 47,
+                "Ip6FragFails": 0,
+                "Ip6FragOKs": 3,
+                "Ip6ReasmFails": 0,
+                "Ip6ReasmOKs": 3,
+                "Ip6ReasmReqds": 47,
+                "Ip6ReasmTimeout": 0,
+                "IpFragCreates": 46,
+                "IpFragFails": 0,
+                "IpFragOKs": 3,
+                "IpReasmFails": 0,
+                "IpReasmOKs": 3,
+                "IpReasmReqds": 46,
+                "IpReasmTimeout": 0
+              },
+              "ifindex": 2,
+              "namespace": "net:[4026534277]",
+              "native_io_verified": true,
+              "observations": [
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1473,
+                  "sha256": "aba65c0c7a4cd751be1e0a8f1573e0fea641f185596193522824d022fa0ac573"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1473,
+                  "sha256": "aba65c0c7a4cd751be1e0a8f1573e0fea641f185596193522824d022fa0ac573"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 4096,
+                  "sha256": "118b2f9d1424fa74b81c9a8b2567b229739aa86471526f86bc9a3ecbe944d164"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 4096,
+                  "sha256": "118b2f9d1424fa74b81c9a8b2567b229739aa86471526f86bc9a3ecbe944d164"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 60000,
+                  "sha256": "dff3016f333b754b17b0157106bd9a3cd72b1434a241e8dfa73919fcccbde57d"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 60000,
+                  "sha256": "dff3016f333b754b17b0157106bd9a3cd72b1434a241e8dfa73919fcccbde57d"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "e291df7769841479a770468d79a44934e74509a0b3f2ab11f2aef64db6c1c2dc"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "e291df7769841479a770468d79a44934e74509a0b3f2ab11f2aef64db6c1c2dc"
+                }
+              ],
+              "role": "client"
+            },
+            {
+              "cookies": [
+                "28",
+                "29"
+              ],
+              "fragment_counters_delta": {
+                "Ip6FragCreates": 47,
+                "Ip6FragFails": 0,
+                "Ip6FragOKs": 3,
+                "Ip6ReasmFails": 0,
+                "Ip6ReasmOKs": 3,
+                "Ip6ReasmReqds": 47,
+                "Ip6ReasmTimeout": 0,
+                "IpFragCreates": 46,
+                "IpFragFails": 0,
+                "IpFragOKs": 3,
+                "IpReasmFails": 0,
+                "IpReasmOKs": 3,
+                "IpReasmReqds": 46,
+                "IpReasmTimeout": 0
+              },
+              "ifindex": 2,
+              "namespace": "net:[4026534334]",
+              "native_io_verified": true,
+              "observations": [
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1473,
+                  "sha256": "aba65c0c7a4cd751be1e0a8f1573e0fea641f185596193522824d022fa0ac573"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1473,
+                  "sha256": "aba65c0c7a4cd751be1e0a8f1573e0fea641f185596193522824d022fa0ac573"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 4096,
+                  "sha256": "118b2f9d1424fa74b81c9a8b2567b229739aa86471526f86bc9a3ecbe944d164"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 4096,
+                  "sha256": "118b2f9d1424fa74b81c9a8b2567b229739aa86471526f86bc9a3ecbe944d164"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 60000,
+                  "sha256": "dff3016f333b754b17b0157106bd9a3cd72b1434a241e8dfa73919fcccbde57d"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 60000,
+                  "sha256": "dff3016f333b754b17b0157106bd9a3cd72b1434a241e8dfa73919fcccbde57d"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 1,
+                  "sha256": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 4,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "e291df7769841479a770468d79a44934e74509a0b3f2ab11f2aef64db6c1c2dc"
+                },
+                {
+                  "captured_prefix_limit": 128,
+                  "family": 6,
+                  "full_native_io": true,
+                  "length": 32,
+                  "sha256": "e291df7769841479a770468d79a44934e74509a0b3f2ab11f2aef64db6c1c2dc"
+                }
+              ],
+              "role": "server"
+            }
+          ],
+          "owned_cgroups_removed": true,
+          "owned_namespaces_removed": true,
+          "payload_lengths": [
+            1473,
+            4096,
+            60000,
+            1,
+            0,
+            32
+          ],
+          "prefix_and_lengths_match": true,
+          "replay_identical": true
+        }
+      ],
+      "host_network_changed": false,
+      "limits": [
+        "single_host_private_veth",
+        "prefix_only_above_128",
+        "no_raw_fragment_archival",
+        "no_high_load_or_physical_link_claim"
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "production_cli": true,
+      "schema_version": 1,
+      "validation_capture_used": false
+    }
+  ],
+  "summary_projection": "Expected packet prefix arrays are omitted here to avoid duplicating raw exports; original worker oracles, observed reports and full summaries remain under evidence_root. SHA-256 below binds original summary bytes, not this projection.",
+  "loopback_regression": {
+    "binary_sha256": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+    "cases": [
+      {
+        "capture": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3401282-1795171669694817198",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "60",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "60",
+          "retained": "60",
+          "run_id": "3401288-92844642364563",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 50703,
+          "userspace_dropped": "0"
+        },
+        "capture_role": "client",
+        "excluded": [
+          {
+            "cookie": "8203",
+            "family": 4,
+            "kind": "preexisting_socket_outside_scope",
+            "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+          },
+          {
+            "cookie": "8207",
+            "family": 4,
+            "kind": "different_udp_port",
+            "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+          },
+          {
+            "cookie": "8204",
+            "family": 6,
+            "kind": "preexisting_socket_outside_scope",
+            "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+          },
+          {
+            "cookie": "8208",
+            "family": 6,
+            "kind": "different_udp_port",
+            "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+          }
+        ],
+        "facts": 60,
+        "full_payload_claim_above_128": false,
+        "hooks_detached": true,
+        "mode": "connected",
+        "ok": true,
+        "owned_cgroups_removed": true,
+        "port": 50703,
+        "prefix_and_lengths_match": true,
+        "replay_identical": true,
+        "selected_cookies": [
+          "8205",
+          "8206"
+        ],
+        "workload_scope": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3401282-1795171669694817198"
+      },
+      {
+        "capture": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3401282-1795171669944647344",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "60",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "60",
+          "retained": "60",
+          "run_id": "3401364-92844887777750",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 40895,
+          "userspace_dropped": "0"
+        },
+        "capture_role": "client",
+        "excluded": [
+          {
+            "cookie": "40977",
+            "family": 4,
+            "kind": "preexisting_socket_outside_scope",
+            "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+          },
+          {
+            "cookie": "40981",
+            "family": 4,
+            "kind": "different_udp_port",
+            "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+          },
+          {
+            "cookie": "40978",
+            "family": 6,
+            "kind": "preexisting_socket_outside_scope",
+            "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+          },
+          {
+            "cookie": "40982",
+            "family": 6,
+            "kind": "different_udp_port",
+            "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+          }
+        ],
+        "facts": 60,
+        "full_payload_claim_above_128": false,
+        "hooks_detached": true,
+        "mode": "unconnected",
+        "ok": true,
+        "owned_cgroups_removed": true,
+        "port": 40895,
+        "prefix_and_lengths_match": true,
+        "replay_identical": true,
+        "selected_cookies": [
+          "40979",
+          "40980"
+        ],
+        "workload_scope": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3401282-1795171669944647344"
+      },
+      {
+        "capture": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3401282-1795171670130647991",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "60",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "60",
+          "retained": "60",
+          "run_id": "3401376-92845078775828",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 58833,
+          "userspace_dropped": "0"
+        },
+        "capture_role": "client",
+        "excluded": [
+          {
+            "cookie": "20503",
+            "family": 4,
+            "kind": "preexisting_socket_outside_scope",
+            "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+          },
+          {
+            "cookie": "32",
+            "family": 4,
+            "kind": "different_udp_port",
+            "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+          },
+          {
+            "cookie": "20504",
+            "family": 6,
+            "kind": "preexisting_socket_outside_scope",
+            "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+          },
+          {
+            "cookie": "33",
+            "family": 6,
+            "kind": "different_udp_port",
+            "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+          }
+        ],
+        "facts": 60,
+        "full_payload_claim_above_128": false,
+        "hooks_detached": true,
+        "mode": "descendant",
+        "ok": true,
+        "owned_cgroups_removed": true,
+        "port": 58833,
+        "prefix_and_lengths_match": true,
+        "replay_identical": true,
+        "selected_cookies": [
+          "30",
+          "31"
+        ],
+        "workload_scope": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3401282-1795171670130647991/workload"
+      },
+      {
+        "capture": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3401282-1795171670382678782",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "60",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "60",
+          "retained": "60",
+          "run_id": "3401390-92845351126863",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 43638,
+          "userspace_dropped": "0"
+        },
+        "capture_role": "bound_unconnected_server",
+        "excluded": [],
+        "facts": 60,
+        "full_payload_claim_above_128": false,
+        "hooks_detached": true,
+        "mode": "server",
+        "ok": true,
+        "owned_cgroups_removed": true,
+        "port": 43638,
+        "prefix_and_lengths_match": true,
+        "replay_identical": true,
+        "selected_cookies": [
+          "20511",
+          "20512"
+        ],
+        "workload_scope": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3401282-1795171670382678782"
+      }
+    ],
+    "loopback_mtu": 65536,
+    "native_peers_not_protocol_servers": true,
+    "not_proven": [
+      "full_payload_above_128",
+      "fragmentation",
+      "GSO_GRO",
+      "external_interfaces",
+      "protocol_conformance",
+      "high_load",
+      "multiple_hosts_or_kernels"
+    ],
+    "ok": true,
+    "owned_resources_removed": true,
+    "payload_lengths": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      127,
+      128,
+      129,
+      512,
+      1400,
+      4096,
+      60000,
+      1,
+      0,
+      32
+    ],
+    "production_cli": true,
+    "schema_version": 1,
+    "validation_capture_used": false
+  },
+  "validation": {
+    "nonprivileged_unit_tests_passed": 2,
+    "privileged_network_runs_passed": 3,
+    "privileged_loopback_regressions_passed": 1,
+    "strict_clippy": true,
+    "clippy_command": "cargo --config profile.dev.package.gewyvern.opt-level=2 clippy --locked --test production_capture_linux_tdd --test native_validation_harness_tdd -- -D warnings",
+    "cargo_fmt_check": true,
+    "git_diff_check": true,
+    "evidence_guard_status": "passed",
+    "native_validation_harness_tests_passed": 55,
+    "native_validation_harness_tests_failed": 0,
+    "status_validation": {
+      "schema_version": 4,
+      "status": "valid",
+      "cells": 39,
+      "coverage_requirements": 37,
+      "gui_operations": 35,
+      "gui_chains": 11,
+      "gui_target_score": 100
+    },
+    "status_validation_scope": "Catalog consistency and declared GUI target coverage, not overall product readiness."
+  },
+  "raw_evidence_sha256": {
+    "final-1/summary.json": "2ab16531321f65ebcc52eee1e89aebec75e1391613b0a86fd7c34dc9cac3f84b",
+    "final-2/summary.json": "522895a6dca35d90ee79d60216d68f0e6f2963b81df43d76128d9604fde9517d",
+    "final-3/summary.json": "aef01eddfd503b3a779c03aa059c3e5637d78840f369706ceeb3c7892821ddbe",
+    "loopback-regression/summary.json": "978ce91d4ce1ab10e437a09dd4e72abb283cf710ac6ca88027ed88f6d09aaa4e",
+    "build-unit.log": "78077f6029ade6580169a08ac947c903ba53ca93bb018082b34af1153065fd43",
+    "proof-build.log": "8cf2c6c46c40125efe15ad8baba7dc562c99831c87e708a6ef96fb14030805d0",
+    "clippy.log": "d06c6c282af4a4114526252784be21d605557fb5c972f10c7b3483e336ff68dc",
+    "evidence-tests.log": "5f1d4e4d48c1f33e5f4e817a367ba40e620bac6b9c9917c96ab8c7b39cbc2aa7",
+    "status-validation.json": "43b0fa3c6bceb9a62b1a5114f32c280642f7308573289e7a0206b070dbada149"
+  },
+  "cleanup": {
+    "docker_inventory_restored": true,
+    "network_namespace_inventory_restored": true,
+    "before": {
+      "containers": 15,
+      "networks": 6,
+      "volumes": 54,
+      "named_network_namespaces": 0
+    },
+    "after": {
+      "containers": 15,
+      "networks": 6,
+      "volumes": 54,
+      "named_network_namespaces": 0
+    },
+    "owned_cgroups_remaining": 0,
+    "bpf_temporary_paths_remaining": 0,
+    "temporary_build_container_removed": true,
+    "removed_build_container_id": "18a537a13799d7aed040fde754f0d7bcb0b81bb6d156c31e4d7305ed43be45ab",
+    "other_workloads_removed": false,
+    "host_services_changed": false
+  },
+  "limits": [
+    "Single host and private veth, not physical-link, multiple-host or sustained-load certification.",
+    "Payloads above 128 bytes retain only their prefix. Native peer full-I/O hashes are not product full-payload hashes.",
+    "No raw-fragment archival or product-owned reassembly; no malformed, overlapping, missing-fragment, arbitrary IPv6 extension, checksum, NAT or GSO/GRO claim.",
+    "Namespace IDs are run-local. Full IP endpoints, kernel namespace-cookie mappings and authenticated process lineage are not retained.",
+    "No release-artifact, protocol-count or status-maturity promotion."
+  ]
+}

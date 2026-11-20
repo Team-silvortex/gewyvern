@@ -1,0 +1,367 @@
+{
+  "schema_version": 1,
+  "proof": "linux-protocol-breadth-internal-architecture-compatibility",
+  "captured_on": "2026-11-13",
+  "source_base_revision": "39eeb7d1f03c92f007daa1ac5d72aee311fead5e",
+  "working_tree_changes": true,
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "product_version_changed": false,
+  "public_cli_or_report_schema_changed": false,
+  "runtime_semantics_intentionally_changed": false,
+  "scope": {
+    "coordinator_before_lines": 1126,
+    "coordinator_after_lines": 188,
+    "new_crates": 0,
+    "protocol_count": 9,
+    "package_cases": 37,
+    "campaign_modes": 6,
+    "owners": {
+      "catalog": "immutable named package cases, image/port identity and exhaustive campaign labels",
+      "target": "startup/readiness, uncaptured seed and publisher/container/network ownership",
+      "evidence": "independent byte reconciliation and packet provenance checks",
+      "coordinator": "capture ordering, selected sockets and schema-v2 report"
+    },
+    "optimization": [
+      "borrowed static package cases replace a Vec constructed for each protocol run",
+      "one package path literal supplies both its identity and embedded source",
+      "Docker inspect documents are released after startup; only required target metadata is retained"
+    ],
+    "limits": [
+      "Internal module refactor, not a new independent crate or new protocol capability.",
+      "No measured throughput, memory or compilation speedup is claimed.",
+      "Existing native clients and independent fixture oracles remain separate from product predicates.",
+      "Frozen historical proofs remain unchanged and are used to verify all 37 package expectations."
+    ]
+  },
+  "execution": {
+    "platform": "physical Linux x86_64",
+    "host_count": 1,
+    "kernel_count": 1,
+    "toolchain": "Rust 1.98",
+    "build_cpu_limit": 2,
+    "build_memory_gib": 4,
+    "macos_builds": false,
+    "image_pulls": false,
+    "remote_evidence": "/home/chiharukiryu/.cache/gewyvern/evidence/20261113-architecture",
+    "local_summary_archive": "target/validation/architecture-20261113",
+    "raw_capture_archive": "Linux evidence directory only"
+  },
+  "artifact_bindings": {
+    "source_and_binary": {
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth.rs": "49c2f91675de4f2c673c51bdba7df295c25e002b93e8a4f2a962bec03e2c37d5",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/catalog.rs": "e9e8fa422e00e2462214fc4b4be5e69cb8e4fee2e4f3080f3d45d79869409bdd",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/target.rs": "a1d5c4d115f9f84d3b44208081c36ed42530afdb0eacdc209149f01be5b64e22",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/evidence.rs": "9c92433b0bfaf1048809dcd46dd93d6effe176538e3aeacc1c011b3647871c8d",
+      "src/validation_harness/linux_tcp_capture/linux/data_breadth/tests.rs": "e471c41ef65dd3f6c8ab72477b52bb3dc5b5780bd7e51216fca9812207c3d515",
+      "src/bin/gewyvern_validate.rs": "4bae190adc916a6a90470704bf3f6008fc04587bd74a4ac65449fef6e212ab65",
+      "target/debug/gewyvern_validate": "551e14bbccebb939186769169c7ad44eb20d45b4ef1431e859477c0d5d865b5b"
+    },
+    "local_and_remote_source_hashes_match": true,
+    "reports": {
+      "postgres-redis/summary.json": "63cd4478b52e40b813cf71e9055880456755efe0ff7c86ab8130204d1013f441",
+      "postgres-redis/after-data-restart/summary.json": "71b3c3b25c1069423e93dec363e8daff7e59bf3a0a152a2d1cdddd93ef7f40b6",
+      "postgres-redis/postgres/result.json": "f2b7d16041c2ed1df242d130c3762b8421e679ceb52a8e0acf908c27885805cb",
+      "postgres-redis/redis/result.json": "f89ed6ae68ec67076d024bb7caa03e1b06b85ad19e41dc1b342c241c37ca7713",
+      "mysql-memcached/summary.json": "929422be32e47d7087544a750fe543bbbb7f441a70ec48154d30962ff910dafd",
+      "mysql-memcached/after-data-restart/summary.json": "e18551258e0824661cf924e97f28ee476a3b6252f78f5807b53e44619627fd0a",
+      "mysql-memcached/mysql/result.json": "b0dfb2baa9331b42cc40e8b61024ac04321640b17a1877156c31a02b1091783e",
+      "mysql-memcached/memcached/result.json": "85c3ab09ce31134ba096a6bd8fcfb72d0e92f7444eaeaa5aab21cdfa5d1e53d5",
+      "messaging/summary.json": "713ee1d484c12c4d2602ac3bac11fc669bcde957a26bffc65656d37564429a96",
+      "messaging/after-data-restart/summary.json": "53acffee22899ebced60236e52e4c11779dba986c959c6e3d1a9d3cda2c3367a",
+      "messaging/mqtt/result.json": "e61191b071ade8cbd07686aeb6507666de0d9b7e37d7529264958d6ad9c1247b",
+      "messaging/nats/result.json": "77510deeeb1e7cd36097561bd694d7f0b216fb0cbfc48070b5380b9ef69dde10",
+      "smtp/summary.json": "413123e2f930dc46540fdb76ccdd72cd276a1d0a8a74f5508a72ab35511200c0",
+      "smtp/after-data-restart/summary.json": "d543a7b16e10013c792983891fb27e3751b6ca7c9dfeb6cc5eece6c8528bf42d",
+      "smtp/smtp/result.json": "c7209ec10e7fc3875259ad5673776220f42204bc1ad4a55dc77315e3b8eb3a08",
+      "pop3/summary.json": "06fa4d64033478858d9893e4dd104c04270f9733596d6b4d1d61fc174b4ce2f9",
+      "pop3/after-data-restart/summary.json": "f9a3d3a60e1fe82ddf12176b399c5d424d47dcb0a24c8934a6e5decbb4f18e87",
+      "pop3/pop3/result.json": "2cb44407cbe91fc8cb95a7183ec51fc73e0ebb7f8389e3a7483cdfe97b9990ca",
+      "rtsp/summary.json": "415450917a7ecf003e8a7ac86729a7501f2e6049037b0b659722bda69b73aaf0",
+      "rtsp/after-data-restart/summary.json": "373dfe3451dc52c92fbfe6aa622e2a60fb0afa1cc30197f2c02ce398a2b13dbf",
+      "rtsp/rtsp/result.json": "51c54034ed2ba43a36ca57ec00dbb9d3db6b0df45e53e38e9f8fa7ed85cbd53f",
+      "regression.log": "e6013a096a54b0954ebaf999ffca8e629e33ef2d99c5f71e1676102e5aba2746",
+      "clippy.log": "f07476e21fb7ebb22eb1b5ed434cb697808d4072d9f3551ff9f83d4c49e56e4f",
+      "build.log": "3ba50884d96e56a6b0a51fafa4b56e2b49304b1e5b261265dbcf14df9cdd978f",
+      "focused-tests.log": "f18890c1866b12a2096b49512994779e9a8fb9d7e0ba0f1741fce8781da0f1d2"
+    }
+  },
+  "regression": {
+    "passed": 1922,
+    "failed": 0,
+    "ignored": 1,
+    "focused_fixture_tests": 21,
+    "focused_tests_included_in_total": true,
+    "strict_clippy_passed": true,
+    "format_passed": true
+  },
+  "campaigns": [
+    {
+      "mode": "data-breadth",
+      "directory": "postgres-redis",
+      "ok": true,
+      "report_schema": 2,
+      "phases": [
+        {
+          "protocol": "postgres",
+          "image": "postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777",
+          "ok": true,
+          "selected_commands": 10,
+          "packet_counts": {
+            "dropped": 0,
+            "total": 19
+          },
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "selected_connections": 2,
+          "neighbor_excluded": true,
+          "response_bytes": 1166,
+          "all_response_hashes_equal": true,
+          "package_replays": 3,
+          "all_replays_identical": true,
+          "package_failures": [],
+          "owned_resources_removed": true
+        },
+        {
+          "protocol": "redis",
+          "image": "redis@sha256:7958cfbb9d152f87dadfbc89f1b0b15938f0b81ff8982feb327476f4911935c3",
+          "ok": true,
+          "selected_commands": 21,
+          "packet_counts": {
+            "dropped": 0,
+            "total": 21
+          },
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "selected_connections": 2,
+          "neighbor_excluded": true,
+          "response_bytes": 339,
+          "all_response_hashes_equal": true,
+          "package_replays": 3,
+          "all_replays_identical": true,
+          "package_failures": [],
+          "owned_resources_removed": true
+        }
+      ]
+    },
+    {
+      "mode": "mysql-memcached",
+      "directory": "mysql-memcached",
+      "ok": true,
+      "report_schema": 2,
+      "phases": [
+        {
+          "protocol": "mysql",
+          "image": "mysql@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b",
+          "ok": true,
+          "selected_commands": 5,
+          "packet_counts": {
+            "dropped": 0,
+            "total": 12
+          },
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "selected_connections": 2,
+          "neighbor_excluded": true,
+          "response_bytes": 650,
+          "all_response_hashes_equal": true,
+          "package_replays": 3,
+          "all_replays_identical": true,
+          "package_failures": [],
+          "owned_resources_removed": true
+        },
+        {
+          "protocol": "memcached",
+          "image": "memcached@sha256:084fb554292d1447bc2c68b80c2331b98834514f56c866bc21a61be3c2ee376d",
+          "ok": true,
+          "selected_commands": 13,
+          "packet_counts": {
+            "dropped": 0,
+            "total": 15
+          },
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "selected_connections": 2,
+          "neighbor_excluded": true,
+          "response_bytes": 385,
+          "all_response_hashes_equal": true,
+          "package_replays": 4,
+          "all_replays_identical": true,
+          "package_failures": [],
+          "owned_resources_removed": true
+        }
+      ]
+    },
+    {
+      "mode": "messaging-breadth",
+      "directory": "messaging",
+      "ok": true,
+      "report_schema": 2,
+      "phases": [
+        {
+          "protocol": "mqtt",
+          "image": "eclipse-mosquitto@sha256:75d6662dee52c947dc9dd9c29f1d8d7ffef78ddaf38001caa09755681e8bbc98",
+          "ok": true,
+          "selected_commands": 9,
+          "packet_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "selected_connections": 2,
+          "neighbor_excluded": true,
+          "response_bytes": 46,
+          "all_response_hashes_equal": true,
+          "package_replays": 6,
+          "all_replays_identical": true,
+          "package_failures": [],
+          "owned_resources_removed": true
+        },
+        {
+          "protocol": "nats",
+          "image": "nats@sha256:558394a23dd3c36f2d3a64b51865fd09908010e80a542cea5e75c2af543ed62a",
+          "ok": true,
+          "selected_commands": 16,
+          "packet_counts": {
+            "dropped": 0,
+            "total": 13
+          },
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "selected_connections": 2,
+          "neighbor_excluded": true,
+          "response_bytes": 1544,
+          "all_response_hashes_equal": true,
+          "package_replays": 3,
+          "all_replays_identical": true,
+          "package_failures": [],
+          "owned_resources_removed": true
+        }
+      ]
+    },
+    {
+      "mode": "smtp-breadth",
+      "directory": "smtp",
+      "ok": true,
+      "report_schema": 2,
+      "phases": [
+        {
+          "protocol": "smtp",
+          "image": "axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231",
+          "ok": true,
+          "selected_commands": 19,
+          "packet_counts": {
+            "dropped": 0,
+            "total": 23
+          },
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "selected_connections": 2,
+          "neighbor_excluded": true,
+          "response_bytes": 1026,
+          "all_response_hashes_equal": true,
+          "package_replays": 8,
+          "all_replays_identical": true,
+          "package_failures": [],
+          "owned_resources_removed": true
+        }
+      ]
+    },
+    {
+      "mode": "pop3-breadth",
+      "directory": "pop3",
+      "ok": true,
+      "report_schema": 2,
+      "phases": [
+        {
+          "protocol": "pop3",
+          "image": "axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231",
+          "ok": true,
+          "selected_commands": 20,
+          "packet_counts": {
+            "dropped": 0,
+            "total": 37
+          },
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "selected_connections": 2,
+          "neighbor_excluded": true,
+          "response_bytes": 1263,
+          "all_response_hashes_equal": true,
+          "package_replays": 3,
+          "all_replays_identical": true,
+          "package_failures": [],
+          "owned_resources_removed": true
+        }
+      ]
+    },
+    {
+      "mode": "rtsp-breadth",
+      "directory": "rtsp",
+      "ok": true,
+      "report_schema": 2,
+      "phases": [
+        {
+          "protocol": "rtsp",
+          "image": "bluenviron/mediamtx@sha256:59e43552f3be43695b70c19424dc2a42fcec18075f88d91561a24ac5d70a586c",
+          "ok": true,
+          "selected_commands": 11,
+          "packet_counts": {
+            "dropped": 0,
+            "total": 13
+          },
+          "tcp_state_counts": {
+            "dropped": 0,
+            "total": 10
+          },
+          "selected_connections": 2,
+          "neighbor_excluded": true,
+          "response_bytes": 1478,
+          "all_response_hashes_equal": true,
+          "package_replays": 4,
+          "all_replays_identical": true,
+          "package_failures": [],
+          "owned_resources_removed": true
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "campaigns": 6,
+    "fresh_http_captures_after_cleanup": 6,
+    "protocols": 9,
+    "selected_commands": 124,
+    "packet_events": 163,
+    "tcp_state_events": 90,
+    "reported_drops": 0,
+    "package_replays": 37
+  },
+  "cleanup": {
+    "owned_capture_pins_and_cgroups_remaining": 0,
+    "existing_container_identities_unchanged": true,
+    "existing_network_identities_unchanged": true,
+    "existing_volume_inventory_unchanged": true,
+    "existing_containers": 15,
+    "existing_networks": 6,
+    "existing_volumes": 54,
+    "temporary_build_container_removed": true,
+    "global_prune_used": false
+  }
+}

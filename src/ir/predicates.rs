@@ -120,6 +120,21 @@ impl FlowPredicate {
 
     pub fn observation_scope(&self) -> Option<ObservationScope> {
         match self {
+            FlowPredicate::StunBindingObserved { remote_port, kind } => Some(ObservationScope {
+                dir: Some(kind.direction()),
+                local_port: None,
+                remote_port: Some(*remote_port),
+            }),
+            FlowPredicate::NtpMessageObserved { remote_port, kind } => Some(ObservationScope {
+                dir: Some(kind.direction()),
+                local_port: None,
+                remote_port: Some(*remote_port),
+            }),
+            FlowPredicate::SnmpPduObserved { remote_port, kind } => Some(ObservationScope {
+                dir: Some(kind.direction()),
+                local_port: None,
+                remote_port: Some(*remote_port),
+            }),
             FlowPredicate::RtspResponseObserved { remote_port, .. } => Some(ObservationScope {
                 dir: Some(crate::ledger::PacketDir::Ingress),
                 local_port: None,
@@ -181,6 +196,9 @@ impl FlowPredicate {
     pub fn required_payload_offsets(&self) -> Vec<u16> {
         let mut offsets = BTreeSet::new();
         match self {
+            FlowPredicate::StunBindingObserved { .. } => offsets.extend(0..super::stun::MAX_BYTES),
+            FlowPredicate::NtpMessageObserved { .. } => offsets.extend(0..super::ntp::HEADER_BYTES),
+            FlowPredicate::SnmpPduObserved { .. } => offsets.extend(0..super::snmp::MAX_BYTES),
             FlowPredicate::RtspResponseObserved { .. } => {
                 offsets.extend(0..super::rtsp::MAX_HEADER_BYTES)
             }
@@ -225,6 +243,9 @@ impl FlowPredicate {
     pub fn required_fact_kinds(&self) -> Vec<FactKindTag> {
         match self {
             FlowPredicate::ProcessBound => vec![FactKindTag::SockLineage],
+            FlowPredicate::StunBindingObserved { .. } => vec![FactKindTag::PacketMeta],
+            FlowPredicate::NtpMessageObserved { .. } => vec![FactKindTag::PacketMeta],
+            FlowPredicate::SnmpPduObserved { .. } => vec![FactKindTag::PacketMeta],
             FlowPredicate::RtspResponseObserved { .. } => vec![FactKindTag::PacketMeta],
             FlowPredicate::SocketStateObserved { .. } => vec![FactKindTag::TcpState],
             FlowPredicate::PacketObserved { .. } => vec![FactKindTag::PacketMeta],

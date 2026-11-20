@@ -141,7 +141,7 @@ fn summary_json_carries_stun_binding_error_semantic_detail() {
                     PacketDir::Egress,
                     45001,
                     3478,
-                    &[(0, 0x00), (1, 0x01)],
+                    &stun_payload_bytes_for_tests(0x0001),
                 ),
                 udp_packet_fact_with_payload_bytes_for_tests(
                     4,
@@ -149,7 +149,7 @@ fn summary_json_carries_stun_binding_error_semantic_detail() {
                     PacketDir::Ingress,
                     45001,
                     3478,
-                    &[(0, 0x01), (1, 0x11)],
+                    &stun_payload_bytes_for_tests(0x0111),
                 ),
             ],
         ),

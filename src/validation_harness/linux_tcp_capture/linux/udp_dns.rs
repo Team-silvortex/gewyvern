@@ -2,7 +2,7 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::io::ErrorKind;
-use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
+use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -10,27 +10,49 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde_json::{Value, json};
 use socket2::{Domain, Protocol, Socket, Type};
 
-use super::super::udp_evidence::{Context, Datagram, reconstruct, validate};
-use super::docker_target::{OwnedResource, docker, target_addresses};
+use super::super::udp_evidence::{Addresses, Context, Datagram, reconstruct, validate};
+use super::docker_target::{OwnedResource, docker, target_addresses, target_ipv6_addresses};
 use super::http_evidence::sha256;
 use super::packet_capture::Scope;
 use super::{
-    Counts, ValidationError, ValidationReport, clock_anchor, network_namespace, port,
-    prepare_output, repo_root, tool,
+    ValidationError, ValidationReport, clock_anchor, network_namespace, port, prepare_output,
+    repo_root, tool,
 };
 use crate::export::ExportBundle;
 use crate::ledger::{FactKind, PacketDir};
 
-mod capture;
+use super::udp_capture as capture;
+mod production;
 mod wire;
+
+pub(super) fn run_production(
+    out: Option<PathBuf>,
+    ipv6: bool,
+) -> Result<ValidationReport, ValidationError> {
+    production::run(out, ipv6)
+}
 
 const IMAGE: &str =
     "coredns/coredns@sha256:0a9d8c8ddf34347eb59aad9a8784f0710de88d6d112726d11d271f9bc6daca26";
 const CONFIG: &str = include_str!("../../../../ebpf/validation/dns.Corefile");
 const ID: u16 = 0x4411;
 
-fn socket(source: Ipv4Addr, target: SocketAddr) -> Result<Socket, ValidationError> {
-    let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?;
+fn socket(source: IpAddr, target: SocketAddr) -> Result<Socket, ValidationError> {
+    if source.is_ipv6() != target.is_ipv6() {
+        return Err(ValidationError::new("mixed DNS socket address families"));
+    }
+    let socket = Socket::new(
+        if source.is_ipv6() {
+            Domain::IPV6
+        } else {
+            Domain::IPV4
+        },
+        Type::DGRAM,
+        Some(Protocol::UDP),
+    )?;
+    if source.is_ipv6() {
+        socket.set_only_v6(true)?;
+    }
     socket.bind(&SocketAddr::from((source, 0)).into())?;
     socket.connect(&target.into())?;
     Ok(socket)
@@ -116,15 +138,22 @@ fn exchange(
             ));
         }
     }
+    // The pinned erratic plugin returns .53, including its non-TC replies.
+    let expected_address = if question == "cut.test." {
+        [192, 0, 2, 53]
+    } else {
+        [192, 0, 2, 7]
+    };
     if reply.as_ref().map(|reply| (reply.rcode, reply.truncated)) != expected
         || reply.as_ref().is_some_and(|reply| {
-            !reply.truncated && reply.rcode == 0 && reply.addresses != [[192, 0, 2, 7]]
+            !reply.truncated && reply.rcode == 0 && reply.addresses != [expected_address]
         })
         || (expected.is_none() && end_ns.saturating_sub(start_ns) < 300_000_000)
     {
-        return Err(ValidationError::new(
-            "DNS client outcome differs from controlled server case",
-        ));
+        return Err(ValidationError::new(format!(
+            "DNS client outcome differs for {question}: expected {expected:?}, received {reply:?}, elapsed_us={}",
+            end_ns.saturating_sub(start_ns) / 1000
+        )));
     }
     Ok(Exchange {
         cookie,
@@ -224,7 +253,27 @@ fn stage_cookies(
 }
 
 pub(super) fn run(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
-    let out = prepare_output(out, "linux-udp-dns")?;
+    run_family(out, false)
+}
+
+pub(super) fn run_ipv6(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    run_family(out, true)
+}
+
+struct Target {
+    token: String,
+    // Struct fields drop in declaration order; detach the target before its network.
+    container: OwnedResource,
+    network: OwnedResource,
+    network_info: Value,
+    container_info: Value,
+    image_id: Vec<u8>,
+    source: IpAddr,
+    destination: IpAddr,
+    addresses: Addresses,
+}
+
+fn prepare_target(out: PathBuf, ipv6: bool) -> Result<Target, ValidationError> {
     let image_id = tool(
         docker().args(["image", "inspect", IMAGE, "--format", "{{.Id}}"]),
         &out,
@@ -243,14 +292,16 @@ pub(super) fn run(out: Option<PathBuf>) -> Result<ValidationReport, ValidationEr
             .map_err(|e| ValidationError::new(e.to_string()))?
             .as_nanos()
     );
-    let mut network = OwnedResource::create(
-        "network",
-        &token,
-        &["--driver", "bridge", "--internal"],
-        &out,
-    )?;
+    // Per-run ULA /64: overlap is rejected by Docker rather than reusing a network.
+    let hash = sha256(token.as_bytes());
+    let subnet = format!("fd{}:{}:{}::/64", &hash[..2], &hash[2..6], &hash[6..10]);
+    let mut network_args = vec!["--driver", "bridge", "--internal"];
+    if ipv6 {
+        network_args.extend(["--ipv6", "--ipv4=false", "--subnet", &subnet]);
+    }
+    let network = OwnedResource::create("network", &token, &network_args, &out)?;
     let network_info = network.inspect()?;
-    let mut container = OwnedResource::create(
+    let container = OwnedResource::create(
         "container",
         &token,
         &[
@@ -284,7 +335,23 @@ pub(super) fn run(out: Option<PathBuf>) -> Result<ValidationReport, ValidationEr
     {
         return Err(ValidationError::new("DNS target has unexpected mounts"));
     }
-    let (source, destination) = target_addresses(&container_info, &network_info, &network.name)?;
+    let (source, destination, addresses) = if ipv6 {
+        let (source, destination) =
+            target_ipv6_addresses(&container_info, &network_info, &network.name)?;
+        (
+            IpAddr::V6(source),
+            IpAddr::V6(destination),
+            Addresses::V6(source.octets(), destination.octets()),
+        )
+    } else {
+        let (source, destination) =
+            target_addresses(&container_info, &network_info, &network.name)?;
+        (
+            IpAddr::V4(source),
+            IpAddr::V4(destination),
+            Addresses::V4(source.octets(), destination.octets()),
+        )
+    };
     let target = SocketAddr::from((destination, 53));
     let deadline = Instant::now() + Duration::from_secs(30);
     loop {
@@ -306,6 +373,40 @@ pub(super) fn run(out: Option<PathBuf>) -> Result<ValidationReport, ValidationEr
             Err(_) => std::thread::sleep(Duration::from_millis(100)),
         }
     }
+    Ok(Target {
+        token,
+        network,
+        container,
+        network_info,
+        container_info,
+        image_id,
+        source,
+        destination,
+        addresses,
+    })
+}
+
+fn run_family(out: Option<PathBuf>, ipv6: bool) -> Result<ValidationReport, ValidationError> {
+    let out = prepare_output(
+        out,
+        if ipv6 {
+            "linux-udp-dns-ipv6"
+        } else {
+            "linux-udp-dns"
+        },
+    )?;
+    let Target {
+        token,
+        mut network,
+        mut container,
+        network_info,
+        container_info,
+        image_id,
+        source,
+        destination,
+        addresses,
+    } = prepare_target(out.clone(), ipv6)?;
+    let target = SocketAddr::from((destination, 53));
     let mut scope = Scope::enter(&token)?;
     let sockets = [socket(source, target)?, socket(source, target)?];
     let identities = [
@@ -322,14 +423,13 @@ pub(super) fn run(out: Option<PathBuf>) -> Result<ValidationReport, ValidationEr
             "selected UDP identities are not unique",
         ));
     }
-    let addresses = (source.octets(), destination.octets());
     let clock = clock_anchor()?;
     let in_dir = out.join("ingress");
     let out_dir = out.join("egress");
     fs::create_dir(&in_dir)?;
     fs::create_dir(&out_dir)?;
-    let input = capture::Capture::attach(&scope, &identities, addresses, false, &in_dir)?;
-    let output = capture::Capture::attach(&scope, &identities, addresses, true, &out_dir)?;
+    let input = capture::Capture::attach(&scope, &identities, addresses, 53, false, &in_dir)?;
+    let output = capture::Capture::attach(&scope, &identities, addresses, 53, true, &out_dir)?;
     let links_owned = [input.id()?, output.id()?];
     let [first, second] = sockets.map(UdpSocket::from);
     let mut exchanges = Vec::new();
@@ -361,6 +461,7 @@ pub(super) fn run(out: Option<PathBuf>) -> Result<ValidationReport, ValidationEr
     let (egress, out_counts) = output.finish(&out_dir)?;
     let context = Context {
         sockets: identities,
+        remote_port: 53,
         addresses,
         netns: network_namespace()?,
         clock,
@@ -402,6 +503,13 @@ pub(super) fn run(out: Option<PathBuf>) -> Result<ValidationReport, ValidationEr
             ));
         }
         let export = reconstruct(&ingress, &egress, &context, rules)?;
+        if export.facts.iter().any(
+            |f| !matches!(&f.kind, FactKind::PacketMeta(p) if p.l3_proto == addresses.l3_proto()),
+        ) {
+            return Err(ValidationError::new(
+                "DNS fact address family differs from captured packet",
+            ));
+        }
         let wanted = if index == 0 {
             identities.iter().map(|(cookie, _)| *cookie).collect()
         } else {
@@ -438,7 +546,7 @@ pub(super) fn run(out: Option<PathBuf>) -> Result<ValidationReport, ValidationEr
             export.to_json(),
         )?;
         packages.push(json!({"path":path,"source_sha256":sha256(rules.as_bytes()),"phases":phases,"matched_cookies":wanted,"replay_identical":true,
-            "facts":export.facts.len(),"flows":export.flows.len(),"process_attribution":false,"packet_only":true}));
+            "facts":export.facts.len(),"flows":export.flows.len(),"l3_proto":addresses.l3_proto(),"process_attribution":false,"packet_only":true}));
     }
     fs::write(
         out.join("datagrams.json"),
@@ -472,17 +580,27 @@ pub(super) fn run(out: Option<PathBuf>) -> Result<ValidationReport, ValidationEr
     ];
     fs::write(
         out.join("summary.json"),
-        serde_json::to_vec_pretty(&json!({"schema_version":1,"ok":true,"mode":"udp-dns",
+        serde_json::to_vec_pretty(
+            &json!({"schema_version":2,"capture_event_schema":2,"ok":true,"mode":if ipv6 {"udp-dns-ipv6"} else {"udp-dns"},
+        "ip_version":addresses.version(),"source_address":source.to_string(),"target_address":destination.to_string(),
+        "ipv6_only":ipv6,"query_type":"A",
         "image":IMAGE,"image_id":String::from_utf8_lossy(&image_id).trim(),"config_sha256":sha256(CONFIG.as_bytes()),
         "container_id":container_info["Id"],"network_id":network_info["Id"],"internal_network":true,"published_ports":false,
         "selected_sockets":identities,"unselected_neighbor_cookie":neighbor_cookie,"unselected_neighbor_reply":neighbor_exchange.reply,
         "ingress_counts":in_counts,"egress_counts":out_counts,"observations":observations,"packages":packages,"checks":checks,
-        "owned_resources_removed":true,"ingest_trust_mode":"unverified-local","not_proven":["IPv6","IP_fragment_reassembly",
+        "owned_resources_removed":true,"ingest_trust_mode":"unverified-local","not_proven":["other_IP_family_in_this_run","IP_fragment_reassembly",
+        "IPv6_extension_headers_or_jumbograms","UDP_checksum_verification","AAAA_queries",
         "general_DNS_parser","EDNS_DNSSEC_DoH_DoT","TCP_fallback_for_TC","recursive_resolution_or_cache",
-        "general_UDP_throughput","PID_or_container_process_attribution","multiple_hosts_or_kernels"]}))?,
+        "general_UDP_throughput","PID_or_container_process_attribution","multiple_hosts_or_kernels"]}),
+        )?,
     )?;
     Ok(ValidationReport {
-        name: "Linux real UDP/DNS capture breadth".into(),
+        name: if ipv6 {
+            "Linux real IPv6 UDP/DNS capture breadth"
+        } else {
+            "Linux real UDP/DNS capture breadth"
+        }
+        .into(),
         out_dir: out,
         checks: checks.into_iter().map(str::to_owned).collect(),
     })
@@ -496,7 +614,8 @@ mod tests {
     fn dns_reconciliation_requires_socket_time_and_exact_bytes_not_only_id() {
         let context = Context {
             sockets: [(1, 4000), (2, 4001)],
-            addresses: ([127, 0, 0, 1], [127, 0, 0, 2]),
+            remote_port: 53,
+            addresses: ([127, 0, 0, 1], [127, 0, 0, 2]).into(),
             netns: 1,
             clock: (1, SystemTime::UNIX_EPOCH),
             end_ns: 10,
@@ -514,14 +633,49 @@ mod tests {
                 cookie,
                 cpu: 0,
                 ifindex: 1,
-                source: if outbound { 0x7f000001 } else { 0x7f000002 },
-                destination: if outbound { 0x7f000002 } else { 0x7f000001 },
+                source: [
+                    127,
+                    0,
+                    0,
+                    if outbound { 1 } else { 2 },
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                ],
+                destination: [
+                    127,
+                    0,
+                    0,
+                    if outbound { 2 } else { 1 },
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                ],
                 sport: if outbound { 3999 + cookie as u16 } else { 53 },
                 dport: if outbound { 53 } else { 3999 + cookie as u16 },
-                total_len: 28 + payload.len() as u16,
+                total_len: 28 + payload.len() as u32,
                 payload_len: payload.len() as u16,
                 prefix_len: payload.len() as u16,
                 ip_header_len: 20,
+                ip_version: 4,
                 prefix,
             }
         };

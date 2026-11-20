@@ -1,0 +1,762 @@
+{
+  "schema_version": 1,
+  "proof": "linux-real-udp-snmp-bidirectional-capture",
+  "captured_on": "2026-11-13",
+  "source_base_revision": "39eeb7d1f03c92f007daa1ac5d72aee311fead5e",
+  "working_tree_changes": true,
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "execution": {
+    "kernel": "7.0.0-42-generic",
+    "arch": "x86_64",
+    "host_count": 1,
+    "kernel_count": 1,
+    "live_capture": "physical Linux host, not build container",
+    "build_toolchain": "Rust 1.98.0",
+    "optimization": "gewyvern dev opt-level 2, correctness campaign not performance benchmark",
+    "remote_evidence": "/home/chiharukiryu/.cache/gewyvern/evidence/20261113-snmp",
+    "target_implementation": "Net-SNMP 5.9.5.2-r0 on digest-pinned Alpine",
+    "target_cpu_cores": 1,
+    "target_memory_bytes": 134217728,
+    "target_pids": 64,
+    "target_read_only_root": true,
+    "target_tmpfs_bytes": 4194304,
+    "published_ports": false,
+    "host_mounts": false,
+    "macos_builds_or_image_pulls": false,
+    "automatic_image_pull_by_runner": false,
+    "development_campaigns_excluded_from_totals": 1,
+    "timeout_ms": 350,
+    "local_summary_archive": "target/validation/snmp-20261113",
+    "binary_hash_is_capture_time_snapshot": true
+  },
+  "artifact_bindings": {
+    "build": {
+      "src/ir.rs": "98b67066567c87bd3e5c817637b0c25696374ab417ec5680121fd227333cfd8b",
+      "src/ir/snmp.rs": "6c792fa9cf6654338e0bc431d0c93262380567ad46ede338229d5363f7eb82c4",
+      "src/ir/matching.rs": "09c7de59d408d1a361787c2c1e50db5f09b685ed8186abffbc108c96373211df",
+      "src/ir/predicates.rs": "972acc2e8f412a54a2078f29fbb7e4c1f1c2751eb7eb2d5eaf4930033a34ee77",
+      "src/dsl/predicate.rs": "c922d2d00ed783bb03b318c063b8c74fbd7e23b7dcdfea2ac0b40ec91233f867",
+      "src/export/reason_codec/encode.rs": "7863501bdc437b322699e3b0498eb4f0c79f3505370172d735364ecc98ebd98f",
+      "src/export/reason_codec/parse.rs": "649720ece97195e89477857cd0e3eedb248c634d2ae07d8b5750ac0698183789",
+      "src/gewyc/ir_focus/support.rs": "b8f786fa57af09afb9d278e8f587763c162647a5b52cd0ad74d536cacf4e46f1",
+      "src/validation_harness/linux_tcp_capture/linux/udp_capture.rs": "a5259da73ff12e75e93f40590d6928d894eb96778ab886e1d808a4c6b5d7c2b4",
+      "src/validation_harness/linux_tcp_capture/linux/udp_dns.rs": "23ec7b3aad55f600580b72f95679f29d5d3f3608da8a42e9b0be3c67a837199a",
+      "src/validation_harness/linux_tcp_capture/linux/udp_snmp.rs": "c50657aad5d3ddff7e439a0f7f97affd0960ce144e5bf77190cafda08fc68369",
+      "src/validation_harness/linux_tcp_capture/linux/udp_snmp/wire.rs": "7b5ecc6014fb66589dbed7f933bc7a037075060da384ceb92524f10de00c31b8",
+      "src/validation_harness/linux_tcp_capture/udp_evidence.rs": "114c29dab26fbf5d920a7905640446a1774cd21390d6af9937411eaa88f8b11b",
+      "src/bin/gewyvern_validate.rs": "8874afbc3fb5c4a033d71730d3c361a6ccd0775bb17e32fd191032cdb3e1cbf9",
+      "ebpf/validation/udp_dns.bpf.c": "4b05de59b56c126266afdd23ff323ef0f7ec8b9d9864efe27f8f3a68df818e74",
+      "ebpf/validation/snmp/Dockerfile": "b5c9eb10193f28b67aa6f8534187f7ac4e84c739e667660a862f994df5a6bd52",
+      "ebpf/validation/snmp/snmpd.conf": "a701b3a4625428925a8429223fd31db50109339066ac9da2fac804d64d92bd8e",
+      "protocols/snmp/get/main.gewy": "423e7250bf0a19b818e1bddfe84f7f34a09436c5eddfa8cd89e6b180891610b7",
+      "protocols/snmp/get-next/main.gewy": "d62221db6ad80382e927a6e5821bb3f4754027352fb400cefb4da509c9f74a60",
+      "protocols/snmp/bulk/main.gewy": "d959e72dead16021142a0edfa675d50d6997a87524dd216daa478f5b99f74c66",
+      "dsl/snmp_get_path.gewy": "423e7250bf0a19b818e1bddfe84f7f34a09436c5eddfa8cd89e6b180891610b7",
+      "dsl/snmp_get_next_path.gewy": "d62221db6ad80382e927a6e5821bb3f4754027352fb400cefb4da509c9f74a60",
+      "dsl/snmp_bulk_path.gewy": "d959e72dead16021142a0edfa675d50d6997a87524dd216daa478f5b99f74c66",
+      "tests/snmp_protocol_runtime_tdd.rs": "abdca2eeaeb7cc3947d06ee13cacc5d3639cd69fd266836e3539997f5a917255",
+      "tests/support/snmp.rs": "d2f81b62c55bb6375806c2ea774af0d4e59492dda3d1eae5815b0796a246f80f",
+      "target/debug/gewyvern_validate": "00e7dcf6c57f6977f10466d6384222576895445e2880d3355460f876164f4804"
+    },
+    "reports": {
+      "run-1/summary.json": "3460333d8889a4a959f27d8696f148fa28fa1b97d56eaaf1db5f4fd8ab9ce5e9",
+      "run-2/summary.json": "a9f1625d5bfa510d04b3cc60163b24bf56c4c81ed9a9d05089c966f6115a40b2",
+      "run-3/summary.json": "4211161079c6c9a8acdd5669b15928475c86ddccd4a39bc701d92cabdff9d87c",
+      "dns-regression/summary.json": "0d9af751538ee1789e626b147fbc2f5319855c8130aaef10cc974a3b4f96af45",
+      "regression-final.log": "6826a2f1773da1e228c41fe4e4e6b4f296a6812d951c586f704fc0b85f20ffe1",
+      "clippy-final.log": "34b6edbaf08509272f1bbc6c4e4126b4a3c8033f84674f40708b9592e9615445"
+    }
+  },
+  "runs": [
+    {
+      "checks": [
+        "real_private_Net_SNMP",
+        "GET_GETNEXT_GETBULK",
+        "noSuchObject_not_success",
+        "wrong_community_timeout_then_recovery",
+        "same_request_id_distinct_sockets",
+        "bidirectional_kernel_bytes_match_client",
+        "neighbor_excluded",
+        "packet_only_replay",
+        "owned_cleanup_and_fresh_HTTP"
+      ],
+      "config_sha256": "a701b3a4625428925a8429223fd31db50109339066ac9da2fac804d64d92bd8e",
+      "container_id": "b33b2a72f755e6a72fecc0335bfaa87dc0c6b369007ff637405aa4a0eecfa128",
+      "egress_counts": {
+        "dropped": 0,
+        "total": 7
+      },
+      "image_id": "sha256:47bcb964731d1bfe709363eb9254963d8dac409f148d28e793b674b268541e30",
+      "ingress_counts": {
+        "dropped": 0,
+        "total": 6
+      },
+      "internal_network": true,
+      "mode": "udp-snmp",
+      "neighbor_cookie": 8273,
+      "network_id": "71e1bc72e8e6978a221cefa3e016f42a424c9683fdea970f15c3485b9f7768ca",
+      "not_proven": [
+        "SNMPv3_auth_or_privacy",
+        "SET_trap_inform",
+        "full_MIB_walk",
+        "product_request_response_correlation",
+        "IPv6_or_IP_reassembly",
+        "UDP_throughput",
+        "PID_attribution",
+        "multiple_hosts_or_kernels"
+      ],
+      "observations": [
+        {
+          "captured_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+          "captured_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+          "case": "get",
+          "client_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+          "client_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+          "cookie": 32851,
+          "end_ns": 64183621706640,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 1,
+          "response_bytes": 62,
+          "start_ns": 64183621475934,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "df0117ccfca6ec571238ecc97fc21fb16e55d6717f78ce2a811db17b2da51e6f",
+          "captured_response_sha256": "145df115d7896a7c58d9838d2900b6969cea01e50d74a1be55d69654781550f6",
+          "case": "get-next",
+          "client_request_sha256": "df0117ccfca6ec571238ecc97fc21fb16e55d6717f78ce2a811db17b2da51e6f",
+          "client_response_sha256": "145df115d7896a7c58d9838d2900b6969cea01e50d74a1be55d69654781550f6",
+          "cookie": 32851,
+          "end_ns": 64183621880368,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 128,
+          "response_bytes": 63,
+          "start_ns": 64183621722259,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "c1c2da874ebc4346f5e4d82641da3e62707c352811973322e30ab1e97298dba5",
+          "captured_response_sha256": "fd9eba66a12a24d7790f1f1eb099ffd19dc5fce8a4daa9dc712a8c565175899d",
+          "case": "get-bulk",
+          "client_request_sha256": "c1c2da874ebc4346f5e4d82641da3e62707c352811973322e30ab1e97298dba5",
+          "client_response_sha256": "fd9eba66a12a24d7790f1f1eb099ffd19dc5fce8a4daa9dc712a8c565175899d",
+          "cookie": 32851,
+          "end_ns": 64183622036613,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 32768,
+          "response_bytes": 64,
+          "start_ns": 64183621896017,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "fbc39c555c4c61bef1c116501b281fe6b03d04a61662e305d6b6c4b4d66ba240",
+          "captured_response_sha256": "6ba02dafe554f7cab62c4852c90461b5cb958fe64733891790b793ff120cec05",
+          "case": "unknown-oid",
+          "client_request_sha256": "fbc39c555c4c61bef1c116501b281fe6b03d04a61662e305d6b6c4b4d66ba240",
+          "client_response_sha256": "6ba02dafe554f7cab62c4852c90461b5cb958fe64733891790b793ff120cec05",
+          "cookie": 32851,
+          "end_ns": 64183622111334,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": true,
+          "request_bytes": 50,
+          "request_id": 2,
+          "response_bytes": 47,
+          "start_ns": 64183622046031,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "a9c790cc666d83a4999b83d973714a54d8e785493d50455926a563139cf3cc3a",
+          "captured_response_sha256": null,
+          "case": "wrong-community",
+          "client_request_sha256": "a9c790cc666d83a4999b83d973714a54d8e785493d50455926a563139cf3cc3a",
+          "client_response_sha256": null,
+          "cookie": 32851,
+          "end_ns": 64183978109273,
+          "legacy_request_byte13": 116,
+          "legacy_response_byte13": null,
+          "no_such_object": false,
+          "request_bytes": 51,
+          "request_id": 3,
+          "response_bytes": null,
+          "start_ns": 64183622119289,
+          "timeout": true
+        },
+        {
+          "captured_request_sha256": "22a9ed4a1d258604b81adcccd2f62e152e921e1526a16542a1c2859613dd3b1e",
+          "captured_response_sha256": "bd8fe483a44c244163e6abbe349784a946f0ae414b586aaba3ee1dff7151e8a0",
+          "case": "recovery-get",
+          "client_request_sha256": "22a9ed4a1d258604b81adcccd2f62e152e921e1526a16542a1c2859613dd3b1e",
+          "client_response_sha256": "bd8fe483a44c244163e6abbe349784a946f0ae414b586aaba3ee1dff7151e8a0",
+          "cookie": 32851,
+          "end_ns": 64183978370697,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 4,
+          "response_bytes": 62,
+          "start_ns": 64183978142907,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+          "captured_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+          "case": "get",
+          "client_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+          "client_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+          "cookie": 32852,
+          "end_ns": 64183978511824,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 1,
+          "response_bytes": 62,
+          "start_ns": 64183978375987,
+          "timeout": false
+        }
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "packages": [
+        {
+          "legacy_fixed_offset_matching_stages": 0,
+          "packet_only": true,
+          "path": "protocols/snmp/get/main.gewy",
+          "replay_identical": true,
+          "request_phase": "send_get_request",
+          "response_is_generic_candidate": true,
+          "response_phase": "receive_get_response",
+          "source_sha256": "423e7250bf0a19b818e1bddfe84f7f34a09436c5eddfa8cd89e6b180891610b7",
+          "transaction_correlation": false
+        },
+        {
+          "legacy_fixed_offset_matching_stages": 0,
+          "packet_only": true,
+          "path": "protocols/snmp/get-next/main.gewy",
+          "replay_identical": true,
+          "request_phase": "send_get_next_request",
+          "response_is_generic_candidate": true,
+          "response_phase": "receive_get_next_response",
+          "source_sha256": "d62221db6ad80382e927a6e5821bb3f4754027352fb400cefb4da509c9f74a60",
+          "transaction_correlation": false
+        },
+        {
+          "legacy_fixed_offset_matching_stages": 0,
+          "packet_only": true,
+          "path": "protocols/snmp/bulk/main.gewy",
+          "replay_identical": true,
+          "request_phase": "send_bulk_request",
+          "response_is_generic_candidate": true,
+          "response_phase": "receive_bulk_response",
+          "source_sha256": "d959e72dead16021142a0edfa675d50d6997a87524dd216daa478f5b99f74c66",
+          "transaction_correlation": false
+        }
+      ],
+      "published_ports": false,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          32851,
+          38012
+        ],
+        [
+          32852,
+          39027
+        ]
+      ]
+    },
+    {
+      "checks": [
+        "real_private_Net_SNMP",
+        "GET_GETNEXT_GETBULK",
+        "noSuchObject_not_success",
+        "wrong_community_timeout_then_recovery",
+        "same_request_id_distinct_sockets",
+        "bidirectional_kernel_bytes_match_client",
+        "neighbor_excluded",
+        "packet_only_replay",
+        "owned_cleanup_and_fresh_HTTP"
+      ],
+      "config_sha256": "a701b3a4625428925a8429223fd31db50109339066ac9da2fac804d64d92bd8e",
+      "container_id": "8e66c3d9e409c404dcc5e23e20d66656f03375effe812cadcbdf996da644ea73",
+      "egress_counts": {
+        "dropped": 0,
+        "total": 7
+      },
+      "image_id": "sha256:47bcb964731d1bfe709363eb9254963d8dac409f148d28e793b674b268541e30",
+      "ingress_counts": {
+        "dropped": 0,
+        "total": 6
+      },
+      "internal_network": true,
+      "mode": "udp-snmp",
+      "neighbor_cookie": 28705,
+      "network_id": "2eb96207e64465dc558872b5ee94ec4e4cd3c305e438316c16cf39a9ed123b78",
+      "not_proven": [
+        "SNMPv3_auth_or_privacy",
+        "SET_trap_inform",
+        "full_MIB_walk",
+        "product_request_response_correlation",
+        "IPv6_or_IP_reassembly",
+        "UDP_throughput",
+        "PID_attribution",
+        "multiple_hosts_or_kernels"
+      ],
+      "observations": [
+        {
+          "captured_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+          "captured_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+          "case": "get",
+          "client_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+          "client_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+          "cookie": 28703,
+          "end_ns": 64228525918882,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 1,
+          "response_bytes": 62,
+          "start_ns": 64228525744022,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "df0117ccfca6ec571238ecc97fc21fb16e55d6717f78ce2a811db17b2da51e6f",
+          "captured_response_sha256": "145df115d7896a7c58d9838d2900b6969cea01e50d74a1be55d69654781550f6",
+          "case": "get-next",
+          "client_request_sha256": "df0117ccfca6ec571238ecc97fc21fb16e55d6717f78ce2a811db17b2da51e6f",
+          "client_response_sha256": "145df115d7896a7c58d9838d2900b6969cea01e50d74a1be55d69654781550f6",
+          "cookie": 28703,
+          "end_ns": 64228526011447,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 128,
+          "response_bytes": 63,
+          "start_ns": 64228525932578,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "c1c2da874ebc4346f5e4d82641da3e62707c352811973322e30ab1e97298dba5",
+          "captured_response_sha256": "fd9eba66a12a24d7790f1f1eb099ffd19dc5fce8a4daa9dc712a8c565175899d",
+          "case": "get-bulk",
+          "client_request_sha256": "c1c2da874ebc4346f5e4d82641da3e62707c352811973322e30ab1e97298dba5",
+          "client_response_sha256": "fd9eba66a12a24d7790f1f1eb099ffd19dc5fce8a4daa9dc712a8c565175899d",
+          "cookie": 28703,
+          "end_ns": 64228526092570,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 32768,
+          "response_bytes": 64,
+          "start_ns": 64228526021025,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "fbc39c555c4c61bef1c116501b281fe6b03d04a61662e305d6b6c4b4d66ba240",
+          "captured_response_sha256": "6ba02dafe554f7cab62c4852c90461b5cb958fe64733891790b793ff120cec05",
+          "case": "unknown-oid",
+          "client_request_sha256": "fbc39c555c4c61bef1c116501b281fe6b03d04a61662e305d6b6c4b4d66ba240",
+          "client_response_sha256": "6ba02dafe554f7cab62c4852c90461b5cb958fe64733891790b793ff120cec05",
+          "cookie": 28703,
+          "end_ns": 64228526153045,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": true,
+          "request_bytes": 50,
+          "request_id": 2,
+          "response_bytes": 47,
+          "start_ns": 64228526102840,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "a9c790cc666d83a4999b83d973714a54d8e785493d50455926a563139cf3cc3a",
+          "captured_response_sha256": null,
+          "case": "wrong-community",
+          "client_request_sha256": "a9c790cc666d83a4999b83d973714a54d8e785493d50455926a563139cf3cc3a",
+          "client_response_sha256": null,
+          "cookie": 28703,
+          "end_ns": 64228882020618,
+          "legacy_request_byte13": 116,
+          "legacy_response_byte13": null,
+          "no_such_object": false,
+          "request_bytes": 51,
+          "request_id": 3,
+          "response_bytes": null,
+          "start_ns": 64228526162833,
+          "timeout": true
+        },
+        {
+          "captured_request_sha256": "22a9ed4a1d258604b81adcccd2f62e152e921e1526a16542a1c2859613dd3b1e",
+          "captured_response_sha256": "bd8fe483a44c244163e6abbe349784a946f0ae414b586aaba3ee1dff7151e8a0",
+          "case": "recovery-get",
+          "client_request_sha256": "22a9ed4a1d258604b81adcccd2f62e152e921e1526a16542a1c2859613dd3b1e",
+          "client_response_sha256": "bd8fe483a44c244163e6abbe349784a946f0ae414b586aaba3ee1dff7151e8a0",
+          "cookie": 28703,
+          "end_ns": 64228882199937,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 4,
+          "response_bytes": 62,
+          "start_ns": 64228882061005,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+          "captured_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+          "case": "get",
+          "client_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+          "client_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+          "cookie": 28704,
+          "end_ns": 64228882294946,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 1,
+          "response_bytes": 62,
+          "start_ns": 64228882203824,
+          "timeout": false
+        }
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "packages": [
+        {
+          "legacy_fixed_offset_matching_stages": 0,
+          "packet_only": true,
+          "path": "protocols/snmp/get/main.gewy",
+          "replay_identical": true,
+          "request_phase": "send_get_request",
+          "response_is_generic_candidate": true,
+          "response_phase": "receive_get_response",
+          "source_sha256": "423e7250bf0a19b818e1bddfe84f7f34a09436c5eddfa8cd89e6b180891610b7",
+          "transaction_correlation": false
+        },
+        {
+          "legacy_fixed_offset_matching_stages": 0,
+          "packet_only": true,
+          "path": "protocols/snmp/get-next/main.gewy",
+          "replay_identical": true,
+          "request_phase": "send_get_next_request",
+          "response_is_generic_candidate": true,
+          "response_phase": "receive_get_next_response",
+          "source_sha256": "d62221db6ad80382e927a6e5821bb3f4754027352fb400cefb4da509c9f74a60",
+          "transaction_correlation": false
+        },
+        {
+          "legacy_fixed_offset_matching_stages": 0,
+          "packet_only": true,
+          "path": "protocols/snmp/bulk/main.gewy",
+          "replay_identical": true,
+          "request_phase": "send_bulk_request",
+          "response_is_generic_candidate": true,
+          "response_phase": "receive_bulk_response",
+          "source_sha256": "d959e72dead16021142a0edfa675d50d6997a87524dd216daa478f5b99f74c66",
+          "transaction_correlation": false
+        }
+      ],
+      "published_ports": false,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          28703,
+          39430
+        ],
+        [
+          28704,
+          53101
+        ]
+      ]
+    },
+    {
+      "checks": [
+        "real_private_Net_SNMP",
+        "GET_GETNEXT_GETBULK",
+        "noSuchObject_not_success",
+        "wrong_community_timeout_then_recovery",
+        "same_request_id_distinct_sockets",
+        "bidirectional_kernel_bytes_match_client",
+        "neighbor_excluded",
+        "packet_only_replay",
+        "owned_cleanup_and_fresh_HTTP"
+      ],
+      "config_sha256": "a701b3a4625428925a8429223fd31db50109339066ac9da2fac804d64d92bd8e",
+      "container_id": "6eb2fb10e9a552a3ee8ba6f66fc07dc659e3c8f266ef6b6833cf2ad8914ec8b3",
+      "egress_counts": {
+        "dropped": 0,
+        "total": 7
+      },
+      "image_id": "sha256:47bcb964731d1bfe709363eb9254963d8dac409f148d28e793b674b268541e30",
+      "ingress_counts": {
+        "dropped": 0,
+        "total": 6
+      },
+      "internal_network": true,
+      "mode": "udp-snmp",
+      "neighbor_cookie": 28706,
+      "network_id": "7a700a4688002f43e2e770c0d59ca4517feb94167899102681cdb365d074a61a",
+      "not_proven": [
+        "SNMPv3_auth_or_privacy",
+        "SET_trap_inform",
+        "full_MIB_walk",
+        "product_request_response_correlation",
+        "IPv6_or_IP_reassembly",
+        "UDP_throughput",
+        "PID_attribution",
+        "multiple_hosts_or_kernels"
+      ],
+      "observations": [
+        {
+          "captured_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+          "captured_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+          "case": "get",
+          "client_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+          "client_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+          "cookie": 24655,
+          "end_ns": 64279160953729,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 1,
+          "response_bytes": 62,
+          "start_ns": 64279160785482,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "df0117ccfca6ec571238ecc97fc21fb16e55d6717f78ce2a811db17b2da51e6f",
+          "captured_response_sha256": "145df115d7896a7c58d9838d2900b6969cea01e50d74a1be55d69654781550f6",
+          "case": "get-next",
+          "client_request_sha256": "df0117ccfca6ec571238ecc97fc21fb16e55d6717f78ce2a811db17b2da51e6f",
+          "client_response_sha256": "145df115d7896a7c58d9838d2900b6969cea01e50d74a1be55d69654781550f6",
+          "cookie": 24655,
+          "end_ns": 64279161032378,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 128,
+          "response_bytes": 63,
+          "start_ns": 64279160966273,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "c1c2da874ebc4346f5e4d82641da3e62707c352811973322e30ab1e97298dba5",
+          "captured_response_sha256": "fd9eba66a12a24d7790f1f1eb099ffd19dc5fce8a4daa9dc712a8c565175899d",
+          "case": "get-bulk",
+          "client_request_sha256": "c1c2da874ebc4346f5e4d82641da3e62707c352811973322e30ab1e97298dba5",
+          "client_response_sha256": "fd9eba66a12a24d7790f1f1eb099ffd19dc5fce8a4daa9dc712a8c565175899d",
+          "cookie": 24655,
+          "end_ns": 64279161132627,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 32768,
+          "response_bytes": 64,
+          "start_ns": 64279161043469,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "fbc39c555c4c61bef1c116501b281fe6b03d04a61662e305d6b6c4b4d66ba240",
+          "captured_response_sha256": "6ba02dafe554f7cab62c4852c90461b5cb958fe64733891790b793ff120cec05",
+          "case": "unknown-oid",
+          "client_request_sha256": "fbc39c555c4c61bef1c116501b281fe6b03d04a61662e305d6b6c4b4d66ba240",
+          "client_response_sha256": "6ba02dafe554f7cab62c4852c90461b5cb958fe64733891790b793ff120cec05",
+          "cookie": 24655,
+          "end_ns": 64279161213530,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": true,
+          "request_bytes": 50,
+          "request_id": 2,
+          "response_bytes": 47,
+          "start_ns": 64279161146934,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "a9c790cc666d83a4999b83d973714a54d8e785493d50455926a563139cf3cc3a",
+          "captured_response_sha256": null,
+          "case": "wrong-community",
+          "client_request_sha256": "a9c790cc666d83a4999b83d973714a54d8e785493d50455926a563139cf3cc3a",
+          "client_response_sha256": null,
+          "cookie": 24655,
+          "end_ns": 64279515074022,
+          "legacy_request_byte13": 116,
+          "legacy_response_byte13": null,
+          "no_such_object": false,
+          "request_bytes": 51,
+          "request_id": 3,
+          "response_bytes": null,
+          "start_ns": 64279161221195,
+          "timeout": true
+        },
+        {
+          "captured_request_sha256": "22a9ed4a1d258604b81adcccd2f62e152e921e1526a16542a1c2859613dd3b1e",
+          "captured_response_sha256": "bd8fe483a44c244163e6abbe349784a946f0ae414b586aaba3ee1dff7151e8a0",
+          "case": "recovery-get",
+          "client_request_sha256": "22a9ed4a1d258604b81adcccd2f62e152e921e1526a16542a1c2859613dd3b1e",
+          "client_response_sha256": "bd8fe483a44c244163e6abbe349784a946f0ae414b586aaba3ee1dff7151e8a0",
+          "cookie": 24655,
+          "end_ns": 64279515402903,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 4,
+          "response_bytes": 62,
+          "start_ns": 64279515112164,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+          "captured_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+          "case": "get",
+          "client_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+          "client_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+          "cookie": 24656,
+          "end_ns": 64279515548478,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 1,
+          "response_bytes": 62,
+          "start_ns": 64279515412191,
+          "timeout": false
+        }
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "packages": [
+        {
+          "legacy_fixed_offset_matching_stages": 0,
+          "packet_only": true,
+          "path": "protocols/snmp/get/main.gewy",
+          "replay_identical": true,
+          "request_phase": "send_get_request",
+          "response_is_generic_candidate": true,
+          "response_phase": "receive_get_response",
+          "source_sha256": "423e7250bf0a19b818e1bddfe84f7f34a09436c5eddfa8cd89e6b180891610b7",
+          "transaction_correlation": false
+        },
+        {
+          "legacy_fixed_offset_matching_stages": 0,
+          "packet_only": true,
+          "path": "protocols/snmp/get-next/main.gewy",
+          "replay_identical": true,
+          "request_phase": "send_get_next_request",
+          "response_is_generic_candidate": true,
+          "response_phase": "receive_get_next_response",
+          "source_sha256": "d62221db6ad80382e927a6e5821bb3f4754027352fb400cefb4da509c9f74a60",
+          "transaction_correlation": false
+        },
+        {
+          "legacy_fixed_offset_matching_stages": 0,
+          "packet_only": true,
+          "path": "protocols/snmp/bulk/main.gewy",
+          "replay_identical": true,
+          "request_phase": "send_bulk_request",
+          "response_is_generic_candidate": true,
+          "response_phase": "receive_bulk_response",
+          "source_sha256": "d959e72dead16021142a0edfa675d50d6997a87524dd216daa478f5b99f74c66",
+          "transaction_correlation": false
+        }
+      ],
+      "published_ports": false,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          24655,
+          59670
+        ],
+        [
+          24656,
+          34767
+        ]
+      ]
+    }
+  ],
+  "totals": {
+    "campaigns": 3,
+    "selected_requests": 21,
+    "captured_responses": 18,
+    "reported_capture_loss": 0,
+    "expected_timeouts": 3,
+    "no_such_object_responses": 3,
+    "successful_recovery_gets": 3,
+    "selected_sockets": 6,
+    "excluded_neighbor_sockets": 3,
+    "package_replays": 9,
+    "fresh_HTTP_after_SNMP": 3
+  },
+  "dns_regression": {
+    "ok": true,
+    "ingress_counts": {
+      "dropped": 0,
+      "total": 10
+    },
+    "egress_counts": {
+      "dropped": 0,
+      "total": 9
+    },
+    "checks": [
+      "real_private_DNS_server",
+      "two_selected_sockets_same_DNS_id",
+      "bidirectional_kernel_bytes_match_client",
+      "four_RCODEs_and_truncation",
+      "bounded_timeout_then_success",
+      "unselected_neighbor_excluded",
+      "packet_only_package_replay",
+      "owned_resources_removed",
+      "fresh_HTTP_capture_after_DNS"
+    ],
+    "owned_resources_removed": true
+  },
+  "cleanup": {
+    "existing_container_identities_unchanged_excluding_owned_build": true,
+    "existing_network_inventory_unchanged": true,
+    "existing_volume_inventory_unchanged": true,
+    "baseline": {
+      "containers": 15,
+      "networks": 6,
+      "volumes": 54
+    },
+    "global_prune_used": false,
+    "build_container_removed": true,
+    "owned_bpf_pins_and_cgroups_absent": true
+  },
+  "limits": [
+    "Complete messages up to 128 captured bytes only; sparse default fragment support remains explicitly unsupported.",
+    "Response is generic and includes errors/exceptions; product rules do not correlate requests by ID or prove successful values.",
+    "Real v2c read-only fixture, not real SNMPv1/v3, SET, traps, inform, full MIB walk or arbitrary agents.",
+    "One host/kernel, no IPv6, fragmented datagrams, UDP throughput or PID attribution."
+  ],
+  "validation": {
+    "passed": 2081,
+    "failed": 0,
+    "ignored": 1,
+    "targets": 14,
+    "strict_clippy": "passed",
+    "cargo_fmt_check": "passed",
+    "git_diff_check": "passed",
+    "full_workspace_or_CI_claim": false
+  }
+}

@@ -36,8 +36,18 @@ Read this page alongside:
 - synthetic demo facts
 - Unix socket ingest
 - TCP socket ingest
+- explicit Linux cgroup UDP capture
 
 Those modes do not all have the same attribution strength.
+
+Socket input is the live **external-fact** boundary. Explicit
+`--capture-cgroup` / `--capture-udp-port` starts the product-owned UDP producer,
+including continuous `--serve` consumption. See [live UDP capture](live-udp-capture.md)
+for prerequisites, commands, bounded windows, loss accounting and recovery.
+`LinuxProbeLoader` still only checks hook availability, and the bounded Linux
+field collectors are separate validation tools.
+Do not interpret a successful attach plan, an IPv6 listener or a field campaign
+as proof that a default production kernel collector is running.
 
 For example:
 
@@ -88,6 +98,7 @@ Typical report shape:
 Use this when:
 
 - facts arrive over a local Unix or TCP socket
+- or the explicit local UDP collector supplies packet-only evidence
 - you want to inspect a real local feed
 - you accept that lineage is still unverified
 
@@ -130,6 +141,39 @@ Local advisory socket ingest:
 ```bash
 cargo run -- --scan-all --tcp-socket 127.0.0.1:9000 --ingest-mode local-advisory --summary-only --json
 ```
+
+IPv6 loopback advisory input (the listener transport is distinct from the
+address family of the packets represented by its facts):
+
+```bash
+cargo run -- --protocol dns --entry udp --tcp-socket '[::1]:9000' --ingest-mode local-advisory --json
+```
+
+Native Rust producers can use `packet_capture::CapturedUdpDatagram::into_fact`
+and `export::fact_to_json` to emit one fact per line. The adapter preserves
+IPv4/IPv6 EtherType, full IP length and only actually captured bytes, with a
+128-byte prefix bound. It rejects mixed families, unsupported IP header sizes,
+inconsistent lengths and overflowing CPU IDs. It neither verifies raw packet
+checksums nor authenticates socket/process identity. Packet facts currently
+retain cookie/netns/ports and family, not full endpoint IP addresses.
+
+On a Linux host with the field prerequisites, validate the real kernel-to-CLI
+boundary without substituting the production fragment registry:
+
+```bash
+cargo build --bin gewyvern --bin gewyvern_validate
+sudo target/debug/gewyvern_validate linux-udp-capture --ipv6-dns --out-dir /tmp/gewy-ipv6-capture
+GEWY_IPV6_DNS_CAPTURE_DIR=/tmp/gewy-ipv6-capture \
+GEWY_CAPTURE_INGEST_OUT=/tmp/gewy-ipv6-ingest \
+cargo test --test ipv6_capture_ingest_tdd -- --ignored --nocapture
+```
+
+Use new output paths and make the capture files readable by the test account;
+do not run Cargo as root. The test exercises both DNS packages over Unix,
+IPv4-loopback TCP and IPv6-loopback TCP, malformed-input recovery, default
+fragment plans, unchanged captured facts, advisory trust and export/replay.
+The bounded capture remains direct IPv6 UDP carrying DNS A questions, not
+IPv6 extension-header, fragmentation, AAAA, public routing or throughput proof.
 
 Remote advisory socket ingest:
 

@@ -11,6 +11,7 @@ use crate::template::{
 use std::collections::BTreeMap;
 
 mod attach_codec;
+mod capture_codec;
 mod fact_codec;
 mod json;
 mod program_codec;
@@ -47,6 +48,7 @@ pub struct FragmentInventoryItem {
 pub struct ExportBundle {
     pub template_id: String,
     pub ingest_trust_mode: String,
+    pub capture: Option<crate::live_capture::CaptureSnapshot>,
     pub fragment_inventory: Vec<FragmentInventoryItem>,
     pub attach_plan: AttachPlan,
     pub attach_report: AttachReport,
@@ -132,6 +134,11 @@ impl ExportBundle {
         session.seed_rejected_facts(self.rejected_facts.clone());
         let mut replay = session.into_export_bundle();
         replay.ingest_trust_mode = self.ingest_trust_mode.clone();
+        replay.capture = self.capture.clone();
+        if self.capture.is_some() {
+            replay.attach_plan = self.attach_plan.clone();
+            replay.attach_report = self.attach_report.clone();
+        }
         replay.binding_diagnostics = self.binding_diagnostics.clone();
         replay.attach_failure_summary = self.attach_failure_summary.clone();
         replay.debug_summary = self.debug_summary.clone();
@@ -144,7 +151,7 @@ impl ExportBundle {
     }
 
     pub fn to_json(&self) -> String {
-        let root = JsonValue::Object(BTreeMap::from([
+        let mut root = JsonValue::Object(BTreeMap::from([
             (
                 "template_id".into(),
                 JsonValue::String(self.template_id.clone()),
@@ -274,6 +281,9 @@ impl ExportBundle {
                 JsonValue::Array(self.reasons.iter().map(reason_json).collect()),
             ),
         ]));
+        if let (Some(capture), JsonValue::Object(fields)) = (&self.capture, &mut root) {
+            fields.insert("capture".into(), capture_codec::encode(capture));
+        }
         root.render()
     }
 
@@ -282,6 +292,7 @@ impl ExportBundle {
         let root = value.into_object()?;
 
         Ok(Self {
+            capture: root.get("capture").map(capture_codec::decode).transpose()?,
             template_id: root
                 .get("template_id")
                 .ok_or_else(|| ExportError::InvalidShape("missing template_id".into()))?

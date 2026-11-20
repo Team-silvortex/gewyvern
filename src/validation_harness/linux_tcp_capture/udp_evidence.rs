@@ -5,10 +5,51 @@ use serde::{Deserialize, Serialize};
 use super::ValidationError;
 use crate::export::ExportBundle;
 use crate::fragment::{AttachFailure, FragmentRegistry, HookPoint, MapKind, MapSpec};
-use crate::ledger::{
-    CpuId, FactEnvelope, FactId, FactKind, FactKindTag, PacketDir, PacketMetaFact, SessionId,
-};
+#[cfg(test)]
+use crate::ledger::FactKind;
+use crate::ledger::{FactId, FactKindTag, PacketDir, SessionId};
+use crate::packet_capture::{CapturedUdpDatagram, PacketObservation};
 use crate::runtime::{RuntimeSession, SessionConfig};
+
+#[derive(Clone, Copy, Debug)]
+pub(super) enum Addresses {
+    V4([u8; 4], [u8; 4]),
+    V6([u8; 16], [u8; 16]),
+}
+
+impl From<([u8; 4], [u8; 4])> for Addresses {
+    fn from((source, destination): ([u8; 4], [u8; 4])) -> Self {
+        Self::V4(source, destination)
+    }
+}
+
+impl Addresses {
+    pub fn version(self) -> u8 {
+        match self {
+            Self::V4(..) => 4,
+            Self::V6(..) => 6,
+        }
+    }
+
+    pub fn octets(self) -> ([u8; 16], [u8; 16]) {
+        match self {
+            Self::V4(source, destination) => {
+                let (mut local, mut remote) = ([0; 16], [0; 16]);
+                local[..4].copy_from_slice(&source);
+                remote[..4].copy_from_slice(&destination);
+                (local, remote)
+            }
+            Self::V6(source, destination) => (source, destination),
+        }
+    }
+
+    pub fn l3_proto(self) -> u16 {
+        match self {
+            Self::V4(..) => 0x0800,
+            Self::V6(..) => 0x86dd,
+        }
+    }
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -18,20 +59,22 @@ pub(super) struct Datagram {
     pub cookie: u64,
     pub cpu: u32,
     pub ifindex: u32,
-    pub source: u32,
-    pub destination: u32,
+    pub source: [u8; 16],
+    pub destination: [u8; 16],
     pub sport: u16,
     pub dport: u16,
-    pub total_len: u16,
+    pub total_len: u32,
     pub payload_len: u16,
     pub prefix_len: u16,
     pub ip_header_len: u8,
+    pub ip_version: u8,
     pub prefix: Vec<u8>,
 }
 
 pub(super) struct Context {
     pub sockets: [(u64, u16); 2],
-    pub addresses: ([u8; 4], [u8; 4]),
+    pub remote_port: u16,
+    pub addresses: Addresses,
     pub netns: u32,
     pub clock: (u64, SystemTime),
     pub end_ns: u64,
@@ -47,28 +90,30 @@ pub(super) fn validate<'a>(
         .iter()
         .find(|(cookie, _)| *cookie == event.cookie)
         .map(|(_, port)| *port);
-    let (local, remote) = (
-        u32::from_be_bytes(context.addresses.0),
-        u32::from_be_bytes(context.addresses.1),
-    );
+    let (local, remote) = context.addresses.octets();
     let tuple = if egress {
         (event.source, event.destination, event.sport, event.dport)
     } else {
         (event.destination, event.source, event.dport, event.sport)
     };
-    if context
-        .sockets
-        .iter()
-        .any(|(cookie, port)| *cookie == 0 || *port == 0)
+    if context.remote_port == 0
+        || context
+            .sockets
+            .iter()
+            .any(|(cookie, port)| *cookie == 0 || *port == 0)
         || context.sockets[0].0 == context.sockets[1].0
         || context.sockets[0].1 == context.sockets[1].1
         || context.end_ns < context.clock.0
         || port.is_none()
-        || tuple != (local, remote, port.unwrap_or_default(), 53)
-        || !(20..=60).contains(&event.ip_header_len)
-        || !event.ip_header_len.is_multiple_of(4)
-        || u32::from(event.total_len)
-            != u32::from(event.ip_header_len) + 8 + u32::from(event.payload_len)
+        || tuple != (local, remote, port.unwrap_or_default(), context.remote_port)
+        || event.ip_version != context.addresses.version()
+        || match context.addresses {
+            Addresses::V4(..) => {
+                !(20..=60).contains(&event.ip_header_len) || !event.ip_header_len.is_multiple_of(4)
+            }
+            Addresses::V6(..) => event.ip_header_len != 40,
+        }
+        || event.total_len != u32::from(event.ip_header_len) + 8 + u32::from(event.payload_len)
         || event.payload_len > 128
         || event.prefix_len != event.payload_len
         || event.prefix.len() != 128
@@ -154,7 +199,6 @@ pub(super) fn reconstruct(
     for (events, outbound) in [(ingress, false), (egress, true)] {
         for event in events {
             let bytes = validate(event, outbound, context)?;
-            let at = |n| bytes.get(n).copied();
             let ts = context
                 .clock
                 .1
@@ -167,48 +211,59 @@ pub(super) fn reconstruct(
                 event.monotonic_ns,
                 outbound,
                 event.sequence,
-                FactEnvelope {
+                CapturedUdpDatagram {
+                    source: std::net::SocketAddr::new(
+                        if event.ip_version == 6 {
+                            std::net::IpAddr::V6(event.source.into())
+                        } else {
+                            std::net::IpAddr::V4(
+                                [
+                                    event.source[0],
+                                    event.source[1],
+                                    event.source[2],
+                                    event.source[3],
+                                ]
+                                .into(),
+                            )
+                        },
+                        event.sport,
+                    ),
+                    destination: std::net::SocketAddr::new(
+                        if event.ip_version == 6 {
+                            std::net::IpAddr::V6(event.destination.into())
+                        } else {
+                            std::net::IpAddr::V4(
+                                [
+                                    event.destination[0],
+                                    event.destination[1],
+                                    event.destination[2],
+                                    event.destination[3],
+                                ]
+                                .into(),
+                            )
+                        },
+                        event.dport,
+                    ),
+                    ip_header_len: event.ip_header_len,
+                    total_len: event.total_len,
+                    payload_len: event.payload_len,
+                    payload_prefix: bytes,
+                }
+                .into_fact(PacketObservation {
                     id: FactId(0),
                     ts,
-                    cpu: CpuId(event.cpu as u16),
-                    ifindex: Some(event.ifindex),
+                    cpu: event.cpu,
+                    ifindex: event.ifindex,
                     session: SessionId(1),
-                    fragment_id: "udp_packet_meta_fragment".into(),
-                    kind: FactKind::PacketMeta(PacketMetaFact {
-                        netns: context.netns,
-                        sk_cookie: Some(event.cookie),
-                        dir: if outbound {
-                            PacketDir::Egress
-                        } else {
-                            PacketDir::Ingress
-                        },
-                        local_port: Some(if outbound { event.sport } else { event.dport }),
-                        remote_port: Some(53),
-                        payload_byte0: at(0),
-                        payload_byte1: at(1),
-                        payload_prefix2: bytes.get(..2).map(|b| u16::from_be_bytes([b[0], b[1]])),
-                        payload_prefix4: bytes
-                            .get(..4)
-                            .map(|b| u32::from_be_bytes([b[0], b[1], b[2], b[3]])),
-                        payload_byte4: at(4),
-                        payload_byte5: at(5),
-                        payload_byte9: at(9),
-                        payload_byte10: at(10),
-                        payload_byte13: at(13),
-                        payload_bytes: bytes
-                            .iter()
-                            .enumerate()
-                            .map(|(i, b)| (i as u16, *b))
-                            .collect(),
-                        l3_proto: 0x0800,
-                        l4_proto: 17,
-                        tot_len: u32::from(event.total_len),
-                        tcp_flags: 0,
-                        seq: None,
-                        ack: None,
-                        window: None,
-                    }),
-                },
+                    netns: context.netns,
+                    socket_cookie: event.cookie,
+                    direction: if outbound {
+                        PacketDir::Egress
+                    } else {
+                        PacketDir::Ingress
+                    },
+                })
+                .map_err(|error| ValidationError::new(error.to_string()))?,
             ));
         }
     }
@@ -259,25 +314,136 @@ mod tests {
                 cookie: 1,
                 cpu: 0,
                 ifindex: 1,
-                source: 0x7f000001,
-                destination: 0x7f000002,
+                source: [127, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                destination: [127, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                 sport: 4000,
                 dport: 53,
                 total_len: 40,
                 payload_len: 12,
                 prefix_len: 12,
                 ip_header_len: 20,
+                ip_version: 4,
                 prefix: vec![0; 128],
             },
             Context {
+                remote_port: 53,
                 sockets: [(1, 4000), (2, 4001)],
-                addresses: ([127, 0, 0, 1], [127, 0, 0, 2]),
+                addresses: ([127, 0, 0, 1], [127, 0, 0, 2]).into(),
                 netns: 1,
                 clock: (1, SystemTime::UNIX_EPOCH),
                 end_ns: 3,
             },
         )
     }
+    #[test]
+    fn ipv6_datagrams_validate_all_address_bytes_and_family_framing() {
+        let (mut event, mut context) = fixture();
+        let source = "fd01:2345:6789::1"
+            .parse::<std::net::Ipv6Addr>()
+            .unwrap()
+            .octets();
+        let destination = "fd01:2345:6789::2"
+            .parse::<std::net::Ipv6Addr>()
+            .unwrap()
+            .octets();
+        context.addresses = Addresses::V6(source, destination);
+        event.source = source;
+        event.destination = destination;
+        event.ip_version = 6;
+        event.ip_header_len = 40;
+        event.total_len = 60;
+        assert_eq!(validate(&event, true, &context).unwrap().len(), 12);
+        assert!(validate(&event, false, &context).is_err());
+        for offset in 0..16 {
+            for source in [true, false] {
+                let mut bad = event.clone();
+                if source {
+                    bad.source[offset] ^= 1;
+                } else {
+                    bad.destination[offset] ^= 1;
+                }
+                assert!(validate(&bad, true, &context).is_err());
+            }
+        }
+        for kind in 0..8 {
+            let mut bad = event.clone();
+            match kind {
+                0 => bad.ip_version = 4,
+                1 => bad.ip_version = 0,
+                2 => bad.ip_header_len = 20,
+                3 => bad.ip_header_len = 48,
+                4 => bad.total_len = 20,
+                5 => bad.payload_len = 129,
+                6 => bad.prefix_len -= 1,
+                _ => bad.cookie = 3,
+            }
+            assert!(validate(&bad, true, &context).is_err());
+        }
+        let encoded = serde_json::to_value(&event).unwrap();
+        for field in ["ip_version", "source"] {
+            let mut missing = encoded.clone();
+            missing.as_object_mut().unwrap().remove(field);
+            assert!(serde_json::from_value::<Datagram>(missing).is_err());
+        }
+        let mut legacy = encoded;
+        legacy["source"] = serde_json::json!(0x7f000001);
+        assert!(serde_json::from_value::<Datagram>(legacy).is_err());
+    }
+
+    #[test]
+    fn ipv6_replay_preserves_ethertype_and_complete_ip_packet_length() {
+        let (mut first, mut context) = fixture();
+        context.addresses = Addresses::V6(
+            "fd01::1".parse::<std::net::Ipv6Addr>().unwrap().octets(),
+            "fd01::2".parse::<std::net::Ipv6Addr>().unwrap().octets(),
+        );
+        (first.source, first.destination) = context.addresses.octets();
+        first.ip_version = 6;
+        first.ip_header_len = 40;
+        first.total_len = 60;
+        let mut second = first.clone();
+        second.cookie = 2;
+        second.sport = 4001;
+        second.sequence = 2;
+        let egress = [first, second];
+        let ingress: Vec<_> = egress
+            .iter()
+            .map(|e| {
+                let mut reply = e.clone();
+                std::mem::swap(&mut reply.source, &mut reply.destination);
+                std::mem::swap(&mut reply.sport, &mut reply.dport);
+                reply
+            })
+            .collect();
+        let export = reconstruct(
+            &ingress,
+            &egress,
+            &context,
+            include_str!("../../../protocols/dns/udp/main.gewy"),
+        )
+        .unwrap();
+        assert_eq!(export.facts.len(), 4);
+        assert_eq!(export.flows.len(), 2);
+        assert!(
+            export
+                .facts
+                .iter()
+                .all(|f| matches!(&f.kind, FactKind::PacketMeta(p)
+            if p.l3_proto == 0x86dd && p.tot_len == 60 && p.l4_proto == 17))
+        );
+        let mut wrong_context = context;
+        wrong_context.addresses = ([127, 0, 0, 1], [127, 0, 0, 2]).into();
+        assert!(
+            reconstruct(
+                &ingress,
+                &egress,
+                &wrong_context,
+                include_str!("../../../protocols/dns/udp/main.gewy")
+            )
+            .is_err()
+        );
+    }
+
     #[test]
     fn datagrams_reject_foreign_identity_wrong_direction_truncation_and_bad_lifetime() {
         let (event, context) = fixture();

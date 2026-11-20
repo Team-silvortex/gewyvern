@@ -27,11 +27,11 @@ Read this alongside:
 | SNMP | management | `engine-sync` | request and report-style reply | engine discovery / synchronization | [docs/book/reference-snmp-manage-surface.md](docs/book/reference-snmp-manage-surface.md) |
 | SNMP | explicit result | `report`, `unauthorized` | observed terminal result | treat as explicit result or denial, not plain timeout | [docs/book/reference-snmp-result-surface.md](docs/book/reference-snmp-result-surface.md) |
 | NTP | query | `query`, `client` | request and reply | normal time query posture | [docs/book/reference-ntp-surface.md](docs/book/reference-ntp-surface.md) |
-| NTP | sync | `sync` | request and reply | time discipline / sync follow-up | [docs/book/reference-ntp-time-surface.md](docs/book/reference-ntp-time-surface.md) |
+| NTP | sync | `sync` | request and candidate time reply | usable header fields, not clock discipline proof | [docs/book/reference-ntp-time-surface.md](docs/book/reference-ntp-time-surface.md) |
 | DHCP | client | `client`, `discover` | discovery and offer progress | treat offer as lease progress, not denial | [docs/book/reference-dhcp-client-surface.md](docs/book/reference-dhcp-client-surface.md) |
 | DHCP | lease-confirm | `request` | request and acknowledgement | treat `ack` as lease confirmation | [docs/book/reference-dhcp-lease-surface.md](docs/book/reference-dhcp-lease-surface.md) |
 | DHCP | denial | `nak` | explicit terminal reply | explicit rejection from server | [docs/book/reference-dhcp-failure-semantics.md](docs/book/reference-dhcp-failure-semantics.md) |
-| STUN | binding | `binding` | request and reply | reachability / mapping check | [docs/book/reference-stun-binding-surface.md](docs/book/reference-stun-binding-surface.md) |
+| STUN | binding | `binding` | request and success candidate | bounded mapped-address shape, not NAT/ICE reachability proof | [docs/book/reference-stun-binding-surface.md](docs/book/reference-stun-binding-surface.md) |
 | STUN | binding-result | `binding-error` | explicit terminal reply | explicit protocol-side error, not timeout | [docs/book/reference-stun-failure-semantics.md](docs/book/reference-stun-failure-semantics.md) |
 | STUN | relay | `allocate`, `refresh` | request and reply | relay state / maintenance path | [docs/book/reference-stun-relay-surface.md](docs/book/reference-stun-relay-surface.md) |
 

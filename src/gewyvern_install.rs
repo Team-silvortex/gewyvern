@@ -11,6 +11,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use gewyvern::machine_error::{ErrorCategory, MachineError};
+use gewyvern_install_contract::capture::UdpCapturePlan;
 use gewyvern_install_contract::installer::{
     GEWYVERN_INSTALLER_SCHEMA_VERSION, GewyvernInstallerRequest, GewyvernInstallerResponse,
     GewyvernInstallerServiceState, MAX_GEWYVERN_INSTALLER_BYTES, decode_gewyvern_installer_request,
@@ -31,6 +33,8 @@ use silvortex_bounded_io::{
     parse_http_content_length, parse_http_status_code, parse_https_origin,
 };
 use zeroize::Zeroizing;
+
+mod capture;
 
 const MAX_INSTALL_ARTIFACT_BYTES: u64 = 256 * 1024 * 1024;
 const INSTALL_MANIFEST_SCHEMA_VERSION: u32 = 2;
@@ -129,6 +133,8 @@ struct InstallManifest {
     api_credential_handle: String,
     trust_credential_handle: String,
     api_token_sha256: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    capture: Option<UdpCapturePlan>,
 }
 
 #[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -142,6 +148,8 @@ struct ServicePlan {
     api_token_file: String,
     tls_certificate_file: String,
     tls_private_key_file: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    capture: Option<UdpCapturePlan>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -193,23 +201,39 @@ pub fn run_gewyvern_retire_stdio() -> Result<(), GewyvernInstallError> {
         .map_err(|_| GewyvernInstallError::Storage)
 }
 
-pub fn run_gewyvern_service() -> Result<(), GewyvernInstallError> {
-    let executable = env::current_exe().map_err(|_| GewyvernInstallError::InvalidArtifact)?;
+fn service_error(error: GewyvernInstallError) -> MachineError {
+    MachineError::new(
+        "gewyvern_service_failed",
+        ErrorCategory::Environment,
+        error.to_string(),
+        false,
+        1,
+    )
+}
+
+pub fn run_gewyvern_service() -> Result<i32, MachineError> {
+    let executable =
+        env::current_exe().map_err(|_| service_error(GewyvernInstallError::InvalidArtifact))?;
     let generation = executable
         .parent()
-        .ok_or(GewyvernInstallError::InvalidLayout)?;
-    let plan = read_service_plan(generation)?;
+        .ok_or_else(|| service_error(GewyvernInstallError::InvalidLayout))?;
+    let plan = read_service_plan(generation).map_err(service_error)?;
     if Path::new(&plan.executable) != executable {
-        return Err(GewyvernInstallError::GenerationConflict);
+        return Err(service_error(GewyvernInstallError::GenerationConflict));
     }
-    let token = Zeroizing::new(read_private_text(Path::new(&plan.api_token_file), 256)?);
+    let token = Zeroizing::new(
+        read_private_text(Path::new(&plan.api_token_file), 256).map_err(service_error)?,
+    );
+    if plan.capture.is_some() {
+        return capture::run(generation, &plan, &token);
+    }
     let _service = crate::data_api::start_tls_api_service(
         &plan.listen,
         &plan.tls_certificate_file,
         &plan.tls_private_key_file,
         &token,
     )
-    .map_err(|_| GewyvernInstallError::ServiceActivation)?;
+    .map_err(|_| service_error(GewyvernInstallError::ServiceActivation))?;
     loop {
         thread::park_timeout(Duration::from_secs(60));
     }
@@ -234,6 +258,7 @@ pub fn install_gewyvern_artifact(
     request
         .validate()
         .map_err(|_| GewyvernInstallError::InvalidRequest)?;
+    capture::validate_request(request)?;
     validate_runtime_id_for_path(request.runtime_id.as_str())?;
     validate_root(&layout.root)?;
     let artifact = read_artifact(source)?;
@@ -294,7 +319,14 @@ pub fn activate_gewyvern_artifact(
         request,
         layout,
         || activate_published_service(request, layout),
-        |ca_pem| prove_gewyvern_health(&request.endpoint, ca_pem, request.api_token()),
+        |ca_pem| {
+            prove_gewyvern_health(
+                &request.endpoint,
+                ca_pem,
+                request.api_token(),
+                request.capture.as_ref(),
+            )
+        },
         |had_previous| rollback_published_service(request, layout, had_previous),
     )
 }
@@ -1017,12 +1049,13 @@ fn prove_gewyvern_health(
     endpoint: &str,
     ca_pem: &str,
     token: &str,
+    capture: Option<&UdpCapturePlan>,
 ) -> Result<(), GewyvernInstallError> {
     let endpoint = HealthEndpoint::parse(endpoint)?;
     let tls = health_client_config(ca_pem)?;
     let deadline = Instant::now() + HEALTH_DEADLINE;
     loop {
-        if probe_health_once(&endpoint, Arc::clone(&tls), token).is_ok() {
+        if probe_health_once(&endpoint, Arc::clone(&tls), token, capture).is_ok() {
             return Ok(());
         }
         if Instant::now() >= deadline {
@@ -1059,6 +1092,7 @@ fn probe_health_once(
     endpoint: &HealthEndpoint,
     tls: Arc<ClientConfig>,
     token: &str,
+    capture: Option<&UdpCapturePlan>,
 ) -> Result<(), GewyvernInstallError> {
     let socket = connect_with_deadline(
         SocketAddr::from((Ipv4Addr::LOCALHOST, endpoint.port)),
@@ -1085,6 +1119,9 @@ fn probe_health_once(
         .map_err(|_| GewyvernInstallError::HealthProof)?;
     if value.get("ok") != Some(&serde_json::Value::Bool(true)) {
         return Err(GewyvernInstallError::HealthProof);
+    }
+    if let Some(plan) = capture {
+        capture::validate_health(&value, plan)?;
     }
     Ok(())
 }
@@ -1305,6 +1342,7 @@ fn manifest(request: &GewyvernInstallerRequest) -> InstallManifest {
         api_credential_handle: request.api_credential_handle.as_str().into(),
         trust_credential_handle: request.trust_credential_handle.as_str().into(),
         api_token_sha256: hex(digest(&SHA256, request.api_token().as_bytes()).as_ref()),
+        capture: request.capture.clone(),
     }
 }
 
@@ -1378,6 +1416,7 @@ fn service_plan(
         api_token_file: path(TOKEN_NAME)?,
         tls_certificate_file: path(TLS_CERTIFICATE_NAME)?,
         tls_private_key_file: path(TLS_PRIVATE_KEY_NAME)?,
+        capture: request.capture.clone(),
     })
 }
 
@@ -1441,9 +1480,10 @@ fn render_service_descriptor(
     } else {
         "default.target"
     };
+    let capture_environment = capture::systemd_environment(runtime_root, plan)?;
     Ok(format!(
-        "[Unit]\nDescription=Gewyvern runtime ({})\nAfter=network-online.target\nWants=network-online.target\n\n\
-[Service]\nType=simple\nExecStart={} gewyvern-service-v1\nRestart=on-failure\nRestartSec=2\n\
+        "[Unit]\nDescription=Gewyvern runtime ({})\nAfter=network-online.target\nWants=network-online.target\nStartLimitIntervalSec=60\nStartLimitBurst=5\n\n\
+[Service]\nType=simple\nExecStart={} gewyvern-service-v1\nRestart=on-failure\nRestartSec=2\n{capture_environment}\
 NoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nReadWritePaths={}\n\n\
 [Install]\nWantedBy={wanted_by}\n",
         request.runtime_id.as_str(),
@@ -1478,7 +1518,10 @@ fn systemd_quote(value: &str) -> Result<String, GewyvernInstallError> {
     }
     Ok(format!(
         "\"{}\"",
-        value.replace('\\', "\\\\").replace('"', "\\\"")
+        value
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('%', "%%")
     ))
 }
 
@@ -1561,6 +1604,24 @@ fn read_service_plan(generation: &Path) -> Result<ServicePlan, GewyvernInstallEr
         if path.parent() != Some(generation) {
             return Err(GewyvernInstallError::GenerationConflict);
         }
+    }
+    let manifest: InstallManifest = serde_json::from_slice(&read_private_file(
+        &generation.join(MANIFEST_NAME),
+        64 * 1024,
+    )?)
+    .map_err(|_| GewyvernInstallError::GenerationConflict)?;
+    require_mode(&generation.join(MANIFEST_NAME), 0o600)?;
+    if manifest.capture != plan.capture
+        || manifest.runtime_id != plan.runtime_id
+        || manifest.endpoint != plan.endpoint
+        || manifest.schema_version != plan.schema_version
+        || manifest
+            .capture
+            .as_ref()
+            .is_some_and(|value| value.validate().is_err())
+        || (manifest.capture.is_some() && manifest.install_profile == "user")
+    {
+        return Err(GewyvernInstallError::GenerationConflict);
     }
     Ok(plan)
 }

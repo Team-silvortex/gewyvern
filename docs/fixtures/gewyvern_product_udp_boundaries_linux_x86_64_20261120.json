@@ -1,0 +1,4414 @@
+{
+  "schema_version": 1,
+  "campaign": "production-cli-udp-packet-socket-boundaries",
+  "date": "2026-11-20",
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "source_base_commit": "39eeb7d1f03c92f007daa1ac5d72aee311fead5e",
+  "source_worktree_dirty": true,
+  "source_sha256": {
+    "tests/production_capture_linux_tdd.rs": "94ca25c68a216d227c6d89077b3d010f7d10cd42426f74adecc6ca42bdb3bc99",
+    "tests/production_capture_linux_tdd/boundaries.rs": "9aa1ca359f53a97e121f9adc3ecc5a6ee94de311026784ca34dd6504bacc2fe2",
+    "tests/native_validation_harness_tdd.rs": "3d561e52568dd7ca026a8830e23d188c437efe0c84b254579cf2bbec7e71c9ce",
+    "src/live_capture.rs": "fd14b4925528b4c8b22ebc3a3d0f1890c098d862fa5df8f0fdb9a59eb42448ab",
+    "src/live_capture/linux.rs": "1e166da359d5f11624e545fc2fef57182fa1a48b76c4dbc4d34dd5cd9ac084ed",
+    "src/live_capture/linux/api.rs": "77426bb0cee7018f88a3d1a0cc24d316f99ad8df35e05c962fab8382942b7d0d",
+    "src/main.rs": "c898522bdfc59485d4375b180a15f7a68ac1b5358c4dd2da18f5a2ca7bf6b5e0",
+    "src/main/capture_cli.rs": "92fa52a61995c9cf3e5fbff54d24238a26bad53ecd9f3c99c105d596d103f0c3",
+    "src/main/capture_runtime.rs": "80836255e2c49daa600ec4457faf7da9bce429faf875e2358a6a26f5dbdd1462",
+    "src/packet_capture.rs": "50cf644ff5bf466169296b79850bd8e128df60734978ee500ddb1d3c70ac8014",
+    "src/export.rs": "58691c97e23343d041630d3aafd63febb8568f0eb0114b43dbb3b45ad96b78c4",
+    "src/export/capture_codec.rs": "55c07226d16d934f7c0586e26c42fca419f46d4daab5fb9b6784ace76f6243da",
+    "ebpf/production/udp.bpf.c": "867e71774df6c9bbf69370ce712d527c0d7a8dede8eba1eff0975d76e1c1c1e3",
+    "Cargo.toml": "b4e09c55b8497e1c30df15836bbf94caaa8e34f58d3a4f926e6a9454a9817827",
+    "Cargo.lock": "e2bb05484df435e37cca096402a22f3f7480581d851cab7009b645de0630fb11"
+  },
+  "source_scope": "15 selected production, ABI, adapter, test and build inputs match the Linux workspace byte-for-byte. Not a hermetic whole-worktree release manifest.",
+  "binary_sha256": {
+    "target/debug/gewyvern": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+    "target/debug/deps/production_capture_linux_tdd-297444ef8a6b069b": "70bd14405e2b17e96fcaadf764b4828a61fdee0a5414f3b27cae32be7619b7df"
+  },
+  "execution": {
+    "kernel": "7.0.0-43-generic",
+    "previous_campaign_kernel": "7.0.0-42-generic",
+    "architecture": "x86_64",
+    "os": "Ubuntu 26.04.1 LTS",
+    "rust": "1.98.0",
+    "loopback_mtu": 65536,
+    "runtime": "root native host CLI and product BPF, real native dual-stack UDP echo peers; no protocol-server conformance claim",
+    "build_location": "remote Linux unprivileged temporary Docker build",
+    "build_limits": {
+      "cpus": 2,
+      "memory_gib": 4,
+      "pids": 512
+    },
+    "build_profile": "dev/test, gewyvern opt-level=2, debug=0, incremental=0",
+    "evidence_root": "/home/chiharukiryu/.cache/gewyvern/evidence/20261120-product-udp-boundaries",
+    "run_directories": [
+      "final-1",
+      "final-2",
+      "final-3"
+    ],
+    "test_selector": "--ignored --exact boundaries::production_capture_packet_boundaries --nocapture",
+    "lifecycle_selector": "--ignored --exact production_capture_cli_lifecycle_and_loss --nocapture",
+    "lifecycle_service_count": 200,
+    "docker_runtime_targets": false,
+    "host_services_changed": false,
+    "host_network_configuration_changed": false,
+    "earlier_development_evidence": "20261113-product-udp-boundaries; not counted as accepted final runs on the current kernel or strengthened sequence"
+  },
+  "results": {
+    "accepted_runs": 3,
+    "product_capture_sessions": 12,
+    "selected_exchanges": 360,
+    "retained_packet_facts": 720,
+    "full_payload_within_prefix_facts": 480,
+    "prefix_only_large_payload_facts": 240,
+    "recorded_kernel_drops_in_boundary_runs": 0,
+    "recorded_userspace_drops_in_boundary_runs": 0,
+    "decode_rejections_in_boundary_runs": 0,
+    "outside_scope_or_wrong_port_exchanges_excluded": 36,
+    "large_to_one_byte_empty_and_short_transitions": 24,
+    "lifecycle_scenarios": 9,
+    "lifecycle_normal_received": 896,
+    "lifecycle_deliberate_kernel_drops": 9982,
+    "lifecycle_deliberate_userspace_drops": 63
+  },
+  "findings": {
+    "new_product_capture_defect_reproduced": false,
+    "product_binary_unchanged_from_prior_protocol_campaign": true,
+    "change": "Complete the strengthened boundary campaign and source-bound evidence after interrupted validation. Native workers assert actual I/O and retained prefix/length/direction metadata; no product facts are filled from the oracle.",
+    "observed_limits": [
+      "Large-payload I/O is complete at native peers, but product facts retain only the first 128 bytes.",
+      "Server/client socket identity and port metadata are retained; full endpoint IP addresses and PID lineage are not added.",
+      "Descendant-cgroup coverage does not imply exclusive locks across overlapping ancestor/descendant collectors."
+    ]
+  },
+  "runs": [
+    {
+      "binary_sha256": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+      "cases": [
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3331909-1795170118109098745",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "60",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "60",
+            "retained": "60",
+            "run_id": "3331915-91354637220795",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 45557,
+            "userspace_dropped": "0"
+          },
+          "capture_role": "client",
+          "excluded": [
+            {
+              "cookie": "12289",
+              "family": 4,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "12293",
+              "family": 4,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "12290",
+              "family": 6,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "12294",
+              "family": 6,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            }
+          ],
+          "facts": 60,
+          "full_payload_claim_above_128": false,
+          "hooks_detached": true,
+          "mode": "connected",
+          "observations": [
+            {
+              "captured_bytes": 0,
+              "cookie": "12291",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "12292",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "12291",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "12292",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "12291",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "12292",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "12291",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "12292",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "12291",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "12292",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "12291",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "12292",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "12291",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "12292",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "12291",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "12292",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "12291",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "12292",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "12291",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "12292",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "12291",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "12292",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "12291",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "12292",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "12291",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "12292",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "12291",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "12292",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "12291",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 45557
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "12292",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 45557
+            }
+          ],
+          "ok": true,
+          "owned_cgroups_removed": true,
+          "port": 45557,
+          "prefix_and_lengths_match": true,
+          "replay_identical": true,
+          "selected_cookies": [
+            "12291",
+            "12292"
+          ],
+          "workload_scope": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3331909-1795170118109098745"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3331909-1795170118553271265",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "60",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "60",
+            "retained": "60",
+            "run_id": "3331982-91354971539853",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 47541,
+            "userspace_dropped": "0"
+          },
+          "capture_role": "client",
+          "excluded": [
+            {
+              "cookie": "16385",
+              "family": 4,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "16389",
+              "family": 4,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "16386",
+              "family": 6,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "16390",
+              "family": 6,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            }
+          ],
+          "facts": 60,
+          "full_payload_claim_above_128": false,
+          "hooks_detached": true,
+          "mode": "unconnected",
+          "observations": [
+            {
+              "captured_bytes": 0,
+              "cookie": "16387",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "16388",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16387",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16388",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "16387",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "16388",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "16387",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "16388",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "16387",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "16388",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "16387",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "16388",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16387",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16388",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16387",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16388",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16387",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16388",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16387",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16388",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16387",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16388",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16387",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16388",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16387",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16388",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "16387",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "16388",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "16387",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 47541
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "16388",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 47541
+            }
+          ],
+          "ok": true,
+          "owned_cgroups_removed": true,
+          "port": 47541,
+          "prefix_and_lengths_match": true,
+          "replay_identical": true,
+          "selected_cookies": [
+            "16387",
+            "16388"
+          ],
+          "workload_scope": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3331909-1795170118553271265"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3331909-1795170118685165498",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "60",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "60",
+            "retained": "60",
+            "run_id": "3331993-91355108749271",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 44817,
+            "userspace_dropped": "0"
+          },
+          "capture_role": "client",
+          "excluded": [
+            {
+              "cookie": "2",
+              "family": 4,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "6",
+              "family": 4,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "3",
+              "family": 6,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "7",
+              "family": 6,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            }
+          ],
+          "facts": 60,
+          "full_payload_claim_above_128": false,
+          "hooks_detached": true,
+          "mode": "descendant",
+          "observations": [
+            {
+              "captured_bytes": 0,
+              "cookie": "4",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "5",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "4",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "5",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "4",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "5",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "4",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "5",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "4",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "5",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "4",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "5",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "5",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "5",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "5",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "5",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "5",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "5",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "4",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "5",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "4",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "5",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "4",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 44817
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "5",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 44817
+            }
+          ],
+          "ok": true,
+          "owned_cgroups_removed": true,
+          "port": 44817,
+          "prefix_and_lengths_match": true,
+          "replay_identical": true,
+          "selected_cookies": [
+            "4",
+            "5"
+          ],
+          "workload_scope": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3331909-1795170118685165498/workload"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3331909-1795170118870216699",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "60",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "60",
+            "retained": "60",
+            "run_id": "3332007-91355304491799",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 35940,
+            "userspace_dropped": "0"
+          },
+          "capture_role": "bound_unconnected_server",
+          "excluded": [],
+          "facts": 60,
+          "full_payload_claim_above_128": false,
+          "hooks_detached": true,
+          "mode": "server",
+          "observations": [
+            {
+              "captured_bytes": 0,
+              "cookie": "24579",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 46839
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "24580",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 46839
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "24579",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 47208
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "24580",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 47208
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "24579",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 46839
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "24580",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 46839
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "24579",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 47208
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "24580",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 47208
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "24579",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 46839
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "24580",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 46839
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "24579",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 47208
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "24580",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 47208
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "24579",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 46839
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "24580",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 46839
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "24579",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 47208
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "24580",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 47208
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "24579",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 46839
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "24580",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 46839
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "24579",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 47208
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "24580",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 47208
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "24579",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 46839
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "24580",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 46839
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "24579",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 47208
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "24580",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 47208
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "24579",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 46839
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "24580",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 46839
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "24579",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 47208
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "24580",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 47208
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "24579",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 46839
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "24580",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 46839
+            }
+          ],
+          "ok": true,
+          "owned_cgroups_removed": true,
+          "port": 35940,
+          "prefix_and_lengths_match": true,
+          "replay_identical": true,
+          "selected_cookies": [
+            "24579",
+            "24580"
+          ],
+          "workload_scope": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3331909-1795170118870216699"
+        }
+      ],
+      "loopback_mtu": 65536,
+      "native_peers_not_protocol_servers": true,
+      "not_proven": [
+        "full_payload_above_128",
+        "fragmentation",
+        "GSO_GRO",
+        "external_interfaces",
+        "protocol_conformance",
+        "high_load",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "payload_lengths": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        127,
+        128,
+        129,
+        512,
+        1400,
+        4096,
+        60000,
+        1,
+        0,
+        32
+      ],
+      "production_cli": true,
+      "schema_version": 1,
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+      "cases": [
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3335216-1795170162856990620",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "60",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "60",
+            "retained": "60",
+            "run_id": "3335222-91399280362038",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 46113,
+            "userspace_dropped": "0"
+          },
+          "capture_role": "client",
+          "excluded": [
+            {
+              "cookie": "4103",
+              "family": 4,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "4107",
+              "family": 4,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "4104",
+              "family": 6,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "4108",
+              "family": 6,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            }
+          ],
+          "facts": 60,
+          "full_payload_claim_above_128": false,
+          "hooks_detached": true,
+          "mode": "connected",
+          "observations": [
+            {
+              "captured_bytes": 0,
+              "cookie": "4105",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "4106",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "4105",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "4106",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "4105",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "4106",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "4105",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "4106",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "4105",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "4106",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "4105",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "4106",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4105",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4106",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4105",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4106",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4105",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4106",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4105",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4106",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4105",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4106",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4105",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "4106",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "4105",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "4106",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "4105",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "4106",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "4105",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 46113
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "4106",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 46113
+            }
+          ],
+          "ok": true,
+          "owned_cgroups_removed": true,
+          "port": 46113,
+          "prefix_and_lengths_match": true,
+          "replay_identical": true,
+          "selected_cookies": [
+            "4105",
+            "4106"
+          ],
+          "workload_scope": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3335216-1795170162856990620"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3335216-1795170163040190552",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "60",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "60",
+            "retained": "60",
+            "run_id": "3335233-91399458489872",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 54240,
+            "userspace_dropped": "0"
+          },
+          "capture_role": "client",
+          "excluded": [
+            {
+              "cookie": "16391",
+              "family": 4,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "16395",
+              "family": 4,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "16392",
+              "family": 6,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "16396",
+              "family": 6,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            }
+          ],
+          "facts": 60,
+          "full_payload_claim_above_128": false,
+          "hooks_detached": true,
+          "mode": "unconnected",
+          "observations": [
+            {
+              "captured_bytes": 0,
+              "cookie": "16393",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "16394",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16393",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16394",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "16393",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "16394",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "16393",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "16394",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "16393",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "16394",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "16393",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "16394",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16393",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16394",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16393",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16394",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16393",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16394",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16393",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16394",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16393",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16394",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16393",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16394",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16393",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16394",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "16393",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "16394",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "16393",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 54240
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "16394",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 54240
+            }
+          ],
+          "ok": true,
+          "owned_cgroups_removed": true,
+          "port": 54240,
+          "prefix_and_lengths_match": true,
+          "replay_identical": true,
+          "selected_cookies": [
+            "16393",
+            "16394"
+          ],
+          "workload_scope": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3335216-1795170163040190552"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3335216-1795170163224730714",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "60",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "60",
+            "retained": "60",
+            "run_id": "3335244-91399643888528",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 44261,
+            "userspace_dropped": "0"
+          },
+          "capture_role": "client",
+          "excluded": [
+            {
+              "cookie": "8",
+              "family": 4,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "12",
+              "family": 4,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "9",
+              "family": 6,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "13",
+              "family": 6,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            }
+          ],
+          "facts": 60,
+          "full_payload_claim_above_128": false,
+          "hooks_detached": true,
+          "mode": "descendant",
+          "observations": [
+            {
+              "captured_bytes": 0,
+              "cookie": "10",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "11",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "10",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "11",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "10",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "11",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "10",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "11",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "10",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "11",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "10",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "11",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "10",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "11",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "10",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "11",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "10",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "11",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "10",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "11",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "10",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "11",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "10",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "11",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "10",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "11",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "10",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "11",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "10",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 44261
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "11",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 44261
+            }
+          ],
+          "ok": true,
+          "owned_cgroups_removed": true,
+          "port": 44261,
+          "prefix_and_lengths_match": true,
+          "replay_identical": true,
+          "selected_cookies": [
+            "10",
+            "11"
+          ],
+          "workload_scope": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3335216-1795170163224730714/workload"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3335216-1795170163411133167",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "60",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "60",
+            "retained": "60",
+            "run_id": "3335277-91399846164158",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 53484,
+            "userspace_dropped": "0"
+          },
+          "capture_role": "bound_unconnected_server",
+          "excluded": [],
+          "facts": 60,
+          "full_payload_claim_above_128": false,
+          "hooks_detached": true,
+          "mode": "server",
+          "observations": [
+            {
+              "captured_bytes": 0,
+              "cookie": "8199",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 40805
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "8200",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 40805
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "8199",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 51376
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "8200",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 51376
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "8199",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 40805
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "8200",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 40805
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "8199",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 51376
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "8200",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 51376
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "8199",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 40805
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "8200",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 40805
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "8199",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 51376
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "8200",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 51376
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "8199",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 40805
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "8200",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 40805
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "8199",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 51376
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "8200",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 51376
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "8199",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 40805
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "8200",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 40805
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "8199",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 51376
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "8200",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 51376
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "8199",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 40805
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "8200",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 40805
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "8199",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 51376
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "8200",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 51376
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "8199",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 40805
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "8200",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 40805
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "8199",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 51376
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "8200",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 51376
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "8199",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 40805
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "8200",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 40805
+            }
+          ],
+          "ok": true,
+          "owned_cgroups_removed": true,
+          "port": 53484,
+          "prefix_and_lengths_match": true,
+          "replay_identical": true,
+          "selected_cookies": [
+            "8199",
+            "8200"
+          ],
+          "workload_scope": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3335216-1795170163411133167"
+        }
+      ],
+      "loopback_mtu": 65536,
+      "native_peers_not_protocol_servers": true,
+      "not_proven": [
+        "full_payload_above_128",
+        "fragmentation",
+        "GSO_GRO",
+        "external_interfaces",
+        "protocol_conformance",
+        "high_load",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "payload_lengths": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        127,
+        128,
+        129,
+        512,
+        1400,
+        4096,
+        60000,
+        1,
+        0,
+        32
+      ],
+      "production_cli": true,
+      "schema_version": 1,
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "5200f47fb1be7120a17a0081d17cb5eaf2ae33cb7b6d215bc8a816a73335bf45",
+      "cases": [
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3337619-1795170216695263497",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "60",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "60",
+            "retained": "60",
+            "run_id": "3337625-91453118143231",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 48149,
+            "userspace_dropped": "0"
+          },
+          "capture_role": "client",
+          "excluded": [
+            {
+              "cookie": "16397",
+              "family": 4,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "16401",
+              "family": 4,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "16398",
+              "family": 6,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "16402",
+              "family": 6,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            }
+          ],
+          "facts": 60,
+          "full_payload_claim_above_128": false,
+          "hooks_detached": true,
+          "mode": "connected",
+          "observations": [
+            {
+              "captured_bytes": 0,
+              "cookie": "16399",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "16400",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16399",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16400",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "16399",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "16400",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "16399",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "16400",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "16399",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "16400",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "16399",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "16400",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16399",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16400",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16399",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16400",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16399",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16400",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16399",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16400",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16399",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16400",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16399",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16400",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16399",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16400",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "16399",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "16400",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "16399",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 48149
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "16400",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 48149
+            }
+          ],
+          "ok": true,
+          "owned_cgroups_removed": true,
+          "port": 48149,
+          "prefix_and_lengths_match": true,
+          "replay_identical": true,
+          "selected_cookies": [
+            "16399",
+            "16400"
+          ],
+          "workload_scope": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3337619-1795170216695263497"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3337619-1795170216878294108",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "60",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "60",
+            "retained": "60",
+            "run_id": "3337659-91453301407883",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 45872,
+            "userspace_dropped": "0"
+          },
+          "capture_role": "client",
+          "excluded": [
+            {
+              "cookie": "36865",
+              "family": 4,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "36869",
+              "family": 4,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "36866",
+              "family": 6,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "36870",
+              "family": 6,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            }
+          ],
+          "facts": 60,
+          "full_payload_claim_above_128": false,
+          "hooks_detached": true,
+          "mode": "unconnected",
+          "observations": [
+            {
+              "captured_bytes": 0,
+              "cookie": "36867",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "36868",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "36867",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "36868",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "36867",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "36868",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "36867",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "36868",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "36867",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "36868",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "36867",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "36868",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "36867",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "36868",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "36867",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "36868",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "36867",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "36868",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "36867",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "36868",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "36867",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "36868",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "36867",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "36868",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "36867",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "36868",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "36867",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "36868",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "36867",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 45872
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "36868",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 45872
+            }
+          ],
+          "ok": true,
+          "owned_cgroups_removed": true,
+          "port": 45872,
+          "prefix_and_lengths_match": true,
+          "replay_identical": true,
+          "selected_cookies": [
+            "36867",
+            "36868"
+          ],
+          "workload_scope": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3337619-1795170216878294108"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3337619-1795170217068153207",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "60",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "60",
+            "retained": "60",
+            "run_id": "3337687-91453491588496",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 37216,
+            "userspace_dropped": "0"
+          },
+          "capture_role": "client",
+          "excluded": [
+            {
+              "cookie": "14",
+              "family": 4,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "18",
+              "family": 4,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "15",
+              "family": 6,
+              "kind": "preexisting_socket_outside_scope",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            },
+            {
+              "cookie": "19",
+              "family": 6,
+              "kind": "different_udp_port",
+              "reply_sha256": "f1b07bf56f495f7c08da67afd48b35e785e56bf303ea8717c4200ed721479a70"
+            }
+          ],
+          "facts": 60,
+          "full_payload_claim_above_128": false,
+          "hooks_detached": true,
+          "mode": "descendant",
+          "observations": [
+            {
+              "captured_bytes": 0,
+              "cookie": "16",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "17",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "17",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "16",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "17",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "16",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "17",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "16",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "17",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "16",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "17",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "17",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "17",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "17",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "17",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "17",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "17",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "17",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "16",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "17",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "16",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 37216
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "17",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 37216
+            }
+          ],
+          "ok": true,
+          "owned_cgroups_removed": true,
+          "port": 37216,
+          "prefix_and_lengths_match": true,
+          "replay_identical": true,
+          "selected_cookies": [
+            "16",
+            "17"
+          ],
+          "workload_scope": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3337619-1795170217068153207/workload"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3337619-1795170217251179530",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "60",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "60",
+            "retained": "60",
+            "run_id": "3337701-91453680551370",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 47973,
+            "userspace_dropped": "0"
+          },
+          "capture_role": "bound_unconnected_server",
+          "excluded": [],
+          "facts": 60,
+          "full_payload_claim_above_128": false,
+          "hooks_detached": true,
+          "mode": "server",
+          "observations": [
+            {
+              "captured_bytes": 0,
+              "cookie": "16405",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 56497
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "16406",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 56497
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16405",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 33918
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16406",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+              "length": 1,
+              "remote_port": 33918
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "16405",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 56497
+            },
+            {
+              "captured_bytes": 2,
+              "cookie": "16406",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "45006459efd655ae6ff2ad945802cf24377b595c7b959064ac3268b31c145d89",
+              "length": 2,
+              "remote_port": 56497
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "16405",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 33918
+            },
+            {
+              "captured_bytes": 3,
+              "cookie": "16406",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c2142d77116d95b79384e1d377b32728fc79c37381dcdb8bda801de53e310a5f",
+              "length": 3,
+              "remote_port": 33918
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "16405",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 56497
+            },
+            {
+              "captured_bytes": 4,
+              "cookie": "16406",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "c584b8a4bb510f6649ae3f84294bd37444a3f592290975e81630876860efe8df",
+              "length": 4,
+              "remote_port": 56497
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "16405",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 33918
+            },
+            {
+              "captured_bytes": 127,
+              "cookie": "16406",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "33cde6f2e0368fb29c93025f8b453f182460d70aef1d5998012773412e0e30fc",
+              "length": 127,
+              "remote_port": 33918
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16405",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 56497
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16406",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "73ffcfffcbb038f6397cf93aae8a25d5266017745469150e3879fba5abb4ac45",
+              "length": 128,
+              "remote_port": 56497
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16405",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 33918
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16406",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "bb44ad5dee49517aba8e294f3fb00016125fc1f22aaa8c745fab5b29ce576b55",
+              "length": 129,
+              "remote_port": 33918
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16405",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 56497
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16406",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "810d0b6b91dcea78d8e199f07214ca179ad5455d7d2051b83abd5940c4db4d47",
+              "length": 512,
+              "remote_port": 56497
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16405",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 33918
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16406",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "65cb2f4a97c84c6200b58f673e163edd9f2547c8047b48dce055c861374e1d61",
+              "length": 1400,
+              "remote_port": 33918
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16405",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 56497
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16406",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "d487cf5d839d1998b60f211dfcaa2b176e8cdb998292a351b3d2998aaee8fe12",
+              "length": 4096,
+              "remote_port": 56497
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16405",
+              "family": 4,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 33918
+            },
+            {
+              "captured_bytes": 128,
+              "cookie": "16406",
+              "family": 6,
+              "full_payload_captured": false,
+              "io_sha256": "f4508eeb735a171a0f384ef12ee045a529de63438d2a791f91339a8e3e9a5afd",
+              "length": 60000,
+              "remote_port": 33918
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16405",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 56497
+            },
+            {
+              "captured_bytes": 1,
+              "cookie": "16406",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "1dd8312636f6a0bf3d21fa2855e63072507453e93a5ced4301b364e91c9d87d6",
+              "length": 1,
+              "remote_port": 56497
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "16405",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 33918
+            },
+            {
+              "captured_bytes": 0,
+              "cookie": "16406",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "length": 0,
+              "remote_port": 33918
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "16405",
+              "family": 4,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 56497
+            },
+            {
+              "captured_bytes": 32,
+              "cookie": "16406",
+              "family": 6,
+              "full_payload_captured": true,
+              "io_sha256": "7b03d803ee573e300d6aed8ea31f869daa4e5339af2879bfb278296b21ab35e3",
+              "length": 32,
+              "remote_port": 56497
+            }
+          ],
+          "ok": true,
+          "owned_cgroups_removed": true,
+          "port": 47973,
+          "prefix_and_lengths_match": true,
+          "replay_identical": true,
+          "selected_cookies": [
+            "16405",
+            "16406"
+          ],
+          "workload_scope": "/sys/fs/cgroup/gewyvern-production-test-boundaries-3337619-1795170217251179530"
+        }
+      ],
+      "loopback_mtu": 65536,
+      "native_peers_not_protocol_servers": true,
+      "not_proven": [
+        "full_payload_above_128",
+        "fragmentation",
+        "GSO_GRO",
+        "external_interfaces",
+        "protocol_conformance",
+        "high_load",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "payload_lengths": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        127,
+        128,
+        129,
+        512,
+        1400,
+        4096,
+        60000,
+        1,
+        0,
+        32
+      ],
+      "production_cli": true,
+      "schema_version": 1,
+      "validation_capture_used": false
+    }
+  ],
+  "lifecycle_regression": {
+    "cases": [
+      {
+        "case": "oneshot_ipv4_ipv6",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-3338740-1795170241294090649",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "64",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "64",
+          "retained": "64",
+          "run_id": "3338745-91477731223200",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 45442,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "service_api_sigterm_and_exclusion",
+        "nonempty_windows": 15,
+        "running_history_snapshots": 0,
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-3338740-1795170241294090649",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "800",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "800",
+          "retained": "800",
+          "run_id": "3338764-91479884294272",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 45442,
+          "userspace_dropped": "0"
+        },
+        "terminal_history_snapshots": 1
+      },
+      {
+        "case": "kernel_overflow_and_resume",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-3338740-1795170241294090649",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "10016",
+            "no_cookie": "0",
+            "ring_dropped": "9982",
+            "unsupported": "0"
+          },
+          "received": "34",
+          "retained": "34",
+          "run_id": "3339142-91485106289640",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 45442,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "userspace_budget",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-3338740-1795170241294090649",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "64",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "64",
+          "retained": "1",
+          "run_id": "3339151-91485592044038",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 45442,
+          "userspace_dropped": "63"
+        }
+      },
+      {
+        "case": "sigkill_detaches_unpinned_links",
+        "final_counters_available": false,
+        "ok": true
+      },
+      {
+        "case": "output_failure_detaches",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-3338740-1795170241294090649",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "0",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "0",
+          "retained": "0",
+          "run_id": "3339276-91487852301049",
+          "schema_version": 1,
+          "state": "failed",
+          "udp_port": 45442,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "scope_removal_stops_capture",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-3338740-1795170241294090649",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "0",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "0",
+          "retained": "0",
+          "run_id": "3339283-91488484051409",
+          "schema_version": 1,
+          "state": "failed",
+          "udp_port": 45442,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "bounded_service_idle_shutdown",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-3338740-1795170241294090649",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "0",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "0",
+          "retained": "0",
+          "run_id": "3339326-91488588093968",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 45442,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "restart_after_kill_and_output_failure",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-3338740-1795170241294090649",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "32",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "32",
+          "retained": "32",
+          "run_id": "3339377-91488866647521",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 45442,
+          "userspace_dropped": "0"
+        }
+      }
+    ],
+    "docker_targets_used": false,
+    "no_pinned_objects": true,
+    "ok": true,
+    "owned_cgroup_removed": true,
+    "pid_attribution": false,
+    "real_production_binary": true,
+    "schema_version": 1,
+    "traffic": "native IPv4/IPv6 loopback DNS-shaped peers",
+    "udp_port": 45442,
+    "validation_capture_used": false
+  },
+  "validation": {
+    "boundary_oracle_unit_tests_passed": 1,
+    "privileged_boundary_runs_passed": 3,
+    "privileged_lifecycle_regressions_passed": 1,
+    "native_validation_harness_tests_passed": 54,
+    "native_validation_harness_tests_failed": 0,
+    "status_validation": {
+      "schema_version": 4,
+      "status": "valid",
+      "cells": 39,
+      "coverage_requirements": 37,
+      "gui_operations": 35,
+      "gui_chains": 11,
+      "gui_target_score": 100
+    },
+    "status_validation_scope": "Catalog consistency and declared GUI target coverage, not overall product readiness or maturity promotion.",
+    "strict_clippy": true,
+    "clippy_command": "cargo --config profile.dev.package.gewyvern.opt-level=2 clippy --locked --test production_capture_linux_tdd --test native_validation_harness_tdd -- -D warnings",
+    "cargo_fmt_check": true,
+    "git_diff_check": true
+  },
+  "raw_evidence_sha256": {
+    "lifecycle-regression/summary.json": "74417aac60921daa378d43d8af7f92f666325a8abf99c370ce3bd092e2abf285",
+    "final-3/summary.json": "72477a6db6e86a73b2aa90d7254577238a72b9cfdfe03823787fbe4957e79f3c",
+    "final-1/summary.json": "801988e2a706a8eb5a6c0363bd1980bdb9b66c79d0fb34ba19084a5154051dae",
+    "final-2/summary.json": "870f5473abdac4e45c301f94d7a647a80bbc00e1511fd33639a7bd09396b88f2",
+    "boundary-unit.log": "4e443296f18b9d3a4474f93363b1c323b67e9d76866a714547bfc792b5f6578f",
+    "proof-build.log": "8cf2c6c46c40125efe15ad8baba7dc562c99831c87e708a6ef96fb14030805d0",
+    "clippy.log": "e55890bc0e14cd1f6fb8b6934b42a8c7e82b8e89177d94488903949a4ab00c19",
+    "evidence-tests.log": "bc3ee043c2e24c04d2fd468a484a1efe405f4b60b68fb53d2db601192e8a0a33",
+    "status-validation.json": "43b0fa3c6bceb9a62b1a5114f32c280642f7308573289e7a0206b070dbada149"
+  },
+  "cleanup": {
+    "docker_inventory_restored": true,
+    "before": {
+      "containers": 15,
+      "networks": 6,
+      "volumes": 54
+    },
+    "after": {
+      "containers": 15,
+      "networks": 6,
+      "volumes": 54
+    },
+    "owned_cgroups_remaining": 0,
+    "bpf_temporary_paths_remaining": 0,
+    "temporary_build_container_removed": true,
+    "removed_build_container_id": "acb36e13f18401bef743926fee033f0af932ae3936b7920f7be90532ca11578d",
+    "other_workloads_removed": false,
+    "host_services_changed": false
+  },
+  "limits": [
+    "Direct IPv4/IPv6 loopback UDP on one physical host/kernel update; not physical-interface or minimum-kernel certification.",
+    "Not fragmentation/reassembly, IPv6 extension headers, GSO/GRO, checksum-verification or high-throughput proof.",
+    "The 128-byte cap is intentional: loss-free accounting does not mean complete packet archival. Full native-I/O hashes are not full captured-payload hashes for longer messages.",
+    "Native echo peers are not DNS/SNMP/NTP/STUN server conformance or vulnerability detection. No PID attribution, full IP endpoint retention or cross-window transaction claim.",
+    "Scope exclusion is tested for sockets created outside the selected hierarchy and for another UDP port. This does not establish a product per-socket allowlist.",
+    "The lifecycle regression's induced losses remain incomplete and separate from the loss-free boundary runs. SIGKILL cannot produce complete final counters.",
+    "No release-artifact, protocol-count or status-maturity promotion. Earlier development attempts are retained separately."
+  ]
+}

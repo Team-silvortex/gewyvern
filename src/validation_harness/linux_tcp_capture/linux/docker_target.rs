@@ -1,4 +1,4 @@
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -126,6 +126,18 @@ pub(super) fn target_addresses(
     network: &Value,
     name: &str,
 ) -> Result<(Ipv4Addr, Ipv4Addr), ValidationError> {
+    target_network(value, network, name)?;
+    let networks = &value["NetworkSettings"]["Networks"];
+    let configs = network["IPAM"]["Config"]
+        .as_array()
+        .ok_or_else(|| ValidationError::new("missing owned network subnet"))?;
+    let [config] = configs.as_slice() else {
+        return Err(ValidationError::new("ambiguous owned network subnet"));
+    };
+    ipv4_addresses(&networks[name]["IPAddress"], config)
+}
+
+fn target_network(value: &Value, network: &Value, name: &str) -> Result<(), ValidationError> {
     let networks = value["NetworkSettings"]["Networks"]
         .as_object()
         .ok_or_else(|| ValidationError::new("missing target network attachment"))?;
@@ -143,12 +155,13 @@ pub(super) fn target_addresses(
             "target must use only its owned internal bridge without published ports",
         ));
     }
-    let configs = network["IPAM"]["Config"]
-        .as_array()
-        .ok_or_else(|| ValidationError::new("missing owned network subnet"))?;
-    let [config] = configs.as_slice() else {
-        return Err(ValidationError::new("ambiguous owned network subnet"));
-    };
+    Ok(())
+}
+
+fn ipv4_addresses(
+    address: &Value,
+    config: &Value,
+) -> Result<(Ipv4Addr, Ipv4Addr), ValidationError> {
     let parse = |value: &Value| {
         value
             .as_str()
@@ -157,7 +170,7 @@ pub(super) fn target_addresses(
             .ok_or_else(|| ValidationError::new("target addresses must be private IPv4"))
     };
     let source = parse(&config["Gateway"])?;
-    let destination = parse(&networks[name]["IPAddress"])?;
+    let destination = parse(address)?;
     let (subnet, prefix) = config["Subnet"]
         .as_str()
         .and_then(|text| text.split_once('/'))
@@ -182,10 +195,104 @@ pub(super) fn target_addresses(
     Ok((source, destination))
 }
 
+pub(super) fn target_ipv6_addresses(
+    value: &Value,
+    network: &Value,
+    name: &str,
+) -> Result<(Ipv6Addr, Ipv6Addr), ValidationError> {
+    target_network(value, network, name)?;
+    let attachment = &value["NetworkSettings"]["Networks"][name];
+    if network["EnableIPv6"] != true
+        || network["EnableIPv4"] != false
+        || attachment["IPAddress"] != ""
+        || attachment["GlobalIPv6PrefixLen"] != 64
+    {
+        return Err(ValidationError::new(
+            "target must use IPv6-only /64 networking",
+        ));
+    }
+    let configs = network["IPAM"]["Config"]
+        .as_array()
+        .ok_or_else(|| ValidationError::new("missing IPv6 subnet"))?;
+    let [config] = configs.as_slice() else {
+        return Err(ValidationError::new("ambiguous IPv6 subnet"));
+    };
+    let parse = |text: &str| {
+        text.parse::<Ipv6Addr>()
+            .ok()
+            .filter(Ipv6Addr::is_unique_local)
+            .ok_or_else(|| ValidationError::new("target addresses must be unique-local IPv6"))
+    };
+    let source = parse(config["Gateway"].as_str().unwrap_or_default())?;
+    let destination = parse(attachment["GlobalIPv6Address"].as_str().unwrap_or_default())?;
+    let subnet = config["Subnet"]
+        .as_str()
+        .unwrap_or_default()
+        .strip_suffix("/64")
+        .ok_or_else(|| ValidationError::new("expected owned IPv6 /64"))?;
+    let subnet = parse(subnet)?;
+    let mask = u128::MAX << 64;
+    if source == destination
+        || u128::from(subnet) & !mask != 0
+        || u128::from(source) & mask != u128::from(subnet)
+        || u128::from(destination) & mask != u128::from(subnet)
+    {
+        return Err(ValidationError::new(
+            "target IPv6 addresses are outside the owned subnet",
+        ));
+    }
+    Ok((source, destination))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn ipv6_endpoint_requires_owned_ula_only_network_and_full_prefix_match() {
+        let value = json!({"State":{"Running":true}, "HostConfig":{"NetworkMode":"owned", "PortBindings":{}},
+            "NetworkSettings":{"Networks":{"owned":{"NetworkID":"network-id", "IPAddress":"",
+                "GlobalIPv6Address":"fd01:2345:6789::2", "GlobalIPv6PrefixLen":64}}}});
+        let network = json!({"Id":"network-id", "Internal":true, "Driver":"bridge",
+            "EnableIPv6":true,"EnableIPv4":false,
+            "IPAM":{"Config":[{"Gateway":"fd01:2345:6789::1","Subnet":"fd01:2345:6789::/64"}]}});
+        assert_eq!(
+            target_ipv6_addresses(&value, &network, "owned").unwrap(),
+            (
+                "fd01:2345:6789::1".parse().unwrap(),
+                "fd01:2345:6789::2".parse().unwrap()
+            )
+        );
+        for address in [
+            "::",
+            "::1",
+            "::ffff:127.0.0.1",
+            "fe80::2",
+            "2001:db8::2",
+            "fd02:2345:6789::2",
+            "fd01:2345:6789:1::2",
+            "fd01:2345:6789::1",
+        ] {
+            let mut bad = value.clone();
+            bad["NetworkSettings"]["Networks"]["owned"]["GlobalIPv6Address"] = json!(address);
+            assert!(target_ipv6_addresses(&bad, &network, "owned").is_err());
+        }
+        for kind in 0..8 {
+            let (mut bad, mut net) = (value.clone(), network.clone());
+            match kind {
+                0 => net["EnableIPv4"] = json!(true),
+                1 => net["EnableIPv6"] = json!(false),
+                2 => net["Internal"] = json!(false),
+                3 => net["IPAM"]["Config"][0]["Subnet"] = json!("fd01:2345:6789::/48"),
+                4 => net["IPAM"]["Config"][0]["Subnet"] = json!("fd01:2345:6789::1/64"),
+                5 => bad["NetworkSettings"]["Networks"]["owned"]["IPAddress"] = json!("172.20.0.2"),
+                6 => bad["NetworkSettings"]["Networks"]["owned"]["NetworkID"] = json!("foreign"),
+                _ => bad["HostConfig"]["PortBindings"] = json!({"53/udp":[{"HostPort":"53"}]}),
+            }
+            assert!(target_ipv6_addresses(&bad, &net, "owned").is_err());
+        }
+    }
 
     #[test]
     fn cleanup_requires_exact_name_id_and_run_label() {

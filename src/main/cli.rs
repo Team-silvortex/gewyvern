@@ -16,6 +16,7 @@ const CLI_SOCKET_TARGET_MAX_LEN: usize = 4096;
 
 #[derive(Debug)]
 pub(crate) struct Cli {
+    pub(crate) capture: crate::capture_cli::CaptureArgs,
     pub(crate) demo_mode: DemoMode,
     pub(crate) template_mode: TemplateMode,
     pub(crate) dsl_path: Option<String>,
@@ -213,7 +214,9 @@ impl Cli {
     {
         let locale = UiLocale::detect();
         let mut demo_mode = DemoMode::Both;
+        let mut capture = crate::capture_cli::CaptureArgs::default();
         let mut template_mode = TemplateMode::Tcp;
+        let mut template_explicit = false;
         let mut dsl_path = None;
         let mut protocol = None;
         let mut entry = None;
@@ -261,6 +264,12 @@ impl Cli {
 
         while let Some(arg) = args.next() {
             match arg.as_str() {
+                flag if flag.starts_with("--capture-") => {
+                    let value = args
+                        .next()
+                        .ok_or_else(|| format!("missing value for {flag}"))?;
+                    capture.parse(flag, value)?;
+                }
                 "--demo" => {
                     let value = args
                         .next()
@@ -304,6 +313,7 @@ impl Cli {
                 }
                 "--summary-only" => summary_only = true,
                 "--template" => {
+                    template_explicit = true;
                     let value = args
                         .next()
                         .ok_or_else(|| locale.msgf("missing_template", "", None))?;
@@ -428,7 +438,40 @@ impl Cli {
             }
         }
 
+        capture.validate(serve)?;
+        if capture.cgroup.is_some() {
+            if out_path
+                .as_deref()
+                .is_none_or(|path| !std::path::Path::new(path).is_absolute())
+            {
+                return Err("live capture requires --out <absolute-file>; the file is an atomic latest-window snapshot, not an unbounded stream".into());
+            }
+            if list_protocols
+                || list_history
+                || list_entries.is_some()
+                || (template_explicit && template_mode == TemplateMode::Tcp)
+            {
+                return Err(
+                    "live capture requires a UDP template and cannot combine list-only modes"
+                        .into(),
+                );
+            }
+        }
+        if capture.cgroup.is_some()
+            && (socket_target.is_some()
+                || scan_all
+                || diagnostics
+                || debugger_console
+                || debug_session
+                || http_transactions
+                || demo_mode != DemoMode::Both
+                || ingest_mode != IngestMode::LocalAdvisory
+                || max_sessions == Some(0))
+        {
+            return Err("live capture cannot combine socket/demo/scan/diagnostic modes or remote-advisory trust".into());
+        }
         validate_cli_options(CliValidationInput {
+            live_capture: capture.cgroup.is_some(),
             summary_only,
             json,
             report_format,
@@ -466,6 +509,7 @@ impl Cli {
         }
 
         Ok(Self {
+            capture,
             demo_mode,
             template_mode,
             dsl_path,

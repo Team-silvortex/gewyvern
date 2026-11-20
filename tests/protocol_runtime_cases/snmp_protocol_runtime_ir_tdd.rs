@@ -8,10 +8,7 @@ use gewyvern::ledger::{
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use std::time::{Duration, SystemTime};
-use support::{
-    route_fact, sock_lineage_fact,
-    udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13,
-};
+use support::{complete_snmp_packet, route_fact, sock_lineage_fact};
 
 fn dsl_fixture_path(name: &str) -> String {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -234,7 +231,7 @@ impl SnmpPdu {
             );
         }
 
-        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
+        complete_snmp_packet(
             id,
             cookie,
             self.tot_len,

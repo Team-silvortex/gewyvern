@@ -1,0 +1,2551 @@
+{
+  "schema_version": 1,
+  "proof": "linux-real-udp-ntp-bidirectional-capture",
+  "captured_on": "2026-11-13",
+  "source_base_revision": "39eeb7d1f03c92f007daa1ac5d72aee311fead5e",
+  "working_tree_changes": true,
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "execution": {
+    "kernel": "7.0.0-42-generic",
+    "arch": "x86_64",
+    "host_count": 1,
+    "kernel_count": 1,
+    "live_capture": "physical Linux host, not build container",
+    "build_toolchain": "Rust 1.98.0",
+    "optimization": "gewyvern dev opt-level 2, correctness campaign not performance benchmark",
+    "remote_evidence": "/home/chiharukiryu/.cache/gewyvern/evidence/20261113-ntp",
+    "target_implementation": "chrony 4.8-r2 on digest-pinned Alpine",
+    "target_cpu_cores": 1,
+    "target_memory_bytes": 67108864,
+    "target_pids": 64,
+    "target_read_only_root": true,
+    "target_tmpfs_bytes": 4194304,
+    "published_ports": false,
+    "host_mounts": false,
+    "clock_control_disabled": true,
+    "sys_time_capability": false,
+    "external_time_sources": false,
+    "macos_builds_or_image_pulls": false,
+    "automatic_image_pull_by_runner": false,
+    "development_campaigns_excluded_from_totals": 2,
+    "timeout_ms": 350,
+    "local_summary_archive": "target/validation/ntp-20261113",
+    "binary_hash_is_capture_time_snapshot": true
+  },
+  "artifact_bindings": {
+    "build": {
+      "src/ir.rs": "59955320747af1f17ec025423c9120f51ba00ab834c9784635424df5c291b300",
+      "src/ir/ntp.rs": "de60c3e67c7f6bb75fa6501de3870d48fdb97d57b9322484616e41c38f250cc7",
+      "src/ir/matching.rs": "c48681139d5caee0783c5678ece78f1ad484e615dc9d7211813eff392af149b9",
+      "src/ir/predicates.rs": "37054c0e8f88c877e7b4093eef939146f437f8ee19e6cc87701a521ad8d3cd63",
+      "src/dsl/predicate.rs": "5678103f6f7e38051de4d24533fc06b454011aa4e2a47f842eebcc990a15cd24",
+      "src/export/reason_codec/encode.rs": "31daa8f522eeb019ce5b90895a1580d4b20bec3c0abdbe27b1427d548c0af9ea",
+      "src/export/reason_codec/parse.rs": "a88c443472d48067c37db049ed8d503ee89ab69db634cb86839828eacc0a0d2a",
+      "src/gewyc/ir_focus/support.rs": "4602e2af281a318f1f5f79242a2f8f9f4b44084e33e65938ca7b70c4a049d888",
+      "src/protocol_profiles/semantics/discovery.rs": "c30dac74284f47b95fdc9f857ab74cf2253ec1d1532a4c13c454b9a7693bd5eb",
+      "src/bin/gewyvern_validate.rs": "447ed9e281fd16a22b3b7e7f6d8817215d1463cbef619de7bfed110aa3d3d439",
+      "src/validation_harness/linux_tcp_capture/linux/udp_capture.rs": "a5259da73ff12e75e93f40590d6928d894eb96778ab886e1d808a4c6b5d7c2b4",
+      "src/validation_harness/linux_tcp_capture/linux/udp_ntp.rs": "fe448331e09b9559f8b4ab979648500b8541f9fa3eba67d4c08296c6fcd05d46",
+      "src/validation_harness/linux_tcp_capture/linux/udp_ntp/target.rs": "3294ab2983089cfda62f669f79127b4ec9d566d71d89189e3751fce77019092f",
+      "src/validation_harness/linux_tcp_capture/linux/udp_ntp/wire.rs": "c0865a712b206ac8472b8b485df9b2668e878364fe07afb0b8691d152c517f48",
+      "src/validation_harness/linux_tcp_capture/linux/udp_ntp/evidence.rs": "875d1e24b38a575b1cdbabe4423bd9e6a73d719424a468780ffffaac6e6c44e6",
+      "src/validation_harness/linux_tcp_capture/udp_evidence.rs": "114c29dab26fbf5d920a7905640446a1774cd21390d6af9937411eaa88f8b11b",
+      "ebpf/validation/udp_dns.bpf.c": "4b05de59b56c126266afdd23ff323ef0f7ec8b9d9864efe27f8f3a68df818e74",
+      "ebpf/validation/ntp/Dockerfile": "bcef420347facb72002549726395a4668f688b725f6835c3ff1f89a11e1c831f",
+      "ebpf/validation/ntp/local.conf": "04cd8f4643fc1f4a431a9aa27f3efe1a7712c7d4d6ad3b1b214bf9b404549fad",
+      "ebpf/validation/ntp/unsynced.conf": "a0dffda1b57deeb76e1da64e68e120ab0fa899fadd1923ebe983f2427ca6fafc",
+      "protocols/ntp/client/main.gewy": "16a1adbbfa0f19dac089d1f6702361b9a445874387f97bb3bd64ae68fdb0e4a9",
+      "dsl/ntp_client_path.gewy": "16a1adbbfa0f19dac089d1f6702361b9a445874387f97bb3bd64ae68fdb0e4a9",
+      "protocols/ntp/query/main.gewy": "7758334c61434644932c36a25019481b02612816796e1e99ef1a010dfdf88e25",
+      "dsl/ntp_query_path.gewy": "7758334c61434644932c36a25019481b02612816796e1e99ef1a010dfdf88e25",
+      "protocols/ntp/sync/main.gewy": "41adc3a3089a2e113141cc0c98c3af65b81ff591fc33022af0ede6f9a9978ce1",
+      "dsl/ntp_sync_path.gewy": "41adc3a3089a2e113141cc0c98c3af65b81ff591fc33022af0ede6f9a9978ce1",
+      "tests/ntp_protocol_runtime_tdd.rs": "6d24a2b41fefc2a5233f3a63a8a63df3f97008ca81e5f166a181c9a47dcca3aa",
+      "tests/support/ntp.rs": "f023d013ea59fde73216e31322a5519126301195096bce6b709e406923eeb905",
+      "target/debug/gewyvern_validate": "5333482d7a4c79459ec863e389cf8f7709fb7632ae99c933a5384ed32fe5d1d2"
+    },
+    "reports": {
+      "run-1/summary.json": "beb285f9c5d01a412f86d1d0a59ec99e7aeeab4444a81b9851f638b69421f8f4",
+      "run-2/summary.json": "c08648715cc324f9b0000d5130cb42f61e3dfffda8db515976b9ac768bada2e4",
+      "run-3/summary.json": "037177f45ab5f5408d0f1ed37c8a6ba7db5066f2315c705a44ea0c27e86a62f3",
+      "dns-regression/summary.json": "373a6f89bdc847b8afca1722e67b3dad0e42201fbfc0e14aefe8cf1d0b29af65",
+      "snmp-regression/summary.json": "8a818a2cf94b505fb29b36048ba876c25380f15693ac8223c707527619df9653",
+      "regression-final.log": "62e0fe3fec4669b4d761678d6116aaeed2c19c93d998e5cd2f8908f71fa7cabc",
+      "clippy-final.log": "151f6e80a10198c31be6e1d886aefb6e194f910c9ec431cb34e2b0b169a5ade4"
+    }
+  },
+  "runs": [
+    {
+      "checks": [
+        "real_private_chrony_no_clock_control",
+        "NTPv3_and_v4",
+        "unsynchronised_reply_not_time_success",
+        "short_datagram_timeout_then_recovery",
+        "same_origin_distinct_sockets",
+        "bidirectional_kernel_bytes_match_client",
+        "neighbor_excluded",
+        "three_packages_both_server_states",
+        "owned_cleanup_and_fresh_HTTP"
+      ],
+      "external_time_sources": false,
+      "host_clock_adjusted": false,
+      "ingest_trust_mode": "unverified-local",
+      "mode": "udp-ntp",
+      "not_proven": [
+        "clock_accuracy_or_clock_discipline",
+        "real_KoD_rate_limit",
+        "NTS_MAC_or_extension_authentication",
+        "product_origin_correlation",
+        "IPv6_or_IP_reassembly",
+        "UDP_throughput",
+        "PID_attribution",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "egress_counts": {
+            "dropped": 0,
+            "total": 5
+          },
+          "ingress_counts": {
+            "dropped": 0,
+            "total": 4
+          },
+          "local_reference": true,
+          "neighbor_cookie": 36883,
+          "observations": [
+            {
+              "captured_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000001",
+                "receive_hex": "eea15bda9b68a42d",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15bda9b6bfb46",
+                "version": 4
+              },
+              "captured_request_sha256": "96314bcd64d68895050eb3c06c6cd7d7102a50ffc70f9cd1940bd58f8752ec4d",
+              "captured_response_sha256": "59d903fd60c1948a82491258f5f3a3cdfb6c6e8302436325f580cbfd3b42076d",
+              "case": "v4",
+              "client_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000001",
+                "receive_hex": "eea15bda9b68a42d",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15bda9b6bfb46",
+                "version": 4
+              },
+              "client_request_sha256": "96314bcd64d68895050eb3c06c6cd7d7102a50ffc70f9cd1940bd58f8752ec4d",
+              "client_response_sha256": "59d903fd60c1948a82491258f5f3a3cdfb6c6e8302436325f580cbfd3b42076d",
+              "cookie": 4200,
+              "end_ns": 65890463786563,
+              "request_bytes": 48,
+              "start_ns": 65890463643832,
+              "timeout": false
+            },
+            {
+              "captured_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15bda9b705807",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15bda9b716d0e",
+                "version": 3
+              },
+              "captured_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "captured_response_sha256": "5caf5699b2e5c5a896ed9770185110de60aaa91d7553b3cca51dd18f22e9a6bd",
+              "case": "v3",
+              "client_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15bda9b705807",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15bda9b716d0e",
+                "version": 3
+              },
+              "client_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "client_response_sha256": "5caf5699b2e5c5a896ed9770185110de60aaa91d7553b3cca51dd18f22e9a6bd",
+              "cookie": 4200,
+              "end_ns": 65890463846016,
+              "request_bytes": 48,
+              "start_ns": 65890463800660,
+              "timeout": false
+            },
+            {
+              "captured_reply": null,
+              "captured_request_sha256": "4913d32b3cf57d7c18b2211b48ac7f3e6efe37732207148b4ae8164d6258c3a2",
+              "captured_response_sha256": null,
+              "case": "short-timeout",
+              "client_reply": null,
+              "client_request_sha256": "4913d32b3cf57d7c18b2211b48ac7f3e6efe37732207148b4ae8164d6258c3a2",
+              "client_response_sha256": null,
+              "cookie": 4200,
+              "end_ns": 65890818028162,
+              "request_bytes": 12,
+              "start_ns": 65890463858079,
+              "timeout": true
+            },
+            {
+              "captured_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000003",
+                "receive_hex": "eea15bdaf621ad23",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15bdaf624c3e4",
+                "version": 4
+              },
+              "captured_request_sha256": "76beafd8a23dfcf743ecfee3ea12e41b1f954528f17e98e8d55356b013959982",
+              "captured_response_sha256": "d6be4b973b987aefb7fabf4b1de63d40a12c46328871cbbc1cb5aebc52bddb87",
+              "case": "recovery-v4",
+              "client_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000003",
+                "receive_hex": "eea15bdaf621ad23",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15bdaf624c3e4",
+                "version": 4
+              },
+              "client_request_sha256": "76beafd8a23dfcf743ecfee3ea12e41b1f954528f17e98e8d55356b013959982",
+              "client_response_sha256": "d6be4b973b987aefb7fabf4b1de63d40a12c46328871cbbc1cb5aebc52bddb87",
+              "cookie": 4200,
+              "end_ns": 65890818162456,
+              "request_bytes": 48,
+              "start_ns": 65890818054542,
+              "timeout": false
+            },
+            {
+              "captured_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15bdaf628d363",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15bdaf62ac9bc",
+                "version": 3
+              },
+              "captured_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "captured_response_sha256": "728bed9719de67e79343998dd2cd057cf76601f86f3c97d07d82e2117428c84e",
+              "case": "v3",
+              "client_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15bdaf628d363",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15bdaf62ac9bc",
+                "version": 3
+              },
+              "client_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "client_response_sha256": "728bed9719de67e79343998dd2cd057cf76601f86f3c97d07d82e2117428c84e",
+              "cookie": 4201,
+              "end_ns": 65890818259420,
+              "request_bytes": 48,
+              "start_ns": 65890818167255,
+              "timeout": false
+            }
+          ],
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 1,
+              "matched_request_cookies": [
+                4200,
+                4201
+              ],
+              "matched_response_cookies": [
+                4200,
+                4201
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/client/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_request",
+              "response_phase": "receive_response",
+              "source_sha256": "16a1adbbfa0f19dac089d1f6702361b9a445874387f97bb3bd64ae68fdb0e4a9"
+            },
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 1,
+              "matched_request_cookies": [
+                4200,
+                4201
+              ],
+              "matched_response_cookies": [
+                4200,
+                4201
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/query/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_query",
+              "response_phase": "receive_response",
+              "source_sha256": "7758334c61434644932c36a25019481b02612816796e1e99ef1a010dfdf88e25"
+            },
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 1,
+              "matched_request_cookies": [
+                4200,
+                4201
+              ],
+              "matched_response_cookies": [
+                4200,
+                4201
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/sync/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_sync_request",
+              "response_phase": "receive_sync_response",
+              "source_sha256": "41adc3a3089a2e113141cc0c98c3af65b81ff591fc33022af0ede6f9a9978ce1"
+            }
+          ],
+          "selected_sockets": [
+            [
+              4200,
+              43839
+            ],
+            [
+              4201,
+              33508
+            ]
+          ],
+          "target": {
+            "clock_control_disabled": true,
+            "config_sha256": "04cd8f4643fc1f4a431a9aa27f3efe1a7712c7d4d6ad3b1b214bf9b404549fad",
+            "container_id": "a696f72028a208efb4a408b0854334c921311cc4ab8ce88cf73ec0fc7bfc2921",
+            "entrypoint": [
+              "/usr/sbin/chronyd",
+              "-d",
+              "-x",
+              "-u",
+              "root",
+              "-4"
+            ],
+            "external_time_sources": false,
+            "host_mounts": false,
+            "image_id": "sha256:f4586d2381b0c4e5a3a21cb9a997d437e9cb71168090de8948ad32df81f47725",
+            "internal_network": true,
+            "network_id": "6d215db8686257a96852fdf81761a2e8adc764e6152aebbc172f76c95dcd4571",
+            "published_ports": false,
+            "sys_time_capability": false
+          }
+        },
+        {
+          "egress_counts": {
+            "dropped": 0,
+            "total": 5
+          },
+          "ingress_counts": {
+            "dropped": 0,
+            "total": 4
+          },
+          "local_reference": false,
+          "neighbor_cookie": 102,
+          "observations": [
+            {
+              "captured_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000001",
+                "receive_hex": "eea15bdbea3c8333",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15bdbea3f4716",
+                "version": 4
+              },
+              "captured_request_sha256": "96314bcd64d68895050eb3c06c6cd7d7102a50ffc70f9cd1940bd58f8752ec4d",
+              "captured_response_sha256": "03b1e722fca8373ff66fa5e4cbc62eaad6facc4589dc67900a1d793f94e3acfe",
+              "case": "v4",
+              "client_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000001",
+                "receive_hex": "eea15bdbea3c8333",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15bdbea3f4716",
+                "version": 4
+              },
+              "client_request_sha256": "96314bcd64d68895050eb3c06c6cd7d7102a50ffc70f9cd1940bd58f8752ec4d",
+              "client_response_sha256": "03b1e722fca8373ff66fa5e4cbc62eaad6facc4589dc67900a1d793f94e3acfe",
+              "cookie": 20543,
+              "end_ns": 65891771694221,
+              "request_bytes": 48,
+              "start_ns": 65891771578542,
+              "timeout": false
+            },
+            {
+              "captured_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15bdbea4339e5",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15bdbea43fe46",
+                "version": 3
+              },
+              "captured_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "captured_response_sha256": "dd347cd7ae7c21def51728e285f04ef50b01d7b8efa9d790c2deb462bd6df646",
+              "case": "v3",
+              "client_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15bdbea4339e5",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15bdbea43fe46",
+                "version": 3
+              },
+              "client_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "client_response_sha256": "dd347cd7ae7c21def51728e285f04ef50b01d7b8efa9d790c2deb462bd6df646",
+              "cookie": 20543,
+              "end_ns": 65891771740829,
+              "request_bytes": 48,
+              "start_ns": 65891771706534,
+              "timeout": false
+            },
+            {
+              "captured_reply": null,
+              "captured_request_sha256": "4913d32b3cf57d7c18b2211b48ac7f3e6efe37732207148b4ae8164d6258c3a2",
+              "captured_response_sha256": null,
+              "case": "short-timeout",
+              "client_reply": null,
+              "client_request_sha256": "4913d32b3cf57d7c18b2211b48ac7f3e6efe37732207148b4ae8164d6258c3a2",
+              "client_response_sha256": null,
+              "cookie": 20543,
+              "end_ns": 65892122017552,
+              "request_bytes": 12,
+              "start_ns": 65891771749175,
+              "timeout": true
+            },
+            {
+              "captured_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000003",
+                "receive_hex": "eea15bdc43f3ec6b",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15bdc43f6a208",
+                "version": 4
+              },
+              "captured_request_sha256": "76beafd8a23dfcf743ecfee3ea12e41b1f954528f17e98e8d55356b013959982",
+              "captured_response_sha256": "2da960b3097dc058b7b7f544b8f58e435f7c044cdfd93e6f8d06547ef813c4ec",
+              "case": "recovery-v4",
+              "client_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000003",
+                "receive_hex": "eea15bdc43f3ec6b",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15bdc43f6a208",
+                "version": 4
+              },
+              "client_request_sha256": "76beafd8a23dfcf743ecfee3ea12e41b1f954528f17e98e8d55356b013959982",
+              "client_response_sha256": "2da960b3097dc058b7b7f544b8f58e435f7c044cdfd93e6f8d06547ef813c4ec",
+              "cookie": 20543,
+              "end_ns": 65892122143801,
+              "request_bytes": 48,
+              "start_ns": 65892122041427,
+              "timeout": false
+            },
+            {
+              "captured_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15bdc43fa2aab",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15bdc43fade90",
+                "version": 3
+              },
+              "captured_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "captured_response_sha256": "53e235a7820af900347b25cbd3ba2d07fd03a9fc9fef457ae6e5c94d4e9bfe87",
+              "case": "v3",
+              "client_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15bdc43fa2aab",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15bdc43fade90",
+                "version": 3
+              },
+              "client_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "client_response_sha256": "53e235a7820af900347b25cbd3ba2d07fd03a9fc9fef457ae6e5c94d4e9bfe87",
+              "cookie": 20544,
+              "end_ns": 65892122193666,
+              "request_bytes": 48,
+              "start_ns": 65892122147839,
+              "timeout": false
+            }
+          ],
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 0,
+              "matched_request_cookies": [
+                20543,
+                20544
+              ],
+              "matched_response_cookies": [
+                20543,
+                20544
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/client/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_request",
+              "response_phase": "receive_response",
+              "source_sha256": "16a1adbbfa0f19dac089d1f6702361b9a445874387f97bb3bd64ae68fdb0e4a9"
+            },
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 0,
+              "matched_request_cookies": [
+                20543,
+                20544
+              ],
+              "matched_response_cookies": [
+                20543,
+                20544
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/query/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_query",
+              "response_phase": "receive_response",
+              "source_sha256": "7758334c61434644932c36a25019481b02612816796e1e99ef1a010dfdf88e25"
+            },
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 0,
+              "matched_request_cookies": [
+                20543,
+                20544
+              ],
+              "matched_response_cookies": [],
+              "packet_only": true,
+              "path": "protocols/ntp/sync/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_sync_request",
+              "response_phase": "receive_sync_response",
+              "source_sha256": "41adc3a3089a2e113141cc0c98c3af65b81ff591fc33022af0ede6f9a9978ce1"
+            }
+          ],
+          "selected_sockets": [
+            [
+              20543,
+              38357
+            ],
+            [
+              20544,
+              47127
+            ]
+          ],
+          "target": {
+            "clock_control_disabled": true,
+            "config_sha256": "a0dffda1b57deeb76e1da64e68e120ab0fa899fadd1923ebe983f2427ca6fafc",
+            "container_id": "e82ea3d312a1f2d5630e9d112976cbad67d3730b7018e7c4c9e08bb5787bcf5d",
+            "entrypoint": [
+              "/usr/sbin/chronyd",
+              "-d",
+              "-x",
+              "-u",
+              "root",
+              "-4"
+            ],
+            "external_time_sources": false,
+            "host_mounts": false,
+            "image_id": "sha256:f4586d2381b0c4e5a3a21cb9a997d437e9cb71168090de8948ad32df81f47725",
+            "internal_network": true,
+            "network_id": "ef311a4762aaad7eb5ae349f2333b7e438a549074221fa1abb3c0a4b07e75bb0",
+            "published_ports": false,
+            "sys_time_capability": false
+          }
+        }
+      ],
+      "schema_version": 1
+    },
+    {
+      "checks": [
+        "real_private_chrony_no_clock_control",
+        "NTPv3_and_v4",
+        "unsynchronised_reply_not_time_success",
+        "short_datagram_timeout_then_recovery",
+        "same_origin_distinct_sockets",
+        "bidirectional_kernel_bytes_match_client",
+        "neighbor_excluded",
+        "three_packages_both_server_states",
+        "owned_cleanup_and_fresh_HTTP"
+      ],
+      "external_time_sources": false,
+      "host_clock_adjusted": false,
+      "ingest_trust_mode": "unverified-local",
+      "mode": "udp-ntp",
+      "not_proven": [
+        "clock_accuracy_or_clock_discipline",
+        "real_KoD_rate_limit",
+        "NTS_MAC_or_extension_authentication",
+        "product_origin_correlation",
+        "IPv6_or_IP_reassembly",
+        "UDP_throughput",
+        "PID_attribution",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "egress_counts": {
+            "dropped": 0,
+            "total": 5
+          },
+          "ingress_counts": {
+            "dropped": 0,
+            "total": 4
+          },
+          "local_reference": true,
+          "neighbor_cookie": 12351,
+          "observations": [
+            {
+              "captured_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000001",
+                "receive_hex": "eea15bfd2cf5014d",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15bfd2cf79402",
+                "version": 4
+              },
+              "captured_request_sha256": "96314bcd64d68895050eb3c06c6cd7d7102a50ffc70f9cd1940bd58f8752ec4d",
+              "captured_response_sha256": "36897ce3a0a9c446ee5f292da3a61b9c23da39925a2ded42de120f4b7fbc2698",
+              "case": "v4",
+              "client_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000001",
+                "receive_hex": "eea15bfd2cf5014d",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15bfd2cf79402",
+                "version": 4
+              },
+              "client_request_sha256": "96314bcd64d68895050eb3c06c6cd7d7102a50ffc70f9cd1940bd58f8752ec4d",
+              "client_response_sha256": "36897ce3a0a9c446ee5f292da3a61b9c23da39925a2ded42de120f4b7fbc2698",
+              "cookie": 8276,
+              "end_ns": 65925032316456,
+              "request_bytes": 48,
+              "start_ns": 65925032212990,
+              "timeout": false
+            },
+            {
+              "captured_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15bfd2cfb9579",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15bfd2cfc6112",
+                "version": 3
+              },
+              "captured_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "captured_response_sha256": "235c133bc1ae0db09015fa2ee6735ea010992b69638f540c811cc93bd899afbd",
+              "case": "v3",
+              "client_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15bfd2cfb9579",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15bfd2cfc6112",
+                "version": 3
+              },
+              "client_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "client_response_sha256": "235c133bc1ae0db09015fa2ee6735ea010992b69638f540c811cc93bd899afbd",
+              "cookie": 8276,
+              "end_ns": 65925032366871,
+              "request_bytes": 48,
+              "start_ns": 65925032332967,
+              "timeout": false
+            },
+            {
+              "captured_reply": null,
+              "captured_request_sha256": "4913d32b3cf57d7c18b2211b48ac7f3e6efe37732207148b4ae8164d6258c3a2",
+              "captured_response_sha256": null,
+              "case": "short-timeout",
+              "client_reply": null,
+              "client_request_sha256": "4913d32b3cf57d7c18b2211b48ac7f3e6efe37732207148b4ae8164d6258c3a2",
+              "client_response_sha256": null,
+              "cookie": 8276,
+              "end_ns": 65925386020131,
+              "request_bytes": 12,
+              "start_ns": 65925032378604,
+              "timeout": true
+            },
+            {
+              "captured_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000003",
+                "receive_hex": "eea15bfd878a779d",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15bfd878d347a",
+                "version": 4
+              },
+              "captured_request_sha256": "76beafd8a23dfcf743ecfee3ea12e41b1f954528f17e98e8d55356b013959982",
+              "captured_response_sha256": "b66625b4043dbb0b2f7efeef55ad647b3d499333b4ba8986023c3ad49f32d907",
+              "case": "recovery-v4",
+              "client_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000003",
+                "receive_hex": "eea15bfd878a779d",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15bfd878d347a",
+                "version": 4
+              },
+              "client_request_sha256": "76beafd8a23dfcf743ecfee3ea12e41b1f954528f17e98e8d55356b013959982",
+              "client_response_sha256": "b66625b4043dbb0b2f7efeef55ad647b3d499333b4ba8986023c3ad49f32d907",
+              "cookie": 8276,
+              "end_ns": 65925386162010,
+              "request_bytes": 48,
+              "start_ns": 65925386050399,
+              "timeout": false
+            },
+            {
+              "captured_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15bfd87914a51",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15bfd8792441a",
+                "version": 3
+              },
+              "captured_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "captured_response_sha256": "1e5e93842c9e487b74b641dbb1a5a4dd47367586d14f6b3f550e3c978d84e8cd",
+              "case": "v3",
+              "client_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15bfd87914a51",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15bfd8792441a",
+                "version": 3
+              },
+              "client_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "client_response_sha256": "1e5e93842c9e487b74b641dbb1a5a4dd47367586d14f6b3f550e3c978d84e8cd",
+              "cookie": 8277,
+              "end_ns": 65925386223206,
+              "request_bytes": 48,
+              "start_ns": 65925386167721,
+              "timeout": false
+            }
+          ],
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 1,
+              "matched_request_cookies": [
+                8276,
+                8277
+              ],
+              "matched_response_cookies": [
+                8276,
+                8277
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/client/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_request",
+              "response_phase": "receive_response",
+              "source_sha256": "16a1adbbfa0f19dac089d1f6702361b9a445874387f97bb3bd64ae68fdb0e4a9"
+            },
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 1,
+              "matched_request_cookies": [
+                8276,
+                8277
+              ],
+              "matched_response_cookies": [
+                8276,
+                8277
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/query/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_query",
+              "response_phase": "receive_response",
+              "source_sha256": "7758334c61434644932c36a25019481b02612816796e1e99ef1a010dfdf88e25"
+            },
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 1,
+              "matched_request_cookies": [
+                8276,
+                8277
+              ],
+              "matched_response_cookies": [
+                8276,
+                8277
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/sync/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_sync_request",
+              "response_phase": "receive_sync_response",
+              "source_sha256": "41adc3a3089a2e113141cc0c98c3af65b81ff591fc33022af0ede6f9a9978ce1"
+            }
+          ],
+          "selected_sockets": [
+            [
+              8276,
+              34599
+            ],
+            [
+              8277,
+              49566
+            ]
+          ],
+          "target": {
+            "clock_control_disabled": true,
+            "config_sha256": "04cd8f4643fc1f4a431a9aa27f3efe1a7712c7d4d6ad3b1b214bf9b404549fad",
+            "container_id": "e04a86cbb4c1ca8c0936a61461e3356d843fd32a22c7de9f7b006ca659399f9a",
+            "entrypoint": [
+              "/usr/sbin/chronyd",
+              "-d",
+              "-x",
+              "-u",
+              "root",
+              "-4"
+            ],
+            "external_time_sources": false,
+            "host_mounts": false,
+            "image_id": "sha256:f4586d2381b0c4e5a3a21cb9a997d437e9cb71168090de8948ad32df81f47725",
+            "internal_network": true,
+            "network_id": "45bfbc5bfba4766da1d247f27ddf2560c12bac9422b79294cd62b8723b7d1833",
+            "published_ports": false,
+            "sys_time_capability": false
+          }
+        },
+        {
+          "egress_counts": {
+            "dropped": 0,
+            "total": 5
+          },
+          "ingress_counts": {
+            "dropped": 0,
+            "total": 4
+          },
+          "local_reference": false,
+          "neighbor_cookie": 24661,
+          "observations": [
+            {
+              "captured_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000001",
+                "receive_hex": "eea15bfe7cfa5391",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15bfe7cfdff66",
+                "version": 4
+              },
+              "captured_request_sha256": "96314bcd64d68895050eb3c06c6cd7d7102a50ffc70f9cd1940bd58f8752ec4d",
+              "captured_response_sha256": "a01bdfbc7cf8f6a445bb599033da79f9747f8b35d4c9835820113d544cca4d9e",
+              "case": "v4",
+              "client_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000001",
+                "receive_hex": "eea15bfe7cfa5391",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15bfe7cfdff66",
+                "version": 4
+              },
+              "client_request_sha256": "96314bcd64d68895050eb3c06c6cd7d7102a50ffc70f9cd1940bd58f8752ec4d",
+              "client_response_sha256": "a01bdfbc7cf8f6a445bb599033da79f9747f8b35d4c9835820113d544cca4d9e",
+              "cookie": 32857,
+              "end_ns": 65926344931859,
+              "request_bytes": 48,
+              "start_ns": 65926344779610,
+              "timeout": false
+            },
+            {
+              "captured_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15bfe7d038d1b",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15bfe7d04d844",
+                "version": 3
+              },
+              "captured_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "captured_response_sha256": "b3dff946b5e8ea68577be92a095cd6ca041a4b849100030e9504154851f19ab5",
+              "case": "v3",
+              "client_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15bfe7d038d1b",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15bfe7d04d844",
+                "version": 3
+              },
+              "client_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "client_response_sha256": "b3dff946b5e8ea68577be92a095cd6ca041a4b849100030e9504154851f19ab5",
+              "cookie": 32857,
+              "end_ns": 65926345009617,
+              "request_bytes": 48,
+              "start_ns": 65926344949583,
+              "timeout": false
+            },
+            {
+              "captured_reply": null,
+              "captured_request_sha256": "4913d32b3cf57d7c18b2211b48ac7f3e6efe37732207148b4ae8164d6258c3a2",
+              "captured_response_sha256": null,
+              "case": "short-timeout",
+              "client_reply": null,
+              "client_request_sha256": "4913d32b3cf57d7c18b2211b48ac7f3e6efe37732207148b4ae8164d6258c3a2",
+              "client_response_sha256": null,
+              "cookie": 32857,
+              "end_ns": 65926698025795,
+              "request_bytes": 12,
+              "start_ns": 65926345027881,
+              "timeout": true
+            },
+            {
+              "captured_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000003",
+                "receive_hex": "eea15bfed7686a7b",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15bfed76befe6",
+                "version": 4
+              },
+              "captured_request_sha256": "76beafd8a23dfcf743ecfee3ea12e41b1f954528f17e98e8d55356b013959982",
+              "captured_response_sha256": "01ef1facad3b9e7d1951b598f40e7b8d1714baf1e7e99b7584bc6b305739621f",
+              "case": "recovery-v4",
+              "client_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000003",
+                "receive_hex": "eea15bfed7686a7b",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15bfed76befe6",
+                "version": 4
+              },
+              "client_request_sha256": "76beafd8a23dfcf743ecfee3ea12e41b1f954528f17e98e8d55356b013959982",
+              "client_response_sha256": "01ef1facad3b9e7d1951b598f40e7b8d1714baf1e7e99b7584bc6b305739621f",
+              "cookie": 32857,
+              "end_ns": 65926698154399,
+              "request_bytes": 48,
+              "start_ns": 65926698046053,
+              "timeout": false
+            },
+            {
+              "captured_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15bfed7700345",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15bfed7714898",
+                "version": 3
+              },
+              "captured_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "captured_response_sha256": "a04dfee68226d208f8e1077ab8aef45098a2d727569e86cf2d91d9e893607b41",
+              "case": "v3",
+              "client_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15bfed7700345",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15bfed7714898",
+                "version": 3
+              },
+              "client_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "client_response_sha256": "a04dfee68226d208f8e1077ab8aef45098a2d727569e86cf2d91d9e893607b41",
+              "cookie": 32858,
+              "end_ns": 65926698226446,
+              "request_bytes": 48,
+              "start_ns": 65926698159539,
+              "timeout": false
+            }
+          ],
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 0,
+              "matched_request_cookies": [
+                32857,
+                32858
+              ],
+              "matched_response_cookies": [
+                32857,
+                32858
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/client/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_request",
+              "response_phase": "receive_response",
+              "source_sha256": "16a1adbbfa0f19dac089d1f6702361b9a445874387f97bb3bd64ae68fdb0e4a9"
+            },
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 0,
+              "matched_request_cookies": [
+                32857,
+                32858
+              ],
+              "matched_response_cookies": [
+                32857,
+                32858
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/query/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_query",
+              "response_phase": "receive_response",
+              "source_sha256": "7758334c61434644932c36a25019481b02612816796e1e99ef1a010dfdf88e25"
+            },
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 0,
+              "matched_request_cookies": [
+                32857,
+                32858
+              ],
+              "matched_response_cookies": [],
+              "packet_only": true,
+              "path": "protocols/ntp/sync/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_sync_request",
+              "response_phase": "receive_sync_response",
+              "source_sha256": "41adc3a3089a2e113141cc0c98c3af65b81ff591fc33022af0ede6f9a9978ce1"
+            }
+          ],
+          "selected_sockets": [
+            [
+              32857,
+              51303
+            ],
+            [
+              32858,
+              52939
+            ]
+          ],
+          "target": {
+            "clock_control_disabled": true,
+            "config_sha256": "a0dffda1b57deeb76e1da64e68e120ab0fa899fadd1923ebe983f2427ca6fafc",
+            "container_id": "63549accec2baa4b4d0bf88ff8fe6c9cea4d386215ac3259d2b6ab189f3c7a02",
+            "entrypoint": [
+              "/usr/sbin/chronyd",
+              "-d",
+              "-x",
+              "-u",
+              "root",
+              "-4"
+            ],
+            "external_time_sources": false,
+            "host_mounts": false,
+            "image_id": "sha256:f4586d2381b0c4e5a3a21cb9a997d437e9cb71168090de8948ad32df81f47725",
+            "internal_network": true,
+            "network_id": "89db5a9dcdd6fa19fcb3849a1979e3bbf331ea59cc09fafb8a453ef03b1b2d2e",
+            "published_ports": false,
+            "sys_time_capability": false
+          }
+        }
+      ],
+      "schema_version": 1
+    },
+    {
+      "checks": [
+        "real_private_chrony_no_clock_control",
+        "NTPv3_and_v4",
+        "unsynchronised_reply_not_time_success",
+        "short_datagram_timeout_then_recovery",
+        "same_origin_distinct_sockets",
+        "bidirectional_kernel_bytes_match_client",
+        "neighbor_excluded",
+        "three_packages_both_server_states",
+        "owned_cleanup_and_fresh_HTTP"
+      ],
+      "external_time_sources": false,
+      "host_clock_adjusted": false,
+      "ingest_trust_mode": "unverified-local",
+      "mode": "udp-ntp",
+      "not_proven": [
+        "clock_accuracy_or_clock_discipline",
+        "real_KoD_rate_limit",
+        "NTS_MAC_or_extension_authentication",
+        "product_origin_correlation",
+        "IPv6_or_IP_reassembly",
+        "UDP_throughput",
+        "PID_attribution",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "egress_counts": {
+            "dropped": 0,
+            "total": 5
+          },
+          "ingress_counts": {
+            "dropped": 0,
+            "total": 4
+          },
+          "local_reference": true,
+          "neighbor_cookie": 16446,
+          "observations": [
+            {
+              "captured_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000001",
+                "receive_hex": "eea15c1a7cc91c39",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15c1a7ccc38e2",
+                "version": 4
+              },
+              "captured_request_sha256": "96314bcd64d68895050eb3c06c6cd7d7102a50ffc70f9cd1940bd58f8752ec4d",
+              "captured_response_sha256": "5fd5a9ef121a424e3d210e1bb5965af5ee7373af328e30f38adee0aaafc6c673",
+              "case": "v4",
+              "client_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000001",
+                "receive_hex": "eea15c1a7cc91c39",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15c1a7ccc38e2",
+                "version": 4
+              },
+              "client_request_sha256": "96314bcd64d68895050eb3c06c6cd7d7102a50ffc70f9cd1940bd58f8752ec4d",
+              "client_response_sha256": "5fd5a9ef121a424e3d210e1bb5965af5ee7373af328e30f38adee0aaafc6c673",
+              "cookie": 103,
+              "end_ns": 65954344166506,
+              "request_bytes": 48,
+              "start_ns": 65954344036780,
+              "timeout": false
+            },
+            {
+              "captured_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15c1a7cd1aded",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15c1a7cd323c0",
+                "version": 3
+              },
+              "captured_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "captured_response_sha256": "682cdd0c4145991cc36204231d7bf70f03b0bd9e70506afd634cf85698c0dc44",
+              "case": "v3",
+              "client_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15c1a7cd1aded",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15c1a7cd323c0",
+                "version": 3
+              },
+              "client_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "client_response_sha256": "682cdd0c4145991cc36204231d7bf70f03b0bd9e70506afd634cf85698c0dc44",
+              "cookie": 103,
+              "end_ns": 65954344243432,
+              "request_bytes": 48,
+              "start_ns": 65954344188057,
+              "timeout": false
+            },
+            {
+              "captured_reply": null,
+              "captured_request_sha256": "4913d32b3cf57d7c18b2211b48ac7f3e6efe37732207148b4ae8164d6258c3a2",
+              "captured_response_sha256": null,
+              "case": "short-timeout",
+              "client_reply": null,
+              "client_request_sha256": "4913d32b3cf57d7c18b2211b48ac7f3e6efe37732207148b4ae8164d6258c3a2",
+              "client_response_sha256": null,
+              "cookie": 103,
+              "end_ns": 65954698031570,
+              "request_bytes": 12,
+              "start_ns": 65954344257068,
+              "timeout": true
+            },
+            {
+              "captured_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000003",
+                "receive_hex": "eea15c1ad76c6ac3",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15c1ad772ac62",
+                "version": 4
+              },
+              "captured_request_sha256": "76beafd8a23dfcf743ecfee3ea12e41b1f954528f17e98e8d55356b013959982",
+              "captured_response_sha256": "5a220edb7a2af30ccbf5f8486c60594397455464850b05876021c743f846ed67",
+              "case": "recovery-v4",
+              "client_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000003",
+                "receive_hex": "eea15c1ad76c6ac3",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15c1ad772ac62",
+                "version": 4
+              },
+              "client_request_sha256": "76beafd8a23dfcf743ecfee3ea12e41b1f954528f17e98e8d55356b013959982",
+              "client_response_sha256": "5a220edb7a2af30ccbf5f8486c60594397455464850b05876021c743f846ed67",
+              "cookie": 103,
+              "end_ns": 65954698293226,
+              "request_bytes": 48,
+              "start_ns": 65954698063240,
+              "timeout": false
+            },
+            {
+              "captured_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15c1ad779b749",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15c1ad77b6738",
+                "version": 3
+              },
+              "captured_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "captured_response_sha256": "8a528efd8511ba1d216d27f275be54119d48c69a94cc9e7796a3883e70f375ce",
+              "case": "v3",
+              "client_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15c1ad779b749",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea15c1ad77b6738",
+                "version": 3
+              },
+              "client_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "client_response_sha256": "8a528efd8511ba1d216d27f275be54119d48c69a94cc9e7796a3883e70f375ce",
+              "cookie": 104,
+              "end_ns": 65954698415979,
+              "request_bytes": 48,
+              "start_ns": 65954698298195,
+              "timeout": false
+            }
+          ],
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 1,
+              "matched_request_cookies": [
+                103,
+                104
+              ],
+              "matched_response_cookies": [
+                103,
+                104
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/client/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_request",
+              "response_phase": "receive_response",
+              "source_sha256": "16a1adbbfa0f19dac089d1f6702361b9a445874387f97bb3bd64ae68fdb0e4a9"
+            },
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 1,
+              "matched_request_cookies": [
+                103,
+                104
+              ],
+              "matched_response_cookies": [
+                103,
+                104
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/query/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_query",
+              "response_phase": "receive_response",
+              "source_sha256": "7758334c61434644932c36a25019481b02612816796e1e99ef1a010dfdf88e25"
+            },
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 1,
+              "matched_request_cookies": [
+                103,
+                104
+              ],
+              "matched_response_cookies": [
+                103,
+                104
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/sync/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_sync_request",
+              "response_phase": "receive_sync_response",
+              "source_sha256": "41adc3a3089a2e113141cc0c98c3af65b81ff591fc33022af0ede6f9a9978ce1"
+            }
+          ],
+          "selected_sockets": [
+            [
+              103,
+              46703
+            ],
+            [
+              104,
+              50365
+            ]
+          ],
+          "target": {
+            "clock_control_disabled": true,
+            "config_sha256": "04cd8f4643fc1f4a431a9aa27f3efe1a7712c7d4d6ad3b1b214bf9b404549fad",
+            "container_id": "97631fbd54b1cb825fd154be33b648dcc6c13b7ab184d5a7ec1f6ace3e806843",
+            "entrypoint": [
+              "/usr/sbin/chronyd",
+              "-d",
+              "-x",
+              "-u",
+              "root",
+              "-4"
+            ],
+            "external_time_sources": false,
+            "host_mounts": false,
+            "image_id": "sha256:f4586d2381b0c4e5a3a21cb9a997d437e9cb71168090de8948ad32df81f47725",
+            "internal_network": true,
+            "network_id": "7b90f9bd2033bdc969eaae9b9a115ece5ac19697297b43adc4c7da26e9520686",
+            "published_ports": false,
+            "sys_time_capability": false
+          }
+        },
+        {
+          "egress_counts": {
+            "dropped": 0,
+            "total": 5
+          },
+          "ingress_counts": {
+            "dropped": 0,
+            "total": 4
+          },
+          "local_reference": false,
+          "neighbor_cookie": 49173,
+          "observations": [
+            {
+              "captured_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000001",
+                "receive_hex": "eea15c1bd48ec429",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15c1bd4925c4e",
+                "version": 4
+              },
+              "captured_request_sha256": "96314bcd64d68895050eb3c06c6cd7d7102a50ffc70f9cd1940bd58f8752ec4d",
+              "captured_response_sha256": "84e6f0911b1b2b6964758a92fa41adf372ed969a8ef137dd3f40abf4936cd1d4",
+              "case": "v4",
+              "client_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000001",
+                "receive_hex": "eea15c1bd48ec429",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15c1bd4925c4e",
+                "version": 4
+              },
+              "client_request_sha256": "96314bcd64d68895050eb3c06c6cd7d7102a50ffc70f9cd1940bd58f8752ec4d",
+              "client_response_sha256": "84e6f0911b1b2b6964758a92fa41adf372ed969a8ef137dd3f40abf4936cd1d4",
+              "cookie": 12353,
+              "end_ns": 65955687045456,
+              "request_bytes": 48,
+              "start_ns": 65955686876857,
+              "timeout": false
+            },
+            {
+              "captured_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15c1bd49802d9",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15c1bd499703a",
+                "version": 3
+              },
+              "captured_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "captured_response_sha256": "04313cfe07dcaf424aaffcac4e6cdd4c162fe58a506177d81ba99ef55b5ab7be",
+              "case": "v3",
+              "client_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15c1bd49802d9",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15c1bd499703a",
+                "version": 3
+              },
+              "client_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "client_response_sha256": "04313cfe07dcaf424aaffcac4e6cdd4c162fe58a506177d81ba99ef55b5ab7be",
+              "cookie": 12353,
+              "end_ns": 65955687118344,
+              "request_bytes": 48,
+              "start_ns": 65955687063160,
+              "timeout": false
+            },
+            {
+              "captured_reply": null,
+              "captured_request_sha256": "4913d32b3cf57d7c18b2211b48ac7f3e6efe37732207148b4ae8164d6258c3a2",
+              "captured_response_sha256": null,
+              "case": "short-timeout",
+              "client_reply": null,
+              "client_request_sha256": "4913d32b3cf57d7c18b2211b48ac7f3e6efe37732207148b4ae8164d6258c3a2",
+              "client_response_sha256": null,
+              "cookie": 12353,
+              "end_ns": 65956042030600,
+              "request_bytes": 12,
+              "start_ns": 65955687129936,
+              "timeout": true
+            },
+            {
+              "captured_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000003",
+                "receive_hex": "eea15c1c2f797eb7",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15c1c2f7c44c0",
+                "version": 4
+              },
+              "captured_request_sha256": "76beafd8a23dfcf743ecfee3ea12e41b1f954528f17e98e8d55356b013959982",
+              "captured_response_sha256": "5e6f7be7da5c68acd9311c59939a5caab0f48a45fca35df3fc56df32f4232520",
+              "case": "recovery-v4",
+              "client_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000003",
+                "receive_hex": "eea15c1c2f797eb7",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15c1c2f7c44c0",
+                "version": 4
+              },
+              "client_request_sha256": "76beafd8a23dfcf743ecfee3ea12e41b1f954528f17e98e8d55356b013959982",
+              "client_response_sha256": "5e6f7be7da5c68acd9311c59939a5caab0f48a45fca35df3fc56df32f4232520",
+              "cookie": 12353,
+              "end_ns": 65956042151719,
+              "request_bytes": 48,
+              "start_ns": 65956042054104,
+              "timeout": false
+            },
+            {
+              "captured_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15c1c2f7ffd5d",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15c1c2f80bcd4",
+                "version": 3
+              },
+              "captured_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "captured_response_sha256": "44d8893be2f20509b9d3b6c3d6c4f696566f369e0bba1ee44a1ca7425cd6fc7b",
+              "case": "v3",
+              "client_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea15c1c2f7ffd5d",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea15c1c2f80bcd4",
+                "version": 3
+              },
+              "client_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "client_response_sha256": "44d8893be2f20509b9d3b6c3d6c4f696566f369e0bba1ee44a1ca7425cd6fc7b",
+              "cookie": 12354,
+              "end_ns": 65956042206483,
+              "request_bytes": 48,
+              "start_ns": 65956042156979,
+              "timeout": false
+            }
+          ],
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 0,
+              "matched_request_cookies": [
+                12353,
+                12354
+              ],
+              "matched_response_cookies": [
+                12353,
+                12354
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/client/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_request",
+              "response_phase": "receive_response",
+              "source_sha256": "16a1adbbfa0f19dac089d1f6702361b9a445874387f97bb3bd64ae68fdb0e4a9"
+            },
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 0,
+              "matched_request_cookies": [
+                12353,
+                12354
+              ],
+              "matched_response_cookies": [
+                12353,
+                12354
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/query/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_query",
+              "response_phase": "receive_response",
+              "source_sha256": "7758334c61434644932c36a25019481b02612816796e1e99ef1a010dfdf88e25"
+            },
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 0,
+              "matched_request_cookies": [
+                12353,
+                12354
+              ],
+              "matched_response_cookies": [],
+              "packet_only": true,
+              "path": "protocols/ntp/sync/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_sync_request",
+              "response_phase": "receive_sync_response",
+              "source_sha256": "41adc3a3089a2e113141cc0c98c3af65b81ff591fc33022af0ede6f9a9978ce1"
+            }
+          ],
+          "selected_sockets": [
+            [
+              12353,
+              56421
+            ],
+            [
+              12354,
+              34531
+            ]
+          ],
+          "target": {
+            "clock_control_disabled": true,
+            "config_sha256": "a0dffda1b57deeb76e1da64e68e120ab0fa899fadd1923ebe983f2427ca6fafc",
+            "container_id": "d05eb7cbf6500888babbb2630b0e8d409288d4a18a03b39c0ce1cc16a9564889",
+            "entrypoint": [
+              "/usr/sbin/chronyd",
+              "-d",
+              "-x",
+              "-u",
+              "root",
+              "-4"
+            ],
+            "external_time_sources": false,
+            "host_mounts": false,
+            "image_id": "sha256:f4586d2381b0c4e5a3a21cb9a997d437e9cb71168090de8948ad32df81f47725",
+            "internal_network": true,
+            "network_id": "c2d404fb735f9a1667688a286bb90ab2fe3efd3474d35c80d9528204f30443e9",
+            "published_ports": false,
+            "sys_time_capability": false
+          }
+        }
+      ],
+      "schema_version": 1
+    }
+  ],
+  "totals": {
+    "runs": 3,
+    "targets": 6,
+    "selected_sockets": 12,
+    "selected_requests": 30,
+    "captured_responses": 24,
+    "expected_timeouts": 6,
+    "same_socket_recoveries": 6,
+    "excluded_neighbors": 6,
+    "package_replays": 18,
+    "post_cleanup_http_captures": 3,
+    "reported_capture_drops": 0
+  },
+  "dns_regression": {
+    "checks": [
+      "real_private_DNS_server",
+      "two_selected_sockets_same_DNS_id",
+      "bidirectional_kernel_bytes_match_client",
+      "four_RCODEs_and_truncation",
+      "bounded_timeout_then_success",
+      "unselected_neighbor_excluded",
+      "packet_only_package_replay",
+      "owned_resources_removed",
+      "fresh_HTTP_capture_after_DNS"
+    ],
+    "config_sha256": "d9305262b2aebff9f62d39f1007578614177a19a43ba7133cac37f52434a8811",
+    "container_id": "1ae6c6eb77d32971c007ba4b233c4cbab09fb65e297bf5a7b98c206591008066",
+    "egress_counts": {
+      "dropped": 0,
+      "total": 9
+    },
+    "image": "coredns/coredns@sha256:0a9d8c8ddf34347eb59aad9a8784f0710de88d6d112726d11d271f9bc6daca26",
+    "image_id": "sha256:881cbdacb8c168aaba50f10b1458f36d1b976c5a856e72d3589bc9cd262f3442",
+    "ingest_trust_mode": "unverified-local",
+    "ingress_counts": {
+      "dropped": 0,
+      "total": 10
+    },
+    "internal_network": true,
+    "mode": "udp-dns",
+    "network_id": "e87135a45e96c4b301fb6baf356ccbb90811d879b1222b25619f22b08cc5b05e",
+    "not_proven": [
+      "IPv6",
+      "IP_fragment_reassembly",
+      "general_DNS_parser",
+      "EDNS_DNSSEC_DoH_DoT",
+      "TCP_fallback_for_TC",
+      "recursive_resolution_or_cache",
+      "general_UDP_throughput",
+      "PID_or_container_process_attribution",
+      "multiple_hosts_or_kernels"
+    ],
+    "observations": [
+      {
+        "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+        "captured_reply": {
+          "addresses": [
+            [
+              192,
+              0,
+              2,
+              7
+            ]
+          ],
+          "id": 17425,
+          "question": "ok.test.",
+          "rcode": 0,
+          "truncated": false
+        },
+        "captured_response_sha256": [
+          "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+        ],
+        "client_reply": {
+          "addresses": [
+            [
+              192,
+              0,
+              2,
+              7
+            ]
+          ],
+          "id": 17425,
+          "question": "ok.test.",
+          "rcode": 0,
+          "truncated": false
+        },
+        "client_response_sha256": [
+          "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+        ],
+        "cookie": 32861,
+        "elapsed_us": 51984,
+        "end_ns": 66023107028186,
+        "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+        "response_count": 1,
+        "start_ns": 66023055043913,
+        "timeout": false
+      },
+      {
+        "captured_query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+        "captured_reply": {
+          "addresses": [],
+          "id": 17425,
+          "question": "form.test.",
+          "rcode": 1,
+          "truncated": false
+        },
+        "captured_response_sha256": [
+          "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+          "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+        ],
+        "client_reply": {
+          "addresses": [],
+          "id": 17425,
+          "question": "form.test.",
+          "rcode": 1,
+          "truncated": false
+        },
+        "client_response_sha256": [
+          "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+          "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+        ],
+        "cookie": 32861,
+        "elapsed_us": 51957,
+        "end_ns": 66023159019614,
+        "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+        "response_count": 2,
+        "start_ns": 66023107062612,
+        "timeout": false
+      },
+      {
+        "captured_query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+        "captured_reply": {
+          "addresses": [],
+          "id": 17425,
+          "question": "fail.test.",
+          "rcode": 2,
+          "truncated": false
+        },
+        "captured_response_sha256": [
+          "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+        ],
+        "client_reply": {
+          "addresses": [],
+          "id": 17425,
+          "question": "fail.test.",
+          "rcode": 2,
+          "truncated": false
+        },
+        "client_response_sha256": [
+          "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+        ],
+        "cookie": 32861,
+        "elapsed_us": 50983,
+        "end_ns": 66023210065519,
+        "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+        "response_count": 1,
+        "start_ns": 66023159081732,
+        "timeout": false
+      },
+      {
+        "captured_query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+        "captured_reply": {
+          "addresses": [],
+          "id": 17425,
+          "question": "nx.test.",
+          "rcode": 3,
+          "truncated": false
+        },
+        "captured_response_sha256": [
+          "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+        ],
+        "client_reply": {
+          "addresses": [],
+          "id": 17425,
+          "question": "nx.test.",
+          "rcode": 3,
+          "truncated": false
+        },
+        "client_response_sha256": [
+          "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+        ],
+        "cookie": 32861,
+        "elapsed_us": 50931,
+        "end_ns": 66023261024008,
+        "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+        "response_count": 1,
+        "start_ns": 66023210092140,
+        "timeout": false
+      },
+      {
+        "captured_query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+        "captured_reply": {
+          "addresses": [],
+          "id": 17425,
+          "question": "deny.test.",
+          "rcode": 5,
+          "truncated": false
+        },
+        "captured_response_sha256": [
+          "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+          "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+        ],
+        "client_reply": {
+          "addresses": [],
+          "id": 17425,
+          "question": "deny.test.",
+          "rcode": 5,
+          "truncated": false
+        },
+        "client_response_sha256": [
+          "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+          "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+        ],
+        "cookie": 32861,
+        "elapsed_us": 50959,
+        "end_ns": 66023312017975,
+        "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+        "response_count": 2,
+        "start_ns": 66023261058364,
+        "timeout": false
+      },
+      {
+        "captured_query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+        "captured_reply": {
+          "addresses": [
+            [
+              192,
+              0,
+              2,
+              53
+            ]
+          ],
+          "id": 17425,
+          "question": "cut.test.",
+          "rcode": 0,
+          "truncated": true
+        },
+        "captured_response_sha256": [
+          "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+        ],
+        "client_reply": {
+          "addresses": [
+            [
+              192,
+              0,
+              2,
+              53
+            ]
+          ],
+          "id": 17425,
+          "question": "cut.test.",
+          "rcode": 0,
+          "truncated": true
+        },
+        "client_response_sha256": [
+          "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+        ],
+        "cookie": 32861,
+        "elapsed_us": 51995,
+        "end_ns": 66023364043898,
+        "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+        "response_count": 1,
+        "start_ns": 66023312048433,
+        "timeout": false
+      },
+      {
+        "captured_query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+        "captured_reply": null,
+        "captured_response_sha256": [],
+        "client_reply": null,
+        "client_response_sha256": [],
+        "cookie": 32861,
+        "elapsed_us": 357976,
+        "end_ns": 66023722050272,
+        "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+        "response_count": 0,
+        "start_ns": 66023364073734,
+        "timeout": true
+      },
+      {
+        "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+        "captured_reply": {
+          "addresses": [
+            [
+              192,
+              0,
+              2,
+              7
+            ]
+          ],
+          "id": 17425,
+          "question": "ok.test.",
+          "rcode": 0,
+          "truncated": false
+        },
+        "captured_response_sha256": [
+          "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+        ],
+        "client_reply": {
+          "addresses": [
+            [
+              192,
+              0,
+              2,
+              7
+            ]
+          ],
+          "id": 17425,
+          "question": "ok.test.",
+          "rcode": 0,
+          "truncated": false
+        },
+        "client_response_sha256": [
+          "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+        ],
+        "cookie": 32861,
+        "elapsed_us": 50977,
+        "end_ns": 66023773053677,
+        "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+        "response_count": 1,
+        "start_ns": 66023722075931,
+        "timeout": false
+      },
+      {
+        "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+        "captured_reply": {
+          "addresses": [
+            [
+              192,
+              0,
+              2,
+              7
+            ]
+          ],
+          "id": 17425,
+          "question": "ok.test.",
+          "rcode": 0,
+          "truncated": false
+        },
+        "captured_response_sha256": [
+          "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+        ],
+        "client_reply": {
+          "addresses": [
+            [
+              192,
+              0,
+              2,
+              7
+            ]
+          ],
+          "id": 17425,
+          "question": "ok.test.",
+          "rcode": 0,
+          "truncated": false
+        },
+        "client_response_sha256": [
+          "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+        ],
+        "cookie": 32862,
+        "elapsed_us": 50966,
+        "end_ns": 66023824038105,
+        "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+        "response_count": 1,
+        "start_ns": 66023773071370,
+        "timeout": false
+      }
+    ],
+    "ok": true,
+    "owned_resources_removed": true,
+    "packages": [
+      {
+        "facts": 19,
+        "flows": 2,
+        "matched_cookies": [
+          32861,
+          32862
+        ],
+        "packet_only": true,
+        "path": "protocols/dns/udp/main.gewy",
+        "phases": [
+          "send_request",
+          "receive_reply"
+        ],
+        "process_attribution": false,
+        "replay_identical": true,
+        "source_sha256": "e8bd32047ced23d86b69ec61e5f09028511176f70e2a204444471b1ed3555be8"
+      },
+      {
+        "facts": 19,
+        "flows": 2,
+        "matched_cookies": [
+          32861
+        ],
+        "packet_only": true,
+        "path": "protocols/dns/error/main.gewy",
+        "phases": [
+          "receive_formerr",
+          "receive_servfail",
+          "receive_nxdomain",
+          "receive_refused"
+        ],
+        "process_attribution": false,
+        "replay_identical": true,
+        "source_sha256": "831563e402af213be9ae429af537fd648245670c3b9ebcb24e60652f9ae72aa2"
+      }
+    ],
+    "published_ports": false,
+    "schema_version": 1,
+    "selected_sockets": [
+      [
+        32861,
+        48915
+      ],
+      [
+        32862,
+        50161
+      ]
+    ],
+    "unselected_neighbor_cookie": 4202,
+    "unselected_neighbor_reply": {
+      "addresses": [],
+      "id": 17425,
+      "question": "nx.test.",
+      "rcode": 3,
+      "truncated": false
+    }
+  },
+  "snmp_regression": {
+    "checks": [
+      "real_private_Net_SNMP",
+      "GET_GETNEXT_GETBULK",
+      "noSuchObject_not_success",
+      "wrong_community_timeout_then_recovery",
+      "same_request_id_distinct_sockets",
+      "bidirectional_kernel_bytes_match_client",
+      "neighbor_excluded",
+      "packet_only_replay",
+      "owned_cleanup_and_fresh_HTTP"
+    ],
+    "config_sha256": "a701b3a4625428925a8429223fd31db50109339066ac9da2fac804d64d92bd8e",
+    "container_id": "a2e6ddeb8d52556fc9e24706c9c09cf8c058e0475567f7a8a050fcaa146e9c5b",
+    "egress_counts": {
+      "dropped": 0,
+      "total": 7
+    },
+    "image_id": "sha256:47bcb964731d1bfe709363eb9254963d8dac409f148d28e793b674b268541e30",
+    "ingress_counts": {
+      "dropped": 0,
+      "total": 6
+    },
+    "internal_network": true,
+    "mode": "udp-snmp",
+    "neighbor_cookie": 40981,
+    "network_id": "f052cac0d9d0ff4d066b014f5e1da873acdb0518d316ebb5b328302b1d336883",
+    "not_proven": [
+      "SNMPv3_auth_or_privacy",
+      "SET_trap_inform",
+      "full_MIB_walk",
+      "product_request_response_correlation",
+      "IPv6_or_IP_reassembly",
+      "UDP_throughput",
+      "PID_attribution",
+      "multiple_hosts_or_kernels"
+    ],
+    "observations": [
+      {
+        "captured_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+        "captured_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+        "case": "get",
+        "client_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+        "client_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+        "cookie": 40979,
+        "end_ns": 66060676484539,
+        "legacy_request_byte13": 114,
+        "legacy_response_byte13": 114,
+        "no_such_object": false,
+        "request_bytes": 49,
+        "request_id": 1,
+        "response_bytes": 62,
+        "start_ns": 66060676302134,
+        "timeout": false
+      },
+      {
+        "captured_request_sha256": "df0117ccfca6ec571238ecc97fc21fb16e55d6717f78ce2a811db17b2da51e6f",
+        "captured_response_sha256": "145df115d7896a7c58d9838d2900b6969cea01e50d74a1be55d69654781550f6",
+        "case": "get-next",
+        "client_request_sha256": "df0117ccfca6ec571238ecc97fc21fb16e55d6717f78ce2a811db17b2da51e6f",
+        "client_response_sha256": "145df115d7896a7c58d9838d2900b6969cea01e50d74a1be55d69654781550f6",
+        "cookie": 40979,
+        "end_ns": 66060676548881,
+        "legacy_request_byte13": 114,
+        "legacy_response_byte13": 114,
+        "no_such_object": false,
+        "request_bytes": 49,
+        "request_id": 128,
+        "response_bytes": 63,
+        "start_ns": 66060676494839,
+        "timeout": false
+      },
+      {
+        "captured_request_sha256": "c1c2da874ebc4346f5e4d82641da3e62707c352811973322e30ab1e97298dba5",
+        "captured_response_sha256": "fd9eba66a12a24d7790f1f1eb099ffd19dc5fce8a4daa9dc712a8c565175899d",
+        "case": "get-bulk",
+        "client_request_sha256": "c1c2da874ebc4346f5e4d82641da3e62707c352811973322e30ab1e97298dba5",
+        "client_response_sha256": "fd9eba66a12a24d7790f1f1eb099ffd19dc5fce8a4daa9dc712a8c565175899d",
+        "cookie": 40979,
+        "end_ns": 66060676602082,
+        "legacy_request_byte13": 114,
+        "legacy_response_byte13": 114,
+        "no_such_object": false,
+        "request_bytes": 49,
+        "request_id": 32768,
+        "response_bytes": 64,
+        "start_ns": 66060676556466,
+        "timeout": false
+      },
+      {
+        "captured_request_sha256": "fbc39c555c4c61bef1c116501b281fe6b03d04a61662e305d6b6c4b4d66ba240",
+        "captured_response_sha256": "6ba02dafe554f7cab62c4852c90461b5cb958fe64733891790b793ff120cec05",
+        "case": "unknown-oid",
+        "client_request_sha256": "fbc39c555c4c61bef1c116501b281fe6b03d04a61662e305d6b6c4b4d66ba240",
+        "client_response_sha256": "6ba02dafe554f7cab62c4852c90461b5cb958fe64733891790b793ff120cec05",
+        "cookie": 40979,
+        "end_ns": 66060676653450,
+        "legacy_request_byte13": 114,
+        "legacy_response_byte13": 114,
+        "no_such_object": true,
+        "request_bytes": 50,
+        "request_id": 2,
+        "response_bytes": 47,
+        "start_ns": 66060676611280,
+        "timeout": false
+      },
+      {
+        "captured_request_sha256": "a9c790cc666d83a4999b83d973714a54d8e785493d50455926a563139cf3cc3a",
+        "captured_response_sha256": null,
+        "case": "wrong-community",
+        "client_request_sha256": "a9c790cc666d83a4999b83d973714a54d8e785493d50455926a563139cf3cc3a",
+        "client_response_sha256": null,
+        "cookie": 40979,
+        "end_ns": 66061035020884,
+        "legacy_request_byte13": 116,
+        "legacy_response_byte13": null,
+        "no_such_object": false,
+        "request_bytes": 51,
+        "request_id": 3,
+        "response_bytes": null,
+        "start_ns": 66060676662236,
+        "timeout": true
+      },
+      {
+        "captured_request_sha256": "22a9ed4a1d258604b81adcccd2f62e152e921e1526a16542a1c2859613dd3b1e",
+        "captured_response_sha256": "bd8fe483a44c244163e6abbe349784a946f0ae414b586aaba3ee1dff7151e8a0",
+        "case": "recovery-get",
+        "client_request_sha256": "22a9ed4a1d258604b81adcccd2f62e152e921e1526a16542a1c2859613dd3b1e",
+        "client_response_sha256": "bd8fe483a44c244163e6abbe349784a946f0ae414b586aaba3ee1dff7151e8a0",
+        "cookie": 40979,
+        "end_ns": 66061035193662,
+        "legacy_request_byte13": 114,
+        "legacy_response_byte13": 114,
+        "no_such_object": false,
+        "request_bytes": 49,
+        "request_id": 4,
+        "response_bytes": 62,
+        "start_ns": 66061035051181,
+        "timeout": false
+      },
+      {
+        "captured_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+        "captured_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+        "case": "get",
+        "client_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+        "client_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+        "cookie": 40980,
+        "end_ns": 66061035268884,
+        "legacy_request_byte13": 114,
+        "legacy_response_byte13": 114,
+        "no_such_object": false,
+        "request_bytes": 49,
+        "request_id": 1,
+        "response_bytes": 62,
+        "start_ns": 66061035198481,
+        "timeout": false
+      }
+    ],
+    "ok": true,
+    "owned_resources_removed": true,
+    "packages": [
+      {
+        "legacy_fixed_offset_matching_stages": 0,
+        "packet_only": true,
+        "path": "protocols/snmp/get/main.gewy",
+        "replay_identical": true,
+        "request_phase": "send_get_request",
+        "response_is_generic_candidate": true,
+        "response_phase": "receive_get_response",
+        "source_sha256": "423e7250bf0a19b818e1bddfe84f7f34a09436c5eddfa8cd89e6b180891610b7",
+        "transaction_correlation": false
+      },
+      {
+        "legacy_fixed_offset_matching_stages": 0,
+        "packet_only": true,
+        "path": "protocols/snmp/get-next/main.gewy",
+        "replay_identical": true,
+        "request_phase": "send_get_next_request",
+        "response_is_generic_candidate": true,
+        "response_phase": "receive_get_next_response",
+        "source_sha256": "d62221db6ad80382e927a6e5821bb3f4754027352fb400cefb4da509c9f74a60",
+        "transaction_correlation": false
+      },
+      {
+        "legacy_fixed_offset_matching_stages": 0,
+        "packet_only": true,
+        "path": "protocols/snmp/bulk/main.gewy",
+        "replay_identical": true,
+        "request_phase": "send_bulk_request",
+        "response_is_generic_candidate": true,
+        "response_phase": "receive_bulk_response",
+        "source_sha256": "d959e72dead16021142a0edfa675d50d6997a87524dd216daa478f5b99f74c66",
+        "transaction_correlation": false
+      }
+    ],
+    "published_ports": false,
+    "schema_version": 1,
+    "selected_sockets": [
+      [
+        40979,
+        49321
+      ],
+      [
+        40980,
+        58743
+      ]
+    ]
+  },
+  "cleanup": {
+    "owned_targets_networks_cgroups_bpf_links_removed": true,
+    "unrelated_container_network_volume_inventory_unchanged": true,
+    "baseline_containers": 15,
+    "baseline_networks": 6,
+    "baseline_volumes": 54,
+    "build_container_removed": true,
+    "bpffs_and_cgroup_capture_paths_remaining": 0,
+    "global_prune_used": false
+  },
+  "validation": {
+    "related_test_targets": 15,
+    "passed": 2089,
+    "failed": 0,
+    "ignored": 1,
+    "ignored_reason": "existing fixed synthetic input stage profile, not live capture throughput",
+    "clippy_warnings_denied": true,
+    "cargo_fmt_check": true,
+    "git_diff_check": true,
+    "scope": "library, validation CLI, NTP/SNMP/RTSP runtime, DSL, registry, runtime IR, failure IR, native harness, CLI JSON, export, status, language docs and independence; not a full workspace or release gate"
+  },
+  "limitations": [
+    "clock_accuracy_or_clock_discipline",
+    "real_KoD_rate_limit",
+    "NTS_MAC_or_extension_authentication",
+    "product_origin_correlation",
+    "IPv6_or_IP_reassembly",
+    "UDP_throughput",
+    "PID_attribution",
+    "multiple_hosts_or_kernels",
+    "synthetic_local_reference_is_not_accurate_time",
+    "default_sparse_collector_requires_unsupported_offset_diagnostics",
+    "trailing_extension_or_MAC_bytes_are_not_validated",
+    "client_oracle_origin_check_is_not_product_correlation"
+  ]
+}

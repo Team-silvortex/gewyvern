@@ -1,0 +1,810 @@
+{
+  "schema_version": 1,
+  "campaign": "explicit-product-linux-udp-lifecycle",
+  "date": "2026-11-13",
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "source_base_commit": "39eeb7d1f03c92f007daa1ac5d72aee311fead5e",
+  "source_worktree_dirty": true,
+  "source_sha256": {
+    "Cargo.toml": "b4e09c55b8497e1c30df15836bbf94caaa8e34f58d3a4f926e6a9454a9817827",
+    "Cargo.lock": "e2bb05484df435e37cca096402a22f3f7480581d851cab7009b645de0630fb11",
+    "ebpf/production/udp.bpf.c": "867e71774df6c9bbf69370ce712d527c0d7a8dede8eba1eff0975d76e1c1c1e3",
+    "src/lib.rs": "2d46e1166f63526446c2e7dab6571c2c3f3626d14c8450d7d105556c75d6a895",
+    "src/live_capture.rs": "fd14b4925528b4c8b22ebc3a3d0f1890c098d862fa5df8f0fdb9a59eb42448ab",
+    "src/live_capture/linux.rs": "1e166da359d5f11624e545fc2fef57182fa1a48b76c4dbc4d34dd5cd9ac084ed",
+    "src/live_capture/linux/api.rs": "77426bb0cee7018f88a3d1a0cc24d316f99ad8df35e05c962fab8382942b7d0d",
+    "src/export.rs": "58691c97e23343d041630d3aafd63febb8568f0eb0114b43dbb3b45ad96b78c4",
+    "src/export/capture_codec.rs": "55c07226d16d934f7c0586e26c42fca419f46d4daab5fb9b6784ace76f6243da",
+    "src/runtime.rs": "e6250cfbebb2088da5a89805e473c3588a782a546fcb753fce67a703554c17c3",
+    "src/main.rs": "e5f3bee56d4a9b5be9a5898ba71a9ad4c97692972bd7e8b98ef47733655bc491",
+    "src/main/cli.rs": "6aa118f28e006d456449db486fed96a23e942a5a046542efaa23c49cb317cb43",
+    "src/main/cli_validation.rs": "34ca21a7897f8279710c2902332074198aaf51afd2969d4813ed93227e8bfc19",
+    "src/main/capture_cli.rs": "92fa52a61995c9cf3e5fbff54d24238a26bad53ecd9f3c99c105d596d103f0c3",
+    "src/main/capture_runtime.rs": "9e37ac8545531351f12ecf2ca4066ba44d0d6cf98b60604819fc599fec694985",
+    "src/serve_runtime.rs": "a0bb6d7975b2903a272f599bf7009db3f0a9a23f1fdb97a887bebbe4eb50d910",
+    "src/main/helpers.rs": "c38c3c78ff31451b3644a31a53e1d310bb56fd34b7c34625af9f7dd7967cc374",
+    "src/main/tests/reports.rs": "4cd301234d40c83829be0f3c87f79799997b3633fe7184410ab6ca7c0e9b17bd",
+    "src/packet_capture.rs": "50cf644ff5bf466169296b79850bd8e128df60734978ee500ddb1d3c70ac8014",
+    "tests/production_capture_linux_tdd.rs": "023e1d5022a2f7468b4277cf12c4e22abefb91a0eee2b5b4a6b073e14bdb1660"
+  },
+  "source_scope": "Selected capture, adapter, CLI and integration sources match the Linux workspace byte-for-byte; this is not a hermetic full-worktree release manifest.",
+  "binary_sha256": "45f4f0b14ba8d8d3ef5c8902f6870219438d9dcdebe5e638ef48c0da2644159b",
+  "lifecycle_test_sha256": "6ee0f8e3c494f3f2f7a222f0504cfd23821a51b737a3ec1c0fa811ba356bc200",
+  "execution": {
+    "kernel": "7.0.0-42-generic",
+    "architecture": "x86_64",
+    "os": "Ubuntu Linux",
+    "rust": "1.98.0",
+    "build_profile": "dev/test, gewyvern opt-level=2, debug=0, incremental=0",
+    "build_location": "remote Linux, unprivileged Docker build only",
+    "build_limits": {
+      "cpus": 2,
+      "memory_gib": 4,
+      "pids": 512
+    },
+    "runtime": "native host root process, no Docker target and no validation capture producer",
+    "evidence_root": "/home/chiharukiryu/.cache/gewyvern/evidence/20261113-production-udp",
+    "run_directories": [
+      "verified-1",
+      "verified-2",
+      "verified-3"
+    ],
+    "service_traffic_iterations": [
+      3000,
+      200,
+      200
+    ],
+    "service_pause_ms": 20,
+    "final_campaign_seconds": [
+      69.92,
+      13.29,
+      13.31
+    ],
+    "test_selector": "--ignored --exact production_capture_cli_lifecycle_and_loss --nocapture"
+  },
+  "automatic_product_cli_attachment": true,
+  "continuous_product_service_windows": true,
+  "installed_tls_service_capture_selection": false,
+  "cross_window_transaction_continuity": false,
+  "unattended_supervisor_restart_verified": false,
+  "host_crash_resume_verified": false,
+  "surface": {
+    "protocol": "direct UDP",
+    "ip_versions": [
+      4,
+      6
+    ],
+    "scope": "explicit non-root cgroup v2 and one selected UDP port",
+    "payload_prefix_bytes": 128,
+    "observed_payload_bytes": 22,
+    "full_ip_lengths": [
+      50,
+      70
+    ],
+    "packet_endpoint_addresses_exported": false,
+    "pid_attribution": false,
+    "ingest_trust_mode": "unverified-local",
+    "namespace_identity": "bounded run-local IDs, kernel cookie mapping not exported",
+    "hooks": "cgroup_skb ingress/egress; observe-only",
+    "bpf_links": "process-owned, unpinned BPF_LINK_CREATE",
+    "compiler": "embedded product C compiled by /usr/bin/clang with bounded output/deadline",
+    "library": "libbpf.so.1, including ring_buffer__consume_n",
+    "counter_encoding": "canonical u64 decimal strings",
+    "final_accounting": [
+      "received + kernel.ring_dropped = kernel.matched",
+      "retained + userspace_dropped + decode_rejected = received"
+    ],
+    "loss_exit_code": 3
+  },
+  "reproduced_issue": {
+    "issue": "Full API/catalog/history tree was copied on every short capture window",
+    "unbounded_growth": false,
+    "prior_history_retention": 32,
+    "before_run": "final-1",
+    "after_run": "verified-1",
+    "before_binary_sha256": "bc14cb564066486d20f5641d1ab7db93061e0626277e010c44ac86b4abcfd4bf",
+    "same_service_observations": 12000,
+    "before_history_kib": 147528,
+    "after_history_kib": 4072,
+    "before_latest_tree_kib": 4588,
+    "after_latest_tree_kib": 4068,
+    "history_reduction_percent": 97.24,
+    "fix": "Update live API and atomic output/status per window; persist full API/history tree only on terminal publication",
+    "socket_ingest_policy_changed": false,
+    "measurement_scope": "Allocated disk after this bounded run, not total write bytes, throughput or long-run RSS",
+    "redundant_pre_fix_history_trees_removed": true
+  },
+  "runs": [
+    {
+      "cases": [
+        {
+          "case": "oneshot_ipv4_ipv6",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1735176-1794571497127908273",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "64",
+            "run_id": "1735181-73836310280440",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 59109,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "service_api_sigterm_and_exclusion",
+          "nonempty_windows": 237,
+          "running_history_snapshots": 0,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1735176-1794571497127908273",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "12000",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "12000",
+            "retained": "12000",
+            "run_id": "1735347-73838475835467",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 59109,
+            "userspace_dropped": "0"
+          },
+          "terminal_history_snapshots": 1
+        },
+        {
+          "case": "kernel_overflow_and_resume",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1735176-1794571497127908273",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "10016",
+              "no_cookie": "0",
+              "ring_dropped": "9982",
+              "unsupported": "0"
+            },
+            "received": "34",
+            "retained": "34",
+            "run_id": "1738860-73900258375029",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 59109,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "userspace_budget",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1735176-1794571497127908273",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "1",
+            "run_id": "1738875-73900723277312",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 59109,
+            "userspace_dropped": "63"
+          }
+        },
+        {
+          "case": "sigkill_detaches_unpinned_links",
+          "final_counters_available": false,
+          "ok": true
+        },
+        {
+          "case": "output_failure_detaches",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1735176-1794571497127908273",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1739030-73902983847339",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 59109,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "scope_removal_stops_capture",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1735176-1794571497127908273",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1739035-73903632338609",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 59109,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "bounded_service_idle_shutdown",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1735176-1794571497127908273",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1739040-73903735442438",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 59109,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "restart_after_kill_and_output_failure",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1735176-1794571497127908273",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1739047-73904009529966",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 59109,
+            "userspace_dropped": "0"
+          }
+        }
+      ],
+      "docker_targets_used": false,
+      "no_pinned_objects": true,
+      "ok": true,
+      "owned_cgroup_removed": true,
+      "pid_attribution": false,
+      "real_production_binary": true,
+      "schema_version": 1,
+      "traffic": "native IPv4/IPv6 loopback DNS-shaped peers",
+      "udp_port": 59109,
+      "validation_capture_used": false
+    },
+    {
+      "cases": [
+        {
+          "case": "oneshot_ipv4_ipv6",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1740665-1794571597988328777",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "64",
+            "run_id": "1740670-73937164734242",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 37622,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "service_api_sigterm_and_exclusion",
+          "nonempty_windows": 15,
+          "running_history_snapshots": 0,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1740665-1794571597988328777",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "800",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "800",
+            "retained": "800",
+            "run_id": "1740777-73939321605291",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 37622,
+            "userspace_dropped": "0"
+          },
+          "terminal_history_snapshots": 1
+        },
+        {
+          "case": "kernel_overflow_and_resume",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1740665-1794571597988328777",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "10016",
+              "no_cookie": "0",
+              "ring_dropped": "9982",
+              "unsupported": "0"
+            },
+            "received": "34",
+            "retained": "34",
+            "run_id": "1741103-73944508444822",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 37622,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "userspace_budget",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1740665-1794571597988328777",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "1",
+            "run_id": "1741161-73944973504675",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 37622,
+            "userspace_dropped": "63"
+          }
+        },
+        {
+          "case": "sigkill_detaches_unpinned_links",
+          "final_counters_available": false,
+          "ok": true
+        },
+        {
+          "case": "output_failure_detaches",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1740665-1794571597988328777",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1741288-73947233598296",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 37622,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "scope_removal_stops_capture",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1740665-1794571597988328777",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1741397-73947874917178",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 37622,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "bounded_service_idle_shutdown",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1740665-1794571597988328777",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1741405-73947972816197",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 37622,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "restart_after_kill_and_output_failure",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1740665-1794571597988328777",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1741425-73948246796148",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 37622,
+            "userspace_dropped": "0"
+          }
+        }
+      ],
+      "docker_targets_used": false,
+      "no_pinned_objects": true,
+      "ok": true,
+      "owned_cgroup_removed": true,
+      "pid_attribution": false,
+      "real_production_binary": true,
+      "schema_version": 1,
+      "traffic": "native IPv4/IPv6 loopback DNS-shaped peers",
+      "udp_port": 37622,
+      "validation_capture_used": false
+    },
+    {
+      "cases": [
+        {
+          "case": "oneshot_ipv4_ipv6",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1743907-1794571642847159691",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "64",
+            "run_id": "1743912-73982023563159",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 36043,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "service_api_sigterm_and_exclusion",
+          "nonempty_windows": 15,
+          "running_history_snapshots": 0,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1743907-1794571642847159691",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "800",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "800",
+            "retained": "800",
+            "run_id": "1743965-73984185840611",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 36043,
+            "userspace_dropped": "0"
+          },
+          "terminal_history_snapshots": 1
+        },
+        {
+          "case": "kernel_overflow_and_resume",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1743907-1794571642847159691",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "10016",
+              "no_cookie": "0",
+              "ring_dropped": "9982",
+              "unsupported": "0"
+            },
+            "received": "34",
+            "retained": "34",
+            "run_id": "1744317-73989374461877",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 36043,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "userspace_budget",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1743907-1794571642847159691",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "1",
+            "run_id": "1744346-73989849162373",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 36043,
+            "userspace_dropped": "63"
+          }
+        },
+        {
+          "case": "sigkill_detaches_unpinned_links",
+          "final_counters_available": false,
+          "ok": true
+        },
+        {
+          "case": "output_failure_detaches",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1743907-1794571642847159691",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1744455-73992109124800",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 36043,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "scope_removal_stops_capture",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1743907-1794571642847159691",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1744485-73992743884331",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 36043,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "bounded_service_idle_shutdown",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1743907-1794571642847159691",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1744490-73992850912560",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 36043,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "restart_after_kill_and_output_failure",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1743907-1794571642847159691",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1744498-73993126579015",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 36043,
+            "userspace_dropped": "0"
+          }
+        }
+      ],
+      "docker_targets_used": false,
+      "no_pinned_objects": true,
+      "ok": true,
+      "owned_cgroup_removed": true,
+      "pid_attribution": false,
+      "real_production_binary": true,
+      "schema_version": 1,
+      "traffic": "native IPv4/IPv6 loopback DNS-shaped peers",
+      "udp_port": 36043,
+      "validation_capture_used": false
+    }
+  ],
+  "totals": {
+    "campaigns": 3,
+    "cases": 27,
+    "normal_observations": 13888,
+    "normal_observation_loss": 0,
+    "intentional_ring_pressure_matched": 30048,
+    "intentional_ring_dropped": 29946,
+    "intentional_userspace_budget_received": 192,
+    "intentional_userspace_dropped": 189
+  },
+  "regression": {
+    "related_suite": {
+      "library_passed": 607,
+      "cli_passed": 455,
+      "export_contract_passed": 5,
+      "failed": 0,
+      "ignored_nonprivileged": 16
+    },
+    "final_capture_filtered": {
+      "library_passed": 103,
+      "cli_passed": 4,
+      "failed": 0
+    },
+    "cli_after_persistence_fix": {
+      "passed": 455,
+      "failed": 0,
+      "ignored": 13
+    },
+    "clippy": {
+      "passed": true,
+      "warnings_denied": true,
+      "targets": [
+        "lib",
+        "gewyvern",
+        "production_capture_linux_tdd",
+        "native_validation_harness_tdd"
+      ]
+    },
+    "format_and_diff_check": true,
+    "full_workspace_suite_run": false,
+    "native_evidence_checks": {
+      "passed": 49,
+      "failed": 0
+    },
+    "status_tensor_validation": {
+      "status": "valid",
+      "schema_version": 4,
+      "cells": 39,
+      "coverage_requirements": 37
+    }
+  },
+  "cleanup": {
+    "docker_inventory_restored": true,
+    "existing_containers": 15,
+    "existing_networks": 6,
+    "existing_volumes": 54,
+    "owned_build_container_removed": true,
+    "owned_cgroups_remaining": 0,
+    "owned_compiler_directories_remaining": 0,
+    "preexisting_resources_modified": false,
+    "mac_build_performed": false
+  },
+  "limits": [
+    "Only selected cgroup hook observations are counted; no claim about loss outside or before those hooks.",
+    "Direct IPv4/IPv6 UDP only; TCP, IPv6 extension headers, fragments, jumbograms and checksum verification are not covered.",
+    "IPv4/IPv6 loopback DNS-shaped peers are not a full DNS server conformance, public-network or throughput test.",
+    "Independent latest windows are not cross-batch transactions or a durable packet archive; a final window can be empty.",
+    "SIGKILL releases attachments but loses unflushed data/final counters; stale state may still say running.",
+    "Persistent API history is terminal-only; after a crash inspect the explicit output/status and process liveness.",
+    "Installed TLS-service/control-plane capture selection, least-privilege capability deployment and precompiled BPF packaging remain separate.",
+    "Startup SIGKILL scratch cleanup, automatic supervisor restart, host failure recovery, hour-scale product RSS and other kernels/hosts remain unproven."
+  ]
+}

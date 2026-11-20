@@ -10,10 +10,7 @@ use gewyvern::protocol_profiles::{
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use std::time::{Duration, SystemTime};
-use support::{
-    route_fact, sock_lineage_fact,
-    udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13,
-};
+use support::{complete_snmp_packet, route_fact, sock_lineage_fact};
 
 fn fixture_path(base: &str, relative: &str) -> String {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -50,20 +47,18 @@ fn ingest_snmp_pdu(
     payload_prefix4: u32,
     payload_byte13: u8,
 ) {
-    session.ingest(
-        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-            id,
-            cookie,
-            tot_len,
-            dir,
-            Some(local_port),
-            Some(remote_port),
-            Some(0x30),
-            Some(payload_prefix2),
-            Some(payload_prefix4),
-            Some(payload_byte13),
-        ),
-    );
+    session.ingest(complete_snmp_packet(
+        id,
+        cookie,
+        tot_len,
+        dir,
+        Some(local_port),
+        Some(remote_port),
+        Some(0x30),
+        Some(payload_prefix2),
+        Some(payload_prefix4),
+        Some(payload_byte13),
+    ));
 }
 fn snmp_v3_udp_packet_fact(
     id: u64,

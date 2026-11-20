@@ -80,10 +80,91 @@ still centered on:
   Protocol registry discovery, alias handling, and built-in protocol selection.
 - `src/socket_input.rs`
   Advisory socket ingest, bounded fact collection, and listener setup helpers.
+- `src/packet_capture.rs`
+  Product-owned bounded UDP observation-to-fact conversion for IPv4/IPv6.
+  It validates normalized framing and observed-prefix bounds, not probe
+  attachment, raw IP parsing, checksums or producer authentication.
+- `src/live_capture.rs`, `src/live_capture/linux/`, `ebpf/production/udp.bpf.c`
+  Product-owned cgroup UDP collector, bounded ABI, libbpf ownership, loss
+  accounting and detach/drain lifecycle. It has no validation-harness dependency.
+- `src/main/capture_cli.rs`, `src/main/capture_runtime.rs`
+  Explicit CLI admission and independent service-window consumption. Existing
+  `serve_runtime` owns API/output publication; `export/capture_codec.rs` owns
+  optional strict capture metadata and replay preservation.
+- `crates/gewyvern-install-contract/src/capture.rs`, `src/gewyvern_install/capture.rs`
+  Typed opt-in installation plan and the installed TLS service adapter. The
+  adapter reuses the CLI capture loop rather than owning another collector;
+  generation binding, private roots and matching-live-capture readiness remain
+  installer responsibilities. Leserpent plan selection is a separate adapter.
 - `src/http.rs`
   HTTP/HTTP3 transaction composition helpers.
 
 ## Boundary Rules
+
+### Field Validation Is A Consumer
+
+`linux_tcp_capture/linux/udp_dns.rs` shares one private CoreDNS target/client
+fixture across validation and production modes. Its `production.rs` child starts
+the formal CLI and only checks the resulting export against independent client
+bytes. It neither imports the validation BPF producer nor reconstructs missing
+facts from the oracle. This is a consumer of product capture, not another
+collector implementation.
+
+`linux_tcp_capture/linux/product_udp.rs` owns the shared formal-CLI lifecycle,
+full bounded packet-byte oracle and phase-to-client-evidence checks. DNS reuses
+its lifecycle/packet check; SNMP, NTP and STUN add protocol-specific expectations
+through small `production.rs` consumers. Target/client ownership stays in each
+existing protocol fixture; no second product collector or shell driver is added.
+
+`tests/production_capture_linux_tdd/systemd.rs` drives unchanged installed units
+through the real host manager. Its `systemd_reference.rs` helper only keeps
+manager exit metadata alive during assertions; libsystemd is a requirement of
+this opt-in test, not a new product collector dependency or a second supervisor.
+
+`src/validation_harness/` exercises the product runtime; production matching,
+capture and replay must not import its fixtures as their semantic implementation.
+The UDP field adapter calls `packet_capture::CapturedUdpDatagram::into_fact`;
+socket-cookie/tuple/time-window reconciliation remains an independent fixture
+check. `tests/ipv6_capture_ingest_tdd.rs` feeds fresh captured facts into a
+separate product CLI process, with the default registry, over Unix, IPv4 TCP and
+IPv6 TCP. That input-path proof must not be relabeled an automatically attached
+or continuous production eBPF collector. `LinuxProbeLoader` probes hook
+availability; it does not start such a collector.
+The separate `live_capture::Collector` now supplies explicit product CLI and
+`--serve` capture. `tests/production_capture_linux_tdd.rs` starts the real binary
+and independently generates/checks traffic. See [the operator boundary](live-udp-capture.md);
+this bounded UDP path does not imply general TCP capture or persistent sessions.
+The Linux protocol breadth path has these owners:
+
+| Module under `linux_tcp_capture/linux/` | Owns |
+| --- | --- |
+| `data_breadth.rs` | campaign ordering, capture attachment, selected sockets, final report |
+| `data_breadth/catalog.rs` | immutable protocol identity, pinned images, named package expectations, campaign labels |
+| `data_breadth/target.rs` | private target startup/readiness, uncaptured setup, publisher/container/network teardown |
+| `data_breadth/evidence.rs` | independent raw-byte reconciliation, source-packet candidate checks, package replay assertions |
+| `data_breadth/wire.rs` and protocol modules | bounded independent clients and response decoding |
+| `docker_target.rs` | label-checked resource ownership and private IPv4 / IPv6-only ULA endpoint admission shared by Linux fixtures |
+| `udp_capture.rs` and `../udp_evidence.rs` | shared bounded UDP socket/tuple capture, explicit address family and full address width, loss checks and packet-only replay; remote port is explicit |
+| `udp_dns.rs` / `udp_snmp.rs` / `udp_ntp.rs` / `udp_stun.rs` and their submodules | protocol-specific targets, native client oracles and reconciliation; never product decoders; NTP/STUN target isolation lives in their `target.rs` modules |
+| `packet_capture.rs`, `bounded_stream.rs` | capture scope and bounded response reconstruction |
+
+`catalog.rs` is fixture policy, not the product protocol registry. Its package
+source and path come from one literal; borrowed static cases avoid rebuilding
+the table at every run. Frozen field proofs check campaign labels, case order,
+selected-connection expectations, command counts and image identities.
+
+The target owns publisher, container and network in that drop order. Explicit
+success cleanup still verifies removal; error paths retain ownership-checked
+RAII cleanup. Evidence verification cannot create Docker targets, and target
+startup cannot decide whether a product candidate is correct. Protocol-specific
+candidate checks deliberately remain independent from `src/ir/` matching so a
+product bug cannot validate itself. Existing CLI modes and report schema stay
+unchanged; historical proofs retain the source hashes from their original runs.
+The [Linux refactor proof](fixtures/gewyvern_breadth_architecture_linux_x86_64_20261113.json)
+records six fresh campaigns across all nine protocols and 37 package cases;
+this is compatibility evidence, not a new protocol maturity or performance claim.
+
+### Product Layering
 
 The intended boundary rules are:
 
@@ -139,12 +220,18 @@ diagnosis_runtime
 The core substrate remains below that layer:
 
 ```text
-dsl -> ir -> runtime / fragment / export / flow / program
+dsl -> template / program / reason / ir
+runtime -> fragment / loader / program / reason / flow / ledger
+program / reason -> ir -> flow / ledger
+runtime <-> export (snapshot construction / deterministic replay)
 ```
 
 This is intentionally approximate, not a formal module system. The important
 part is the direction: entry and operator-facing layers should depend on core
 runtime semantics, not the other way around.
+The runtime/export replay relationship is still inside the root crate; these
+source modules are not independent acyclic Cargo packages. Protocol matching
+belongs below program/reason assembly, not above runtime orchestration.
 
 ## When To Touch Which File
 

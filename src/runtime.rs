@@ -573,6 +573,7 @@ fn build_export_bundle(state: ExportState, analysis: ExportAnalysis) -> ExportBu
     ExportBundle {
         template_id: state.template_id,
         ingest_trust_mode: "unspecified".into(),
+        capture: None,
         fragment_inventory,
         attach_plan: state.attach_plan,
         attach_report: state.attach_report,

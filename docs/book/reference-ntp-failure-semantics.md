@@ -10,7 +10,7 @@ Read it alongside:
 Use this page for:
 
 - `query` reply timeout
-- `sync` follow-up or discipline timeout
+- `sync` candidate time-reply absence (not a clock-discipline timeout)
 - separating "no reply" from "stale local time state"
 
 ## Common NTP Shapes
@@ -27,16 +27,22 @@ Expected summary labels:
 - `primary_failure_detail = request_sent_no_reply`
 - `primary_failure_basis = missing_transition`
 
-### 2. Sync follow-up not completed
+### 2. Qualified time reply not observed
 
 Typical transition:
 
 - `send_sync_request->receive_sync_response`
 
-Depending on the exact path, this may land as:
+The generic transition diagnosis may still use these labels:
 
-- `no_response` if the sync datagram was emitted
-- `not_sent` if the follow-up never left the runtime
+- `no_response` if a request candidate was emitted but no qualified time reply was observed
+- `not_sent` if no request candidate was observed
+
+These labels describe missing candidate phases, not proof that UDP delivered
+nothing. An unsynchronised or KoD server can reply while correctly failing the
+`time_reply` predicate. Inspect the generic `query`/`client` response evidence
+and raw LI/stratum fields before assigning a transport timeout. No packet phase
+proves that the local clock was adjusted or that a discipline action completed.
 
 ### 3. Stale local clock state
 
@@ -45,7 +51,7 @@ This is not a wire-level failure by itself.
 Treat stale local state separately from:
 
 - a missing NTP reply
-- a missing sync acknowledgement
+- a missing usable time-reply candidate
 
 Return paths:
 

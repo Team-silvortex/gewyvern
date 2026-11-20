@@ -137,6 +137,42 @@ fn reason_rule_json(rule: &ReasonRule) -> JsonValue {
 
 fn reason_predicate_json(predicate: &ReasonPredicate) -> JsonValue {
     match predicate {
+        ReasonPredicate::StunBindingObserved { remote_port, kind } => {
+            JsonValue::Object(BTreeMap::from([
+                (
+                    "kind".into(),
+                    JsonValue::String("stun_binding_observed".into()),
+                ),
+                (
+                    "remote_port".into(),
+                    JsonValue::Number(i64::from(*remote_port)),
+                ),
+                ("message".into(), JsonValue::String(kind.label().into())),
+            ]))
+        }
+        ReasonPredicate::NtpMessageObserved { remote_port, kind } => {
+            JsonValue::Object(BTreeMap::from([
+                (
+                    "kind".into(),
+                    JsonValue::String("ntp_message_observed".into()),
+                ),
+                (
+                    "remote_port".into(),
+                    JsonValue::Number(i64::from(*remote_port)),
+                ),
+                ("message".into(), JsonValue::String(kind.label().into())),
+            ]))
+        }
+        ReasonPredicate::SnmpPduObserved { remote_port, kind } => {
+            JsonValue::Object(BTreeMap::from([
+                ("kind".into(), JsonValue::String("snmp_pdu_observed".into())),
+                (
+                    "remote_port".into(),
+                    JsonValue::Number(i64::from(*remote_port)),
+                ),
+                ("pdu".into(), JsonValue::String(kind.label().into())),
+            ]))
+        }
         ReasonPredicate::RtspResponseObserved { remote_port, kind } => {
             JsonValue::Object(BTreeMap::from([
                 (

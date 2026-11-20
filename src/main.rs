@@ -1,5 +1,9 @@
 #[path = "main/binding_demo.rs"]
 mod binding_demo;
+#[path = "main/capture_cli.rs"]
+mod capture_cli;
+#[path = "main/capture_runtime.rs"]
+mod capture_runtime;
 #[path = "main/certificate_state_cli.rs"]
 mod certificate_state_cli;
 #[path = "main/cli.rs"]
@@ -140,9 +144,7 @@ fn run_main(args: Vec<String>, locale: UiLocale) -> Result<i32, MachineError> {
         if args.len() != 1 {
             return Err(invalid_native_command("gewyvern-service-v1"));
         }
-        gewyvern_install::run_gewyvern_service()
-            .map_err(|error| native_command_error("gewyvern_service_failed", error))?;
-        return Ok(0);
+        return gewyvern_install::run_gewyvern_service();
     }
     if matches!(args.as_slice(), [flag] if flag == "--version" || flag == "-V") {
         println!("gewyvern {}", env!("CARGO_PKG_VERSION"));
@@ -150,6 +152,7 @@ fn run_main(args: Vec<String>, locale: UiLocale) -> Result<i32, MachineError> {
     }
     if matches!(args.as_slice(), [flag] if flag == "--help" || flag == "-h") {
         println!("{}", usage());
+        println!("\n{}", capture_cli::HELP);
         return Ok(0);
     }
     let cli = match bootstrap_cli(args)? {
@@ -158,6 +161,9 @@ fn run_main(args: Vec<String>, locale: UiLocale) -> Result<i32, MachineError> {
     };
     if handle_cli_preflight(&cli, locale)? {
         return Ok(0);
+    }
+    if cli.capture.cgroup.is_some() {
+        return capture_runtime::run(&cli);
     }
     let rendered = run_cli_main(&cli, locale)?;
     write_or_print(&rendered, cli.out_path.as_deref(), locale)?;

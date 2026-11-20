@@ -182,6 +182,25 @@ For RTSP response candidates, use the reference's bounded
 header names or a bare `200` match. Check the collector's payload coverage;
 these candidates do not prove request correlation or media delivery.
 
+For SNMP read candidates, use `snmp_pdu_observed:remote:snmp:<kind>` with
+`get`, `get_next`, `get_bulk`, or `response`. Never assume byte 13 is the PDU:
+community and BER length widths vary. Complete samples are bounded to 128 bytes;
+sparse samples are unsupported, not guessed. A response is shared by all read
+operations and may contain errors/exceptions, so it proves neither correlation
+nor successful object access. Do not apply this community predicate to v3.
+
+For NTP use `ntp_message_observed:remote:ntp:<request|response|time_reply>`.
+Version 3/4 bits never establish query versus synchronization intent. A generic
+response can report unsynchronised state or KoD; even `time_reply` is only a
+base-header candidate, not successful clock adjustment, accuracy, origin
+correlation or NTS/MAC authentication. Require all 48 base-header sample bytes.
+
+For modern STUN Binding use `stun_binding_observed:remote:stun:<request|response|error>`.
+Two type bytes alone are not a message: require a complete bounded envelope,
+magic cookie and framed attributes. Binding error includes protocol errors such
+as unknown attributes, not only access denial. Candidate fields do not establish
+authenticated peers, transaction correlation, public NAT traversal or TURN relay.
+
 Custom operation, model, module, and phase ids are allowed where their
 respective reference sections say so. Custom pipeline steps and built-in
 fragment ids are not allowed.

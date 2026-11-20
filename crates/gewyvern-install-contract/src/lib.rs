@@ -4,5 +4,6 @@ pub use silvortex_identity::{
     CredentialHandle, IdentityError, ProvisioningId, RetirementId, RuntimeId,
 };
 
+pub mod capture;
 pub mod installer;
 pub mod retirement;

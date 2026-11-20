@@ -67,7 +67,7 @@ fn imap_and_pop3_auth_denied_surfaces_expose_machine_readable_entry_semantics() 
 }
 
 #[test]
-fn snmp_and_stun_denial_surfaces_expose_machine_readable_entry_semantics() {
+fn snmp_denial_and_stun_protocol_error_have_distinct_entry_semantics() {
     let unauthorized =
         protocol_surface("snmp", "unauthorized").expect("snmp unauthorized should exist");
     let unauthorized_semantics = unauthorized
@@ -100,16 +100,16 @@ fn snmp_and_stun_denial_surfaces_expose_machine_readable_entry_semantics() {
     assert_eq!(binding_error_semantics.category, "failure-path");
     assert_eq!(
         binding_error_semantics.operator_focus,
-        "explicit binding failure response instead of successful reachability confirmation"
+        "bounded Binding error candidate with an ERROR-CODE field; not necessarily authentication or access denial"
     );
     assert!(binding_error_semantics.typical_signal.is_none());
     assert_eq!(
         binding_error_semantics.primary_failure_mode.as_deref(),
-        Some("server_denied")
+        Some("semantic_error")
     );
     assert_eq!(
         binding_error_semantics.primary_failure_detail.as_deref(),
-        Some("access_denied")
+        Some("protocol_error")
     );
     assert_eq!(
         binding_error_semantics.primary_failure_basis.as_deref(),
@@ -123,7 +123,11 @@ fn snmp_and_stun_denial_surfaces_expose_machine_readable_entry_semantics() {
         .expect("stun binding-denied alias should expose semantics");
     assert_eq!(
         binding_denied_semantics.operator_focus,
-        "explicit binding failure response instead of successful reachability confirmation"
+        "bounded Binding error candidate with an ERROR-CODE field; not necessarily authentication or access denial"
+    );
+    assert_eq!(
+        binding_denied_semantics.primary_failure_mode.as_deref(),
+        Some("semantic_error")
     );
 
     let snmp_bulk = protocol_surface("snmp", "bulk").expect("snmp bulk should exist");

@@ -19,8 +19,7 @@ use support::{
     packet_fact_with_dir_and_payload_and_bytes4_and5, packet_fact_with_dir_and_payload_bytes,
     route_fact, sock_lineage_fact, tcp_state_fact, tcp_state_fact_with_ports, udp_packet_fact,
     udp_packet_fact_with_dir, udp_packet_fact_with_dir_and_ports_and_payload,
-    udp_packet_fact_with_dir_and_ports_and_payload_prefix4,
-    udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13, udp_quic_meta_fact,
+    udp_packet_fact_with_dir_and_ports_and_payload_prefix4, udp_quic_meta_fact,
     udp_quic_meta_fact_with_payload_bytes,
 };
 

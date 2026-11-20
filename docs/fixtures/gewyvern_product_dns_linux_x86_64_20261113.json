@@ -1,0 +1,4298 @@
+{
+  "schema_version": 1,
+  "campaign": "production-cli-real-coredns-dual-stack",
+  "date": "2026-11-13",
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "source_base_commit": "39eeb7d1f03c92f007daa1ac5d72aee311fead5e",
+  "source_worktree_dirty": true,
+  "source_sha256": {
+    "src/validation_harness/linux_tcp_capture/linux/udp_dns.rs": "b56802cabf4fb72cc8bec0fcdf0ee81b06b918a022f59eb39f27c569d5815b29",
+    "src/validation_harness/linux_tcp_capture/linux/udp_dns/production.rs": "4f2247dcf1061b88a34a4f384830c59c6e4c2cd013f113270ea62546c9544c1a",
+    "src/validation_harness/linux_tcp_capture/linux.rs": "28efb8a31aabfa91cf4796a7f5ce8e14eb4d817408a749afce4d5f6e87177fcc",
+    "src/validation_harness/linux_tcp_capture.rs": "e3400268b95ff84c20063c1c125f7a9ba03eaa84ba8ff1b70f56a1991139fd50",
+    "src/validation_harness.rs": "c3a47d19c431706c6eb968cb4458e7ed3faaa16905284f6a92c0a297f3f614a3",
+    "src/bin/gewyvern_validate.rs": "84550e1e396e50249c8f709622cacce70229ac4cc4e5d3e2d33ac2c7c6e88e36",
+    "src/main.rs": "c898522bdfc59485d4375b180a15f7a68ac1b5358c4dd2da18f5a2ca7bf6b5e0",
+    "src/main/capture_runtime.rs": "80836255e2c49daa600ec4457faf7da9bce429faf875e2358a6a26f5dbdd1462",
+    "src/data_api.rs": "a5b9d10a53abfe3cb8dca0a6368c8c4841923282df45215d63ad9e04932b95a8",
+    "src/data_api/routing.rs": "28e05dc8b9f58822b9b2448e59b2e634ff6c0e9802f2e3796a9f9c4cb825cdac",
+    "src/serve_runtime.rs": "995bf5e900397bb8e19945868af34b74c87d9ebd308a5b47cdaf333ed827850d",
+    "src/gewyvern_install.rs": "4f9082d524b288eee042893cb805ea30ba5a6267120b77979bcaa6eb6b6b332d",
+    "src/gewyvern_install/capture.rs": "896ca40d1a1325412cc35f4c2cee4aa1aa673496e6540508583fca83bbe49036",
+    "crates/gewyvern-install-contract/src/lib.rs": "bd4194d90c86582a574ef83e0f92423f61e555fed3541442eabeec52f69b923b",
+    "crates/gewyvern-install-contract/src/installer.rs": "a14979a07f4c4f46edf6f2fe6ee58893d73f295da84a374d3c986cb6081fd662",
+    "crates/gewyvern-install-contract/src/capture.rs": "bcb043c4249743f0a488d3716dd8f044867e28443d02c5ef6a097dbd1184b8a8",
+    "src/live_capture.rs": "fd14b4925528b4c8b22ebc3a3d0f1890c098d862fa5df8f0fdb9a59eb42448ab",
+    "src/live_capture/linux.rs": "1e166da359d5f11624e545fc2fef57182fa1a48b76c4dbc4d34dd5cd9ac084ed",
+    "src/live_capture/linux/api.rs": "77426bb0cee7018f88a3d1a0cc24d316f99ad8df35e05c962fab8382942b7d0d",
+    "ebpf/production/udp.bpf.c": "867e71774df6c9bbf69370ce712d527c0d7a8dede8eba1eff0975d76e1c1c1e3",
+    "src/export/capture_codec.rs": "55c07226d16d934f7c0586e26c42fca419f46d4daab5fb9b6784ace76f6243da",
+    "src/packet_capture.rs": "50cf644ff5bf466169296b79850bd8e128df60734978ee500ddb1d3c70ac8014",
+    "tests/production_capture_linux_tdd.rs": "f4073b7a0f575c58539a1a72e5dc3f7a5fb33926ea098191e61581338b1e41f0",
+    "tests/production_capture_linux_tdd/installed.rs": "1c546083a1503702bc824fd1b8372c373291839cf28f84a2aff64f479102422d",
+    "tests/native_validation_harness_tdd.rs": "a5561db4ebb4d85d7503a24826d8068e9b1618023c58fa40f47802b0b1b762db",
+    "Cargo.toml": "b4e09c55b8497e1c30df15836bbf94caaa8e34f58d3a4f926e6a9454a9817827",
+    "Cargo.lock": "e2bb05484df435e37cca096402a22f3f7480581d851cab7009b645de0630fb11",
+    "tests/gewyvern_installer_vertical.rs": "117077000e4e8cb88d901a69304ba8fb56731004db0c62c13e7cd453313a8128",
+    "tests/production_capture_linux_tdd/systemd.rs": "75eb8ce2b13dd1549070940602bb1ecf3293ef041e4465a24f23b4f9ff256cc4",
+    "tests/production_capture_linux_tdd/systemd_reference.rs": "7ff87a318c3d3c956ba55c196119356b5e67d2dd3fce9be115c91665c568a318",
+    "src/validation_harness/linux_tcp_capture/linux/udp_dns/wire.rs": "41bd1bb0e75d5c081036fa68a46f9ca8c84d4bb85bbb76c211ed1b45e38493e3",
+    "src/validation_harness/linux_tcp_capture/linux/docker_target.rs": "578df70539563bb96de290144dd5b06efed113cf97b31b8210f2c98b13e86120",
+    "ebpf/validation/dns.Corefile": "d9305262b2aebff9f62d39f1007578614177a19a43ba7133cac37f52434a8811",
+    "protocols/dns/udp/main.gewy": "e8bd32047ced23d86b69ec61e5f09028511176f70e2a204444471b1ed3555be8",
+    "protocols/dns/error/main.gewy": "831563e402af213be9ae429af537fd648245670c3b9ebcb24e60652f9ae72aa2"
+  },
+  "source_scope": "35 selected source, fixture and build inputs match the Linux workspace byte-for-byte; not a hermetic whole-worktree release manifest.",
+  "binary_sha256": {
+    "target/debug/gewyvern": "dbe26014effc84423dd4ac137e1c14de79823243d37ed2a60c99da877f158171",
+    "target/debug/gewyvern_validate": "6be5acb7aef58d689a6cc9f13c79fdfd93b2116a1e1390b2a6e11f177d72c772"
+  },
+  "execution": {
+    "kernel": "7.0.0-42-generic",
+    "architecture": "x86_64",
+    "os": "Ubuntu 26.04.1 LTS",
+    "rust": "1.98.0",
+    "build_location": "remote Linux unprivileged Docker build",
+    "build_limits": {
+      "cpus": 2,
+      "memory_gib": 4,
+      "pids": 512
+    },
+    "build_profile": "dev/test, gewyvern opt-level=2, debug=0, incremental=0",
+    "runtime": "root native host CLI and product BPF, real digest-pinned isolated CoreDNS targets",
+    "evidence_root": "/home/chiharukiryu/.cache/gewyvern/evidence/20261113-product-dns",
+    "commands": [
+      "gewyvern_validate --json linux-udp-capture --production-dns --out-dir <fresh>",
+      "gewyvern_validate --json linux-udp-capture --production-ipv6-dns --out-dir <fresh>"
+    ],
+    "run_directories": [
+      "verified-ipv4-1",
+      "verified-ipv4-2",
+      "verified-ipv4-3",
+      "verified-ipv6-1",
+      "verified-ipv6-2",
+      "verified-ipv6-3"
+    ],
+    "validation_producer_in_product_campaign": false,
+    "host_services_changed": false,
+    "host_resolver_changed": false,
+    "public_ports_published": false
+  },
+  "target_assumption_corrected": {
+    "initial_failed_attempts": [
+      "ipv4-1",
+      "diagnostic-ipv4"
+    ],
+    "counted_as_accepted": false,
+    "product_capture_bug": false,
+    "description": "The pinned CoreDNS 1.15.0 erratic truncate 1 endpoint alternates TC and non-TC replies, and returns 192.0.2.53 instead of the ordinary fixture answer 192.0.2.7. The second protocol package exposed an incorrect test assumption.",
+    "implementation": "https://github.com/coredns/coredns/blob/v1.15.0/plugin/erratic/erratic.go",
+    "diagnostic": {
+      "question": "cut.test.",
+      "expected": [
+        0,
+        true
+      ],
+      "actual": {
+        "rcode": 0,
+        "truncated": false,
+        "addresses": [
+          [
+            192,
+            0,
+            2,
+            53
+          ]
+        ]
+      },
+      "elapsed_us": 50954
+    },
+    "fix": "Check consecutive TC/non-TC queries in each package; retain both actual responses and include question, actual reply and elapsed time in failures. Do not restart target between packages."
+  },
+  "results": {
+    "accepted_runs": 6,
+    "ipv4_runs": 3,
+    "ipv6_only_runs": 3,
+    "product_capture_sessions": 12,
+    "selected_queries": 120,
+    "observed_selected_replies": 132,
+    "retained_packet_facts": 252,
+    "recorded_kernel_drops": 0,
+    "recorded_userspace_drops": 0,
+    "decode_rejections": 0,
+    "bounded_timeouts_followed_by_success": 12,
+    "outside_cgroup_neighbors_excluded": 12,
+    "tc_and_non_tc_pairs": 12,
+    "package_replays": 12,
+    "full_socket_direction_payload_multisets_match": true
+  },
+  "runs": [
+    {
+      "binary_sha256": "dbe26014effc84423dd4ac137e1c14de79823243d37ed2a60c99da877f158171",
+      "checks": [
+        "formal_CLI_owns_product_BPF",
+        "real_private_CoreDNS",
+        "same_ID_socket_isolation",
+        "full_packet_payloads_match_independent_client_IO",
+        "four_errors_truncation_timeout_recovery",
+        "outside_cgroup_neighbor_excluded",
+        "both_DNS_packages_replay",
+        "fresh_second_capture",
+        "owned_cleanup"
+      ],
+      "config_sha256": "d9305262b2aebff9f62d39f1007578614177a19a43ba7133cac37f52434a8811",
+      "container_id": "5dbe93d93ddc1f3364236af7f5ac861dfe1ce4338b760e15ae94cb7037c4a220",
+      "excluded_neighbor_cookie": "24681",
+      "image": "coredns/coredns@sha256:0a9d8c8ddf34347eb59aad9a8784f0710de88d6d112726d11d271f9bc6daca26",
+      "image_id": "sha256:881cbdacb8c168aaba50f10b1458f36d1b976c5a856e72d3589bc9cd262f3442",
+      "internal_network": true,
+      "ip_version": 4,
+      "mode": "production-dns-ipv4",
+      "neighbor_socket_created_outside_scope": true,
+      "network_id": "1365514569f233d954bec57ca3cb58443cf7490e2613d8f235eb656931a6c819",
+      "not_proven": [
+        "full_DNS_parser_or_vulnerability_detection",
+        "EDNS_DNSSEC_DoH_DoT",
+        "AAAA_queries",
+        "TCP_fallback",
+        "recursive_resolution_or_cache",
+        "cross_window_transactions",
+        "full_IP_addresses_in_product_facts",
+        "PID_attribution",
+        "high_load",
+        "other_hosts_or_kernels"
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "packages": [
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-capture-2118119-1794576374360791325",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "21",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "21",
+            "retained": "21",
+            "run_id": "2118359-78714020326496",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 53,
+            "userspace_dropped": "0"
+          },
+          "entry": "udp",
+          "excluded_neighbor_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "facts": 21,
+          "full_payload_multiset_matches": true,
+          "observations": [
+            {
+              "cookie": "24682",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "24682",
+              "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+              "question_wire_hex": "04666f726d04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "form.test.",
+                "rcode": 1,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+                "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "24682",
+              "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+              "question_wire_hex": "046661696c04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "fail.test.",
+                "rcode": 2,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "24682",
+              "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+              "question_wire_hex": "026e7804746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "nx.test.",
+                "rcode": 3,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "24682",
+              "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+              "question_wire_hex": "0464656e7904746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "deny.test.",
+                "rcode": 5,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+                "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "24682",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": true
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "24682",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "877698a54bac3d9db2af4e1ee2dd441efdf58f6143357cd06011348f26a615c1"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "24682",
+              "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+              "question_wire_hex": "0464726f7004746573740000010001",
+              "reply": null,
+              "response_count": 0,
+              "response_sha256": [],
+              "timeout": true
+            },
+            {
+              "cookie": "24682",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "24683",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            }
+          ],
+          "packet_only": true,
+          "phases": [
+            "send_request",
+            "receive_reply"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "e8bd32047ced23d86b69ec61e5f09028511176f70e2a204444471b1ed3555be8"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-capture-2118119-1794576374360791325",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "21",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "21",
+            "retained": "21",
+            "run_id": "2118490-78715065236371",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 53,
+            "userspace_dropped": "0"
+          },
+          "entry": "error",
+          "excluded_neighbor_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "facts": 21,
+          "full_payload_multiset_matches": true,
+          "observations": [
+            {
+              "cookie": "24682",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "24682",
+              "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+              "question_wire_hex": "04666f726d04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "form.test.",
+                "rcode": 1,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+                "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "24682",
+              "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+              "question_wire_hex": "046661696c04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "fail.test.",
+                "rcode": 2,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "24682",
+              "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+              "question_wire_hex": "026e7804746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "nx.test.",
+                "rcode": 3,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "24682",
+              "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+              "question_wire_hex": "0464656e7904746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "deny.test.",
+                "rcode": 5,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+                "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "24682",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": true
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "24682",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "877698a54bac3d9db2af4e1ee2dd441efdf58f6143357cd06011348f26a615c1"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "24682",
+              "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+              "question_wire_hex": "0464726f7004746573740000010001",
+              "reply": null,
+              "response_count": 0,
+              "response_sha256": [],
+              "timeout": true
+            },
+            {
+              "cookie": "24682",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "24683",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            }
+          ],
+          "packet_only": true,
+          "phases": [
+            "receive_formerr",
+            "receive_servfail",
+            "receive_nxdomain",
+            "receive_refused"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "831563e402af213be9ae429af537fd648245670c3b9ebcb24e60652f9ae72aa2"
+        }
+      ],
+      "pinned_target_truncation_alternates": true,
+      "production_cli": true,
+      "published_ports": false,
+      "schema_version": 1,
+      "selected_sockets": [
+        {
+          "cookie": "24682",
+          "port": 35934
+        },
+        {
+          "cookie": "24683",
+          "port": 34503
+        }
+      ],
+      "source_address": "172.21.0.1",
+      "target_address": "172.21.0.2",
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "dbe26014effc84423dd4ac137e1c14de79823243d37ed2a60c99da877f158171",
+      "checks": [
+        "formal_CLI_owns_product_BPF",
+        "real_private_CoreDNS",
+        "same_ID_socket_isolation",
+        "full_packet_payloads_match_independent_client_IO",
+        "four_errors_truncation_timeout_recovery",
+        "outside_cgroup_neighbor_excluded",
+        "both_DNS_packages_replay",
+        "fresh_second_capture",
+        "owned_cleanup"
+      ],
+      "config_sha256": "d9305262b2aebff9f62d39f1007578614177a19a43ba7133cac37f52434a8811",
+      "container_id": "d55bfac9400c510d62507f8ba58183dc2402aa2c556f1cecbe9da3ff439ea1b7",
+      "excluded_neighbor_cookie": "20616",
+      "image": "coredns/coredns@sha256:0a9d8c8ddf34347eb59aad9a8784f0710de88d6d112726d11d271f9bc6daca26",
+      "image_id": "sha256:881cbdacb8c168aaba50f10b1458f36d1b976c5a856e72d3589bc9cd262f3442",
+      "internal_network": true,
+      "ip_version": 4,
+      "mode": "production-dns-ipv4",
+      "neighbor_socket_created_outside_scope": true,
+      "network_id": "b864a0a74c6896affaffb3bd77016205132bb33f3434da25ef1fc6773b8b8841",
+      "not_proven": [
+        "full_DNS_parser_or_vulnerability_detection",
+        "EDNS_DNSSEC_DoH_DoT",
+        "AAAA_queries",
+        "TCP_fallback",
+        "recursive_resolution_or_cache",
+        "cross_window_transactions",
+        "full_IP_addresses_in_product_facts",
+        "PID_attribution",
+        "high_load",
+        "other_hosts_or_kernels"
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "packages": [
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-capture-2124408-1794576464982312280",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "21",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "21",
+            "retained": "21",
+            "run_id": "2124641-78804643498671",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 53,
+            "userspace_dropped": "0"
+          },
+          "entry": "udp",
+          "excluded_neighbor_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "facts": 21,
+          "full_payload_multiset_matches": true,
+          "observations": [
+            {
+              "cookie": "20617",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "20617",
+              "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+              "question_wire_hex": "04666f726d04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "form.test.",
+                "rcode": 1,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+                "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "20617",
+              "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+              "question_wire_hex": "046661696c04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "fail.test.",
+                "rcode": 2,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "20617",
+              "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+              "question_wire_hex": "026e7804746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "nx.test.",
+                "rcode": 3,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "20617",
+              "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+              "question_wire_hex": "0464656e7904746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "deny.test.",
+                "rcode": 5,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+                "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "20617",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": true
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "20617",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "877698a54bac3d9db2af4e1ee2dd441efdf58f6143357cd06011348f26a615c1"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "20617",
+              "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+              "question_wire_hex": "0464726f7004746573740000010001",
+              "reply": null,
+              "response_count": 0,
+              "response_sha256": [],
+              "timeout": true
+            },
+            {
+              "cookie": "20617",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "20618",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            }
+          ],
+          "packet_only": true,
+          "phases": [
+            "send_request",
+            "receive_reply"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "e8bd32047ced23d86b69ec61e5f09028511176f70e2a204444471b1ed3555be8"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-capture-2124408-1794576464982312280",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "21",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "21",
+            "retained": "21",
+            "run_id": "2124770-78805689478703",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 53,
+            "userspace_dropped": "0"
+          },
+          "entry": "error",
+          "excluded_neighbor_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "facts": 21,
+          "full_payload_multiset_matches": true,
+          "observations": [
+            {
+              "cookie": "20617",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "20617",
+              "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+              "question_wire_hex": "04666f726d04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "form.test.",
+                "rcode": 1,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+                "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "20617",
+              "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+              "question_wire_hex": "046661696c04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "fail.test.",
+                "rcode": 2,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "20617",
+              "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+              "question_wire_hex": "026e7804746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "nx.test.",
+                "rcode": 3,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "20617",
+              "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+              "question_wire_hex": "0464656e7904746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "deny.test.",
+                "rcode": 5,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+                "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "20617",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": true
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "20617",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "877698a54bac3d9db2af4e1ee2dd441efdf58f6143357cd06011348f26a615c1"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "20617",
+              "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+              "question_wire_hex": "0464726f7004746573740000010001",
+              "reply": null,
+              "response_count": 0,
+              "response_sha256": [],
+              "timeout": true
+            },
+            {
+              "cookie": "20617",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "20618",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            }
+          ],
+          "packet_only": true,
+          "phases": [
+            "receive_formerr",
+            "receive_servfail",
+            "receive_nxdomain",
+            "receive_refused"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "831563e402af213be9ae429af537fd648245670c3b9ebcb24e60652f9ae72aa2"
+        }
+      ],
+      "pinned_target_truncation_alternates": true,
+      "production_cli": true,
+      "published_ports": false,
+      "schema_version": 1,
+      "selected_sockets": [
+        {
+          "cookie": "20617",
+          "port": 43810
+        },
+        {
+          "cookie": "20618",
+          "port": 53384
+        }
+      ],
+      "source_address": "172.21.0.1",
+      "target_address": "172.21.0.2",
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "dbe26014effc84423dd4ac137e1c14de79823243d37ed2a60c99da877f158171",
+      "checks": [
+        "formal_CLI_owns_product_BPF",
+        "real_private_CoreDNS",
+        "same_ID_socket_isolation",
+        "full_packet_payloads_match_independent_client_IO",
+        "four_errors_truncation_timeout_recovery",
+        "outside_cgroup_neighbor_excluded",
+        "both_DNS_packages_replay",
+        "fresh_second_capture",
+        "owned_cleanup"
+      ],
+      "config_sha256": "d9305262b2aebff9f62d39f1007578614177a19a43ba7133cac37f52434a8811",
+      "container_id": "b5cab2872fa23df0feecc276a93d7e8fafd4fab3566b6b6ea354c01e8429933b",
+      "excluded_neighbor_cookie": "32891",
+      "image": "coredns/coredns@sha256:0a9d8c8ddf34347eb59aad9a8784f0710de88d6d112726d11d271f9bc6daca26",
+      "image_id": "sha256:881cbdacb8c168aaba50f10b1458f36d1b976c5a856e72d3589bc9cd262f3442",
+      "internal_network": true,
+      "ip_version": 4,
+      "mode": "production-dns-ipv4",
+      "neighbor_socket_created_outside_scope": true,
+      "network_id": "e4b7e977c1e02a06c695b8ebc264b186ce895eb318b3cc9ce0e29156b658f40f",
+      "not_proven": [
+        "full_DNS_parser_or_vulnerability_detection",
+        "EDNS_DNSSEC_DoH_DoT",
+        "AAAA_queries",
+        "TCP_fallback",
+        "recursive_resolution_or_cache",
+        "cross_window_transactions",
+        "full_IP_addresses_in_product_facts",
+        "PID_attribution",
+        "high_load",
+        "other_hosts_or_kernels"
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "packages": [
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-capture-2133842-1794576642441767000",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "21",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "21",
+            "retained": "21",
+            "run_id": "2134111-78981979374921",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 53,
+            "userspace_dropped": "0"
+          },
+          "entry": "udp",
+          "excluded_neighbor_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "facts": 21,
+          "full_payload_multiset_matches": true,
+          "observations": [
+            {
+              "cookie": "32892",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "32892",
+              "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+              "question_wire_hex": "04666f726d04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "form.test.",
+                "rcode": 1,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+                "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "32892",
+              "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+              "question_wire_hex": "046661696c04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "fail.test.",
+                "rcode": 2,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "32892",
+              "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+              "question_wire_hex": "026e7804746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "nx.test.",
+                "rcode": 3,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "32892",
+              "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+              "question_wire_hex": "0464656e7904746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "deny.test.",
+                "rcode": 5,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+                "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "32892",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": true
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "32892",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "877698a54bac3d9db2af4e1ee2dd441efdf58f6143357cd06011348f26a615c1"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "32892",
+              "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+              "question_wire_hex": "0464726f7004746573740000010001",
+              "reply": null,
+              "response_count": 0,
+              "response_sha256": [],
+              "timeout": true
+            },
+            {
+              "cookie": "32892",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "32893",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            }
+          ],
+          "packet_only": true,
+          "phases": [
+            "send_request",
+            "receive_reply"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "e8bd32047ced23d86b69ec61e5f09028511176f70e2a204444471b1ed3555be8"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-capture-2133842-1794576642441767000",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "21",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "21",
+            "retained": "21",
+            "run_id": "2134189-78983031553586",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 53,
+            "userspace_dropped": "0"
+          },
+          "entry": "error",
+          "excluded_neighbor_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "facts": 21,
+          "full_payload_multiset_matches": true,
+          "observations": [
+            {
+              "cookie": "32892",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "32892",
+              "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+              "question_wire_hex": "04666f726d04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "form.test.",
+                "rcode": 1,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+                "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "32892",
+              "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+              "question_wire_hex": "046661696c04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "fail.test.",
+                "rcode": 2,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "32892",
+              "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+              "question_wire_hex": "026e7804746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "nx.test.",
+                "rcode": 3,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "32892",
+              "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+              "question_wire_hex": "0464656e7904746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "deny.test.",
+                "rcode": 5,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+                "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "32892",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": true
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "32892",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "877698a54bac3d9db2af4e1ee2dd441efdf58f6143357cd06011348f26a615c1"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "32892",
+              "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+              "question_wire_hex": "0464726f7004746573740000010001",
+              "reply": null,
+              "response_count": 0,
+              "response_sha256": [],
+              "timeout": true
+            },
+            {
+              "cookie": "32892",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "32893",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            }
+          ],
+          "packet_only": true,
+          "phases": [
+            "receive_formerr",
+            "receive_servfail",
+            "receive_nxdomain",
+            "receive_refused"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "831563e402af213be9ae429af537fd648245670c3b9ebcb24e60652f9ae72aa2"
+        }
+      ],
+      "pinned_target_truncation_alternates": true,
+      "production_cli": true,
+      "published_ports": false,
+      "schema_version": 1,
+      "selected_sockets": [
+        {
+          "cookie": "32892",
+          "port": 36732
+        },
+        {
+          "cookie": "32893",
+          "port": 55452
+        }
+      ],
+      "source_address": "172.21.0.1",
+      "target_address": "172.21.0.2",
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "dbe26014effc84423dd4ac137e1c14de79823243d37ed2a60c99da877f158171",
+      "checks": [
+        "formal_CLI_owns_product_BPF",
+        "real_private_CoreDNS",
+        "same_ID_socket_isolation",
+        "full_packet_payloads_match_independent_client_IO",
+        "four_errors_truncation_timeout_recovery",
+        "outside_cgroup_neighbor_excluded",
+        "both_DNS_packages_replay",
+        "fresh_second_capture",
+        "owned_cleanup"
+      ],
+      "config_sha256": "d9305262b2aebff9f62d39f1007578614177a19a43ba7133cac37f52434a8811",
+      "container_id": "0a66cac117508ad437deaf9a538b7d88c42f5429283e981bebc4202c177a4f9a",
+      "excluded_neighbor_cookie": "49191",
+      "image": "coredns/coredns@sha256:0a9d8c8ddf34347eb59aad9a8784f0710de88d6d112726d11d271f9bc6daca26",
+      "image_id": "sha256:881cbdacb8c168aaba50f10b1458f36d1b976c5a856e72d3589bc9cd262f3442",
+      "internal_network": true,
+      "ip_version": 6,
+      "mode": "production-dns-ipv6",
+      "neighbor_socket_created_outside_scope": true,
+      "network_id": "8f7e46b753f4a8d01ff0993533f0c84a903916e19323c4264a77b92c9348e30b",
+      "not_proven": [
+        "full_DNS_parser_or_vulnerability_detection",
+        "EDNS_DNSSEC_DoH_DoT",
+        "AAAA_queries",
+        "TCP_fallback",
+        "recursive_resolution_or_cache",
+        "cross_window_transactions",
+        "full_IP_addresses_in_product_facts",
+        "PID_attribution",
+        "high_load",
+        "other_hosts_or_kernels"
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "packages": [
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-capture-2120242-1794576407546030892",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "21",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "21",
+            "retained": "21",
+            "run_id": "2120497-78747239733114",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 53,
+            "userspace_dropped": "0"
+          },
+          "entry": "udp",
+          "excluded_neighbor_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "facts": 21,
+          "full_payload_multiset_matches": true,
+          "observations": [
+            {
+              "cookie": "49192",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "49192",
+              "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+              "question_wire_hex": "04666f726d04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "form.test.",
+                "rcode": 1,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+                "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "49192",
+              "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+              "question_wire_hex": "046661696c04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "fail.test.",
+                "rcode": 2,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "49192",
+              "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+              "question_wire_hex": "026e7804746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "nx.test.",
+                "rcode": 3,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "49192",
+              "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+              "question_wire_hex": "0464656e7904746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "deny.test.",
+                "rcode": 5,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+                "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "49192",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": true
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "49192",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "877698a54bac3d9db2af4e1ee2dd441efdf58f6143357cd06011348f26a615c1"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "49192",
+              "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+              "question_wire_hex": "0464726f7004746573740000010001",
+              "reply": null,
+              "response_count": 0,
+              "response_sha256": [],
+              "timeout": true
+            },
+            {
+              "cookie": "49192",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "49193",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            }
+          ],
+          "packet_only": true,
+          "phases": [
+            "send_request",
+            "receive_reply"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "e8bd32047ced23d86b69ec61e5f09028511176f70e2a204444471b1ed3555be8"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-capture-2120242-1794576407546030892",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "21",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "21",
+            "retained": "21",
+            "run_id": "2120531-78748314469625",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 53,
+            "userspace_dropped": "0"
+          },
+          "entry": "error",
+          "excluded_neighbor_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "facts": 21,
+          "full_payload_multiset_matches": true,
+          "observations": [
+            {
+              "cookie": "49192",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "49192",
+              "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+              "question_wire_hex": "04666f726d04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "form.test.",
+                "rcode": 1,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+                "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "49192",
+              "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+              "question_wire_hex": "046661696c04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "fail.test.",
+                "rcode": 2,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "49192",
+              "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+              "question_wire_hex": "026e7804746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "nx.test.",
+                "rcode": 3,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "49192",
+              "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+              "question_wire_hex": "0464656e7904746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "deny.test.",
+                "rcode": 5,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+                "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "49192",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": true
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "49192",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "877698a54bac3d9db2af4e1ee2dd441efdf58f6143357cd06011348f26a615c1"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "49192",
+              "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+              "question_wire_hex": "0464726f7004746573740000010001",
+              "reply": null,
+              "response_count": 0,
+              "response_sha256": [],
+              "timeout": true
+            },
+            {
+              "cookie": "49192",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "49193",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            }
+          ],
+          "packet_only": true,
+          "phases": [
+            "receive_formerr",
+            "receive_servfail",
+            "receive_nxdomain",
+            "receive_refused"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "831563e402af213be9ae429af537fd648245670c3b9ebcb24e60652f9ae72aa2"
+        }
+      ],
+      "pinned_target_truncation_alternates": true,
+      "production_cli": true,
+      "published_ports": false,
+      "schema_version": 1,
+      "selected_sockets": [
+        {
+          "cookie": "49192",
+          "port": 41721
+        },
+        {
+          "cookie": "49193",
+          "port": 53717
+        }
+      ],
+      "source_address": "fd1e:cc55:7afa::1",
+      "target_address": "fd1e:cc55:7afa::2",
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "dbe26014effc84423dd4ac137e1c14de79823243d37ed2a60c99da877f158171",
+      "checks": [
+        "formal_CLI_owns_product_BPF",
+        "real_private_CoreDNS",
+        "same_ID_socket_isolation",
+        "full_packet_payloads_match_independent_client_IO",
+        "four_errors_truncation_timeout_recovery",
+        "outside_cgroup_neighbor_excluded",
+        "both_DNS_packages_replay",
+        "fresh_second_capture",
+        "owned_cleanup"
+      ],
+      "config_sha256": "d9305262b2aebff9f62d39f1007578614177a19a43ba7133cac37f52434a8811",
+      "container_id": "a05fdcf7557f08da175fe60fddac5b8590368acf195d2cc73413c47ac7ea3506",
+      "excluded_neighbor_cookie": "53281",
+      "image": "coredns/coredns@sha256:0a9d8c8ddf34347eb59aad9a8784f0710de88d6d112726d11d271f9bc6daca26",
+      "image_id": "sha256:881cbdacb8c168aaba50f10b1458f36d1b976c5a856e72d3589bc9cd262f3442",
+      "internal_network": true,
+      "ip_version": 6,
+      "mode": "production-dns-ipv6",
+      "neighbor_socket_created_outside_scope": true,
+      "network_id": "8a075c6e2c59855db02f0303e87c187da37300656d8f12461d0ab8976c54322d",
+      "not_proven": [
+        "full_DNS_parser_or_vulnerability_detection",
+        "EDNS_DNSSEC_DoH_DoT",
+        "AAAA_queries",
+        "TCP_fallback",
+        "recursive_resolution_or_cache",
+        "cross_window_transactions",
+        "full_IP_addresses_in_product_facts",
+        "PID_attribution",
+        "high_load",
+        "other_hosts_or_kernels"
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "packages": [
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-capture-2132454-1794576618397504770",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "21",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "21",
+            "retained": "21",
+            "run_id": "2132682-78957919422618",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 53,
+            "userspace_dropped": "0"
+          },
+          "entry": "udp",
+          "excluded_neighbor_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "facts": 21,
+          "full_payload_multiset_matches": true,
+          "observations": [
+            {
+              "cookie": "53282",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "53282",
+              "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+              "question_wire_hex": "04666f726d04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "form.test.",
+                "rcode": 1,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+                "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "53282",
+              "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+              "question_wire_hex": "046661696c04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "fail.test.",
+                "rcode": 2,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "53282",
+              "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+              "question_wire_hex": "026e7804746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "nx.test.",
+                "rcode": 3,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "53282",
+              "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+              "question_wire_hex": "0464656e7904746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "deny.test.",
+                "rcode": 5,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+                "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "53282",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": true
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "53282",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "877698a54bac3d9db2af4e1ee2dd441efdf58f6143357cd06011348f26a615c1"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "53282",
+              "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+              "question_wire_hex": "0464726f7004746573740000010001",
+              "reply": null,
+              "response_count": 0,
+              "response_sha256": [],
+              "timeout": true
+            },
+            {
+              "cookie": "53282",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "53283",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            }
+          ],
+          "packet_only": true,
+          "phases": [
+            "send_request",
+            "receive_reply"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "e8bd32047ced23d86b69ec61e5f09028511176f70e2a204444471b1ed3555be8"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-capture-2132454-1794576618397504770",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "21",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "21",
+            "retained": "21",
+            "run_id": "2132707-78958976341452",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 53,
+            "userspace_dropped": "0"
+          },
+          "entry": "error",
+          "excluded_neighbor_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "facts": 21,
+          "full_payload_multiset_matches": true,
+          "observations": [
+            {
+              "cookie": "53282",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "53282",
+              "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+              "question_wire_hex": "04666f726d04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "form.test.",
+                "rcode": 1,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+                "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "53282",
+              "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+              "question_wire_hex": "046661696c04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "fail.test.",
+                "rcode": 2,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "53282",
+              "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+              "question_wire_hex": "026e7804746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "nx.test.",
+                "rcode": 3,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "53282",
+              "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+              "question_wire_hex": "0464656e7904746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "deny.test.",
+                "rcode": 5,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+                "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "53282",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": true
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "53282",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "877698a54bac3d9db2af4e1ee2dd441efdf58f6143357cd06011348f26a615c1"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "53282",
+              "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+              "question_wire_hex": "0464726f7004746573740000010001",
+              "reply": null,
+              "response_count": 0,
+              "response_sha256": [],
+              "timeout": true
+            },
+            {
+              "cookie": "53282",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "53283",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            }
+          ],
+          "packet_only": true,
+          "phases": [
+            "receive_formerr",
+            "receive_servfail",
+            "receive_nxdomain",
+            "receive_refused"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "831563e402af213be9ae429af537fd648245670c3b9ebcb24e60652f9ae72aa2"
+        }
+      ],
+      "pinned_target_truncation_alternates": true,
+      "production_cli": true,
+      "published_ports": false,
+      "schema_version": 1,
+      "selected_sockets": [
+        {
+          "cookie": "53282",
+          "port": 45656
+        },
+        {
+          "cookie": "53283",
+          "port": 34486
+        }
+      ],
+      "source_address": "fd98:edd5:845f::1",
+      "target_address": "fd98:edd5:845f::2",
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "dbe26014effc84423dd4ac137e1c14de79823243d37ed2a60c99da877f158171",
+      "checks": [
+        "formal_CLI_owns_product_BPF",
+        "real_private_CoreDNS",
+        "same_ID_socket_isolation",
+        "full_packet_payloads_match_independent_client_IO",
+        "four_errors_truncation_timeout_recovery",
+        "outside_cgroup_neighbor_excluded",
+        "both_DNS_packages_replay",
+        "fresh_second_capture",
+        "owned_cleanup"
+      ],
+      "config_sha256": "d9305262b2aebff9f62d39f1007578614177a19a43ba7133cac37f52434a8811",
+      "container_id": "e93814a7561a3a3b24648253df17ae5d3f5fc07499553a9563dccb64f567f850",
+      "excluded_neighbor_cookie": "36897",
+      "image": "coredns/coredns@sha256:0a9d8c8ddf34347eb59aad9a8784f0710de88d6d112726d11d271f9bc6daca26",
+      "image_id": "sha256:881cbdacb8c168aaba50f10b1458f36d1b976c5a856e72d3589bc9cd262f3442",
+      "internal_network": true,
+      "ip_version": 6,
+      "mode": "production-dns-ipv6",
+      "neighbor_socket_created_outside_scope": true,
+      "network_id": "20ae9700df2067db0d67b9bbedabec8c200252a1db0ac599b3868a3460febabc",
+      "not_proven": [
+        "full_DNS_parser_or_vulnerability_detection",
+        "EDNS_DNSSEC_DoH_DoT",
+        "AAAA_queries",
+        "TCP_fallback",
+        "recursive_resolution_or_cache",
+        "cross_window_transactions",
+        "full_IP_addresses_in_product_facts",
+        "PID_attribution",
+        "high_load",
+        "other_hosts_or_kernels"
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "packages": [
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-capture-2135859-1794576673264160715",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "21",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "21",
+            "retained": "21",
+            "run_id": "2136087-79012791142635",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 53,
+            "userspace_dropped": "0"
+          },
+          "entry": "udp",
+          "excluded_neighbor_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "facts": 21,
+          "full_payload_multiset_matches": true,
+          "observations": [
+            {
+              "cookie": "36898",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "36898",
+              "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+              "question_wire_hex": "04666f726d04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "form.test.",
+                "rcode": 1,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+                "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "36898",
+              "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+              "question_wire_hex": "046661696c04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "fail.test.",
+                "rcode": 2,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "36898",
+              "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+              "question_wire_hex": "026e7804746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "nx.test.",
+                "rcode": 3,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "36898",
+              "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+              "question_wire_hex": "0464656e7904746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "deny.test.",
+                "rcode": 5,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+                "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "36898",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": true
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "36898",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "877698a54bac3d9db2af4e1ee2dd441efdf58f6143357cd06011348f26a615c1"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "36898",
+              "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+              "question_wire_hex": "0464726f7004746573740000010001",
+              "reply": null,
+              "response_count": 0,
+              "response_sha256": [],
+              "timeout": true
+            },
+            {
+              "cookie": "36898",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "36899",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            }
+          ],
+          "packet_only": true,
+          "phases": [
+            "send_request",
+            "receive_reply"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "e8bd32047ced23d86b69ec61e5f09028511176f70e2a204444471b1ed3555be8"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-capture-2135859-1794576673264160715",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "21",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "21",
+            "retained": "21",
+            "run_id": "2136119-79013842932681",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 53,
+            "userspace_dropped": "0"
+          },
+          "entry": "error",
+          "excluded_neighbor_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "facts": 21,
+          "full_payload_multiset_matches": true,
+          "observations": [
+            {
+              "cookie": "36898",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "36898",
+              "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+              "question_wire_hex": "04666f726d04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "form.test.",
+                "rcode": 1,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+                "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "36898",
+              "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+              "question_wire_hex": "046661696c04746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "fail.test.",
+                "rcode": 2,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "36898",
+              "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+              "question_wire_hex": "026e7804746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "nx.test.",
+                "rcode": 3,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "36898",
+              "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+              "question_wire_hex": "0464656e7904746573740000010001",
+              "reply": {
+                "addresses": [],
+                "id": 17425,
+                "question": "deny.test.",
+                "rcode": 5,
+                "truncated": false
+              },
+              "response_count": 2,
+              "response_sha256": [
+                "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+                "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "36898",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": true
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "36898",
+              "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+              "question_wire_hex": "0363757404746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    53
+                  ]
+                ],
+                "id": 17425,
+                "question": "cut.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "877698a54bac3d9db2af4e1ee2dd441efdf58f6143357cd06011348f26a615c1"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "36898",
+              "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+              "question_wire_hex": "0464726f7004746573740000010001",
+              "reply": null,
+              "response_count": 0,
+              "response_sha256": [],
+              "timeout": true
+            },
+            {
+              "cookie": "36898",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            },
+            {
+              "cookie": "36899",
+              "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+              "question_wire_hex": "026f6b04746573740000010001",
+              "reply": {
+                "addresses": [
+                  [
+                    192,
+                    0,
+                    2,
+                    7
+                  ]
+                ],
+                "id": 17425,
+                "question": "ok.test.",
+                "rcode": 0,
+                "truncated": false
+              },
+              "response_count": 1,
+              "response_sha256": [
+                "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+              ],
+              "timeout": false
+            }
+          ],
+          "packet_only": true,
+          "phases": [
+            "receive_formerr",
+            "receive_servfail",
+            "receive_nxdomain",
+            "receive_refused"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "831563e402af213be9ae429af537fd648245670c3b9ebcb24e60652f9ae72aa2"
+        }
+      ],
+      "pinned_target_truncation_alternates": true,
+      "production_cli": true,
+      "published_ports": false,
+      "schema_version": 1,
+      "selected_sockets": [
+        {
+          "cookie": "36898",
+          "port": 46920
+        },
+        {
+          "cookie": "36899",
+          "port": 58541
+        }
+      ],
+      "source_address": "fd0b:30be:205e::1",
+      "target_address": "fd0b:30be:205e::2",
+      "validation_capture_used": false
+    }
+  ],
+  "legacy_regressions": [
+    {
+      "capture_event_schema": 2,
+      "checks": [
+        "real_private_DNS_server",
+        "two_selected_sockets_same_DNS_id",
+        "bidirectional_kernel_bytes_match_client",
+        "four_RCODEs_and_truncation",
+        "bounded_timeout_then_success",
+        "unselected_neighbor_excluded",
+        "packet_only_package_replay",
+        "owned_resources_removed",
+        "fresh_HTTP_capture_after_DNS"
+      ],
+      "config_sha256": "d9305262b2aebff9f62d39f1007578614177a19a43ba7133cac37f52434a8811",
+      "container_id": "e40e76c09b2892294f4afffe88735c46aa01946f16b1961f4b35156b52229776",
+      "egress_counts": {
+        "dropped": 0,
+        "total": 9
+      },
+      "image": "coredns/coredns@sha256:0a9d8c8ddf34347eb59aad9a8784f0710de88d6d112726d11d271f9bc6daca26",
+      "image_id": "sha256:881cbdacb8c168aaba50f10b1458f36d1b976c5a856e72d3589bc9cd262f3442",
+      "ingest_trust_mode": "unverified-local",
+      "ingress_counts": {
+        "dropped": 0,
+        "total": 10
+      },
+      "internal_network": true,
+      "ip_version": 4,
+      "ipv6_only": false,
+      "mode": "udp-dns",
+      "network_id": "3e4ee484ec624c74c8bf22c02a93cae7910fbf7956c45ee07372aac901d25ff7",
+      "not_proven": [
+        "other_IP_family_in_this_run",
+        "IP_fragment_reassembly",
+        "IPv6_extension_headers_or_jumbograms",
+        "UDP_checksum_verification",
+        "AAAA_queries",
+        "general_DNS_parser",
+        "EDNS_DNSSEC_DoH_DoT",
+        "TCP_fallback_for_TC",
+        "recursive_resolution_or_cache",
+        "general_UDP_throughput",
+        "PID_or_container_process_attribution",
+        "multiple_hosts_or_kernels"
+      ],
+      "observations": [
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 4237,
+          "elapsed_us": 51573,
+          "end_ns": 79056356022271,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 79056304448675,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "form.test.",
+            "rcode": 1,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+            "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "form.test.",
+            "rcode": 1,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+            "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+          ],
+          "cookie": 4237,
+          "elapsed_us": 50999,
+          "end_ns": 79056407049147,
+          "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+          "response_count": 2,
+          "start_ns": 79056356049291,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "fail.test.",
+            "rcode": 2,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "fail.test.",
+            "rcode": 2,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+          ],
+          "cookie": 4237,
+          "elapsed_us": 51940,
+          "end_ns": 79056459016045,
+          "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+          "response_count": 1,
+          "start_ns": 79056407076007,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+          ],
+          "cookie": 4237,
+          "elapsed_us": 50992,
+          "end_ns": 79056510037911,
+          "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+          "response_count": 1,
+          "start_ns": 79056459045610,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "deny.test.",
+            "rcode": 5,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+            "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "deny.test.",
+            "rcode": 5,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+            "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+          ],
+          "cookie": 4237,
+          "elapsed_us": 51953,
+          "end_ns": 79056562019066,
+          "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+          "response_count": 2,
+          "start_ns": 79056510065683,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                53
+              ]
+            ],
+            "id": 17425,
+            "question": "cut.test.",
+            "rcode": 0,
+            "truncated": true
+          },
+          "captured_response_sha256": [
+            "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                53
+              ]
+            ],
+            "id": 17425,
+            "question": "cut.test.",
+            "rcode": 0,
+            "truncated": true
+          },
+          "client_response_sha256": [
+            "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+          ],
+          "cookie": 4237,
+          "elapsed_us": 50990,
+          "end_ns": 79056613038298,
+          "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+          "response_count": 1,
+          "start_ns": 79056562047469,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+          "captured_reply": null,
+          "captured_response_sha256": [],
+          "client_reply": null,
+          "client_response_sha256": [],
+          "cookie": 4237,
+          "elapsed_us": 357963,
+          "end_ns": 79056971029797,
+          "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+          "response_count": 0,
+          "start_ns": 79056613065980,
+          "timeout": true
+        },
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 4237,
+          "elapsed_us": 50961,
+          "end_ns": 79057022021597,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 79056971059983,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 4238,
+          "elapsed_us": 51022,
+          "end_ns": 79057073060355,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 79057022037487,
+          "timeout": false
+        }
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "packages": [
+        {
+          "facts": 19,
+          "flows": 2,
+          "l3_proto": 2048,
+          "matched_cookies": [
+            4237,
+            4238
+          ],
+          "packet_only": true,
+          "path": "protocols/dns/udp/main.gewy",
+          "phases": [
+            "send_request",
+            "receive_reply"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "e8bd32047ced23d86b69ec61e5f09028511176f70e2a204444471b1ed3555be8"
+        },
+        {
+          "facts": 19,
+          "flows": 2,
+          "l3_proto": 2048,
+          "matched_cookies": [
+            4237
+          ],
+          "packet_only": true,
+          "path": "protocols/dns/error/main.gewy",
+          "phases": [
+            "receive_formerr",
+            "receive_servfail",
+            "receive_nxdomain",
+            "receive_refused"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "831563e402af213be9ae429af537fd648245670c3b9ebcb24e60652f9ae72aa2"
+        }
+      ],
+      "published_ports": false,
+      "query_type": "A",
+      "schema_version": 2,
+      "selected_sockets": [
+        [
+          4237,
+          38405
+        ],
+        [
+          4238,
+          49140
+        ]
+      ],
+      "source_address": "172.21.0.1",
+      "target_address": "172.21.0.2",
+      "unselected_neighbor_cookie": 4239,
+      "unselected_neighbor_reply": {
+        "addresses": [],
+        "id": 17425,
+        "question": "nx.test.",
+        "rcode": 3,
+        "truncated": false
+      }
+    },
+    {
+      "capture_event_schema": 2,
+      "checks": [
+        "real_private_DNS_server",
+        "two_selected_sockets_same_DNS_id",
+        "bidirectional_kernel_bytes_match_client",
+        "four_RCODEs_and_truncation",
+        "bounded_timeout_then_success",
+        "unselected_neighbor_excluded",
+        "packet_only_package_replay",
+        "owned_resources_removed",
+        "fresh_HTTP_capture_after_DNS"
+      ],
+      "config_sha256": "d9305262b2aebff9f62d39f1007578614177a19a43ba7133cac37f52434a8811",
+      "container_id": "899d8084a738d4e2a5f83f6ea90db336c0fea04529c23913125b0ef6055800b5",
+      "egress_counts": {
+        "dropped": 0,
+        "total": 9
+      },
+      "image": "coredns/coredns@sha256:0a9d8c8ddf34347eb59aad9a8784f0710de88d6d112726d11d271f9bc6daca26",
+      "image_id": "sha256:881cbdacb8c168aaba50f10b1458f36d1b976c5a856e72d3589bc9cd262f3442",
+      "ingest_trust_mode": "unverified-local",
+      "ingress_counts": {
+        "dropped": 0,
+        "total": 10
+      },
+      "internal_network": true,
+      "ip_version": 6,
+      "ipv6_only": true,
+      "mode": "udp-dns-ipv6",
+      "network_id": "c61c99960a5a7da45da6a4ba3b7db45fe17b4cddc909c70e9e6396bc277b3c75",
+      "not_proven": [
+        "other_IP_family_in_this_run",
+        "IP_fragment_reassembly",
+        "IPv6_extension_headers_or_jumbograms",
+        "UDP_checksum_verification",
+        "AAAA_queries",
+        "general_DNS_parser",
+        "EDNS_DNSSEC_DoH_DoT",
+        "TCP_fallback_for_TC",
+        "recursive_resolution_or_cache",
+        "general_UDP_throughput",
+        "PID_or_container_process_attribution",
+        "multiple_hosts_or_kernels"
+      ],
+      "observations": [
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 150,
+          "elapsed_us": 50488,
+          "end_ns": 79116522043486,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 79116471554686,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "form.test.",
+            "rcode": 1,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+            "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "form.test.",
+            "rcode": 1,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+            "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+          ],
+          "cookie": 150,
+          "elapsed_us": 50974,
+          "end_ns": 79116573043860,
+          "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+          "response_count": 2,
+          "start_ns": 79116522069334,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "fail.test.",
+            "rcode": 2,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "fail.test.",
+            "rcode": 2,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+          ],
+          "cookie": 150,
+          "elapsed_us": 50963,
+          "end_ns": 79116624035537,
+          "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+          "response_count": 1,
+          "start_ns": 79116573071601,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+          ],
+          "cookie": 150,
+          "elapsed_us": 51094,
+          "end_ns": 79116675151397,
+          "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+          "response_count": 1,
+          "start_ns": 79116624056947,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "deny.test.",
+            "rcode": 5,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+            "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "deny.test.",
+            "rcode": 5,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+            "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+          ],
+          "cookie": 150,
+          "elapsed_us": 50856,
+          "end_ns": 79116726043058,
+          "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+          "response_count": 2,
+          "start_ns": 79116675186803,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                53
+              ]
+            ],
+            "id": 17425,
+            "question": "cut.test.",
+            "rcode": 0,
+            "truncated": true
+          },
+          "captured_response_sha256": [
+            "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                53
+              ]
+            ],
+            "id": 17425,
+            "question": "cut.test.",
+            "rcode": 0,
+            "truncated": true
+          },
+          "client_response_sha256": [
+            "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+          ],
+          "cookie": 150,
+          "elapsed_us": 50973,
+          "end_ns": 79116777045365,
+          "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+          "response_count": 1,
+          "start_ns": 79116726071531,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+          "captured_reply": null,
+          "captured_response_sha256": [],
+          "client_reply": null,
+          "client_response_sha256": [],
+          "cookie": 150,
+          "elapsed_us": 352938,
+          "end_ns": 79117130018826,
+          "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+          "response_count": 0,
+          "start_ns": 79116777080360,
+          "timeout": true
+        },
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 150,
+          "elapsed_us": 50969,
+          "end_ns": 79117181014322,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 79117130044423,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 151,
+          "elapsed_us": 51992,
+          "end_ns": 79117233021285,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 79117181028879,
+          "timeout": false
+        }
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "packages": [
+        {
+          "facts": 19,
+          "flows": 2,
+          "l3_proto": 34525,
+          "matched_cookies": [
+            150,
+            151
+          ],
+          "packet_only": true,
+          "path": "protocols/dns/udp/main.gewy",
+          "phases": [
+            "send_request",
+            "receive_reply"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "e8bd32047ced23d86b69ec61e5f09028511176f70e2a204444471b1ed3555be8"
+        },
+        {
+          "facts": 19,
+          "flows": 2,
+          "l3_proto": 34525,
+          "matched_cookies": [
+            150
+          ],
+          "packet_only": true,
+          "path": "protocols/dns/error/main.gewy",
+          "phases": [
+            "receive_formerr",
+            "receive_servfail",
+            "receive_nxdomain",
+            "receive_refused"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "831563e402af213be9ae429af537fd648245670c3b9ebcb24e60652f9ae72aa2"
+        }
+      ],
+      "published_ports": false,
+      "query_type": "A",
+      "schema_version": 2,
+      "selected_sockets": [
+        [
+          150,
+          59001
+        ],
+        [
+          151,
+          33802
+        ]
+      ],
+      "source_address": "fd94:e3e3:2843::1",
+      "target_address": "fd94:e3e3:2843::2",
+      "unselected_neighbor_cookie": 24684,
+      "unselected_neighbor_reply": {
+        "addresses": [],
+        "id": 17425,
+        "question": "nx.test.",
+        "rcode": 3,
+        "truncated": false
+      }
+    }
+  ],
+  "validation": {
+    "dns_unit_tests_passed": 4,
+    "validator_cli_tests_passed": 20,
+    "native_evidence_tests_passed": 52,
+    "status_validation": {
+      "schema_version": 4,
+      "status": "valid",
+      "cells": 39,
+      "coverage_requirements": 37,
+      "gui_operations": 35,
+      "gui_chains": 11,
+      "gui_target_score": 100
+    },
+    "strict_clippy": true,
+    "clippy_command": "cargo --config profile.dev.package.gewyvern.opt-level=2 clippy --locked --lib --bin gewyvern_validate --test native_validation_harness_tdd -- -D warnings",
+    "cargo_fmt_check": true,
+    "git_diff_check": true
+  },
+  "raw_summary_sha256": {
+    "verified-ipv4-1/summary.json": "a572c4cec458cb13658b3b52a39952fc15a5bd320456ce998b496ec6b6f066be",
+    "verified-ipv4-2/summary.json": "60e6dd9e0a54a4ba0f9973027b7e038dc340d81406baed66f458c6e43ac5136c",
+    "verified-ipv4-3/summary.json": "3f374889a29f6b8786095b208a39e1455875f48261fb682db155ff9c73f5ae71",
+    "verified-ipv6-1/summary.json": "85361a0e68ad30bf72c4ac471396e106e532342ae1c57c27c4ca0ac32c1d2fc0",
+    "verified-ipv6-2/summary.json": "fa6a79fa5bf5ded31b22a971cf7b7366831ea6ecd5bca21073b6991591e1e940",
+    "verified-ipv6-3/summary.json": "1d8f853b5a0bbb0593070ce03df855b9dfb888cbdab61d235ef364772af95ffc",
+    "legacy-ipv4/summary.json": "d8716fb1dfed7905154b661a6b9e5d4ccaa94cbf0b1ae03d1999ab4ebaf8baab",
+    "legacy-ipv6/summary.json": "993f62d476e15d707ac1c5a2c0048a315b266ca20067c74c24264fc24c76a024"
+  },
+  "logs_sha256": {
+    "evidence-tests.log": "18b842c5a335a73f5712691d7c0c5be67e317b9137e8e5c6aa7be7413f7add48",
+    "status-validation.json": "43b0fa3c6bceb9a62b1a5114f32c280642f7308573289e7a0206b070dbada149",
+    "build-acceptance.log": "0e3af7f7909c2d2cc385575bb4869b21c4546c87e2f080500ddb2e1ce3b3dbd1",
+    "dns-unit-final.log": "72af24e22bf815d130066140deb9be0fabf4fef82422f6c1688efffb29e361be",
+    "validator-tests-final.log": "854337e05f7acbd8386d4e09a0484e68a877422a3b9837aef4f6903cd717a821",
+    "clippy-acceptance.log": "4b395c9c76c7f7fb5221d30df7320c7a2387ff3842c426dbee6a59a54b5cffab"
+  },
+  "cleanup": {
+    "docker_inventory_restored": true,
+    "before": {
+      "containers": 15,
+      "networks": 6,
+      "volumes": 54
+    },
+    "after": {
+      "containers": 15,
+      "networks": 6,
+      "volumes": 54
+    },
+    "owned_cgroups_remaining": 0,
+    "owned_target_containers_remaining": 0,
+    "owned_target_networks_remaining": 0,
+    "bpf_temporary_paths_remaining": 0,
+    "temporary_build_container_removed": true,
+    "removed_build_container_id": "4bcaa9a98a89e97b7acdcc4ac780986f664224cd3d401537a49da52409797145",
+    "other_workloads_removed": false,
+    "host_services_changed": false
+  },
+  "limits": [
+    "One physical Linux host/kernel; direct IPv4/IPv6 UDP with small DNS A messages.",
+    "Product selects cgroup and UDP port, not individual sockets. The excluded socket was created outside that cgroup.",
+    "Full payload multiset equality is bounded to messages <=128 bytes; no ordering or cross-window transaction correlation claim.",
+    "Timeout is bounded absence of a reply, not an RCODE. No vulnerability classification or full DNS parser claim.",
+    "No AAAA, EDNS, DNSSEC, TCP fallback, DoH/DoT, recursive caching, sustained-load or performance proof.",
+    "No full IP-address retention or PID attribution in product packet facts; advisory unverified-local trust is preserved.",
+    "No protocol-count, status-maturity or release-artifact promotion. Initial failed diagnostic attempts are retained separately."
+  ]
+}

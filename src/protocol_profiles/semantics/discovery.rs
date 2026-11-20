@@ -389,18 +389,18 @@ pub(super) fn ntp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemanticsS
     let (category, operator_focus, typical_signal) = match entry {
         "client" => (
             "time-client-path",
-            "NTP client exchange against a time server on UDP/123",
+            "bounded NTPv3/v4 client and generic server-header candidates; a response may be unsynchronised or KoD",
             Some("client mode request + server mode response"),
         ),
         "query" => (
             "time-query-path",
-            "NTP query probe and server response used for time reachability diagnostics",
+            "bounded NTPv3/v4 probe and generic response candidates; no origin correlation or time-accuracy proof",
             Some("mode 3 request + mode 4 response"),
         ),
         "sync" => (
             "time-sync-path",
-            "NTP synchronization-oriented request and response for clock discipline",
-            Some("synchronization request + response"),
+            "NTPv3/v4 time-reply candidate with usable LI/stratum and nonzero timestamps; not proof of clock discipline or accurate time",
+            Some("client request + time-reply candidate"),
         ),
         _ => return None,
     };

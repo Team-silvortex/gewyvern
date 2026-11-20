@@ -91,7 +91,8 @@ The cardinality rules are stable:
 
 `gewyvern` owns capture, protocol interpretation, reconstruction, reasons,
 replay, and exported evidence. GewyLang describes protocol-aware evidence
-programs that lower into bounded, verifier-safe runtime plans.
+programs that lower into runtime bindings. It selects existing kernel probes;
+it does not compile source directly into eBPF or certify live sampling support.
 
 Rust Leserpent owns identity, capabilities, revisions, confirmation, durable
 commands, effects, audit, and projections. Leselang, CLI, Avalonia, mobile, and
@@ -101,9 +102,9 @@ The ASP.NET/TypeScript application is a supported compatibility bridge and Web
 renderer. New control semantics enter the Rust domain/protocol first, then the
 bridge consumes them. Managed persistence must not become a second authority.
 
-Etragon is deliberately advisory and downweighted until its later learning
-stack has independent evidence. Advice is append-only and can never rewrite an
-observed fact, command result, or audit record.
+Etragon is deliberately advisory: it integrates external API/local analysis
+drivers rather than owning a required in-house model stack. Advice is append-only
+and can never rewrite an observed fact, command result, or audit record.
 
 ## Dependency Direction
 

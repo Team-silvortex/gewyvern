@@ -1,7 +1,7 @@
 # Reference: NTP Time Surface
 
-Read this page when the path is clearly about asking for time or pushing local
-clock state toward a remote source.
+Read this page when observing NTP probes or candidate time replies. These
+packages observe traffic; they do not adjust the local clock.
 
 Canonical entries covered here:
 
@@ -18,7 +18,20 @@ Current accepted aliases:
 Operational split:
 
 - `query` probes or checks remote time state
-- `sync` applies a clock-following or discipline-oriented action
+- `sync` identifies candidate time replies with usable LI/stratum and nonzero timestamps, not a clock-following action or proof of synchronization
+
+Both entries accept NTPv3 and NTPv4 requests. The version bits do not distinguish
+query intent from clock discipline. `query` retains generic responses including
+unsynchronised/KoD status, while `sync` excludes those from its receive phase.
+The predicate requires the complete 48-byte base header, does not join sparse
+samples, correlate originate timestamps with requests, or authenticate trailing
+extensions/MACs. Local-reference servers can appear usable without accurate time.
+
+The [Linux campaign](../script-entrypoints.md) runs private chrony instances
+with and without a local reference, with `-x` and no `SYS_TIME` capability.
+Neither the daemon nor its Rust test client sets the host clock; no external
+time source is configured. This is bounded protocol observation, not NTP
+accuracy, clock-discipline or NTS certification.
 
 Protocol package aliases also remain accepted:
 

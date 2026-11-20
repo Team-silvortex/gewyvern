@@ -5,7 +5,7 @@ pub(super) fn snmp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantics
     match entry {
         "get" => summary(
             "snmp-read-path",
-            "SNMP GET request and response reading one or more managed object values",
+            "bounded SNMPv1/v2c GET and generic response candidates; no request-id correlation or value-success proof",
             Some("GetRequest PDU + Response PDU"),
             None,
             None,
@@ -13,7 +13,7 @@ pub(super) fn snmp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantics
         ),
         "get-next" => summary(
             "snmp-walk-path",
-            "SNMP GETNEXT request and response walking adjacent managed object values",
+            "bounded SNMPv1/v2c GETNEXT and generic response candidates; no full walk or transaction-success proof",
             Some("GetNextRequest PDU + Response PDU"),
             None,
             None,
@@ -21,7 +21,7 @@ pub(super) fn snmp_entry_semantics(entry: &str) -> Option<ProtocolEntrySemantics
         ),
         "bulk" => summary(
             "snmp-bulk-read-path",
-            "SNMP GETBULK request and response collecting a larger management table slice",
+            "bounded SNMPv2c GETBULK and generic response candidates; no complete table or transaction-success proof",
             Some("GetBulkRequest PDU + Response PDU"),
             None,
             None,

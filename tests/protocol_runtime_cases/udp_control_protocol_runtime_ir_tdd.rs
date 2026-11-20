@@ -164,7 +164,7 @@ fn ntp_sync_runtime_path_materializes_time_sync_ir() {
 }
 
 #[test]
-fn ntp_sync_runtime_ir_does_not_materialize_for_query_request_byte() {
+fn ntp_sync_runtime_ir_does_not_materialize_for_unsynchronised_response() {
     let export = run_simple_udp_path(
         "ntp_sync_path.gewy",
         0x9172,
@@ -173,11 +173,12 @@ fn ntp_sync_runtime_ir_does_not_materialize_for_query_request_byte() {
         123,
         &[
             (PacketDir::Egress, 0x23, 0x2300),
-            (PacketDir::Ingress, 0x24, 0x2400),
+            (PacketDir::Ingress, 0xe4, 0xe400),
         ],
     );
 
-    assert_no_stage(&export, "send_sync_request");
+    assert_stage(&export, "send_sync_request");
+    assert_no_stage(&export, "receive_sync_response");
     assert_no_protocol_ir(&export, "ntp_sync");
     assert_json_replay(&export);
 }
@@ -367,6 +368,16 @@ fn run_simple_udp_path(
     session.ingest(route_fact(2, cookie, 7));
 
     for (index, (dir, byte0, prefix2)) in packets.iter().enumerate() {
+        if fixture.starts_with("ntp_") {
+            session.ingest(support::ntp_packet(
+                3 + index as u64,
+                cookie,
+                *dir,
+                (local_port, remote_port),
+                &support::ntp_header(*byte0),
+            ));
+            continue;
+        }
         session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
             3 + index as u64,
             cookie,

@@ -7,34 +7,30 @@ fn snmp_get_path_materializes_request_and_response_datagrams() {
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 829, 54000, "snmpwalk"));
     session.ingest(route_fact(2, 829, 7));
-    session.ingest(
-        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-            3,
-            829,
-            96,
-            PacketDir::Egress,
-            Some(54000),
-            Some(161),
-            Some(0x30),
-            Some(0x3026),
-            Some(0x30260201),
-            Some(0xa0),
-        ),
-    );
-    session.ingest(
-        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-            4,
-            829,
-            104,
-            PacketDir::Ingress,
-            Some(54000),
-            Some(161),
-            Some(0x30),
-            Some(0x3028),
-            Some(0x30280201),
-            Some(0xa2),
-        ),
-    );
+    session.ingest(support::complete_snmp_packet(
+        3,
+        829,
+        96,
+        PacketDir::Egress,
+        Some(54000),
+        Some(161),
+        Some(0x30),
+        Some(0x3026),
+        Some(0x30260201),
+        Some(0xa0),
+    ));
+    session.ingest(support::complete_snmp_packet(
+        4,
+        829,
+        104,
+        PacketDir::Ingress,
+        Some(54000),
+        Some(161),
+        Some(0x30),
+        Some(0x3028),
+        Some(0x30280201),
+        Some(0xa2),
+    ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();
@@ -71,34 +67,30 @@ fn snmp_get_path_does_not_match_wrong_response_pdu_type() {
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 830, 54000, "snmpwalk"));
     session.ingest(route_fact(2, 830, 7));
-    session.ingest(
-        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-            3,
-            830,
-            96,
-            PacketDir::Egress,
-            Some(54000),
-            Some(161),
-            Some(0x30),
-            Some(0x3026),
-            Some(0x30260201),
-            Some(0xa0),
-        ),
-    );
-    session.ingest(
-        udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
-            4,
-            830,
-            104,
-            PacketDir::Ingress,
-            Some(54000),
-            Some(161),
-            Some(0x30),
-            Some(0x3028),
-            Some(0x30280201),
-            Some(0xa1),
-        ),
-    );
+    session.ingest(support::complete_snmp_packet(
+        3,
+        830,
+        96,
+        PacketDir::Egress,
+        Some(54000),
+        Some(161),
+        Some(0x30),
+        Some(0x3026),
+        Some(0x30260201),
+        Some(0xa0),
+    ));
+    session.ingest(support::complete_snmp_packet(
+        4,
+        830,
+        104,
+        PacketDir::Ingress,
+        Some(54000),
+        Some(161),
+        Some(0x30),
+        Some(0x3028),
+        Some(0x30280201),
+        Some(0xa1),
+    ));
     session.freeze(SystemTime::UNIX_EPOCH + Duration::from_millis(60));
 
     let export = session.export_bundle();

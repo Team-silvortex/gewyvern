@@ -1,12 +1,13 @@
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 
-/* Validation only: two owned IPv4 sockets; never change or block traffic. */
+/* Validation ABI only: two owned sockets; never change or block traffic. */
 struct datagram_event {
     __u64 sequence, monotonic_ns, cookie;
-    __u32 cpu, ifindex, source, destination;
-    __u16 sport, dport, total_len, payload_len, prefix_len;
-    __u8 ip_header_len;
+    __u32 cpu, ifindex, total_len;
+    __u8 source[16], destination[16];
+    __u16 sport, dport, payload_len, prefix_len;
+    __u8 ip_header_len, ip_version;
     __u8 prefix[128];
 };
 struct capture_counts { __u64 total, dropped; };
@@ -41,23 +42,43 @@ int capture_udp_dns(struct __sk_buff *ctx) {
     struct capture_counts *stats = bpf_map_lookup_elem(&counts, &zero);
     if (!stats)
         return 1;
-    __u8 ip[20], udp[8];
-    if (bpf_skb_load_bytes(ctx, 0, ip, sizeof(ip)))
+    __u8 ip[40], udp[8];
+#if IP_VERSION == 6
+    if (bpf_skb_load_bytes(ctx, 0, ip, 40))
+        goto malformed;
+    __u32 ihl = 40, total = 40 + be16(ip + 4);
+    /* No extension headers, fragments or jumbograms in this bounded fixture. */
+    if (ip[0] >> 4 != 6 || ip[6] != 17 || total < 48 || total > ctx->len)
+        goto malformed;
+#else
+    if (bpf_skb_load_bytes(ctx, 0, ip, 20))
         goto malformed;
     __u32 ihl = (ip[0] & 15) * 4, total = be16(ip + 2);
     if (ip[0] >> 4 != 4 || ip[9] != 17 || ihl < 20 ||
         (be16(ip + 6) & 0x3fff) || total < ihl + 8 || total > ctx->len)
         goto malformed;
+#endif
     if (bpf_skb_load_bytes(ctx, ihl, udp, sizeof(udp)))
         goto malformed;
     __u16 local = cookie == COOKIE_A ? PORT_A : PORT_B;
 #ifdef CAPTURE_EGRESS
-    if (be32(ip + 12) != SOURCE_IPV4 || be32(ip + 16) != DESTINATION_IPV4 ||
-        be16(udp) != local || be16(udp + 2) != 53)
+    if (be16(udp) != local || be16(udp + 2) != REMOTE_PORT)
         goto malformed;
+    const __u32 source[4] = {SOURCE_0, SOURCE_1, SOURCE_2, SOURCE_3};
+    const __u32 destination[4] = {DESTINATION_0, DESTINATION_1, DESTINATION_2, DESTINATION_3};
 #else
-    if (be32(ip + 12) != DESTINATION_IPV4 || be32(ip + 16) != SOURCE_IPV4 ||
-        be16(udp) != 53 || be16(udp + 2) != local)
+    if (be16(udp) != REMOTE_PORT || be16(udp + 2) != local)
+        goto malformed;
+    const __u32 source[4] = {DESTINATION_0, DESTINATION_1, DESTINATION_2, DESTINATION_3};
+    const __u32 destination[4] = {SOURCE_0, SOURCE_1, SOURCE_2, SOURCE_3};
+#endif
+#if IP_VERSION == 6
+#pragma unroll
+    for (int i = 0; i < 4; i++)
+        if (be32(ip + 8 + 4*i) != source[i] || be32(ip + 24 + 4*i) != destination[i])
+            goto malformed;
+#else
+    if (be32(ip + 12) != source[0] || be32(ip + 16) != destination[0])
         goto malformed;
 #endif
     if (be16(udp + 4) != total - ihl)
@@ -67,12 +88,18 @@ int capture_udp_dns(struct __sk_buff *ctx) {
     value.cookie = cookie;
     value.cpu = bpf_get_smp_processor_id();
     value.ifindex = ctx->ifindex;
-    value.source = be32(ip + 12);
-    value.destination = be32(ip + 16);
+#if IP_VERSION == 6
+    __builtin_memcpy(value.source, ip + 8, 16);
+    __builtin_memcpy(value.destination, ip + 24, 16);
+#else
+    __builtin_memcpy(value.source, ip + 12, 4);
+    __builtin_memcpy(value.destination, ip + 16, 4);
+#endif
     value.sport = be16(udp);
     value.dport = be16(udp + 2);
     value.total_len = total;
     value.ip_header_len = ihl;
+    value.ip_version = IP_VERSION;
     value.payload_len = total - ihl - 8;
     __u32 length = value.payload_len > 128 ? 128 : value.payload_len;
     __asm__ volatile("" : "+r"(length));

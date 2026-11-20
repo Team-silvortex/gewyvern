@@ -13,6 +13,61 @@ use std::time::{Duration, SystemTime};
 
 use super::{AnalysisAugmenter, AnalysisSnapshot, push_analysis_augmentation};
 
+pub(super) fn payload_bytes_for_tests(bytes: &[u8]) -> Vec<(u16, u8)> {
+    bytes
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(i, b)| (i as u16, b))
+        .collect()
+}
+
+pub(super) fn snmp_payload_bytes_for_tests(pdu: u8) -> Vec<(u16, u8)> {
+    fn tlv(tag: u8, body: &[u8]) -> Vec<u8> {
+        let mut bytes = vec![tag, body.len() as u8];
+        bytes.extend_from_slice(body);
+        bytes
+    }
+    let binding = tlv(0x30, &[6, 8, 43, 6, 1, 2, 1, 1, 6, 0, 5, 0]);
+    let mut body = vec![2, 1, 1, 2, 1, 0, 2, 1, u8::from(pdu == 0xa5)];
+    body.extend(tlv(0x30, &binding));
+    let mut message = vec![2, 1, 1];
+    message.extend(tlv(4, b"public"));
+    message.extend(tlv(pdu, &body));
+    payload_bytes_for_tests(&tlv(0x30, &message))
+}
+
+pub(super) fn stun_payload_bytes_for_tests(kind: u16) -> Vec<(u16, u8)> {
+    let mut bytes = kind.to_be_bytes().to_vec();
+    bytes.extend([0, 0, 0x21, 0x12, 0xa4, 0x42]);
+    bytes.extend([0x5a; 12]);
+    match kind {
+        0x0101 => bytes.extend([0, 0x20, 0, 8, 0, 1, 0x32, 0x9a, 0x5e, 0x12, 0xa4, 0x43]),
+        0x0111 => bytes.extend([0, 9, 0, 4, 0, 0, 4, 20]),
+        _ => {}
+    }
+    let length = (bytes.len() - 20) as u16;
+    bytes[2..4].copy_from_slice(&length.to_be_bytes());
+    bytes
+        .into_iter()
+        .enumerate()
+        .map(|(i, b)| (i as u16, b))
+        .collect()
+}
+
+pub(super) fn ntp_payload_bytes_for_tests(flags: u8) -> Vec<(u16, u8)> {
+    let mut bytes = [0; 48];
+    bytes[0] = flags;
+    bytes[1] = if flags >> 6 == 3 { 0 } else { 10 };
+    bytes[31] = 1;
+    bytes[39] = 2;
+    bytes[47] = 3;
+    bytes
+        .into_iter()
+        .enumerate()
+        .map(|(i, b)| (i as u16, b))
+        .collect()
+}
 pub(super) struct MlHookAugmenter;
 
 impl AnalysisAugmenter for MlHookAugmenter {

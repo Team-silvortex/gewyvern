@@ -13,6 +13,33 @@ use self::qualifier::{
 };
 
 pub(crate) fn parse_flow_predicate(value: &str) -> Result<FlowPredicate, DslError> {
+    if let Some(rest) = value.strip_prefix("stun_binding_observed:remote:") {
+        let (port, label) = rest.split_once(':').ok_or_else(|| {
+            DslError::InvalidValue("STUN Binding requires remote port and candidate kind".into())
+        })?;
+        let remote_port = parse_named_port(port, "stun_binding_observed")?;
+        let kind = crate::ir::StunBindingKind::from_label(label)
+            .ok_or_else(|| DslError::InvalidValue("unknown STUN Binding candidate kind".into()))?;
+        return Ok(FlowPredicate::StunBindingObserved { remote_port, kind });
+    }
+    if let Some(rest) = value.strip_prefix("ntp_message_observed:remote:") {
+        let (port, label) = rest.split_once(':').ok_or_else(|| {
+            DslError::InvalidValue("NTP message requires remote port and candidate kind".into())
+        })?;
+        let remote_port = parse_named_port(port, "ntp_message_observed")?;
+        let kind = crate::ir::NtpMessageKind::from_label(label)
+            .ok_or_else(|| DslError::InvalidValue("unknown NTP message candidate kind".into()))?;
+        return Ok(FlowPredicate::NtpMessageObserved { remote_port, kind });
+    }
+    if let Some(rest) = value.strip_prefix("snmp_pdu_observed:remote:") {
+        let (port, label) = rest.split_once(':').ok_or_else(|| {
+            DslError::InvalidValue("SNMP PDU requires remote port and candidate kind".into())
+        })?;
+        let remote_port = parse_named_port(port, "snmp_pdu_observed")?;
+        let kind = crate::ir::SnmpPduKind::from_label(label)
+            .ok_or_else(|| DslError::InvalidValue("unknown SNMP PDU candidate kind".into()))?;
+        return Ok(FlowPredicate::SnmpPduObserved { remote_port, kind });
+    }
     if let Some(rest) = value.strip_prefix("rtsp_response_observed:remote:") {
         let Some((port, kind)) = rest.split_once(':') else {
             return Err(DslError::InvalidValue(

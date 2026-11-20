@@ -236,6 +236,9 @@ Current predicate families are:
 - `datagram_observed:<proto>`
 - `packet_observed:<proto>`
 - `rtsp_response_observed:remote:<port|name>:<options_ok|describe_ok|setup_ok|play_ok>`
+- `snmp_pdu_observed:remote:<port|name>:<get|get_next|get_bulk|response>`
+- `ntp_message_observed:remote:<port|name>:<request|response|time_reply>`
+- `stun_binding_observed:remote:<port|name>:<request|response|error>`
 - `quic_packet_observed:...`
 - `quic_frame_observed:...`
 - `all(...)`
@@ -254,6 +257,43 @@ any(route_resolved,socket_state_observed)
 
 This vocabulary is shared by both `rule=` program-flow rules and
 `reason.rule=` declarative reason rules.
+
+`stun_binding_observed` recognizes modern UDP Binding candidates within a complete,
+contiguous 20..128-byte sampled envelope. It checks the exact Binding message type,
+magic cookie, declared length, and padded attribute boundaries. `request` is egress;
+`response` and `error` are ingress. Success requires a correctly shaped
+XOR-MAPPED-ADDRESS (IPv4 or IPv6); error requires an ERROR-CODE with class 3..6
+and number 0..99. Only the first occurrence of those attributes is used. Unknown
+attributes and padding contents remain opaque. The collector must support offsets
+`0..127`; sparse, truncated and oversized samples are not guessed. This does not
+validate FINGERPRINT, message integrity, authentication, transaction correlation,
+NAT traversal, ICE or TURN. See [RFC 8489](https://www.rfc-editor.org/rfc/rfc8489.html).
+
+`ntp_message_observed` requires a contiguous 48-byte NTPv3/v4 base header
+at payload offset zero on UDP. `request` selects egress mode 3; `response`
+selects ingress mode 4, including unsynchronised and Kiss-o'-Death candidates.
+`time_reply` additionally requires LI other than 3, stratum 1..15, and nonzero
+originate/receive/transmit timestamp fields. It still does not establish request
+correlation, accurate time, trusted origin or client clock discipline. Leap bits
+do not change request intent; v3/v4 are versions, not query versus sync modes.
+Required sample offsets are `0..47`; truncated/sparse samples are unsupported.
+Extension/MAC bytes are outside this base-header predicate and are not validated
+or authenticated. See [RFC 5905](https://www.rfc-editor.org/rfc/rfc5905).
+
+`snmp_pdu_observed` recognizes bounded UDP community-message candidates, not
+transaction outcomes. `get`/`get_next`/`get_bulk` require egress; `response`
+requires ingress. SNMPv1/v2c use a variable-length BER community field, not a
+fixed PDU byte offset; GETBULK requires v2c. The envelope, PDU fields and varbind
+shapes must be contiguous and complete within 128 captured bytes. Definite
+short and one/two-byte long lengths are supported, including non-minimal BER
+lengths; indefinite lengths, gaps, truncation, trailing sampled bytes, larger
+messages and v3 are rejected. Required sample offsets are `0..127`, with
+unsupported-offset diagnostics for sparse collectors. A generic response can
+contain error-status or exception values: it does not prove successful reads,
+GET versus GETNEXT versus GETBULK correlation, authorization, or a full walk.
+Only the read packages use this predicate; SET/notifications/v3 remain separate
+unvalidated breadth work. Protocol shape follows [RFC 3416](https://www.rfc-editor.org/rfc/rfc3416)
+and the community envelope in [RFC 1901](https://www.rfc-editor.org/rfc/rfc1901).
 
 `rtsp_response_observed` is an ingress TCP response candidate, not a dialogue
 decoder. It requires a complete RTSP/1.0 `200` header at packet offset zero,

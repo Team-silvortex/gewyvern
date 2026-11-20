@@ -3,10 +3,10 @@ use std::os::fd::OwnedFd;
 use std::path::Path;
 use std::process::Command;
 
-use super::super::super::udp_evidence::Datagram;
-use super::super::packet_capture::Scope;
-use super::super::{Pins, bpf_link, map_dump, map_entries, repo_root, tool};
+use super::super::udp_evidence::{Addresses, Datagram};
+use super::packet_capture::Scope;
 use super::{Counts, ValidationError};
+use super::{Pins, bpf_link, map_dump, map_entries, repo_root, tool};
 
 pub(super) struct Capture {
     link: Option<OwnedFd>,
@@ -17,10 +17,23 @@ impl Capture {
     pub fn attach(
         scope: &Scope,
         expected: &[(u64, u16); 2],
-        addresses: ([u8; 4], [u8; 4]),
+        addresses: impl Into<Addresses>,
+        remote_port: u16,
         egress: bool,
         out: &Path,
     ) -> Result<Self, ValidationError> {
+        if remote_port == 0
+            || expected
+                .iter()
+                .any(|(cookie, port)| *cookie == 0 || *port == 0)
+            || expected[0].0 == expected[1].0
+            || expected[0].1 == expected[1].1
+        {
+            return Err(ValidationError::new(
+                "UDP capture requires two unique nonzero socket identities and a remote port",
+            ));
+        }
+        let addresses = addresses.into();
         let pins = Pins::new()?;
         let object = out.join("udp-dns.bpf.o");
         let mut compiler = Command::new("clang");
@@ -32,16 +45,16 @@ impl Capture {
             ))
             .arg(format!("-DCOOKIE_A={}ULL", expected[0].0))
             .arg(format!("-DCOOKIE_B={}ULL", expected[1].0))
+            .arg(format!("-DREMOTE_PORT={remote_port}"))
             .arg(format!("-DPORT_A={}", expected[0].1))
             .arg(format!("-DPORT_B={}", expected[1].1))
-            .arg(format!(
-                "-DSOURCE_IPV4={}U",
-                u32::from_be_bytes(addresses.0)
-            ))
-            .arg(format!(
-                "-DDESTINATION_IPV4={}U",
-                u32::from_be_bytes(addresses.1)
-            ));
+            .arg(format!("-DIP_VERSION={}", addresses.version()));
+        let (source, destination) = addresses.octets();
+        for (name, bytes) in [("SOURCE", source), ("DESTINATION", destination)] {
+            for (index, word) in bytes.as_chunks::<4>().0.iter().enumerate() {
+                compiler.arg(format!("-D{name}_{index}={}U", u32::from_be_bytes(*word)));
+            }
+        }
         if egress {
             compiler.arg("-DCAPTURE_EGRESS=1");
         }

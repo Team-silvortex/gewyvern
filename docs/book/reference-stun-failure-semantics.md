@@ -44,6 +44,12 @@ was observed.
 When a STUN binding exchange returns an explicit error response, treat it as a
 direct protocol result rather than timeout.
 
+An error candidate is not necessarily access denial: the isolated coturn fixture
+returns 420 for an unknown required attribute. The `binding-denied` compatibility
+alias therefore shares generic protocol-error semantics. Conversely, absence of
+a qualified success candidate does not prove that no UDP response arrived;
+inspect `binding-error` and the captured bytes before attributing transport loss.
+
 Expected summary labels:
 
 - `primary_failure_mode = semantic_error`

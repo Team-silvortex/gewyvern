@@ -12,6 +12,32 @@ use gewyvern::flow::{ProgramFinding, ProgramFindingCause};
 
 const TARGET_NAME: &str = "scan:http:request";
 
+#[test]
+fn live_capture_note_does_not_claim_socket_input_or_pid_identity() {
+    use gewyvern::live_capture::{CaptureSnapshot, CaptureState, KernelCounters};
+    let mut export = demo_reports_export();
+    export.ingest_trust_mode = "unverified-local".into();
+    export.capture = Some(CaptureSnapshot {
+        schema_version: 1,
+        run_id: "report-test".into(),
+        cgroup: "/test".into(),
+        udp_port: 53,
+        state: CaptureState::Stopped,
+        kernel: KernelCounters::default(),
+        received: 0,
+        retained: 0,
+        userspace_dropped: 0,
+        decode_rejected: 0,
+        final_accounted: true,
+        incomplete: false,
+    });
+    let json = summary_json(TARGET_NAME, &export);
+    assert!(json.contains("local kernel UDP capture"));
+    assert!(json.contains("PID lineage is not established"));
+    assert!(!json.contains("local socket source"));
+    assert!(json.contains("\"pid_attribution_status\":\"unverified\""));
+}
+
 fn demo_reports_export() -> ExportBundle {
     let binding = compile_file(&dsl_fixture_path("http_request_path.gewy"))
         .expect("http_request_path DSL should compile");

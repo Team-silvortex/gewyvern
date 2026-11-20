@@ -25,6 +25,13 @@ that owns your question; do not scan the repository by filename.
 - Source ownership and retained compatibility: [repository map](monorepo-stack.md)
 - Leselang dependency pin and product-side cleanup: [repository handoff](leselang-repository-handoff.md#product-cleanup-closeout)
 - Gewyvern capability testing: [field-validation handoff](field-validation.md#post-split-handoff)
+- Product CLI and service capture: [live Linux UDP capture](live-udp-capture.md)
+- Installed TLS capture and readiness: [installed UDP service](installed-udp-service.md)
+- Linux supervisor restart and bounded recovery: [systemd UDP recovery](systemd-udp-recovery.md)
+- Real DNS target through the formal CLI: [production DNS field check](production-dns-field.md)
+- Real SNMP/NTP/STUN targets through the formal CLI: [management UDP field checks](production-management-udp-field.md)
+- Formal collector packet/socket limits: [UDP boundary checks](production-udp-boundaries.md)
+- Formal collector across namespaces and MTU boundaries: [UDP network checks](production-udp-network.md)
 - Live progress and evidence: [status entry](../STATUS.md)
 - Local cache retention and cleanup: [workspace hygiene](development.md#workspace-hygiene)
 

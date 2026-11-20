@@ -50,6 +50,9 @@ pub(crate) fn ingest_mode_for_export(export: &ExportBundle) -> &'static str {
 }
 
 pub(crate) fn ingest_mode_note_for_export(export: &ExportBundle) -> &'static str {
+    if export.capture.is_some() && export.ingest_trust_mode == "unverified-local" {
+        return "local kernel UDP capture: packet evidence is real, but PID lineage is not established; inspect capture loss and final accounting";
+    }
     match ingest_mode_for_export(export) {
         "demo" => {
             "synthetic demo mode: useful for exercising flows and reports, not for real process attribution"

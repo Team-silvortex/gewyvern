@@ -1,0 +1,1420 @@
+{
+  "schema_version": 1,
+  "campaign": "real-host-systemd-generated-udp-service-recovery",
+  "date": "2026-11-13",
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "source_base_commit": "39eeb7d1f03c92f007daa1ac5d72aee311fead5e",
+  "source_worktree_dirty": true,
+  "source_sha256": {
+    "src/main.rs": "c898522bdfc59485d4375b180a15f7a68ac1b5358c4dd2da18f5a2ca7bf6b5e0",
+    "src/main/capture_runtime.rs": "80836255e2c49daa600ec4457faf7da9bce429faf875e2358a6a26f5dbdd1462",
+    "src/data_api.rs": "a5b9d10a53abfe3cb8dca0a6368c8c4841923282df45215d63ad9e04932b95a8",
+    "src/data_api/routing.rs": "28e05dc8b9f58822b9b2448e59b2e634ff6c0e9802f2e3796a9f9c4cb825cdac",
+    "src/serve_runtime.rs": "995bf5e900397bb8e19945868af34b74c87d9ebd308a5b47cdaf333ed827850d",
+    "src/gewyvern_install.rs": "4f9082d524b288eee042893cb805ea30ba5a6267120b77979bcaa6eb6b6b332d",
+    "src/gewyvern_install/capture.rs": "896ca40d1a1325412cc35f4c2cee4aa1aa673496e6540508583fca83bbe49036",
+    "crates/gewyvern-install-contract/src/lib.rs": "bd4194d90c86582a574ef83e0f92423f61e555fed3541442eabeec52f69b923b",
+    "crates/gewyvern-install-contract/src/installer.rs": "a14979a07f4c4f46edf6f2fe6ee58893d73f295da84a374d3c986cb6081fd662",
+    "crates/gewyvern-install-contract/src/capture.rs": "bcb043c4249743f0a488d3716dd8f044867e28443d02c5ef6a097dbd1184b8a8",
+    "src/live_capture.rs": "fd14b4925528b4c8b22ebc3a3d0f1890c098d862fa5df8f0fdb9a59eb42448ab",
+    "src/live_capture/linux.rs": "1e166da359d5f11624e545fc2fef57182fa1a48b76c4dbc4d34dd5cd9ac084ed",
+    "src/live_capture/linux/api.rs": "77426bb0cee7018f88a3d1a0cc24d316f99ad8df35e05c962fab8382942b7d0d",
+    "ebpf/production/udp.bpf.c": "867e71774df6c9bbf69370ce712d527c0d7a8dede8eba1eff0975d76e1c1c1e3",
+    "src/export/capture_codec.rs": "55c07226d16d934f7c0586e26c42fca419f46d4daab5fb9b6784ace76f6243da",
+    "src/packet_capture.rs": "50cf644ff5bf466169296b79850bd8e128df60734978ee500ddb1d3c70ac8014",
+    "tests/production_capture_linux_tdd.rs": "f4073b7a0f575c58539a1a72e5dc3f7a5fb33926ea098191e61581338b1e41f0",
+    "tests/production_capture_linux_tdd/installed.rs": "1c546083a1503702bc824fd1b8372c373291839cf28f84a2aff64f479102422d",
+    "tests/native_validation_harness_tdd.rs": "d0c0a5856ae22aa2af52918a18a5fdeebb148d2bfa77c414ccfce68f9a517191",
+    "Cargo.toml": "b4e09c55b8497e1c30df15836bbf94caaa8e34f58d3a4f926e6a9454a9817827",
+    "Cargo.lock": "e2bb05484df435e37cca096402a22f3f7480581d851cab7009b645de0630fb11",
+    "tests/gewyvern_installer_vertical.rs": "117077000e4e8cb88d901a69304ba8fb56731004db0c62c13e7cd453313a8128",
+    "tests/production_capture_linux_tdd/systemd.rs": "75eb8ce2b13dd1549070940602bb1ecf3293ef041e4465a24f23b4f9ff256cc4",
+    "tests/production_capture_linux_tdd/systemd_reference.rs": "7ff87a318c3d3c956ba55c196119356b5e67d2dd3fce9be115c91665c568a318"
+  },
+  "source_scope": "24 selected source/contract/test/build inputs match the Linux workspace byte-for-byte. Not a hermetic whole-worktree release manifest.",
+  "binary_sha256": "253b09de9d795283b42ac51634e17d4ac6c5ef3a9db6bc0c24650c30fca7de89",
+  "lifecycle_test_sha256": "270ebfcb30e7fd0725f35fb39436f6ac525636531b405635a5687d8c1579e1a3",
+  "execution": {
+    "kernel": "7.0.0-42-generic",
+    "architecture": "x86_64",
+    "os": "Ubuntu Linux",
+    "systemd": "259 (259.9-0ubuntu0.1)",
+    "rust": "1.98.0",
+    "build_location": "remote Linux, unprivileged Docker build only",
+    "build_limits": {
+      "cpus": 2,
+      "memory_gib": 4,
+      "pids": 512
+    },
+    "build_profile": "dev/test, gewyvern opt-level=2, debug=0, incremental=0",
+    "runtime": "real host root systemd manager, unchanged generated service descriptors, native independent UDP loopback peers",
+    "evidence_root": "/home/chiharukiryu/.cache/gewyvern/evidence/20261113-systemd-udp",
+    "run_directories": [
+      "final-1",
+      "final-2",
+      "final-3"
+    ],
+    "campaign_seconds": [
+      43.33,
+      42.7,
+      42.58
+    ],
+    "test_selector": "--ignored --exact installed::systemd::generated_unit_restart_and_failure_recovery --nocapture",
+    "unit_location": "unique gewyvern-field-systemd-* files under /run/systemd/system only",
+    "unit_reference": "native test-only sd-bus RefUnit keeps successful exit metadata observable without changing service policy",
+    "docker_runtime_targets": false,
+    "persistent_units_changed": false,
+    "host_reboot": false,
+    "native_activation_entrypoint_executed": false,
+    "boot_enablement": false
+  },
+  "reproduced_bug": {
+    "description": "RestartSec=2 plus the host default five starts per ten seconds permits persistent fast failures to keep retrying. A broken TLS certificate remained in auto-restart after ten retries; the test stopped it.",
+    "directory": "development-2",
+    "observed_restart_count": 10,
+    "observed_state": "activating",
+    "observed_substate": "auto-restart",
+    "observed_result": "exit-code",
+    "host_default_start_limit_interval": "10s",
+    "host_default_start_limit_burst": 5,
+    "fix": "Generated Linux units explicitly set StartLimitIntervalSec=60 and StartLimitBurst=5.",
+    "fixed_state": "failed",
+    "fixed_scheduled_restart_count": 5,
+    "reset": "Repair, then reset-failed/start only the affected unit.",
+    "journal_sha256": "bbdf52b75d70758e20a22000b687d8cf7f346a2f7346fe1bcdc7ac414832015e"
+  },
+  "results": {
+    "scenario_checks": 21,
+    "normal_received": 672,
+    "normal_retained": 672,
+    "normal_recorded_drops": 0,
+    "deliberate_limit_received": 192,
+    "deliberate_limit_retained": 3,
+    "deliberate_limit_userspace_dropped": 189
+  },
+  "runs": [
+    {
+      "automatic_restart_verified": true,
+      "boot_enablement": false,
+      "cases": [
+        {
+          "case": "systemd_start_and_graceful_stop",
+          "no_restart_after_stop": true,
+          "properties": {
+            "ActiveState": "active",
+            "ExecMainCode": "0",
+            "ExecMainStatus": "0",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1975952-1794574642771720662-main.service",
+            "InvocationID": "cbd95efdb0cd407caad133fb5f0046b6",
+            "MainPID": "1976191",
+            "NRestarts": "0",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "success",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "running"
+          },
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1975952-1794574642657861986",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "64",
+            "run_id": "1976191-76982555973107",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 36183,
+            "userspace_dropped": "0"
+          },
+          "tls_observed_facts": 48
+        },
+        {
+          "case": "sigkill_automatic_restart",
+          "new_run_id": "1976656-76989049213336",
+          "old_final_counters_available": false,
+          "old_run_id": "1976334-76986591412224",
+          "properties": {
+            "ActiveState": "active",
+            "ExecMainCode": "0",
+            "ExecMainStatus": "0",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1975952-1794574642771720662-main.service",
+            "InvocationID": "0bfe91014106416da4569bd2c8dd7bee",
+            "MainPID": "1976656",
+            "NRestarts": "1",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "success",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "running"
+          },
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1975952-1794574642657861986",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1976656-76989049213336",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 36183,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "tls_repair_automatic_recovery",
+          "failed_snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1975952-1794574642657861986",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1976704-76990501594570",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 36183,
+            "userspace_dropped": "0"
+          },
+          "failure": {
+            "ActiveState": "activating",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "1",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1975952-1794574642771720662-main.service",
+            "InvocationID": "238ab64940914ed68e318c3472f89017",
+            "MainPID": "0",
+            "NRestarts": "0",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "exit-code",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "auto-restart"
+          },
+          "manual_restart_after_repair": false,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1975952-1794574642657861986",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1976958-76992804302017",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 36183,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "output_repair_automatic_recovery",
+          "failed_snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1975952-1794574642657861986",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1977097-76994283814478",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 36183,
+            "userspace_dropped": "0"
+          },
+          "failure": {
+            "ActiveState": "activating",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "1",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1975952-1794574642771720662-main.service",
+            "InvocationID": "d89352dcbb0a4c78b8c49a84b9bd5019",
+            "MainPID": "0",
+            "NRestarts": "0",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "exit-code",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "auto-restart"
+          },
+          "manual_restart_after_repair": false,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1975952-1794574642657861986",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1977244-76997798884638",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 36183,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "scope_recreation_automatic_recovery",
+          "failed_snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1975952-1794574642657861986",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1977426-76999261367137",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 36183,
+            "userspace_dropped": "0"
+          },
+          "failure": {
+            "ActiveState": "activating",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "1",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1975952-1794574642771720662-main.service",
+            "InvocationID": "d7860a0081f9438992705992bae47caa",
+            "MainPID": "0",
+            "NRestarts": "0",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "exit-code",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "auto-restart"
+          },
+          "manual_restart_after_repair": false,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1975952-1794574642657861986",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1977589-77002548747881",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 36183,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "persistent_failure_bounded_and_operator_reset",
+          "limit": {
+            "ActiveState": "failed",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "1",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1975952-1794574642771720662-main.service",
+            "InvocationID": "c260aebdd423484a955b81490ef209f0",
+            "MainPID": "0",
+            "NRestarts": "5",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "exit-code",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "failed"
+          },
+          "manual_reset_required": true,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1975952-1794574642657861986",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1978489-77017872366490",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 36183,
+            "userspace_dropped": "0"
+          },
+          "start_limit_logged": true
+        },
+        {
+          "case": "accounted_loss_no_restart_loop",
+          "no_restart": true,
+          "properties": {
+            "ActiveState": "inactive",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "3",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1975952-1794574680135863946-loss.service",
+            "InvocationID": "462d6d2abcae452cafb12ab8d4d7b448",
+            "MainPID": "0",
+            "NRestarts": "0",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "success",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "dead"
+          },
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1975952-1794574642657861986",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "1",
+            "run_id": "1978852-77019965032302",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 36183,
+            "userspace_dropped": "63"
+          }
+        }
+      ],
+      "generated_unit_unchanged": true,
+      "host_reboot": false,
+      "native_activation_entrypoint_executed": false,
+      "ok": true,
+      "operator_profile": "test",
+      "owned_cgroup_removed": true,
+      "owned_units_removed": true,
+      "schema_version": 1,
+      "systemd_unit_executed": true,
+      "tls_pinned_ca": true
+    },
+    {
+      "automatic_restart_verified": true,
+      "boot_enablement": false,
+      "cases": [
+        {
+          "case": "systemd_start_and_graceful_stop",
+          "no_restart_after_stop": true,
+          "properties": {
+            "ActiveState": "active",
+            "ExecMainCode": "0",
+            "ExecMainStatus": "0",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1982601-1794574755316629901-main.service",
+            "InvocationID": "ceb5a609a5164e5995e19c7652ade6d2",
+            "MainPID": "1982841",
+            "NRestarts": "0",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "success",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "running"
+          },
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1982601-1794574755205996110",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "64",
+            "run_id": "1982841-77095110436089",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 49586,
+            "userspace_dropped": "0"
+          },
+          "tls_observed_facts": 48
+        },
+        {
+          "case": "sigkill_automatic_restart",
+          "new_run_id": "1983283-77101545147764",
+          "old_final_counters_available": false,
+          "old_run_id": "1983011-77099194311134",
+          "properties": {
+            "ActiveState": "active",
+            "ExecMainCode": "0",
+            "ExecMainStatus": "0",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1982601-1794574755316629901-main.service",
+            "InvocationID": "c1cafeb42a5f414098971aeb765a9a6f",
+            "MainPID": "1983283",
+            "NRestarts": "1",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "success",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "running"
+          },
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1982601-1794574755205996110",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1983283-77101545147764",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 49586,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "tls_repair_automatic_recovery",
+          "failed_snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1982601-1794574755205996110",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1983377-77103053160065",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 49586,
+            "userspace_dropped": "0"
+          },
+          "failure": {
+            "ActiveState": "activating",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "1",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1982601-1794574755316629901-main.service",
+            "InvocationID": "1f908ebba28b4dbab361963a7d3e06b3",
+            "MainPID": "0",
+            "NRestarts": "0",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "exit-code",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "auto-restart"
+          },
+          "manual_restart_after_repair": false,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1982601-1794574755205996110",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1983497-77105291696847",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 49586,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "output_repair_automatic_recovery",
+          "failed_snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1982601-1794574755205996110",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1983584-77106768861243",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 49586,
+            "userspace_dropped": "0"
+          },
+          "failure": {
+            "ActiveState": "activating",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "1",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1982601-1794574755316629901-main.service",
+            "InvocationID": "f8d39fcfd1254857b3e1f82db3b57d33",
+            "MainPID": "0",
+            "NRestarts": "0",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "exit-code",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "auto-restart"
+          },
+          "manual_restart_after_repair": false,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1982601-1794574755205996110",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1983869-77110292450503",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 49586,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "scope_recreation_automatic_recovery",
+          "failed_snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1982601-1794574755205996110",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1983973-77111749421371",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 49586,
+            "userspace_dropped": "0"
+          },
+          "failure": {
+            "ActiveState": "activating",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "1",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1982601-1794574755316629901-main.service",
+            "InvocationID": "075f3f12814046fcbd9c51c916664188",
+            "MainPID": "0",
+            "NRestarts": "0",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "exit-code",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "auto-restart"
+          },
+          "manual_restart_after_repair": false,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1982601-1794574755205996110",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1984170-77115051506851",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 49586,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "persistent_failure_bounded_and_operator_reset",
+          "limit": {
+            "ActiveState": "failed",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "1",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1982601-1794574755316629901-main.service",
+            "InvocationID": "6a8e2d5683d949bd9da865024f4a68b9",
+            "MainPID": "0",
+            "NRestarts": "5",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "exit-code",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "failed"
+          },
+          "manual_reset_required": true,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1982601-1794574755205996110",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1985464-77129531123920",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 49586,
+            "userspace_dropped": "0"
+          },
+          "start_limit_logged": true
+        },
+        {
+          "case": "accounted_loss_no_restart_loop",
+          "no_restart": true,
+          "properties": {
+            "ActiveState": "inactive",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "3",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1982601-1794574791782762467-loss.service",
+            "InvocationID": "8c497f0d95f94c59b8aee405dadad6bf",
+            "MainPID": "0",
+            "NRestarts": "0",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "success",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "dead"
+          },
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1982601-1794574755205996110",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "1",
+            "run_id": "1985785-77131593595259",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 49586,
+            "userspace_dropped": "63"
+          }
+        }
+      ],
+      "generated_unit_unchanged": true,
+      "host_reboot": false,
+      "native_activation_entrypoint_executed": false,
+      "ok": true,
+      "operator_profile": "test",
+      "owned_cgroup_removed": true,
+      "owned_units_removed": true,
+      "schema_version": 1,
+      "systemd_unit_executed": true,
+      "tls_pinned_ca": true
+    },
+    {
+      "automatic_restart_verified": true,
+      "boot_enablement": false,
+      "cases": [
+        {
+          "case": "systemd_start_and_graceful_stop",
+          "no_restart_after_stop": true,
+          "properties": {
+            "ActiveState": "active",
+            "ExecMainCode": "0",
+            "ExecMainStatus": "0",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1989007-1794574838361924339-main.service",
+            "InvocationID": "91609e24e4c540f99c9067327266b6f1",
+            "MainPID": "1989237",
+            "NRestarts": "0",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "success",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "running"
+          },
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1989007-1794574838249487759",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "64",
+            "run_id": "1989237-77178154246717",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 49158,
+            "userspace_dropped": "0"
+          },
+          "tls_observed_facts": 48
+        },
+        {
+          "case": "sigkill_automatic_restart",
+          "new_run_id": "1989589-77184538878347",
+          "old_final_counters_available": false,
+          "old_run_id": "1989491-77182195163861",
+          "properties": {
+            "ActiveState": "active",
+            "ExecMainCode": "0",
+            "ExecMainStatus": "0",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1989007-1794574838361924339-main.service",
+            "InvocationID": "97578922af544f8497ff9d45f782013a",
+            "MainPID": "1989589",
+            "NRestarts": "1",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "success",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "running"
+          },
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1989007-1794574838249487759",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1989589-77184538878347",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 49158,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "tls_repair_automatic_recovery",
+          "failed_snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1989007-1794574838249487759",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1989685-77185948728412",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 49158,
+            "userspace_dropped": "0"
+          },
+          "failure": {
+            "ActiveState": "activating",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "1",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1989007-1794574838361924339-main.service",
+            "InvocationID": "14c284d38756493b9547ddf22f4758da",
+            "MainPID": "0",
+            "NRestarts": "0",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "exit-code",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "auto-restart"
+          },
+          "manual_restart_after_repair": false,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1989007-1794574838249487759",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1989758-77188300104909",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 49158,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "output_repair_automatic_recovery",
+          "failed_snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1989007-1794574838249487759",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1989906-77189751701468",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 49158,
+            "userspace_dropped": "0"
+          },
+          "failure": {
+            "ActiveState": "activating",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "1",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1989007-1794574838361924339-main.service",
+            "InvocationID": "a8334ef89eb544c3b16a663df8fd8c72",
+            "MainPID": "0",
+            "NRestarts": "0",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "exit-code",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "auto-restart"
+          },
+          "manual_restart_after_repair": false,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1989007-1794574838249487759",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1990084-77193295675611",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 49158,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "scope_recreation_automatic_recovery",
+          "failed_snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1989007-1794574838249487759",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1990188-77194695323365",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 49158,
+            "userspace_dropped": "0"
+          },
+          "failure": {
+            "ActiveState": "activating",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "1",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1989007-1794574838361924339-main.service",
+            "InvocationID": "f96fac51737e4ed09906b8fced4010e0",
+            "MainPID": "0",
+            "NRestarts": "0",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "exit-code",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "auto-restart"
+          },
+          "manual_restart_after_repair": false,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1989007-1794574838249487759",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1990468-77198068679725",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 49158,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "persistent_failure_bounded_and_operator_reset",
+          "limit": {
+            "ActiveState": "failed",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "1",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1989007-1794574838361924339-main.service",
+            "InvocationID": "c466b2bed7894b48982a315fef781dbe",
+            "MainPID": "0",
+            "NRestarts": "5",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "exit-code",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "failed"
+          },
+          "manual_reset_required": true,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1989007-1794574838249487759",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1991617-77212596361935",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 49158,
+            "userspace_dropped": "0"
+          },
+          "start_limit_logged": true
+        },
+        {
+          "case": "accounted_loss_no_restart_loop",
+          "no_restart": true,
+          "properties": {
+            "ActiveState": "inactive",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "3",
+            "FragmentPath": "/run/systemd/system/gewyvern-field-systemd-1989007-1794574875010123336-loss.service",
+            "InvocationID": "0b61fc0011a04163a9b2052a5c36f933",
+            "MainPID": "0",
+            "NRestarts": "0",
+            "NoNewPrivileges": "yes",
+            "PrivateTmp": "yes",
+            "ProtectSystem": "strict",
+            "RestartUSec": "2s",
+            "Result": "success",
+            "StartLimitBurst": "5",
+            "StartLimitIntervalUSec": "1min",
+            "SubState": "dead"
+          },
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-systemd-1989007-1794574838249487759",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "1",
+            "run_id": "1991956-77214822684076",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 49158,
+            "userspace_dropped": "63"
+          }
+        }
+      ],
+      "generated_unit_unchanged": true,
+      "host_reboot": false,
+      "native_activation_entrypoint_executed": false,
+      "ok": true,
+      "operator_profile": "test",
+      "owned_cgroup_removed": true,
+      "owned_units_removed": true,
+      "schema_version": 1,
+      "systemd_unit_executed": true,
+      "tls_pinned_ca": true
+    }
+  ],
+  "installed_process_regression": {
+    "api_uses_same_capture_loop": true,
+    "cases": [
+      {
+        "case": "changed_plan_same_generation_rejected",
+        "ok": true
+      },
+      {
+        "case": "plan_binding_and_private_environment_fail_closed",
+        "ok": true
+      },
+      {
+        "case": "tls_start_failure_detaches_capture",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1993899-1794574909317512104",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "0",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "0",
+          "retained": "0",
+          "run_id": "1993911-77248653181307",
+          "schema_version": 1,
+          "state": "failed",
+          "udp_port": 37789,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "tls_authenticated_dual_stack_capture",
+        "missing_token_status": 403,
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1993899-1794574909317512104",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "64",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "64",
+          "retained": "64",
+          "run_id": "1993934-77248730857671",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 37789,
+          "userspace_dropped": "0"
+        },
+        "wrong_ca_rejected": true,
+        "wrong_token_status": 403
+      },
+      {
+        "case": "installed_sigkill_restart",
+        "old_final_counters_available": false,
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1993899-1794574909317512104",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "32",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "32",
+          "retained": "32",
+          "run_id": "1994133-77250530758291",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 37789,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "installed_output_failure_detaches",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1993899-1794574909317512104",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "0",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "0",
+          "retained": "0",
+          "run_id": "1994167-77251677734002",
+          "schema_version": 1,
+          "state": "failed",
+          "udp_port": 37789,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "capture_start_failure_never_opens_tls",
+        "ok": true
+      },
+      {
+        "case": "installed_loss_exit_code_preserved",
+        "exit_code": 3,
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1993899-1794574909317512104",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "64",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "64",
+          "retained": "1",
+          "run_id": "1994211-77253195780554",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 37789,
+          "userspace_dropped": "63"
+        }
+      }
+    ],
+    "ok": true,
+    "operator_profile": "test",
+    "owned_cgroup_removed": true,
+    "real_installed_binary": true,
+    "real_tls": true,
+    "schema_version": 1,
+    "systemd_unit_executed": false
+  },
+  "deterministic_checks": {
+    "evidence_checks": {
+      "passed": 51,
+      "failed": 0
+    },
+    "status_tensor": {
+      "status": "valid",
+      "schema_version": 4,
+      "cells": 39,
+      "coverage_requirements": 37
+    },
+    "cli_tests": {
+      "passed": 456,
+      "failed": 0,
+      "ignored": 13
+    },
+    "installer_vertical": {
+      "passed": 2,
+      "failed": 0
+    },
+    "clippy": {
+      "passed": true,
+      "warnings_denied": true,
+      "targets": [
+        "lib",
+        "gewyvern",
+        "production_capture_linux_tdd",
+        "gewyvern_installer_vertical",
+        "native_validation_harness_tdd"
+      ]
+    }
+  },
+  "raw_artifact_sha256": {
+    "development-2/main.journal": "bbdf52b75d70758e20a22000b687d8cf7f346a2f7346fe1bcdc7ac414832015e",
+    "final-1/main.journal": "1be70e819c89782e50c4863263396a7b1ef0b673fc293b6895162f2d46a7095c",
+    "final-1/loss.journal": "e4fc8011121fb38c2699a5e274ef773f911e83929ed3f9932701efa4c419b6b8",
+    "final-1/tls-export.json": "c8a5cac4215689ac5969a752b80840eccb654b0ef358151e9b129364617b0040",
+    "final-1/summary.json": "ea0baeeff78cb55b96568c497459f879d108eaf786784d67e9e54f0a318671c5",
+    "final-2/main.journal": "78623d322112fa695302bdbccb8e38f2881139259246e05b56816450b4c98a11",
+    "final-2/loss.journal": "c503cbab026e21012ec4561cccea7b3f7920129555d5115f089e34fb0ddfa5af",
+    "final-2/tls-export.json": "6513194944fac8612fb770dcf65daa2597036b48b35169b200a4703457a5b714",
+    "final-2/summary.json": "7bb4b25e9244bbf53af05e993bfed7d58ba3ace58eb989e4ebecf0a0ae073377",
+    "final-3/main.journal": "ada87ee3e51961adf1f3621a3f64b6f5840315bc7db9b1446996dbca7f46eed2",
+    "final-3/loss.journal": "b67be753d453c69e56e86fd2a6381f50a4b272c7400607f41b93256814ac5605",
+    "final-3/tls-export.json": "57d9e6ae5b8f3f504fc3fd2b7e2c13fc97a7ebe0d3961944897373c404b055a2",
+    "final-3/summary.json": "e59824fc957dbcc7b76c4497e81c7fd9e452f86862703f7065b87edad72f444c"
+  },
+  "development_notes": [
+    "The first fixture attempt reset a never-started unit after systemd garbage-collected it. The test now retains a manager reference.",
+    "Initial post-fix inspection expected Result=start-limit-hit. The actual manager retains Result=exit-code while logging start-limit refusal; final tests require failed state, stable count and explicit journal evidence.",
+    "A successful exit-3 unit was collected before property inspection. Test-only native sd-bus RefUnit now retains the real ExecMainStatus=3, rather than accepting the default zero of a reloaded unit.",
+    "Only final-1, final-2 and final-3 are final seven-case acceptance runs; earlier diagnostic attempts are not counted as passes."
+  ],
+  "cleanup": {
+    "docker_inventory_restored": true,
+    "containers": 15,
+    "networks": 6,
+    "volumes": 54,
+    "preexisting_failed_units_unchanged": true,
+    "preexisting_failed_units_count": 2,
+    "owned_units_remaining": 0,
+    "owned_cgroups_remaining": 0,
+    "temporary_bpf_directories_remaining": 0,
+    "owned_systemd_private_tmp_remaining": 0,
+    "temporary_build_container_removed": true,
+    "owned_test_install_trees_removed": 8,
+    "raw_journals_tls_exports_and_summaries_retained": true,
+    "evidence_disk_usage": "772K (du -sh)"
+  },
+  "limits": [
+    "Real host systemd execution is proven, but gewyvern-activate-v1, persistent enablement and reboot are not exercised by this test-profile campaign.",
+    "One host/kernel/systemd build with root installation authority; not least-privilege capability provisioning or physical-host/kernel breadth.",
+    "SIGKILL loses pending facts and final counters; automatic restart creates a fresh run rather than resuming old transactions.",
+    "Cgroup recreation selects a new inode at the explicit plan path; no immutable workload-container identity is claimed.",
+    "Bounded IPv4/IPv6 UDP loopback traffic, not sustained production throughput, TCP capture or protocol-independent continuity.",
+    "No Leserpent UI capture-plan selection, release artifact or maturity promotion."
+  ]
+}

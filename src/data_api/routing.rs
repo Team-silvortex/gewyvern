@@ -205,6 +205,11 @@ fn api_response_for_request_uncapped<'a>(
                 body.push_str(&snapshot.updated_unix_ms.to_string());
                 body.push(',');
                 append_runtime_resilience_flag_json(&mut body);
+                if let Some(capture) = &snapshot.capture_status
+                    && let Ok(json) = serde_json::to_string(capture) {
+                    body.push_str(",\"capture\":");
+                    body.push_str(&json);
+                }
                 body.push('}');
                 body
             }),

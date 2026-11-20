@@ -1,0 +1,779 @@
+{
+  "schema_version": 1,
+  "campaign": "installed-native-tls-product-udp-lifecycle",
+  "date": "2026-11-13",
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "leserpent_ui_plan_selection": false,
+  "systemd_activation_executed": false,
+  "source_base_commit": "39eeb7d1f03c92f007daa1ac5d72aee311fead5e",
+  "source_worktree_dirty": true,
+  "source_sha256": {
+    "src/main.rs": "c898522bdfc59485d4375b180a15f7a68ac1b5358c4dd2da18f5a2ca7bf6b5e0",
+    "src/main/capture_runtime.rs": "80836255e2c49daa600ec4457faf7da9bce429faf875e2358a6a26f5dbdd1462",
+    "src/data_api.rs": "a5b9d10a53abfe3cb8dca0a6368c8c4841923282df45215d63ad9e04932b95a8",
+    "src/data_api/routing.rs": "28e05dc8b9f58822b9b2448e59b2e634ff6c0e9802f2e3796a9f9c4cb825cdac",
+    "src/serve_runtime.rs": "995bf5e900397bb8e19945868af34b74c87d9ebd308a5b47cdaf333ed827850d",
+    "src/gewyvern_install.rs": "ebea2baba8fd8f759fdf2f6508899976c617be9c8db6515632f33be8a59d9a08",
+    "src/gewyvern_install/capture.rs": "896ca40d1a1325412cc35f4c2cee4aa1aa673496e6540508583fca83bbe49036",
+    "crates/gewyvern-install-contract/src/lib.rs": "bd4194d90c86582a574ef83e0f92423f61e555fed3541442eabeec52f69b923b",
+    "crates/gewyvern-install-contract/src/installer.rs": "a14979a07f4c4f46edf6f2fe6ee58893d73f295da84a374d3c986cb6081fd662",
+    "crates/gewyvern-install-contract/src/capture.rs": "bcb043c4249743f0a488d3716dd8f044867e28443d02c5ef6a097dbd1184b8a8",
+    "src/live_capture.rs": "fd14b4925528b4c8b22ebc3a3d0f1890c098d862fa5df8f0fdb9a59eb42448ab",
+    "src/live_capture/linux.rs": "1e166da359d5f11624e545fc2fef57182fa1a48b76c4dbc4d34dd5cd9ac084ed",
+    "src/live_capture/linux/api.rs": "77426bb0cee7018f88a3d1a0cc24d316f99ad8df35e05c962fab8382942b7d0d",
+    "ebpf/production/udp.bpf.c": "867e71774df6c9bbf69370ce712d527c0d7a8dede8eba1eff0975d76e1c1c1e3",
+    "src/export/capture_codec.rs": "55c07226d16d934f7c0586e26c42fca419f46d4daab5fb9b6784ace76f6243da",
+    "src/packet_capture.rs": "50cf644ff5bf466169296b79850bd8e128df60734978ee500ddb1d3c70ac8014",
+    "tests/production_capture_linux_tdd.rs": "f4073b7a0f575c58539a1a72e5dc3f7a5fb33926ea098191e61581338b1e41f0",
+    "tests/production_capture_linux_tdd/installed.rs": "88af41a57984d02d04a9be9c8283eb101a5578b652ac6159ee2fde9fe337148c",
+    "tests/native_validation_harness_tdd.rs": "2075b1b29c156fab47be83fa16b18cf049a088948344425d54ac24a46643368c"
+  },
+  "source_scope": "Selected contract, installer, collector, API and regression sources match the Linux workspace byte-for-byte. This is not a hermetic full-worktree release manifest.",
+  "binary_sha256": "67fb7ca7c1ee0b4534ee387e65ed5a14b65efc374bda1c7d6855cad744c15c2b",
+  "lifecycle_test_sha256": "cd95e74b24dc6884b32a41542f7a77fb65809743aa2159523c0522420705b6c5",
+  "execution": {
+    "kernel": "7.0.0-42-generic",
+    "architecture": "x86_64",
+    "os": "Ubuntu Linux",
+    "rust": "1.98.0",
+    "build_profile": "dev/test, gewyvern opt-level=2, debug=0, incremental=0",
+    "build_location": "remote Linux, unprivileged Docker build only",
+    "build_limits": {
+      "cpus": 2,
+      "memory_gib": 4,
+      "pids": 512
+    },
+    "runtime": "native root test driver, test-profile native installation, copied generation executable, independent native IPv4/IPv6 UDP peers",
+    "evidence_root": "/home/chiharukiryu/.cache/gewyvern/evidence/20261113-installed-udp",
+    "run_directories": [
+      "run-1",
+      "run-2",
+      "run-3"
+    ],
+    "final_campaign_seconds": [
+      7.83,
+      6.31,
+      6.26
+    ],
+    "test_selector": "--ignored --exact installed::installed_capture_service_tls_lifecycle --nocapture",
+    "systemd_unit_executed": false,
+    "persistent_units_changed": false
+  },
+  "surface": {
+    "native_installer_capture_plan": true,
+    "explicit_cgroup_and_udp_port": true,
+    "immutable_generation_binding": true,
+    "private_runtime_roots": true,
+    "user_profile_capture_refused": true,
+    "automatic_privilege_grants": false,
+    "collector_attached_before_tls": true,
+    "capture_bound_authenticated_health": true,
+    "tls_pinned_ca": true,
+    "normal_retained_observations": 288,
+    "normal_recorded_drops": 0,
+    "deliberate_limit_received": 192,
+    "deliberate_limit_retained": 3,
+    "deliberate_limit_userspace_dropped": 189,
+    "loss_exit_code": 3,
+    "builtin_udp_template_only": true
+  },
+  "runs": [
+    {
+      "api_uses_same_capture_loop": true,
+      "cases": [
+        {
+          "case": "changed_plan_same_generation_rejected",
+          "ok": true
+        },
+        {
+          "case": "plan_binding_and_private_environment_fail_closed",
+          "ok": true
+        },
+        {
+          "case": "tls_start_failure_detaches_capture",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1849223-1794573130426900192",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1849284-75469797747096",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 49572,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "tls_authenticated_dual_stack_capture",
+          "missing_token_status": 403,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1849223-1794573130426900192",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "64",
+            "run_id": "1849333-75469874568116",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 49572,
+            "userspace_dropped": "0"
+          },
+          "wrong_ca_rejected": true,
+          "wrong_token_status": 403
+        },
+        {
+          "case": "installed_sigkill_restart",
+          "old_final_counters_available": false,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1849223-1794573130426900192",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1850717-75472385977667",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 49572,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "installed_output_failure_detaches",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1849223-1794573130426900192",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1851472-75474271426224",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 49572,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "capture_start_failure_never_opens_tls",
+          "ok": true
+        },
+        {
+          "case": "installed_loss_exit_code_preserved",
+          "exit_code": 3,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1849223-1794573130426900192",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "1",
+            "run_id": "1852881-75476245595460",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 49572,
+            "userspace_dropped": "63"
+          }
+        }
+      ],
+      "ok": true,
+      "operator_profile": "test",
+      "owned_cgroup_removed": true,
+      "real_installed_binary": true,
+      "real_tls": true,
+      "schema_version": 1,
+      "systemd_unit_executed": false
+    },
+    {
+      "api_uses_same_capture_loop": true,
+      "cases": [
+        {
+          "case": "changed_plan_same_generation_rejected",
+          "ok": true
+        },
+        {
+          "case": "plan_binding_and_private_environment_fail_closed",
+          "ok": true
+        },
+        {
+          "case": "tls_start_failure_detaches_capture",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1858895-1794573184495341484",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1858924-75523857725873",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 35216,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "tls_authenticated_dual_stack_capture",
+          "missing_token_status": 403,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1858895-1794573184495341484",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "64",
+            "run_id": "1858934-75523935807100",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 35216,
+            "userspace_dropped": "0"
+          },
+          "wrong_ca_rejected": true,
+          "wrong_token_status": 403
+        },
+        {
+          "case": "installed_sigkill_restart",
+          "old_final_counters_available": false,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1858895-1794573184495341484",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1859082-75526059833351",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 35216,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "installed_output_failure_detaches",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1858895-1794573184495341484",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1859175-75527201623587",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 35216,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "capture_start_failure_never_opens_tls",
+          "ok": true
+        },
+        {
+          "case": "installed_loss_exit_code_preserved",
+          "exit_code": 3,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1858895-1794573184495341484",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "1",
+            "run_id": "1859293-75528754841927",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 35216,
+            "userspace_dropped": "63"
+          }
+        }
+      ],
+      "ok": true,
+      "operator_profile": "test",
+      "owned_cgroup_removed": true,
+      "real_installed_binary": true,
+      "real_tls": true,
+      "schema_version": 1,
+      "systemd_unit_executed": false
+    },
+    {
+      "api_uses_same_capture_loop": true,
+      "cases": [
+        {
+          "case": "changed_plan_same_generation_rejected",
+          "ok": true
+        },
+        {
+          "case": "plan_binding_and_private_environment_fail_closed",
+          "ok": true
+        },
+        {
+          "case": "tls_start_failure_detaches_capture",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1866362-1794573258642800768",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1866372-75598032486913",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 59302,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "tls_authenticated_dual_stack_capture",
+          "missing_token_status": 403,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1866362-1794573258642800768",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "64",
+            "run_id": "1866377-75598110013500",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 59302,
+            "userspace_dropped": "0"
+          },
+          "wrong_ca_rejected": true,
+          "wrong_token_status": 403
+        },
+        {
+          "case": "installed_sigkill_restart",
+          "old_final_counters_available": false,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1866362-1794573258642800768",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": false,
+            "kernel": {
+              "malformed": "0",
+              "matched": "32",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "32",
+            "retained": "32",
+            "run_id": "1866538-75600080758917",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 59302,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "installed_output_failure_detaches",
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1866362-1794573258642800768",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "0",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "0",
+            "retained": "0",
+            "run_id": "1866655-75601278415372",
+            "schema_version": 1,
+            "state": "failed",
+            "udp_port": 59302,
+            "userspace_dropped": "0"
+          }
+        },
+        {
+          "case": "capture_start_failure_never_opens_tls",
+          "ok": true
+        },
+        {
+          "case": "installed_loss_exit_code_preserved",
+          "exit_code": 3,
+          "snapshot": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-installed-1866362-1794573258642800768",
+            "decode_rejected": "0",
+            "final_accounted": true,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "0",
+              "unsupported": "0"
+            },
+            "received": "64",
+            "retained": "1",
+            "run_id": "1866801-75602902640458",
+            "schema_version": 1,
+            "state": "stopped",
+            "udp_port": 59302,
+            "userspace_dropped": "63"
+          }
+        }
+      ],
+      "ok": true,
+      "operator_profile": "test",
+      "owned_cgroup_removed": true,
+      "real_installed_binary": true,
+      "real_tls": true,
+      "schema_version": 1,
+      "systemd_unit_executed": false
+    }
+  ],
+  "direct_cli_regression": {
+    "cases": [
+      {
+        "case": "oneshot_ipv4_ipv6",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1873349-1794573332879464677",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "64",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "64",
+          "retained": "64",
+          "run_id": "1873354-75672233884581",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 57208,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "service_api_sigterm_and_exclusion",
+        "nonempty_windows": 15,
+        "running_history_snapshots": 0,
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1873349-1794573332879464677",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "800",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "800",
+          "retained": "800",
+          "run_id": "1874132-75674402321257",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 57208,
+          "userspace_dropped": "0"
+        },
+        "terminal_history_snapshots": 1
+      },
+      {
+        "case": "kernel_overflow_and_resume",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1873349-1794573332879464677",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "10016",
+            "no_cookie": "0",
+            "ring_dropped": "9982",
+            "unsupported": "0"
+          },
+          "received": "34",
+          "retained": "34",
+          "run_id": "1874486-75679608073032",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 57208,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "userspace_budget",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1873349-1794573332879464677",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "64",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "64",
+          "retained": "1",
+          "run_id": "1874497-75680067643371",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 57208,
+          "userspace_dropped": "63"
+        }
+      },
+      {
+        "case": "sigkill_detaches_unpinned_links",
+        "final_counters_available": false,
+        "ok": true
+      },
+      {
+        "case": "output_failure_detaches",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1873349-1794573332879464677",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "0",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "0",
+          "retained": "0",
+          "run_id": "1874643-75682332012319",
+          "schema_version": 1,
+          "state": "failed",
+          "udp_port": 57208,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "scope_removal_stops_capture",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1873349-1794573332879464677",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "0",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "0",
+          "retained": "0",
+          "run_id": "1874689-75682968328188",
+          "schema_version": 1,
+          "state": "failed",
+          "udp_port": 57208,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "bounded_service_idle_shutdown",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1873349-1794573332879464677",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "0",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "0",
+          "retained": "0",
+          "run_id": "1874694-75683072157859",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 57208,
+          "userspace_dropped": "0"
+        }
+      },
+      {
+        "case": "restart_after_kill_and_output_failure",
+        "snapshot": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-1873349-1794573332879464677",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "32",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "32",
+          "retained": "32",
+          "run_id": "1874720-75683345947423",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 57208,
+          "userspace_dropped": "0"
+        }
+      }
+    ],
+    "docker_targets_used": false,
+    "no_pinned_objects": true,
+    "ok": true,
+    "owned_cgroup_removed": true,
+    "pid_attribution": false,
+    "real_production_binary": true,
+    "schema_version": 1,
+    "traffic": "native IPv4/IPv6 loopback DNS-shaped peers",
+    "udp_port": 57208,
+    "validation_capture_used": false
+  },
+  "deterministic_checks": {
+    "evidence_checks": {
+      "passed": 50,
+      "failed": 0
+    },
+    "status_tensor": {
+      "status": "valid",
+      "schema_version": 4,
+      "cells": 39,
+      "coverage_requirements": 37
+    },
+    "cli_tests": {
+      "passed": 456,
+      "failed": 0,
+      "ignored": 13
+    },
+    "installer_vertical": {
+      "passed": 2,
+      "failed": 0
+    },
+    "install_contract": {
+      "passed": 8,
+      "failed": 0
+    },
+    "clippy": {
+      "warnings_denied": true,
+      "passed": true,
+      "targets": [
+        "lib",
+        "gewyvern",
+        "production_capture_linux_tdd",
+        "gewyvern_installer_vertical",
+        "native_validation_harness_tdd"
+      ]
+    }
+  },
+  "development_note": "The first fixture attempt used a cgroup prefix rejected by the existing worker guard. The fixture was corrected to the allowed owned-test prefix without weakening the guard. The intermediate seven-case run passed; only the three final eight-case runs count here.",
+  "cleanup": {
+    "docker_inventory_restored": true,
+    "containers": 15,
+    "networks": 6,
+    "volumes": 54,
+    "owned_cgroups_remaining": 0,
+    "temporary_bpf_directories_remaining": 0,
+    "temporary_build_container_removed": true,
+    "owned_installed_copies_removed": 5,
+    "raw_summaries_and_tls_exports_retained": true,
+    "evidence_disk_usage": "9.1 MiB (du -sh)"
+  },
+  "limits": [
+    "Process-level installed service proof uses test profile; systemd activation, reboot and automatic supervisor restart were not executed.",
+    "SIGKILL releases process-owned links but cannot preserve pending facts or final counters; the next process uses a fresh run identity.",
+    "No Leserpent UI or remote-deployment capture-plan selection is claimed.",
+    "No least-privilege capability provisioning, persistent unit installation, or administrator policy changes.",
+    "Bounded loopback IPv4/IPv6 UDP on one kernel; no production hour-scale throughput, TCP capture, IPv6 extension headers or cross-window transaction continuity.",
+    "The plan selects the builtin UDP debug template; custom DSL/protocol selection is not in plan version 1.",
+    "The real source is compiled on Linux at collector start; packaged prebuilt BPF portability remains a separate gate."
+  ]
+}

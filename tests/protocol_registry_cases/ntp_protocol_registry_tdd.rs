@@ -8,7 +8,7 @@ use gewyvern::protocol_profiles::{
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use std::time::{Duration, SystemTime};
-use support::{route_fact, sock_lineage_fact, udp_packet_fact_with_dir_and_ports_and_payload};
+use support::{complete_ntp_packet, route_fact, sock_lineage_fact};
 
 fn dsl_fixture_path(name: &str) -> String {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -88,7 +88,7 @@ fn ntp_query_runtime_path_materializes_query_and_response() {
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 5813, 7000, "chrony-query"));
     session.ingest(route_fact(2, 5813, 7));
-    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+    session.ingest(complete_ntp_packet(
         3,
         5813,
         90,
@@ -98,7 +98,7 @@ fn ntp_query_runtime_path_materializes_query_and_response() {
         Some(0x23),
         Some(0x2300),
     ));
-    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+    session.ingest(complete_ntp_packet(
         4,
         5813,
         90,
@@ -130,13 +130,13 @@ fn ntp_query_runtime_path_materializes_query_and_response() {
 }
 
 #[test]
-fn ntp_sync_runtime_path_rejects_query_byte_as_sync_request() {
+fn ntp_sync_runtime_path_accepts_v4_without_inferring_query_intent() {
     let binding = compile_file(&dsl_fixture_path("ntp_sync_path.gewy")).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 5814, 7001, "chronyd"));
     session.ingest(route_fact(2, 5814, 7));
-    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+    session.ingest(complete_ntp_packet(
         3,
         5814,
         90,
@@ -146,7 +146,7 @@ fn ntp_sync_runtime_path_rejects_query_byte_as_sync_request() {
         Some(0x23),
         Some(0x2300),
     ));
-    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+    session.ingest(complete_ntp_packet(
         4,
         5814,
         90,
@@ -163,6 +163,6 @@ fn ntp_sync_runtime_path_rejects_query_byte_as_sync_request() {
         export.program_flows[0]
             .stages
             .iter()
-            .all(|stage| stage.phase.as_deref() != Some("send_sync_request"))
+            .any(|stage| stage.phase.as_deref() == Some("send_sync_request"))
     );
 }

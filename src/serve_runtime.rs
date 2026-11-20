@@ -50,6 +50,14 @@ pub(super) fn serve_socket_sessions(
     cli: &Cli,
     socket_target: &SocketTarget,
 ) -> Result<(), MachineError> {
+    let api_service = start_runtime_api(cli)?;
+    match socket_target {
+        SocketTarget::Unix(path) => serve_unix_socket_sessions(cli, path, api_service),
+        SocketTarget::Tcp(addr) => serve_tcp_socket_sessions(cli, addr, api_service),
+    }
+}
+
+pub(crate) fn start_runtime_api(cli: &Cli) -> Result<Option<ApiService>, MachineError> {
     let api_service = if let Some(addr) = cli.api_socket.as_deref() {
         log_info_event(
             "api",
@@ -76,10 +84,7 @@ pub(super) fn serve_socket_sessions(
     } else {
         None
     };
-    match socket_target {
-        SocketTarget::Unix(path) => serve_unix_socket_sessions(cli, path, api_service),
-        SocketTarget::Tcp(addr) => serve_tcp_socket_sessions(cli, addr, api_service),
-    }
+    Ok(api_service)
 }
 
 fn log_socket_service_failure(event: &str, transport: &str, endpoint: &str, error: &str) {
@@ -415,7 +420,7 @@ fn max_sessions_label(cli: &Cli) -> String {
         .unwrap_or_else(|| "unbounded".to_string())
 }
 
-fn emit_rendered(
+pub(crate) fn emit_rendered(
     cli: &Cli,
     name: &str,
     export: &ExportBundle,
@@ -483,7 +488,18 @@ fn emit_rendered(
             },
             protocol_surface,
         );
-        if let Err(err) = persist_api_snapshot(state) {
+        // Capture windows already have a bounded atomic output/status pair.
+        crate::data_api::update_api_capture_status(state, export.capture.as_ref());
+        // Do not duplicate the full protocol catalog/history on every tick.
+        let persist = export
+            .capture
+            .as_ref()
+            .is_none_or(|capture| capture.state != gewyvern::live_capture::CaptureState::Running);
+        if let Err(err) = if persist {
+            persist_api_snapshot(state)
+        } else {
+            Ok(())
+        } {
             log_warn_event(
                 "api_snapshot",
                 EVENT_SNAPSHOT_PERSIST_FAILED,

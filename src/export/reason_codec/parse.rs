@@ -165,6 +165,75 @@ fn parse_reason_predicate(value: &JsonValue) -> Result<ReasonPredicate, ExportEr
             .ok_or_else(|| ExportError::InvalidShape("reason_predicate.kind".into()))?
             .as_str()?
         {
+            "stun_binding_observed" => {
+                if object
+                    .keys()
+                    .any(|key| !matches!(key.as_str(), "kind" | "remote_port" | "message"))
+                {
+                    return Err(ExportError::InvalidShape(
+                        "unexpected STUN Binding predicate field".into(),
+                    ));
+                }
+                let port = object
+                    .get("remote_port")
+                    .ok_or_else(|| ExportError::InvalidShape("missing STUN port".into()))?
+                    .as_i64()?;
+                let remote_port = u16::try_from(port)
+                    .map_err(|_| ExportError::InvalidValue("STUN port out of range".into()))?;
+                let label = object
+                    .get("message")
+                    .ok_or_else(|| ExportError::InvalidShape("missing STUN Binding".into()))?
+                    .as_str()?;
+                let kind = crate::ir::StunBindingKind::from_label(label)
+                    .ok_or_else(|| ExportError::InvalidValue("unknown STUN Binding".into()))?;
+                Ok(ReasonPredicate::StunBindingObserved { remote_port, kind })
+            }
+            "ntp_message_observed" => {
+                if object
+                    .keys()
+                    .any(|key| !matches!(key.as_str(), "kind" | "remote_port" | "message"))
+                {
+                    return Err(ExportError::InvalidShape(
+                        "unexpected NTP predicate field".into(),
+                    ));
+                }
+                let port = object
+                    .get("remote_port")
+                    .ok_or_else(|| ExportError::InvalidShape("missing NTP port".into()))?
+                    .as_i64()?;
+                let remote_port = u16::try_from(port)
+                    .map_err(|_| ExportError::InvalidValue("NTP port out of range".into()))?;
+                let label = object
+                    .get("message")
+                    .ok_or_else(|| ExportError::InvalidShape("missing NTP message".into()))?
+                    .as_str()?;
+                let kind = crate::ir::NtpMessageKind::from_label(label)
+                    .ok_or_else(|| ExportError::InvalidValue("unknown NTP message".into()))?;
+                Ok(ReasonPredicate::NtpMessageObserved { remote_port, kind })
+            }
+            "snmp_pdu_observed" => {
+                if object
+                    .keys()
+                    .any(|key| !matches!(key.as_str(), "kind" | "remote_port" | "pdu"))
+                {
+                    return Err(ExportError::InvalidShape(
+                        "unexpected SNMP predicate field".into(),
+                    ));
+                }
+                let port = object
+                    .get("remote_port")
+                    .ok_or_else(|| ExportError::InvalidShape("missing SNMP port".into()))?
+                    .as_i64()?;
+                let remote_port = u16::try_from(port)
+                    .map_err(|_| ExportError::InvalidValue("SNMP port out of range".into()))?;
+                let label = object
+                    .get("pdu")
+                    .ok_or_else(|| ExportError::InvalidShape("missing SNMP PDU".into()))?
+                    .as_str()?;
+                let kind = crate::ir::SnmpPduKind::from_label(label)
+                    .ok_or_else(|| ExportError::InvalidValue("unknown SNMP PDU".into()))?;
+                Ok(ReasonPredicate::SnmpPduObserved { remote_port, kind })
+            }
             "rtsp_response_observed" => {
                 if object
                     .keys()

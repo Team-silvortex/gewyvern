@@ -8,6 +8,9 @@ use std::net::TcpListener;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
+#[cfg(target_family = "unix")]
+mod unix_socket;
+
 pub const MAX_FACT_LINE_BYTES: usize = 64 * 1024;
 const MAX_FACT_COUNT: usize = 100_000;
 const SOCKET_ACCEPT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -38,11 +41,9 @@ pub fn run_unix_socket_session(
     socket_path: &str,
     template: Template,
 ) -> Result<ExportBundle, SocketInputError> {
-    remove_unix_socket_file(socket_path)?;
-    let listener = bind_unix_socket_listener(socket_path)?;
-    let export = run_unix_socket_session_on_listener(&listener, template)?;
-    remove_unix_socket_file(socket_path)?;
-    Ok(export)
+    unix_socket::with_listener(socket_path, |listener| {
+        run_unix_socket_session_on_listener(listener, template)
+    })
 }
 
 #[cfg(target_family = "unix")]
@@ -50,11 +51,9 @@ pub fn run_unix_socket_session_with_binding(
     socket_path: &str,
     binding: TemplateBinding,
 ) -> Result<ExportBundle, SocketInputError> {
-    remove_unix_socket_file(socket_path)?;
-    let listener = bind_unix_socket_listener(socket_path)?;
-    let export = run_unix_socket_session_on_listener_with_binding(&listener, binding)?;
-    remove_unix_socket_file(socket_path)?;
-    Ok(export)
+    unix_socket::with_listener(socket_path, |listener| {
+        run_unix_socket_session_on_listener_with_binding(listener, binding)
+    })
 }
 
 #[cfg(target_family = "unix")]
@@ -115,11 +114,7 @@ pub fn run_unix_socket_session_on_listener_with_binding(
 
 #[cfg(target_family = "unix")]
 pub fn collect_unix_socket_facts(socket_path: &str) -> Result<Vec<FactEnvelope>, SocketInputError> {
-    remove_unix_socket_file(socket_path)?;
-    let listener = bind_unix_socket_listener(socket_path)?;
-    let facts = collect_unix_socket_facts_on_listener(&listener)?;
-    remove_unix_socket_file(socket_path)?;
-    Ok(facts)
+    unix_socket::with_listener(socket_path, collect_unix_socket_facts_on_listener)
 }
 
 #[cfg(target_family = "unix")]

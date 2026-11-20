@@ -45,11 +45,18 @@ flowchart TD
     CLI --> COMP["dsl / gewyc / template / ir"]
     COMP --> REG["fragment / protocol_profiles"]
     REG --> CORE
-    CORE --> REPORT
+    REPORT --> CORE
     CORE --> EXPORT["export / ledger / socket_input / http"]
-    DIAG --> REPORT
-    EXPORT --> REPORT
+    REPORT --> DIAG
+    REPORT --> EXPORT
+    VALIDATE["validation_harness: catalog / target / evidence"] --> CORE
+    VALIDATE --> EXPORT
 ```
+
+Arrows describe the main consumer direction, not every Rust import or a promise
+that the root crate is already physically split. Reporting consumes evidence;
+the runtime does not call the renderer. Validation also consumes the product,
+while its independent clients and packet checks remain separate test oracles.
 
 ## Source Clusters
 
@@ -114,6 +121,18 @@ Responsibilities:
 - bounded fact handling
 
 These files are the heart of the runtime engine.
+
+### Field Validation
+
+- `src/bin/gewyvern_validate.rs`
+- `src/validation_harness/`
+
+The native validator is an explicit development/operator entry, not a second
+runtime. Protocol breadth keeps campaign orchestration, static fixture policy,
+target lifecycle and independent evidence verification separate. See the
+[ownership table](module-boundaries.md#field-validation-is-a-consumer) before
+adding a new protocol. This is an internal source boundary, not a new public
+crate, report version or promotion of protocol maturity.
 
 ### Compiler And IR
 

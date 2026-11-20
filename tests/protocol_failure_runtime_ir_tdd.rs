@@ -281,6 +281,16 @@ fn run_udp_path(
     session.ingest(route_fact(2, cookie, 10));
 
     for (index, (dir, byte0, prefix2)) in packets.iter().enumerate() {
+        if fixture.starts_with("stun_binding") {
+            session.ingest(support::stun_packet(
+                3 + index as u64,
+                cookie,
+                *dir,
+                (53001, server_port),
+                &support::stun_message(prefix2.unwrap()),
+            ));
+            continue;
+        }
         session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
             3 + index as u64,
             cookie,

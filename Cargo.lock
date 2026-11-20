@@ -863,6 +863,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "signal-hook",
  "silvortex-bounded-io",
  "socket2",
  "x509-parser",

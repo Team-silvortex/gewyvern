@@ -90,6 +90,7 @@ zeroize = "1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"
+signal-hook.workspace = true
 socket2 = { workspace = true, features = ["all"] }
 
 [dev-dependencies]

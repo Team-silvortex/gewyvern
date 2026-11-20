@@ -22,6 +22,48 @@ mod response_prefix;
 #[cfg(any(target_os = "linux", test))]
 mod udp_evidence;
 
+pub fn run_linux_udp_snmp_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_udp_snmp(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "linux-udp-capture requires Linux, cgroup v2 and BPF privileges",
+        ))
+    }
+}
+
+pub fn run_linux_udp_stun_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_udp_stun(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "linux-udp-capture requires Linux, cgroup v2 and BPF privileges",
+        ))
+    }
+}
+
+pub fn run_linux_udp_ntp_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_udp_ntp(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "linux-udp-capture requires Linux, cgroup v2 and BPF privileges",
+        ))
+    }
+}
+
 pub fn run_linux_udp_dns_validation(
     out_dir: Option<PathBuf>,
 ) -> Result<ValidationReport, ValidationError> {
@@ -32,6 +74,57 @@ pub fn run_linux_udp_dns_validation(
         let _ = out_dir;
         Err(ValidationError::new(
             "linux-udp-capture requires Linux, cgroup v2 and BPF privileges",
+        ))
+    }
+}
+
+pub fn run_linux_udp_dns_ipv6_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_udp_dns_ipv6(out_dir);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = out_dir;
+        Err(ValidationError::new(
+            "linux-udp-capture requires Linux, cgroup v2 and BPF privileges",
+        ))
+    }
+}
+
+pub fn run_linux_product_dns_validation(
+    out_dir: Option<PathBuf>,
+    ipv6: bool,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_product_dns(out_dir, ipv6);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (out_dir, ipv6);
+        Err(ValidationError::new(
+            "production DNS capture requires Linux, cgroup v2 and BPF privileges",
+        ))
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum ProductUdpProtocol {
+    Snmp,
+    Ntp,
+    Stun,
+}
+
+pub fn run_linux_product_udp_validation(
+    out_dir: Option<PathBuf>,
+    protocol: ProductUdpProtocol,
+) -> Result<ValidationReport, ValidationError> {
+    #[cfg(target_os = "linux")]
+    return linux::run_product_udp(out_dir, protocol);
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (out_dir, protocol);
+        Err(ValidationError::new(
+            "production UDP capture requires Linux, cgroup v2 and BPF privileges",
         ))
     }
 }

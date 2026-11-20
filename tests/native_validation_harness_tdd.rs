@@ -9,6 +9,1190 @@ fn read_repo_file(relative: &str) -> String {
 }
 
 #[test]
+fn product_udp_network_proof_requires_namespace_separation_and_real_fragmentation() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_product_udp_network_linux_x86_64_20261120.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    assert_eq!(proof["results"]["retained_packet_facts"], 360);
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let mut ids = std::collections::BTreeSet::new();
+    for run in runs {
+        assert_eq!(run["ok"], true);
+        assert_eq!(run["production_cli"], true);
+        assert_eq!(run["validation_capture_used"], false);
+        assert_eq!(run["host_network_changed"], false);
+        assert_eq!(run["owned_resources_removed"], true);
+        let cases = run["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 2);
+        for (case, fragmented) in cases.iter().zip([false, true]) {
+            let lengths = if fragmented {
+                vec![1473, 4096, 60000, 1, 0, 32]
+            } else {
+                vec![0, 1, 128, 129, 1400, 1452, 1, 0, 32]
+            };
+            assert_eq!(case["payload_lengths"], serde_json::json!(lengths));
+            assert_eq!(case["fragmentation"], fragmented);
+            assert_eq!(case["mtu"], 1500);
+            for flag in [
+                "ok",
+                "prefix_and_lengths_match",
+                "replay_identical",
+                "hooks_detached",
+                "owned_namespaces_removed",
+                "owned_cgroups_removed",
+            ] {
+                assert_eq!(case[flag], true);
+            }
+            let namespaces = case["namespace_ids"].as_array().unwrap();
+            assert_eq!(namespaces.len(), 2);
+            assert_ne!(namespaces[0], namespaces[1]);
+            assert!(namespaces.iter().all(|id| id.as_u64().unwrap() > 0));
+            let status: gewyvern::live_capture::CaptureSnapshot =
+                serde_json::from_value(case["capture"].clone()).unwrap();
+            assert!(
+                status.final_accounted
+                    && status.reconciles()
+                    && !status.incomplete
+                    && !status.has_loss()
+            );
+            assert_eq!(status.state, gewyvern::live_capture::CaptureState::Stopped);
+            assert_eq!(status.retained, lengths.len() as u64 * 8);
+            assert_eq!(case["facts"], status.retained);
+            assert!(ids.insert(status.run_id));
+            let oracles = case["oracles"].as_array().unwrap();
+            assert_eq!(oracles.len(), 2);
+            assert_ne!(oracles[0]["namespace"], oracles[1]["namespace"]);
+            assert_eq!(oracles[0]["ifindex"], oracles[1]["ifindex"]);
+            let mut cookies = std::collections::BTreeSet::new();
+            for (oracle, role) in oracles.iter().zip(["client", "server"]) {
+                assert_eq!(oracle["role"], role);
+                assert_eq!(oracle["native_io_verified"], true);
+                assert!(oracle["ifindex"].as_u64().unwrap() > 0);
+                let sockets = oracle["cookies"].as_array().unwrap();
+                assert_eq!(sockets.len(), 2);
+                for socket in sockets {
+                    assert!(cookies.insert(socket.as_str().unwrap()));
+                }
+                let observations = oracle["observations"].as_array().unwrap();
+                assert_eq!(observations.len(), lengths.len() * 2);
+                for (i, observation) in observations.iter().enumerate() {
+                    assert_eq!(observation["family"], if i % 2 == 0 { 4 } else { 6 });
+                    assert_eq!(observation["length"], lengths[i / 2]);
+                    assert_eq!(observation["captured_prefix_limit"], 128);
+                    assert_eq!(observation["full_native_io"], true);
+                }
+                for key in [
+                    "IpFragCreates",
+                    "Ip6FragCreates",
+                    "IpReasmOKs",
+                    "Ip6ReasmOKs",
+                ] {
+                    assert_eq!(
+                        oracle["fragment_counters_delta"][key].as_u64().unwrap() > 0,
+                        fragmented
+                    );
+                }
+                for key in [
+                    "IpFragFails",
+                    "Ip6FragFails",
+                    "IpReasmFails",
+                    "Ip6ReasmFails",
+                ] {
+                    assert_eq!(oracle["fragment_counters_delta"][key], 0);
+                }
+            }
+        }
+    }
+    assert_eq!(ids.len(), 6);
+    assert_eq!(proof["cleanup"]["docker_inventory_restored"], true);
+    assert_eq!(
+        proof["cleanup"]["network_namespace_inventory_restored"],
+        true
+    );
+    assert_eq!(proof["cleanup"]["owned_cgroups_remaining"], 0);
+}
+
+#[test]
+fn product_udp_boundary_proof_keeps_prefix_limits_roles_and_scope_truthful() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_product_udp_boundaries_linux_x86_64_20261120.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let mut ids = std::collections::BTreeSet::new();
+    for run in runs {
+        assert_eq!(run["ok"], true);
+        assert_eq!(run["production_cli"], true);
+        assert_eq!(run["validation_capture_used"], false);
+        assert_eq!(run["native_peers_not_protocol_servers"], true);
+        assert_eq!(run["owned_resources_removed"], true);
+        assert!(run["loopback_mtu"].as_u64().unwrap() >= 60048);
+        assert_eq!(
+            run["payload_lengths"],
+            serde_json::json!([
+                0, 1, 2, 3, 4, 127, 128, 129, 512, 1400, 4096, 60000, 1, 0, 32
+            ])
+        );
+        let cases = run["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 4);
+        for (case, mode) in cases
+            .iter()
+            .zip(["connected", "unconnected", "descendant", "server"])
+        {
+            assert_eq!(case["mode"], mode);
+            for flag in [
+                "ok",
+                "prefix_and_lengths_match",
+                "replay_identical",
+                "hooks_detached",
+                "owned_cgroups_removed",
+            ] {
+                assert_eq!(case[flag], true);
+            }
+            assert_eq!(case["full_payload_claim_above_128"], false);
+            assert_eq!(case["facts"], 60);
+            let status: gewyvern::live_capture::CaptureSnapshot =
+                serde_json::from_value(case["capture"].clone()).unwrap();
+            assert_eq!(status.retained, 60);
+            assert!(
+                status.final_accounted
+                    && status.reconciles()
+                    && !status.incomplete
+                    && !status.has_loss()
+            );
+            assert_eq!(status.state, gewyvern::live_capture::CaptureState::Stopped);
+            assert!(ids.insert(status.run_id));
+            let workload = case["workload_scope"].as_str().unwrap();
+            assert_eq!(workload.ends_with("/workload"), mode == "descendant");
+            let sockets = case["selected_cookies"].as_array().unwrap();
+            assert_eq!(sockets.len(), 2);
+            assert_ne!(sockets[0], sockets[1]);
+            let observations = case["observations"].as_array().unwrap();
+            assert_eq!(observations.len(), 30);
+            for (i, o) in observations.iter().enumerate() {
+                let length = run["payload_lengths"][i / 2].as_u64().unwrap();
+                assert_eq!(o["length"], length);
+                assert_eq!(o["family"], if i % 2 == 0 { 4 } else { 6 });
+                assert_eq!(o["captured_bytes"], length.min(128));
+                assert_eq!(o["full_payload_captured"], length <= 128);
+                assert_eq!(o["cookie"], sockets[i % 2]);
+            }
+            let excluded = case["excluded"].as_array().unwrap();
+            assert_eq!(excluded.len(), if mode == "server" { 0 } else { 4 });
+            for o in excluded {
+                assert!(!sockets.contains(&o["cookie"]));
+            }
+            if mode == "server" {
+                assert_eq!(case["capture_role"], "bound_unconnected_server");
+                for family in [4, 6] {
+                    let ports: std::collections::BTreeSet<_> = observations
+                        .iter()
+                        .filter(|o| o["family"] == family)
+                        .map(|o| o["remote_port"].as_u64().unwrap())
+                        .collect();
+                    assert_eq!(ports.len(), 2);
+                }
+            }
+        }
+    }
+    assert_eq!(ids.len(), 12);
+    assert_eq!(proof["cleanup"]["docker_inventory_restored"], true);
+    assert_eq!(proof["cleanup"]["owned_cgroups_remaining"], 0);
+}
+
+#[test]
+fn product_management_udp_proof_requires_all_packages_and_negative_outcomes() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_product_management_udp_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 9);
+    let mut modes = std::collections::BTreeMap::new();
+    let mut ids = std::collections::BTreeSet::new();
+    for run in runs {
+        assert_eq!(run["ok"], true);
+        assert_eq!(run["production_cli"], true);
+        assert_eq!(run["validation_capture_used"], false);
+        assert_eq!(run["owned_resources_removed"], true);
+        let mode = run["mode"].as_str().unwrap();
+        *modes.entry(mode).or_insert(0) += 1;
+        let slices: Vec<_> = if mode == "production-ntp" {
+            let phases = run["phases"].as_array().unwrap();
+            assert_eq!(phases.len(), 2);
+            assert_eq!(phases[0]["local_reference"], false);
+            assert_eq!(phases[1]["local_reference"], true);
+            phases.iter().collect()
+        } else {
+            vec![run]
+        };
+        for slice in slices {
+            assert_eq!(slice["target"]["internal_network"], true);
+            assert_eq!(slice["target"]["published_ports"], false);
+            assert_eq!(slice["target"]["host_mounts"], false);
+            assert_eq!(slice["neighbor_socket_created_outside_scope"], true);
+            let sockets = slice["selected_sockets"].as_array().unwrap();
+            assert_eq!(sockets.len(), 2);
+            assert_ne!(sockets[0]["cookie"], sockets[1]["cookie"]);
+            for socket in sockets {
+                assert_ne!(socket["cookie"], slice["excluded_neighbor_cookie"]);
+            }
+            let packages = slice["packages"].as_array().unwrap();
+            assert_eq!(
+                packages.len(),
+                if mode == "production-stun" { 2 } else { 3 }
+            );
+            for p in packages {
+                for flag in [
+                    "production_cli",
+                    "outside_cgroup_neighbor_excluded",
+                    "full_payload_multiset_matches",
+                    "replay_identical",
+                    "packet_only",
+                    "hooks_detached",
+                ] {
+                    assert_eq!(p[flag], true);
+                }
+                assert_eq!(p["validation_capture_used"], false);
+                assert_eq!(p["process_attribution"], false);
+                let snapshot: gewyvern::live_capture::CaptureSnapshot =
+                    serde_json::from_value(p["capture"].clone()).unwrap();
+                assert!(
+                    snapshot.final_accounted
+                        && snapshot.reconciles()
+                        && !snapshot.incomplete
+                        && !snapshot.has_loss()
+                );
+                assert_eq!(
+                    snapshot.state,
+                    gewyvern::live_capture::CaptureState::Stopped
+                );
+                assert!(ids.insert(snapshot.run_id));
+                let o = p["observations"].as_array().unwrap();
+                let (queries, facts, timeout) = match mode {
+                    "production-snmp" => (7, 13, 4),
+                    "production-ntp" => (5, 9, 2),
+                    "production-stun" => (6, 11, 0),
+                    _ => panic!("unexpected product campaign"),
+                };
+                assert_eq!(o.len(), queries);
+                assert_eq!(p["facts"], facts);
+                assert_eq!(snapshot.retained, facts);
+                for (i, observation) in o.iter().enumerate() {
+                    assert_eq!(observation["timeout"], i == timeout);
+                }
+                if mode == "production-snmp" {
+                    assert_eq!(o[3]["detail"]["no_such_object"], true);
+                    assert_eq!(o[4]["response_phase_expected"], false);
+                } else if mode == "production-ntp" {
+                    assert_eq!(slice["target"]["clock_control_disabled"], true);
+                    assert_eq!(slice["target"]["sys_time_capability"], false);
+                    assert_eq!(slice["target"]["external_time_sources"], false);
+                    assert_eq!(o[2]["request_phase_expected"], false);
+                    assert_eq!(
+                        o[0]["detail"]["reply"]["leap"],
+                        if slice["local_reference"] == true {
+                            0
+                        } else {
+                            3
+                        }
+                    );
+                    if p["entry"] == "sync" && slice["local_reference"] == false {
+                        assert_eq!(p["phases"]["receive_sync_response"], serde_json::json!([]));
+                    }
+                } else {
+                    assert_eq!(slice["target"]["turn_relay_enabled"], false);
+                    assert_eq!(o[0]["request_phase_expected"], false);
+                    assert_eq!(o[2]["detail"]["reply"]["error_code"], 420);
+                    assert!(o[1]["detail"]["reply"]["mapped_address"].is_string());
+                }
+            }
+        }
+    }
+    assert_eq!(
+        modes,
+        std::collections::BTreeMap::from([
+            ("production-snmp", 3),
+            ("production-ntp", 3),
+            ("production-stun", 3)
+        ])
+    );
+    assert_eq!(ids.len(), 33);
+    assert_eq!(proof["cleanup"]["docker_inventory_restored"], true);
+    assert_eq!(proof["cleanup"]["owned_cgroups_remaining"], 0);
+}
+
+#[test]
+fn product_dns_proof_requires_real_cli_bytes_both_families_and_target_quirk() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_product_dns_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 6);
+    let mut families = std::collections::BTreeMap::new();
+    let mut ids = std::collections::BTreeSet::new();
+    for run in runs {
+        for flag in [
+            "ok",
+            "production_cli",
+            "internal_network",
+            "pinned_target_truncation_alternates",
+            "neighbor_socket_created_outside_scope",
+            "owned_resources_removed",
+        ] {
+            assert_eq!(run[flag], true);
+        }
+        for flag in ["validation_capture_used", "published_ports"] {
+            assert_eq!(run[flag], false);
+        }
+        let family = run["ip_version"].as_u64().unwrap();
+        assert!([4, 6].contains(&family));
+        *families.entry(family).or_insert(0) += 1;
+        let sockets = run["selected_sockets"].as_array().unwrap();
+        assert_eq!(sockets.len(), 2);
+        assert_ne!(sockets[0]["cookie"], sockets[1]["cookie"]);
+        for socket in sockets {
+            assert_ne!(socket["cookie"], run["excluded_neighbor_cookie"]);
+        }
+        let packages = run["packages"].as_array().unwrap();
+        assert_eq!(packages.len(), 2);
+        assert_eq!(packages[0]["entry"], "udp");
+        assert_eq!(packages[1]["entry"], "error");
+        for package in packages {
+            for flag in [
+                "replay_identical",
+                "full_payload_multiset_matches",
+                "packet_only",
+            ] {
+                assert_eq!(package[flag], true);
+            }
+            assert_eq!(package["process_attribution"], false);
+            assert_eq!(package["excluded_neighbor_reply"]["rcode"], 3);
+            let observations = package["observations"].as_array().unwrap();
+            assert_eq!(observations.len(), 10);
+            let expected_codes = [
+                Some(0),
+                Some(1),
+                Some(2),
+                Some(3),
+                Some(5),
+                Some(0),
+                Some(0),
+                None,
+                Some(0),
+                Some(0),
+            ];
+            let mut replies = 0;
+            for (i, observation) in observations.iter().enumerate() {
+                assert_eq!(observation["reply"]["rcode"].as_u64(), expected_codes[i]);
+                assert_eq!(observation["timeout"], i == 7);
+                let count = observation["response_count"].as_u64().unwrap();
+                assert_eq!(count == 0, i == 7);
+                replies += count;
+            }
+            assert_eq!(observations[5]["reply"]["truncated"], true);
+            assert_eq!(observations[6]["reply"]["truncated"], false);
+            assert_eq!(
+                observations[6]["reply"]["addresses"],
+                serde_json::json!([[192, 0, 2, 53]])
+            );
+            let snapshot: gewyvern::live_capture::CaptureSnapshot =
+                serde_json::from_value(package["capture"].clone()).unwrap();
+            assert!(
+                snapshot.final_accounted
+                    && snapshot.reconciles()
+                    && !snapshot.incomplete
+                    && !snapshot.has_loss()
+            );
+            assert_eq!(
+                snapshot.state,
+                gewyvern::live_capture::CaptureState::Stopped
+            );
+            assert_eq!(snapshot.retained, 10 + replies);
+            assert_eq!(package["facts"], snapshot.retained);
+            assert!(ids.insert(snapshot.run_id));
+        }
+    }
+    assert_eq!(families, std::collections::BTreeMap::from([(4, 3), (6, 3)]));
+    assert_eq!(proof["cleanup"]["docker_inventory_restored"], true);
+    assert_eq!(proof["cleanup"]["owned_cgroups_remaining"], 0);
+}
+
+#[test]
+fn systemd_capture_proof_requires_manager_restarts_and_bounded_failure() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_systemd_udp_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    assert_eq!(proof["reproduced_bug"]["observed_restart_count"], 10);
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let mut ids = std::collections::BTreeSet::new();
+    for run in runs {
+        for flag in [
+            "ok",
+            "systemd_unit_executed",
+            "generated_unit_unchanged",
+            "automatic_restart_verified",
+            "tls_pinned_ca",
+            "owned_units_removed",
+            "owned_cgroup_removed",
+        ] {
+            assert_eq!(run[flag], true, "{flag}");
+        }
+        for flag in [
+            "native_activation_entrypoint_executed",
+            "boot_enablement",
+            "host_reboot",
+        ] {
+            assert_eq!(run[flag], false, "{flag}");
+        }
+        assert_eq!(run["operator_profile"], "test");
+        let cases = run["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 7);
+        let mut names = std::collections::BTreeSet::new();
+        for case in cases {
+            let name = case["case"].as_str().unwrap();
+            assert!(names.insert(name));
+            let snapshot: gewyvern::live_capture::CaptureSnapshot =
+                serde_json::from_value(case["snapshot"].clone()).unwrap();
+            assert!(snapshot.final_accounted && snapshot.reconciles());
+            assert!(ids.insert(snapshot.run_id.clone()));
+            assert_eq!(
+                snapshot.state,
+                gewyvern::live_capture::CaptureState::Stopped
+            );
+            if let Some(failed) = case.get("failed_snapshot") {
+                let failed: gewyvern::live_capture::CaptureSnapshot =
+                    serde_json::from_value(failed.clone()).unwrap();
+                assert_eq!(failed.state, gewyvern::live_capture::CaptureState::Failed);
+                assert!(failed.incomplete && failed.final_accounted && failed.reconciles());
+                assert_ne!(failed.run_id, snapshot.run_id);
+                assert_eq!(case["manual_restart_after_repair"], false);
+                assert_eq!(case["failure"]["SubState"], "auto-restart");
+            }
+            match name {
+                "systemd_start_and_graceful_stop" => {
+                    assert_eq!(snapshot.retained, 64);
+                    assert!(case["tls_observed_facts"].as_u64().unwrap() > 0);
+                    assert_eq!(case["no_restart_after_stop"], true);
+                    assert_eq!(case["properties"]["PrivateTmp"], "yes");
+                    assert_eq!(case["properties"]["ProtectSystem"], "strict");
+                    assert_eq!(case["properties"]["NoNewPrivileges"], "yes");
+                }
+                "sigkill_automatic_restart" => {
+                    assert_ne!(case["old_run_id"], case["new_run_id"]);
+                    assert_eq!(case["new_run_id"], snapshot.run_id);
+                    assert_eq!(case["old_final_counters_available"], false);
+                    assert_eq!(case["properties"]["NRestarts"], "1");
+                    assert_eq!(snapshot.retained, 32);
+                }
+                "persistent_failure_bounded_and_operator_reset" => {
+                    assert_eq!(case["limit"]["ActiveState"], "failed");
+                    assert_eq!(case["limit"]["NRestarts"], "5");
+                    assert_eq!(case["limit"]["StartLimitBurst"], "5");
+                    assert_eq!(case["limit"]["StartLimitIntervalUSec"], "1min");
+                    assert_eq!(case["start_limit_logged"], true);
+                    assert_eq!(case["manual_reset_required"], true);
+                    assert_eq!(snapshot.retained, 32);
+                }
+                "accounted_loss_no_restart_loop" => {
+                    assert_eq!(snapshot.userspace_dropped, 63);
+                    assert!(snapshot.incomplete);
+                    assert_eq!(case["properties"]["ExecMainStatus"], "3");
+                    assert_eq!(case["properties"]["Result"], "success");
+                    assert_eq!(case["no_restart"], true);
+                }
+                "tls_repair_automatic_recovery"
+                | "output_repair_automatic_recovery"
+                | "scope_recreation_automatic_recovery" => assert_eq!(snapshot.retained, 32),
+                _ => panic!("unexpected systemd case {name}"),
+            }
+            if name != "accounted_loss_no_restart_loop" {
+                assert!(!snapshot.incomplete && !snapshot.has_loss());
+            }
+        }
+    }
+    for flag in [
+        "docker_inventory_restored",
+        "preexisting_failed_units_unchanged",
+    ] {
+        assert_eq!(proof["cleanup"][flag], true);
+    }
+    assert_eq!(proof["cleanup"]["owned_units_remaining"], 0);
+    assert_eq!(proof["cleanup"]["owned_cgroups_remaining"], 0);
+}
+
+#[test]
+fn installed_capture_proof_preserves_tls_scope_and_supervisor_boundaries() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_installed_udp_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    assert_eq!(proof["leserpent_ui_plan_selection"], false);
+    assert_eq!(proof["systemd_activation_executed"], false);
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let mut ids = std::collections::BTreeSet::new();
+    for run in runs {
+        assert_eq!(run["ok"], true);
+        assert_eq!(run["real_installed_binary"], true);
+        assert_eq!(run["real_tls"], true);
+        assert_eq!(run["owned_cgroup_removed"], true);
+        assert_eq!(run["systemd_unit_executed"], false);
+        assert_eq!(run["operator_profile"], "test");
+        let cases = run["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 8);
+        for case in cases {
+            if let Some(value) = case.get("snapshot") {
+                let snapshot: gewyvern::live_capture::CaptureSnapshot =
+                    serde_json::from_value(value.clone()).unwrap();
+                assert!(snapshot.final_accounted && snapshot.reconciles());
+                assert!(ids.insert(snapshot.run_id));
+                match case["case"].as_str().unwrap() {
+                    "tls_authenticated_dual_stack_capture" => {
+                        assert_eq!(snapshot.kernel.matched, 64);
+                        assert!(!snapshot.incomplete);
+                        assert_eq!(case["missing_token_status"], 403);
+                        assert_eq!(case["wrong_token_status"], 403);
+                        assert_eq!(case["wrong_ca_rejected"], true);
+                    }
+                    "installed_sigkill_restart" => {
+                        assert_eq!(snapshot.kernel.matched, 32);
+                        assert!(!snapshot.incomplete);
+                        assert_eq!(case["old_final_counters_available"], false);
+                    }
+                    "installed_loss_exit_code_preserved" => {
+                        assert_eq!(case["exit_code"], 3);
+                        assert_eq!(snapshot.userspace_dropped, 63);
+                        assert!(snapshot.incomplete);
+                    }
+                    _ => {
+                        assert_eq!(snapshot.state, gewyvern::live_capture::CaptureState::Failed);
+                        assert!(snapshot.incomplete);
+                    }
+                }
+            } else {
+                assert_eq!(case["ok"], true);
+            }
+        }
+    }
+    assert_eq!(proof["cleanup"]["docker_inventory_restored"], true);
+    assert_eq!(proof["cleanup"]["owned_cgroups_remaining"], 0);
+}
+
+#[test]
+fn production_udp_proof_accounts_loss_without_claiming_unbounded_capture() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_production_udp_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    assert_eq!(proof["automatic_product_cli_attachment"], true);
+    assert_eq!(proof["cross_window_transaction_continuity"], false);
+    assert_eq!(proof["installed_tls_service_capture_selection"], false);
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let mut run_ids = std::collections::BTreeSet::new();
+    for run in runs {
+        assert_eq!(run["ok"], true);
+        assert_eq!(run["real_production_binary"], true);
+        assert_eq!(run["validation_capture_used"], false);
+        assert_eq!(run["owned_cgroup_removed"], true);
+        assert_eq!(run["no_pinned_objects"], true);
+        let cases = run["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 9);
+        for case in cases {
+            if case["case"] == "sigkill_detaches_unpinned_links" {
+                assert_eq!(case["ok"], true);
+                assert_eq!(case["final_counters_available"], false);
+                continue;
+            }
+            let snapshot: gewyvern::live_capture::CaptureSnapshot =
+                serde_json::from_value(case["snapshot"].clone()).unwrap();
+            assert!(snapshot.final_accounted && snapshot.reconciles());
+            assert!(run_ids.insert(snapshot.run_id));
+            match case["case"].as_str().unwrap() {
+                "service_api_sigterm_and_exclusion" => {
+                    assert!(!snapshot.incomplete);
+                    assert_eq!(case["running_history_snapshots"], 0);
+                    assert_eq!(case["terminal_history_snapshots"], 1);
+                }
+                "kernel_overflow_and_resume" => {
+                    assert!(snapshot.kernel.ring_dropped > 0 && snapshot.incomplete);
+                    assert_eq!(snapshot.kernel.matched, 10016);
+                    assert_eq!(snapshot.decode_rejected, 0);
+                }
+                "userspace_budget" => {
+                    assert_eq!(snapshot.userspace_dropped, 63);
+                    assert!(snapshot.incomplete);
+                }
+                "output_failure_detaches" | "scope_removal_stops_capture" => {
+                    assert_eq!(snapshot.state, gewyvern::live_capture::CaptureState::Failed);
+                    assert!(snapshot.incomplete);
+                }
+                _ => assert!(!snapshot.incomplete),
+            }
+        }
+    }
+    let first_service = runs[0]["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|case| case["case"] == "service_api_sigterm_and_exclusion")
+        .unwrap();
+    assert_eq!(first_service["snapshot"]["kernel"]["matched"], "12000");
+    assert!(first_service["nonempty_windows"].as_u64().unwrap() >= 100);
+    assert_eq!(proof["cleanup"]["docker_inventory_restored"], true);
+    assert_eq!(proof["cleanup"]["owned_cgroups_remaining"], 0);
+    assert_eq!(proof["cleanup"]["owned_compiler_directories_remaining"], 0);
+}
+
+#[test]
+fn ipv6_product_ingest_proof_does_not_claim_automatic_production_capture() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_ipv6_product_ingest_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    assert_eq!(proof["automatic_production_probe_attachment"], false);
+    assert_eq!(proof["continuous_production_collector"], false);
+    assert_eq!(proof["reproduced_bug"]["before_fix_exit_code"], 101);
+    assert_eq!(proof["ipv4_regressions"]["dns"]["ok"], true);
+    assert_eq!(proof["ipv4_regressions"]["stun"]["ok"], true);
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let mut targets = std::collections::BTreeSet::new();
+    let mut sessions = 0;
+    for run in runs {
+        let capture = &run["capture"];
+        assert_eq!(capture["ok"], true);
+        assert_eq!(capture["ip_version"], 6);
+        assert_eq!(capture["ipv6_only"], true);
+        assert_eq!(
+            capture["egress_counts"],
+            serde_json::json!({"total":9,"dropped":0})
+        );
+        assert_eq!(
+            capture["ingress_counts"],
+            serde_json::json!({"total":10,"dropped":0})
+        );
+        assert_eq!(capture["owned_resources_removed"], true);
+        assert!(targets.insert(capture["container_id"].as_str().unwrap()));
+        let ingest = &run["ingest"];
+        assert_eq!(ingest["ok"], true);
+        assert_eq!(ingest["automatic_production_probe_attachment"], false);
+        assert_eq!(ingest["continuous_production_collector"], false);
+        let items = ingest["sessions"].as_array().unwrap();
+        assert_eq!(items.len(), 6);
+        let mut combinations = std::collections::BTreeSet::new();
+        for item in items {
+            sessions += 1;
+            assert_eq!(item["facts"], 19);
+            assert_eq!(item["flows"], 2);
+            assert_eq!(item["l3_proto"], 0x86dd);
+            assert_eq!(item["process_attribution"], false);
+            assert_eq!(item["ingest_trust_mode"], "unverified-local");
+            for check in [
+                "default_fragment_plan",
+                "replay_identical",
+                "phase_evidence_matches_kernel_campaign",
+                "malformed_input_rejected_then_recovered",
+            ] {
+                assert_eq!(item[check], true, "{check}");
+            }
+            combinations.insert((
+                item["package"].as_str().unwrap(),
+                item["transport"].as_str().unwrap(),
+            ));
+        }
+        for package in ["udp", "error"] {
+            for transport in ["unix", "tcp4", "tcp6"] {
+                assert!(combinations.contains(&(package, transport)));
+            }
+        }
+    }
+    assert_eq!(sessions, 18);
+    assert_eq!(proof["totals"]["successful_cli_sessions"], sessions);
+    assert_eq!(proof["totals"]["rejected_input_recovery_checks"], sessions);
+    for source in [
+        "src/packet_capture.rs",
+        "src/socket_input/unix_socket.rs",
+        "tests/ipv6_capture_ingest_tdd.rs",
+    ] {
+        assert_eq!(proof["source_sha256"][source].as_str().unwrap().len(), 64);
+    }
+}
+
+#[test]
+fn ipv6_dns_proof_preserves_family_replay_and_ipv4_regressions() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_ipv6_dns_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    assert_eq!(proof["execution"]["protocol_rules_changed"], false);
+    assert_eq!(proof["execution"]["production_event_abi_changed"], false);
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let mut identities = std::collections::BTreeSet::new();
+    let mut targets = std::collections::BTreeSet::new();
+    let mut networks = std::collections::BTreeSet::new();
+    let (mut requests, mut responses, mut timeouts, mut replays) = (0, 0, 0, 0);
+    for run in runs {
+        assert_eq!(run["ok"], true);
+        assert_eq!(run["schema_version"], 2);
+        assert_eq!(run["capture_event_schema"], 2);
+        assert_eq!(run["ip_version"], 6);
+        assert_eq!(run["ipv6_only"], true);
+        assert_eq!(run["query_type"], "A");
+        assert_eq!(run["internal_network"], true);
+        assert_eq!(run["published_ports"], false);
+        assert_eq!(run["owned_resources_removed"], true);
+        assert!(targets.insert(run["container_id"].as_str().unwrap()));
+        assert!(networks.insert(run["network_id"].as_str().unwrap()));
+        let source: std::net::Ipv6Addr = run["source_address"].as_str().unwrap().parse().unwrap();
+        let target: std::net::Ipv6Addr = run["target_address"].as_str().unwrap().parse().unwrap();
+        assert!(source.is_unique_local() && target.is_unique_local());
+        assert_ne!(source, target);
+        assert_eq!(u128::from(source) >> 64, u128::from(target) >> 64);
+        assert_eq!(
+            run["egress_counts"],
+            serde_json::json!({"total":9,"dropped":0})
+        );
+        assert_eq!(
+            run["ingress_counts"],
+            serde_json::json!({"total":10,"dropped":0})
+        );
+        requests += run["egress_counts"]["total"].as_u64().unwrap();
+        responses += run["ingress_counts"]["total"].as_u64().unwrap();
+        let sockets = run["selected_sockets"].as_array().unwrap();
+        assert_eq!(sockets.len(), 2);
+        for socket in sockets {
+            assert!(identities.insert(socket[0].as_u64().unwrap()));
+        }
+        assert!(identities.insert(run["unselected_neighbor_cookie"].as_u64().unwrap()));
+        assert_eq!(run["unselected_neighbor_reply"]["rcode"], 3);
+        let observations = run["observations"].as_array().unwrap();
+        assert_eq!(observations.len(), 9);
+        for (i, observation) in observations.iter().enumerate() {
+            assert_eq!(
+                observation["query_sha256"],
+                observation["captured_query_sha256"]
+            );
+            assert_eq!(
+                observation["client_response_sha256"],
+                observation["captured_response_sha256"]
+            );
+            assert_eq!(observation["client_reply"], observation["captured_reply"]);
+            assert_eq!(observation["timeout"], i == 6);
+            assert_eq!(observation["cookie"], sockets[usize::from(i == 8)][0]);
+            assert_eq!(
+                observation["response_count"],
+                [1, 2, 1, 1, 2, 1, 0, 1, 1][i]
+            );
+            if i == 6 {
+                timeouts += 1;
+                assert!(observation["client_reply"].is_null());
+                assert!(observation["elapsed_us"].as_u64().unwrap() >= 300_000);
+                continue;
+            }
+            let reply = &observation["client_reply"];
+            assert_eq!(reply["id"], 0x4411);
+            assert_eq!(reply["rcode"], [0, 1, 2, 3, 5, 0, 0, 0, 0][i]);
+            assert_eq!(reply["truncated"], i == 5);
+            if i == 0 || i == 7 || i == 8 {
+                assert_eq!(reply["addresses"], serde_json::json!([[192, 0, 2, 7]]));
+            }
+        }
+        let packages = run["packages"].as_array().unwrap();
+        assert_eq!(packages.len(), 2);
+        for (i, package) in packages.iter().enumerate() {
+            replays += 1;
+            assert_eq!(package["l3_proto"], 0x86dd);
+            assert_eq!(package["facts"], 19);
+            assert_eq!(package["flows"], 2);
+            assert_eq!(package["packet_only"], true);
+            assert_eq!(package["process_attribution"], false);
+            assert_eq!(package["replay_identical"], true);
+            let expected = if i == 0 {
+                serde_json::json!([sockets[0][0], sockets[1][0]])
+            } else {
+                serde_json::json!([sockets[0][0]])
+            };
+            assert_eq!(package["matched_cookies"], expected);
+        }
+    }
+    assert_eq!((requests, responses, timeouts, replays), (27, 30, 3, 6));
+    assert_eq!(proof["totals"]["selected_requests"], requests);
+    assert_eq!(proof["totals"]["captured_responses"], responses);
+    assert_eq!(proof["totals"]["expected_timeouts"], timeouts);
+    assert_eq!(proof["totals"]["package_replays"], replays);
+    assert_eq!(identities.len(), 9);
+    assert_eq!(targets.len(), 3);
+    assert_eq!(networks.len(), 3);
+    for name in ["dns", "snmp", "ntp", "stun"] {
+        assert_eq!(proof["ipv4_regressions"][name]["ok"], true);
+    }
+    let dns = &proof["ipv4_regressions"]["dns"];
+    assert_eq!(dns["ip_version"], 4);
+    assert_eq!(dns["ipv6_only"], false);
+    for package in dns["packages"].as_array().unwrap() {
+        assert_eq!(package["l3_proto"], 0x0800);
+    }
+    for field in [
+        "host_resolver_changed",
+        "manual_host_sysctl_configuration_changed",
+        "docker_daemon_configuration_changed",
+    ] {
+        assert_eq!(proof["execution"][field], false);
+    }
+    assert_eq!(proof["cleanup"]["global_prune_used"], false);
+}
+
+#[test]
+fn stun_breadth_proof_keeps_binding_candidates_distinct_from_nat_claims() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_stun_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    assert_eq!(proof["execution"]["host_count"], 1);
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let mut identities = std::collections::BTreeSet::new();
+    let mut targets = std::collections::BTreeSet::new();
+    let (mut requests, mut responses, mut timeouts, mut replays) = (0, 0, 0, 0);
+    for run in runs {
+        assert_eq!(run["ok"], true);
+        let campaign = &run["campaign"];
+        assert_eq!(campaign["owned_resources_removed"], true);
+        assert_eq!(
+            campaign["egress_counts"],
+            serde_json::json!({"total":6,"dropped":0})
+        );
+        assert_eq!(
+            campaign["ingress_counts"],
+            serde_json::json!({"total":5,"dropped":0})
+        );
+        requests += campaign["egress_counts"]["total"].as_u64().unwrap();
+        responses += campaign["ingress_counts"]["total"].as_u64().unwrap();
+        let target = &campaign["target"];
+        assert!(targets.insert(target["container_id"].as_str().unwrap()));
+        assert_eq!(target["internal_network"], true);
+        for field in ["published_ports", "host_mounts", "turn_relay_enabled"] {
+            assert_eq!(target[field], false);
+        }
+        let sockets = campaign["selected_sockets"].as_array().unwrap();
+        assert_eq!(sockets.len(), 2);
+        for socket in sockets {
+            assert!(identities.insert(socket[0].as_u64().unwrap()));
+        }
+        assert!(identities.insert(campaign["neighbor_cookie"].as_u64().unwrap()));
+        let observations = campaign["observations"].as_array().unwrap();
+        assert_eq!(observations.len(), 6);
+        for (i, observation) in observations.iter().enumerate() {
+            assert_eq!(
+                observation["client_request_sha256"],
+                observation["captured_request_sha256"]
+            );
+            assert_eq!(
+                observation["client_response_sha256"],
+                observation["captured_response_sha256"]
+            );
+            assert_eq!(observation["client_reply"], observation["captured_reply"]);
+            assert_eq!(observation["timeout"], i == 0);
+            assert_eq!(observation["cookie"], sockets[usize::from(i == 5)][0]);
+            if i == 0 {
+                timeouts += 1;
+                assert_eq!(observation["request_bytes"], 2);
+                assert!(observation["client_reply"].is_null());
+                assert!(
+                    observation["end_ns"].as_u64().unwrap()
+                        - observation["start_ns"].as_u64().unwrap()
+                        >= 300_000_000
+                );
+                continue;
+            }
+            let reply = &observation["client_reply"];
+            let transaction = reply["transaction_hex"].as_str().unwrap();
+            assert_eq!(transaction.len(), 24);
+            assert!(transaction.bytes().all(|b| b.is_ascii_hexdigit()));
+            if i == 2 {
+                assert_eq!(observation["case"], "unknown-required");
+                assert_eq!(reply["error_code"], 420);
+                assert_eq!(reply["unknown_attributes"], serde_json::json!([0x7777]));
+                assert!(reply["mapped_address"].is_null());
+            } else {
+                assert!(reply["error_code"].is_null());
+                let mapped: std::net::SocketAddr =
+                    reply["mapped_address"].as_str().unwrap().parse().unwrap();
+                assert_eq!(
+                    u64::from(mapped.port()),
+                    sockets[usize::from(i == 5)][1].as_u64().unwrap()
+                );
+            }
+        }
+        assert_eq!(observations[3]["case"], "recovery-binding");
+        assert_eq!(observations[4]["case"], "optional-padded");
+        assert_eq!(observations[4]["request_bytes"], 28);
+        assert_eq!(
+            observations[1]["client_reply"]["transaction_hex"],
+            observations[5]["client_reply"]["transaction_hex"]
+        );
+        assert_ne!(
+            observations[1]["client_reply"]["mapped_address"],
+            observations[5]["client_reply"]["mapped_address"]
+        );
+        let packages = campaign["packages"].as_array().unwrap();
+        assert_eq!(packages.len(), 2);
+        for (i, package) in packages.iter().enumerate() {
+            replays += 1;
+            assert_eq!(package["replay_identical"], true);
+            assert_eq!(package["packet_only"], true);
+            assert_eq!(package["NAT_traversal_proven"], false);
+            assert_eq!(package["product_transaction_correlation"], false);
+            assert_eq!(package["legacy_short_request_matches"], 1);
+            assert_eq!(package["short_request_matches"], 0);
+            assert_eq!(
+                package["matched_request_cookies"],
+                serde_json::json!([sockets[0][0], sockets[1][0]])
+            );
+            let expected = if i == 0 {
+                serde_json::json!([sockets[0][0], sockets[1][0]])
+            } else {
+                serde_json::json!([sockets[0][0]])
+            };
+            assert_eq!(package["matched_response_cookies"], expected);
+        }
+    }
+    assert_eq!((requests, responses, timeouts, replays), (18, 15, 3, 6));
+    assert_eq!(proof["totals"]["selected_requests"], requests);
+    assert_eq!(proof["totals"]["captured_responses"], responses);
+    assert_eq!(proof["totals"]["expected_timeouts"], timeouts);
+    assert_eq!(proof["totals"]["package_replays"], replays);
+    assert_eq!(targets.len(), 3);
+    assert_eq!(identities.len(), 9);
+    assert_eq!(proof["ntp_regression"]["ok"], true);
+    assert_eq!(proof["cleanup"]["global_prune_used"], false);
+}
+
+#[test]
+fn ntp_breadth_proof_separates_real_responses_from_clock_claims() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_ntp_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    assert_eq!(proof["execution"]["host_count"], 1);
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let mut identities = std::collections::BTreeSet::new();
+    let mut targets = std::collections::BTreeSet::new();
+    let (mut requests, mut responses, mut timeouts, mut replays) = (0, 0, 0, 0);
+    for run in runs {
+        assert_eq!(run["ok"], true);
+        assert_eq!(run["host_clock_adjusted"], false);
+        assert_eq!(run["external_time_sources"], false);
+        let phases = run["phases"].as_array().unwrap();
+        assert_eq!(phases.len(), 2);
+        for (index, phase) in phases.iter().enumerate() {
+            let local = index == 0;
+            assert_eq!(phase["local_reference"], local);
+            assert_eq!(phase["owned_resources_removed"], true);
+            assert_eq!(
+                phase["egress_counts"],
+                serde_json::json!({"total":5,"dropped":0})
+            );
+            assert_eq!(
+                phase["ingress_counts"],
+                serde_json::json!({"total":4,"dropped":0})
+            );
+            requests += phase["egress_counts"]["total"].as_u64().unwrap();
+            responses += phase["ingress_counts"]["total"].as_u64().unwrap();
+            let target = &phase["target"];
+            assert!(targets.insert(target["container_id"].as_str().unwrap()));
+            for field in ["internal_network", "clock_control_disabled"] {
+                assert_eq!(target[field], true);
+            }
+            for field in [
+                "published_ports",
+                "host_mounts",
+                "sys_time_capability",
+                "external_time_sources",
+            ] {
+                assert_eq!(target[field], false);
+            }
+            assert!(
+                target["entrypoint"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&serde_json::json!("-x"))
+            );
+            let sockets = phase["selected_sockets"].as_array().unwrap();
+            assert_eq!(sockets.len(), 2);
+            for socket in sockets {
+                assert!(identities.insert(socket[0].as_u64().unwrap()));
+            }
+            assert!(identities.insert(phase["neighbor_cookie"].as_u64().unwrap()));
+            let observations = phase["observations"].as_array().unwrap();
+            assert_eq!(observations.len(), 5);
+            for (i, observation) in observations.iter().enumerate() {
+                assert_eq!(
+                    observation["client_request_sha256"],
+                    observation["captured_request_sha256"]
+                );
+                assert_eq!(
+                    observation["client_response_sha256"],
+                    observation["captured_response_sha256"]
+                );
+                assert_eq!(observation["client_reply"], observation["captured_reply"]);
+                assert_eq!(observation["timeout"], i == 2);
+                assert_eq!(observation["cookie"], sockets[usize::from(i == 4)][0]);
+                if i == 2 {
+                    timeouts += 1;
+                    assert_eq!(observation["request_bytes"], 12);
+                    assert!(observation["client_reply"].is_null());
+                    continue;
+                }
+                assert_eq!(observation["request_bytes"], 48);
+                let reply = &observation["client_reply"];
+                assert_eq!(reply["leap"], if local { 0 } else { 3 });
+                assert_eq!(reply["stratum"], if local { 10 } else { 0 });
+                assert_eq!(reply["version"], if i == 1 || i == 4 { 3 } else { 4 });
+                for field in ["origin_hex", "receive_hex", "transmit_hex"] {
+                    let value = reply[field].as_str().unwrap();
+                    assert_eq!(value.len(), 16);
+                    assert!(value.bytes().all(|b| b.is_ascii_hexdigit()));
+                    assert_ne!(u64::from_str_radix(value, 16).unwrap(), 0);
+                }
+            }
+            assert_eq!(
+                observations[1]["client_reply"]["origin_hex"],
+                observations[4]["client_reply"]["origin_hex"]
+            );
+            let packages = phase["packages"].as_array().unwrap();
+            assert_eq!(packages.len(), 3);
+            for package in packages {
+                replays += 1;
+                assert_eq!(package["replay_identical"], true);
+                assert_eq!(package["packet_only"], true);
+                assert_eq!(package["clock_discipline_proven"], false);
+                assert_eq!(package["product_origin_correlation"], false);
+                assert_eq!(package["legacy_response_stages"], usize::from(local));
+                assert_eq!(
+                    package["matched_request_cookies"],
+                    serde_json::json!([sockets[0][0], sockets[1][0]])
+                );
+                let expected = if !local && package["response_phase"] == "receive_sync_response" {
+                    serde_json::json!([])
+                } else {
+                    serde_json::json!([sockets[0][0], sockets[1][0]])
+                };
+                assert_eq!(package["matched_response_cookies"], expected);
+            }
+        }
+    }
+    assert_eq!((requests, responses, timeouts, replays), (30, 24, 6, 18));
+    assert_eq!(proof["totals"]["selected_requests"], requests);
+    assert_eq!(proof["totals"]["captured_responses"], responses);
+    assert_eq!(proof["totals"]["expected_timeouts"], timeouts);
+    assert_eq!(proof["totals"]["package_replays"], replays);
+    assert_eq!(targets.len(), 6);
+    assert_eq!(identities.len(), 18);
+    for regression in ["dns_regression", "snmp_regression"] {
+        assert_eq!(proof[regression]["ok"], true);
+        assert_eq!(proof[regression]["owned_resources_removed"], true);
+    }
+    assert_eq!(proof["cleanup"]["global_prune_used"], false);
+}
+
+#[test]
+fn snmp_breadth_proof_keeps_exceptions_timeouts_and_response_scope_honest() {
+    let proof: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_snmp_linux_x86_64_20261113.json",
+    ))
+    .unwrap();
+    assert_eq!(proof["release_artifact"], false);
+    assert_eq!(proof["status_maturity_promoted"], false);
+    assert_eq!(proof["execution"]["host_count"], 1);
+    assert_eq!(proof["totals"]["selected_requests"], 21);
+    let runs = proof["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 3);
+    let mut identities = std::collections::BTreeSet::new();
+    let mut targets = std::collections::BTreeSet::new();
+    for run in runs {
+        assert_eq!(run["ok"], true);
+        assert_eq!(run["internal_network"], true);
+        assert_eq!(run["published_ports"], false);
+        assert_eq!(run["owned_resources_removed"], true);
+        assert_eq!(
+            run["ingress_counts"],
+            serde_json::json!({"total":6,"dropped":0})
+        );
+        assert_eq!(
+            run["egress_counts"],
+            serde_json::json!({"total":7,"dropped":0})
+        );
+        assert!(targets.insert(run["container_id"].as_str().unwrap()));
+        for socket in run["selected_sockets"].as_array().unwrap() {
+            assert!(identities.insert(socket[0].as_u64().unwrap()));
+        }
+        assert!(identities.insert(run["neighbor_cookie"].as_u64().unwrap()));
+        let observations = run["observations"].as_array().unwrap();
+        assert_eq!(observations.len(), 7);
+        for (index, observation) in observations.iter().enumerate() {
+            assert_eq!(
+                observation["client_request_sha256"],
+                observation["captured_request_sha256"]
+            );
+            assert_eq!(
+                observation["client_response_sha256"],
+                observation["captured_response_sha256"]
+            );
+            assert_eq!(observation["timeout"], index == 4);
+            assert_eq!(observation["no_such_object"], index == 3);
+            assert_eq!(
+                observation["cookie"],
+                run["selected_sockets"][usize::from(index == 6)][0]
+            );
+        }
+        assert_eq!(observations[0]["request_id"], observations[6]["request_id"]);
+        assert_eq!(run["packages"].as_array().unwrap().len(), 3);
+        for package in run["packages"].as_array().unwrap() {
+            assert_eq!(package["replay_identical"], true);
+            assert_eq!(package["transaction_correlation"], false);
+            assert_eq!(package["response_is_generic_candidate"], true);
+            assert_eq!(package["legacy_fixed_offset_matching_stages"], 0);
+        }
+    }
+    assert_eq!(identities.len(), 9);
+    assert_eq!(proof["dns_regression"]["ok"], true);
+    assert_eq!(proof["cleanup"]["global_prune_used"], false);
+}
+
+#[test]
 fn native_validation_harness_exposes_registry_and_debugger_commands() {
     let binary = read_repo_file("src/bin/gewyvern_validate.rs");
     let mod_file = read_repo_file("src/validation_harness.rs");

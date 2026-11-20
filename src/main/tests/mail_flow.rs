@@ -73,16 +73,14 @@ fn summary_json_carries_smtp_auth_timeout_detail() {
                     Some(0x4548),
                     Some(0x45484c4f),
                 ),
-                packet_fact_with_dir_and_payload_for_tests(
+                packet_fact_with_dir_and_payload_bytes_for_tests(
                     6,
                     82911,
                     0x18,
                     PacketDir::Ingress,
                     Some(53013),
                     Some(25),
-                    Some(0x32),
-                    Some(0x3235),
-                    Some(0x32353020),
+                    &payload_bytes_for_tests(b"250-localhost\r\n250 AUTH PLAIN\r\n"),
                 ),
                 packet_fact_with_dir_and_payload_for_tests(
                     7,
@@ -233,16 +231,14 @@ fn summary_json_carries_smtp_mail_timeout_detail() {
                     Some(0x4548),
                     Some(0x45484c4f),
                 ),
-                packet_fact_with_dir_and_payload_for_tests(
+                packet_fact_with_dir_and_payload_bytes_for_tests(
                     6,
                     82912,
                     0x18,
                     PacketDir::Ingress,
                     Some(53016),
                     Some(25),
-                    Some(0x32),
-                    Some(0x3235),
-                    Some(0x32353020),
+                    &payload_bytes_for_tests(b"250-localhost\r\n250 AUTH PLAIN\r\n"),
                 ),
                 packet_fact_with_dir_and_payload_for_tests(
                     7,

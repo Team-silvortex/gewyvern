@@ -50,12 +50,51 @@ mod http_evidence;
 mod juice_shop;
 mod load;
 mod packet_capture;
+mod product_udp;
 mod recovery;
 mod stream;
+mod udp_capture;
 mod udp_dns;
+mod udp_ntp;
+mod udp_snmp;
+mod udp_stun;
+
+pub(super) fn run_udp_stun(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    udp_stun::run(out)
+}
+
+pub(super) fn run_udp_ntp(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    udp_ntp::run(out)
+}
+
+pub(super) fn run_udp_snmp(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    udp_snmp::run(out)
+}
 
 pub(super) fn run_udp_dns(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
     udp_dns::run(out)
+}
+
+pub(super) fn run_udp_dns_ipv6(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
+    udp_dns::run_ipv6(out)
+}
+
+pub(super) fn run_product_dns(
+    out: Option<PathBuf>,
+    ipv6: bool,
+) -> Result<ValidationReport, ValidationError> {
+    udp_dns::run_production(out, ipv6)
+}
+
+pub(super) fn run_product_udp(
+    out: Option<PathBuf>,
+    protocol: super::ProductUdpProtocol,
+) -> Result<ValidationReport, ValidationError> {
+    match protocol {
+        super::ProductUdpProtocol::Snmp => udp_snmp::run_production(out),
+        super::ProductUdpProtocol::Ntp => udp_ntp::run_production(out),
+        super::ProductUdpProtocol::Stun => udp_stun::run_production(out),
+    }
 }
 
 pub(super) fn run_auth_breadth(out: Option<PathBuf>) -> Result<ValidationReport, ValidationError> {
@@ -319,9 +358,9 @@ fn owned_socket_on(source: Ipv4Addr) -> Result<Socket, ValidationError> {
 fn port(socket: &Socket) -> Result<u16, ValidationError> {
     socket
         .local_addr()?
-        .as_socket_ipv4()
+        .as_socket()
         .map(|addr| addr.port())
-        .ok_or_else(|| ValidationError::new("owned socket has no IPv4 address"))
+        .ok_or_else(|| ValidationError::new("owned socket has no IP address"))
 }
 
 fn clock_anchor() -> Result<(u64, SystemTime), ValidationError> {

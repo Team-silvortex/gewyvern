@@ -54,15 +54,18 @@ pub use leserpent_schema_freeze::run_leserpent_schema_freeze_validation;
 pub use leserpent_transport::run_leserpent_transport_validation;
 pub use linux_ebpf::{run_linux_attach_smoke, run_linux_kprobe_smoke, run_linux_tc_smoke};
 pub use linux_tcp_capture::{
-    run_linux_auth_breadth_validation, run_linux_capture_load_validation,
+    ProductUdpProtocol, run_linux_auth_breadth_validation, run_linux_capture_load_validation,
     run_linux_capture_memory_control_validation, run_linux_capture_mixed_validation,
     run_linux_capture_recovery_validation, run_linux_capture_runtime_validation,
     run_linux_capture_soak_hour_validation, run_linux_capture_soak_validation,
     run_linux_capture_stream_validation, run_linux_data_breadth_validation,
     run_linux_http_boundaries_validation, run_linux_messaging_validation,
-    run_linux_mysql_memcached_validation, run_linux_pop3_validation, run_linux_rtsp_validation,
+    run_linux_mysql_memcached_validation, run_linux_pop3_validation,
+    run_linux_product_dns_validation, run_linux_product_udp_validation, run_linux_rtsp_validation,
     run_linux_smtp_validation, run_linux_tcp_capture_validation,
-    run_linux_tcp_juice_shop_validation, run_linux_udp_dns_validation,
+    run_linux_tcp_juice_shop_validation, run_linux_udp_dns_ipv6_validation,
+    run_linux_udp_dns_validation, run_linux_udp_ntp_validation, run_linux_udp_snmp_validation,
+    run_linux_udp_stun_validation,
 };
 pub use registry::run_registry_validation;
 pub use release_gate::{

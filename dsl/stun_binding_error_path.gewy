@@ -10,12 +10,12 @@ fn stun_binding_error_rules() =
   |> reason_model :stun_binding_error_path_reason
   |> program_rule pred: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
   |> program_rule pred: :route_resolved, stage: :route_resolved, narr: $route_narrative, dedupe: true, mod: $module_name, phase: :resolve_upstream
-  |> program_rule pred: "datagram_observed:udp:remote:stun:local_to_remote:prefix2:0x0001", stage: :datagram_observed, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_request
-  |> program_rule pred: "datagram_observed:udp:remote:stun:remote_to_local:prefix2:0x0111", stage: :datagram_observed, narr: :udp_datagram_received, dedupe: true, mod: $module_name, phase: :receive_error_response
+  |> program_rule pred: "stun_binding_observed:remote:stun:request", stage: :datagram_observed, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_request
+  |> program_rule pred: "stun_binding_observed:remote:stun:error", stage: :datagram_observed, narr: :udp_datagram_received, dedupe: true, mod: $module_name, phase: :receive_error_response
   |> reason_rule pred: :process_bound, event: :process_identified, narr: :process_bound, dedupe: true, mod: $module_name, phase: :bind
   |> reason_rule pred: :route_resolved, event: :route_changed, narr: :route_changed, dedupe: true, mod: $module_name, phase: :resolve_upstream
-  |> reason_rule pred: "datagram_observed:udp:remote:stun:local_to_remote:prefix2:0x0001", event: :udp_datagram_seen, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_request
-  |> reason_rule pred: "datagram_observed:udp:remote:stun:remote_to_local:prefix2:0x0111", event: :udp_datagram_seen, narr: :udp_datagram_received, dedupe: true, mod: $module_name, phase: :receive_error_response
+  |> reason_rule pred: "stun_binding_observed:remote:stun:request", event: :udp_datagram_seen, narr: :udp_datagram_sent, dedupe: true, mod: $module_name, phase: :send_request
+  |> reason_rule pred: "stun_binding_observed:remote:stun:error", event: :udp_datagram_seen, narr: :udp_datagram_received, dedupe: true, mod: $module_name, phase: :receive_error_response
 
 template :stun_binding_error_path
 |> window(duration_ms: 5000, lateness_ms: 200)

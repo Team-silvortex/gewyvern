@@ -1,5 +1,362 @@
 # Field Findings
 
+## `2026-11-20` Formal UDP Capture Crosses Private Namespace And MTU Boundaries
+
+Three final runs on kernel 7.0.0-43-generic passed six actual CLI captures over
+private MTU-1500 veth pairs: 90 native request/reply exchanges produce 360 retained
+observations without recorded loss. Client/server sockets share one cgroup but
+live in different network namespaces. Even with interface index 2 on both ends,
+their run-local namespace identities stay separate. Cookies, ports, direction,
+lengths, bounded prefixes and cached short-byte absence match native peer I/O.
+
+The oversized phase actually creates 276 IPv4 and 282 IPv6 fragments across
+the three runs, with 18 successful reassemblies per family and no reported
+fragmentation/reassembly failures. The product observes datagrams at cgroup
+hooks, not raw fragments. The following short/empty traffic remains correct.
+144 observations exceed the 128-byte payload cap and are explicitly prefix-only.
+
+No new product defect was reproduced; the product binary is unchanged. An
+initial fixture attempt failed because `ip netns exec` remounted sysfs and hid
+the selected cgroup path. Workers now use native thread-local `setns` and read
+thread-local network counters. Failed/development attempts are not accepted
+final runs. The previous loopback boundary campaign also passes a fresh regression.
+
+See [network acceptance](production-udp-network.md) and the
+[source-bound proof](fixtures/gewyvern_product_udp_network_linux_x86_64_20261120.json).
+This is one host with private links, not physical-network, missing/malicious
+fragment, arbitrary IPv6 extension, checksum, GSO/GRO or high-load acceptance.
+It does not add product-owned reassembly or stable namespace IDs.
+
+## `2026-11-20` Formal UDP Capture Preserves Packet And Socket Boundaries
+
+Three final runs on the same physical host, now running kernel 7.0.0-43-generic,
+passed 12 independent formal CLI captures. Native IPv4/IPv6 peers completed 360
+selected request/reply exchanges and produced 720 retained observations without
+recorded loss. Connected clients, unconnected clients, descendant cgroups and
+bound unconnected servers all preserve socket identity, local/remote ports,
+direction, full IP length and the actually captured prefix. The three client
+modes also exclude 36 real outside-scope/wrong-port exchanges across the runs.
+
+The sequence spans empty payloads through 60,000 bytes, then immediately returns
+to one byte, empty, and a normal short message. Short/empty cached byte fields
+remain absent instead of retaining earlier data. Exactly 240 observations have
+payloads longer than the 128-byte prefix: their length and prefix are checked,
+but full-payload capture is explicitly not claimed. Native full-I/O hashes are
+an independent oracle, not invented captured bytes.
+
+The existing lifecycle/loss test also passed its nine scenarios on this kernel:
+normal API publication, duplicate-scope rejection, intentional ring overflow
+and recovery, user-budget loss, graceful/forced stop, output failure, removed
+scope and fresh restart. The deliberate loss phases remain incomplete and
+return exit 3; the kernel/user counters reconcile. No new product capture defect
+was reproduced, and the product binary is unchanged from the earlier protocol
+campaign. The earlier November 13 development runs are not counted as final
+results for the strengthened sequence or the newer kernel.
+
+See [packet/socket boundaries](production-udp-boundaries.md) and the
+[source-bound proof](fixtures/gewyvern_product_udp_boundaries_linux_x86_64_20261120.json).
+This is bounded direct loopback UDP on one host, not physical-interface,
+fragmentation, GSO/GRO, throughput, full-payload archival or minimum-kernel
+certification. No release artifact or status maturity is promoted.
+
+## `2026-11-13` Formal CLI Reaches Real SNMP, NTP And STUN Targets
+
+Three accepted runs per protocol drive the actual CLI against private Net-SNMP,
+chrony and coturn targets. Across 33 independent package captures, 189 selected
+queries produce 345 retained packet facts, with no recorded loss. All 33 expected
+timeouts are followed by successful reuse. Full bounded packet payloads match
+independent client I/O; outside-cgroup neighbors remain excluded, final counters
+reconcile, hooks detach, and exports replay without replacing kernel facts.
+
+SNMP covers GET/GETNEXT/GETBULK, variable-length request IDs, noSuchObject and a
+wrong-community timeout. Response phases remain generic candidates, not proof of
+successful correlated MIB operations. NTP covers v3/v4 against unsynchronised
+and local-reference chrony configurations. Only the latter admits the sync
+time-reply phase; both configurations prohibit host clock control. STUN covers
+Binding success with the actual mapped address, a 420 unknown-attribute error,
+optional padding and short-request timeout. Short NTP/STUN messages remain raw
+packet evidence without satisfying complete-request phases.
+
+No new product capture defect was reproduced in these bounded runs. The change
+adds repeatable formal-entrypoint coverage and shares the earlier DNS CLI
+lifecycle/byte oracle rather than introducing another producer. A negative unit
+test rejects missing, foreign, mutated and false-positive phase evidence.
+Fresh validation-only SNMP/NTP/STUN runs and formal IPv4/IPv6 DNS regressions
+also pass after the shared-lifecycle extraction. The server container, network
+and volume inventories exactly match the pre-test baseline.
+
+See [production management UDP checks](production-management-udp-field.md) and
+the [source-bound proof](fixtures/gewyvern_product_management_udp_linux_x86_64_20261113.json).
+The scope is small IPv4 UDP messages on one host/kernel. This is not SNMPv3,
+full protocol parsing, time accuracy/discipline, TURN/NAT/ICE, authentication,
+product transaction correlation, vulnerability detection or a load benchmark.
+No protocol-count, release-artifact or status-maturity promotion is claimed.
+
+## `2026-11-13` Formal CLI Collects Real Dual-Stack CoreDNS Traffic
+
+The formal product collector now has a repeatable real-target acceptance path,
+separate from the validation-only UDP producer. Three IPv4 and three IPv6-only
+campaigns start the actual CLI independently for both DNS packages: 12 captures,
+120 selected queries and 252 retained packet observations. All captured payloads
+match independent native client I/O, including extra server replies. Four error
+codes, TC/non-TC replies, bounded timeout followed by successful reuse, same-ID
+socket separation, an outside-cgroup neighbor and export/replay passed without
+recorded capture loss. Hooks detach between packages; target resources are owned
+and removed. Both earlier DNS validation modes also pass fresh regressions.
+
+The initial run exposed an incorrect target assumption, not a capture defect:
+the pinned CoreDNS 1.15.0 `erratic truncate 1` endpoint alternates TC and non-TC
+responses across queries. Its non-TC response carries `192.0.2.53`, unlike the
+ordinary fixture answer `192.0.2.7`. The driver now checks consecutive TC/non-TC
+queries for every package and gives the question, actual reply and elapsed time
+on mismatch. It does not restart the target between packages to mask this state.
+The initial failed attempts are not included among the six accepted runs.
+
+See [production DNS acceptance](production-dns-field.md) and the
+[source-bound Linux proof](fixtures/gewyvern_product_dns_linux_x86_64_20261113.json).
+This proves small direct UDP/DNS A-message evidence in bounded CLI sessions on
+one host, not a general DNS parser, TCP fallback, encrypted DNS, cross-window
+correlation, vulnerability detection or a sustained-load benchmark. No new
+protocol package, release artifact or status maturity is claimed.
+
+## `2026-11-13` Real Systemd Recovery Exposes A Restart-Limit Gap
+
+The host manager now runs the generated capture unit unchanged from an owned,
+temporary `/run/systemd/system` file. Actual TLS exports carry IPv4/IPv6 packet
+facts. SIGKILL causes a new PID, invocation and capture run through automatic
+restart. TLS certificate, output-path and cgroup-removal faults detach hooks;
+after repair, the scheduled retry captures fresh traffic without a manual restart.
+
+The campaign found a real service-policy gap: `RestartSec=2` combined with this
+host's default five starts per ten seconds permitted ten successive retries of
+a persistent invalid-certificate failure. Generated Linux units now set an
+explicit 60-second start window and a five-start limit. The host journal confirms
+retry refusal, the count stays fixed, and repair plus an owned `reset-failed` /
+start restores capture. Accounted-loss exit 3 still stops without a restart loop;
+the export remains incomplete rather than being relabelled loss-free.
+
+The native test retains D-Bus unit references so successful exit metadata cannot
+be garbage-collected before inspection. It checks rate-limit state, count and
+journal together instead of assuming that every systemd version overwrites the
+original `Result=exit-code` with `start-limit-hit`.
+
+See [systemd recovery](systemd-udp-recovery.md) and the
+[source-bound host proof](fixtures/gewyvern_systemd_udp_linux_x86_64_20261113.json).
+The scope remains test-profile installations, unchanged generated units and
+temporary host-manager starts. Native activation/boot enablement, reboot,
+least-privilege deployment and sustained production load are separate gates.
+No status maturity or release artifact is promoted by this bounded proof.
+
+## `2026-11-13` Installed TLS Services Consume Real UDP Evidence
+
+The native installer now accepts an explicit bounded UDP capture plan and binds
+it into the private manifest/service generation. API-only installs retain their
+old request shape. User-profile capture is refused rather than elevated. The
+installed service reuses the CLI collector, validates its private runtime roots,
+attaches before opening TLS and reports compact capture status in authenticated
+health responses. Capture-enabled activation rejects an API-only health result
+or a different scope/port. TLS startup failure releases already-attached hooks.
+
+Three final physical-Linux runs of the actual installed generation executable
+passed 24 scenario checks. Pinned-CA TLS exports carried real IPv4/IPv6 packet
+facts with replay checks; missing/wrong tokens returned 403 and a wrong CA was
+rejected. Immutable-plan replay, plan drift, foreign state roots, missing cgroups,
+invalid TLS configuration, SIGTERM, SIGKILL/restart and output failure were
+checked. Normal capture/restart retained 288 observations without recorded loss.
+Three deliberate one-fact budgets accounted 189 dropped facts from 192 received,
+and the native service preserved exit code 3. The generated unit treats that
+code as an accounted stop, not a crash/restart loop.
+
+See [installed UDP service](installed-udp-service.md) and the
+[source-bound installed-service proof](fixtures/gewyvern_installed_udp_linux_x86_64_20261113.json).
+The field driver used the isolated `test` installation profile and explicitly
+started/restarted the installed executable. It did not execute systemd activation,
+enable persistent units, reboot the host or test an automatic supervisor restart.
+Those remain separate from the proven native request/TLS/collector path, as do
+Leserpent deployment UI selection, least-privilege provisioning and sustained-load
+measurements. No release artifact or status maturity is promoted by this proof.
+
+## `2026-11-13` Production CLI Starts And Consumes Its Own UDP Collector
+
+The explicit `--capture-cgroup` / `--capture-udp-port` path now owns actual
+product BPF attachment and bounded consumption, including `--serve` and runtime
+API publication. The native collector embeds its own source, reuses the product
+packet adapter and never imports the validation collector. Its capability
+registry reports only the real UDP packet hooks; unavailable route/lineage/QUIC
+fragments stay unavailable. Capture metadata survives export/replay, with exact
+decimal counters and rejection of false final accounting.
+
+The [production lifecycle proof](fixtures/gewyvern_production_udp_linux_x86_64_20261113.json)
+uses the actual product executable against independent native IPv4/IPv6
+loopback peers. The minute-scale service check consumes 12,000 observations
+without loss. Deliberately suspending the consumer with a 4KiB ring produces
+measured kernel drops, then resumes successfully; a one-fact user budget
+separately accounts 63 dropped facts out of 64. Both loss cases return exit 3,
+not a false clean result. Graceful final counters reconcile exactly.
+
+The campaign also checks API exports, same-scope exclusion, SIGTERM, SIGKILL
+link release, output failure, cgroup removal, bounded idle shutdown and fresh
+restart. SIGKILL cannot preserve final counters or pending facts. Output and
+status paths cannot alias through parent-directory symlinks. Human-facing
+reports identify actual kernel capture without inventing PID attribution.
+
+The first sustained run also exposed unnecessary persistence work: each short
+window copied the full API/report/protocol-catalog tree into history. The
+32-entry retention bound prevented unbounded growth, but the minute-scale
+case still left 147,528 KiB of history. Product capture now updates its live
+API and atomic output/status during the run, saving a full API/history tree
+only on terminal publication. The real service test requires zero running
+history trees and exactly one final tree. Socket-ingest persistence is unchanged.
+The same 12,000-observation service check then used 4,072 KiB of history
+(about 97% less), plus 4,068 KiB for the latest full API tree; live collection
+remained loss-free. This is a bounded disk-retention comparison, not a general
+throughput or filesystem-write-volume benchmark.
+
+See [live UDP capture](live-udp-capture.md) for deployment prerequisites and
+limits. These are DNS-shaped peers, not a full DNS server or performance
+benchmark. Independent windows are not persistent cross-batch transactions;
+the final latest-window file may be empty. TCP, IPv6 extensions/fragments,
+checksum validation, hour-scale production memory behavior, installed TLS
+service/control-plane capture selection and least-privilege deployment remain
+open. No release artifact or status maturity is promoted by this bounded proof.
+
+## `2026-11-13` IPv6 Captured Facts Reach The Product CLI, Not An Automatic Collector
+
+Three final-build Linux campaigns supplied 27 requests and 30 responses to
+the product-owned UDP fact adapter. Each capture was then sent to separate
+`gewyvern` processes over Unix, IPv4 loopback TCP and IPv6 loopback TCP, for
+both DNS packages: 18 successful CLI sessions and 18 rejected-input/restart
+checks. All 19 facts per session retained IPv6 EtherType, full packet length,
+payload evidence and cookie separation. Default fragment plans, phase evidence,
+advisory trust and export/replay passed without a test-only registry override.
+Fresh IPv4 DNS, SNMP, NTP and STUN regressions passed through the same fact adapter.
+
+The failure check reproduced a real bug: a malformed fact caused early return
+before removing the owned Unix socket path. The three one-shot input entrypoints
+now share cleanup on success, errors and panic unwinding, preserve the original
+input error and check file identity before removal. Replacement files/sockets
+are retained. This requires a trusted parent directory; it is not protection
+against concurrent directory mutation, SIGKILL or host failure.
+
+The earlier [source-bound product-input proof](fixtures/gewyvern_ipv6_product_ingest_linux_x86_64_20261113.json)
+does **not** establish automatic production eBPF attachment. At that checkpoint
+the CLI consumed external advisory facts; `LinuxProbeLoader` probes availability rather
+than running a continuous producer. The bounded kernel fixture still owns
+socket selection, cgroup lifetime and capture reconciliation. A reusable
+`packet_capture` adapter now owns family/length/prefix conversion, but the
+automatic, sustained production collector was an explicit next gate at this
+checkpoint; the newer bounded product path is documented above.
+IPv6 TCP **ingest transport** is proved here, not IPv6 TCP **packet capture**.
+
+## `2026-11-13` IPv6 DNS Reuses The Existing Protocol Rules
+
+Three fresh physical-Linux CoreDNS campaigns passed on distinct IPv6-only
+unique-local /64 bridges. They produced 27 selected requests and 30 captured
+responses, with three expected timeouts followed by recovery. FORMERR and
+REFUSED each produced two real datagrams per exchange; both were retained,
+not collapsed or shifted into the next query. Four error codes, TC, same-ID
+socket isolation, three excluded neighbors, six package replays and three
+post-cleanup HTTP captures passed with no reported capture loss.
+
+The shared validation path previously assumed four-byte addresses, an IPv4
+socket and IPv4 EtherType during fact reconstruction. It now explicitly admits
+the address family, checks all 128 IPv6 address bits and preserves the complete
+IP packet length and EtherType in runtime export/replay. The two DNS packages
+did not change. Real IPv4 DNS, SNMP, NTP and STUN regressions also passed against
+the same updated collector. This expands address-family coverage, not the count
+of distinct wire-tested protocol packages.
+
+See the [source-bound IPv6 DNS proof](fixtures/gewyvern_ipv6_dns_linux_x86_64_20261113.json).
+The campaign sends A questions over IPv6, not AAAA questions. Only direct UDP
+after the IPv6 base header is accepted; extension headers, fragments and
+jumbograms remain outside this bounded capture, and checksum verification is
+not claimed. Extension-header rejection has not had live fault injection here.
+Public IPv6 routing, IPv6 TCP, other IPv6 protocol targets and throughput remain
+separate gates. The runner does not edit host resolver, sysctl or Docker daemon
+configuration; Docker manages the temporary bridge/firewall state. The evidence
+does not exclude kernel reassembly before this hook.
+
+## `2026-11-13` STUN Binding Rejects Short Prefixes And Separates Protocol Errors
+
+Three fresh physical-Linux coturn campaigns passed: 18 selected requests, 15
+responses, three expected two-byte timeouts, three subsequent recovery successes
+and three unknown-required-attribute errors (420 with UNKNOWN-ATTRIBUTES 0x7777).
+Nonzero optional-attribute padding, the same transaction ID on distinct sockets,
+three excluded neighbors, six package replays and three post-cleanup HTTP
+captures passed with no reported capture loss. Captured bytes matched the
+independent native client's request and response hashes.
+
+On the same capture the old two-byte rules falsely accepted the short request.
+The Binding packages now require a contiguous 20..128-byte modern STUN envelope,
+cookie, type, exact sampled length and complete padded TLVs. Success candidates
+need a shaped XOR-MAPPED-ADDRESS; error candidates need ERROR-CODE. The first
+recognized attribute occurrence wins. Generic Binding errors are now
+`semantic_error/protocol_error`, not automatically access denial: the real 420
+case is unsupported attribute negotiation, not failed authentication.
+
+See the [source-bound STUN proof](fixtures/gewyvern_stun_linux_x86_64_20261113.json).
+This private-bridge, STUN-only target proves neither public NAT traversal nor
+ICE, TURN relay, authentication, FINGERPRINT verification or product transaction
+correlation. The independent client correlates replies and validates the mapped
+private address; packet-local product rules do not inherit that oracle.
+IPv6 attribute shape has synthetic coverage only. Sparse collectors retain
+unsupported-offset diagnostics; complete samples are explicit campaign inputs.
+
+Including the main CLI binary in regression also exposed stale partial SMTP,
+POP3, RTSP, SNMP, NTP and STUN fixtures, plus outdated STUN error and synthetic
+SNMP module labels. These now carry explicit protocol messages and current
+module semantics rather than weakening the new product predicates.
+
+## `2026-11-13` NTP Separates Response Visibility From Time Candidates
+
+Three fresh physical-Linux chrony campaigns passed in both synthetic local-reference
+and genuinely unsynchronised server states. The six isolated targets produced 30
+selected requests, 24 responses and six expected short-datagram timeouts followed
+by successful same-socket recovery. NTPv3/v4, repeated origin values on separate
+sockets, six excluded neighbors, 18 package replays and three post-cleanup HTTP
+captures passed with no reported capture loss.
+
+The old exact first-byte rules confused version with operation intent, missed v3
+server replies and hid unsynchronised replies. The three NTP packages now require
+the complete 48-byte base header: generic replies remain observable even with
+LI=3 or stratum=0, while the sync package only accepts bounded time candidates
+with suitable status and nonzero timestamp fields. Neither predicate proves
+origin correlation, clock accuracy or successful clock discipline.
+
+See the [source-bound NTP proof](fixtures/gewyvern_ntp_linux_x86_64_20261113.json).
+chronyd ran with `-x`, without `SYS_TIME`, published ports, host mounts or external
+time sources. A local reference makes the fixture appear synchronised, not
+accurate. The independent client checks echoed origins; product rules do not.
+NTS/MAC authentication, real KoD rate limiting, IPv6 and throughput remain unproven.
+Default sparse collectors retain unsupported-offset diagnostics; this campaign
+explicitly provides complete bounded packets. Timestamp evidence uses fixed-width
+hex strings so JSON consumers cannot silently round 64-bit NTP values.
+
+## `2026-11-13` SNMP Read Breadth Fixes Fixed-Offset PDU Matching
+
+Three fresh physical-Linux Net-SNMP campaigns passed: 21 selected requests,
+18 captured responses, three expected wrong-community timeouts and three
+successful same-socket recovery reads. GET, GETNEXT, one-repetition GETBULK
+and noSuchObject were checked independently by a native Rust client against
+actual cgroup ingress/egress bytes. Shared request IDs did not merge socket
+identities; three same-target neighbors were excluded. No capture loss was
+reported. Nine package replays and three post-cleanup HTTP captures passed;
+the shared UDP collector also passed the existing real DNS campaign.
+
+The old rules assumed the PDU was at byte 13. With the fixture's longer
+community, that byte is community content: all three old read packages missed
+their packet phases on the same real capture. The new bounded BER predicate
+handles variable community and definite length widths, rejecting incomplete,
+sparse, malformed and oversized samples instead of guessing. Legacy sparse
+test fixtures were replaced with complete BER messages.
+
+See the [source-bound SNMP proof](fixtures/gewyvern_snmp_linux_x86_64_20261113.json).
+This is bounded v2c read evidence, not SNMPv3, SET/notifications, full MIB walks,
+request correlation, general UDP performance or multi-host certification.
+A generic Response PDU can contain errors or exception values and is not
+operation-success proof. Default sparse collectors retain unsupported-offset
+diagnostics; the real campaign explicitly supplies complete bounded samples.
+
 This note records the highest-signal findings inherited by the active `2.5.x` line
 while preserving a shorter historical tail from the earlier `0.15.x`
 field-validation phase.

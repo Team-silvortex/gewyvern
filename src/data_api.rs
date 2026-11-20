@@ -97,6 +97,7 @@ pub(crate) fn api_client_is_loopback(address: IpAddr) -> bool {
 
 #[derive(Clone, Debug, Default)]
 pub struct ApiSnapshot {
+    pub capture_status: Option<gewyvern::live_capture::CaptureSnapshot>,
     pub updated_unix_ms: u128,
     pub kind: String,
     pub name: Option<String>,
@@ -232,6 +233,14 @@ pub(crate) fn persist_api_snapshot(state: &ApiState) -> Result<(), String> {
     persistence::persist_latest_snapshot(&snapshot)
 }
 
+pub(crate) fn update_api_capture_status(
+    state: &ApiState,
+    capture: Option<&gewyvern::live_capture::CaptureSnapshot>,
+) {
+    let mut guard = lock_api_snapshot(state);
+    Arc::make_mut(&mut guard).capture_status = capture.cloned();
+}
+
 pub(crate) fn render_runtime_certificate_state_json() -> String {
     certificate_state::api_runtime_certificate_state_json()
 }
@@ -266,6 +275,7 @@ pub(crate) fn update_api_snapshot_for_single_with_protocol_surface(
     *guard = Arc::new(ApiSnapshot {
         updated_unix_ms: current_unix_ms(),
         kind: "single".into(),
+        capture_status: None,
         name: Some(target_name.clone()),
         target_count: Some(1),
         target_names: vec![target_name],
@@ -381,6 +391,7 @@ pub(crate) fn update_api_snapshot_for_scan_with_protocol_surfaces(
     *guard = Arc::new(ApiSnapshot {
         updated_unix_ms: current_unix_ms(),
         kind: "scan".into(),
+        capture_status: None,
         name: None,
         target_count: Some(target_names.len()),
         target_names,

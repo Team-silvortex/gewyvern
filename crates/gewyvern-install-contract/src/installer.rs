@@ -22,6 +22,8 @@ pub struct GewyvernInstallerRequest {
     pub artifact_sha256: String,
     pub api_credential_handle: CredentialHandle,
     pub trust_credential_handle: CredentialHandle,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capture: Option<crate::capture::UdpCapturePlan>,
     api_token: String,
 }
 
@@ -46,6 +48,7 @@ impl GewyvernInstallerRequest {
             artifact_sha256: artifact_sha256.into(),
             api_credential_handle,
             trust_credential_handle,
+            capture: None,
             api_token: api_token.into(),
         };
         request.validate()?;
@@ -68,6 +71,11 @@ impl GewyvernInstallerRequest {
         }
         if !matches!(self.install_profile.as_str(), "system" | "user" | "test") {
             return Err(GewyvernInstallerCodecError::InvalidInstallProfile);
+        }
+        if let Some(capture) = &self.capture
+            && (self.install_profile == "user" || capture.validate().is_err())
+        {
+            return Err(GewyvernInstallerCodecError::InvalidCapturePlan);
         }
         if !valid_sha256(&self.artifact_sha256) {
             return Err(GewyvernInstallerCodecError::InvalidArtifactDigest);
@@ -105,6 +113,7 @@ impl fmt::Debug for GewyvernInstallerRequest {
             .field("artifact_sha256", &self.artifact_sha256)
             .field("api_credential_handle", &self.api_credential_handle)
             .field("trust_credential_handle", &self.trust_credential_handle)
+            .field("capture", &self.capture)
             .field("api_token", &"[REDACTED]")
             .finish()
     }
@@ -174,6 +183,7 @@ pub enum GewyvernInstallerCodecError {
     InvalidCredentialBinding,
     InvalidTlsIdentity,
     InvalidResponseBinding,
+    InvalidCapturePlan,
 }
 
 impl fmt::Display for GewyvernInstallerCodecError {
@@ -201,6 +211,7 @@ impl fmt::Display for GewyvernInstallerCodecError {
             Self::InvalidResponseBinding => {
                 formatter.write_str("Gewyvern installer response does not match its request")
             }
+            Self::InvalidCapturePlan => formatter.write_str("invalid or unsupported capture plan"),
         }
     }
 }
@@ -319,6 +330,28 @@ fn hex(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn capture_is_optional_strict_and_not_a_user_profile_privilege_upgrade() {
+        let mut request = request();
+        let original = super::encode_gewyvern_installer_request(&request).unwrap();
+        assert!(!String::from_utf8_lossy(&original).contains("\"capture\""));
+        request.capture = Some(crate::capture::UdpCapturePlan::new(
+            "/sys/fs/cgroup/test",
+            53,
+        ));
+        let wire = super::encode_gewyvern_installer_request(&request).unwrap();
+        assert_eq!(
+            super::decode_gewyvern_installer_request(&wire)
+                .unwrap()
+                .capture,
+            request.capture
+        );
+        request.install_profile = "user".into();
+        assert!(super::encode_gewyvern_installer_request(&request).is_err());
+        request.install_profile = "test".into();
+        request.capture.as_mut().unwrap().udp_port = 0;
+        assert!(super::encode_gewyvern_installer_request(&request).is_err());
+    }
     use serde_json::json;
 
     use super::*;

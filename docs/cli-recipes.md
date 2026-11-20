@@ -19,6 +19,12 @@ For the broader project map, start with:
 - [docs/script-entrypoints.md](docs/script-entrypoints.md)
 - [docs/monorepo-stack.md](docs/monorepo-stack.md)
 
+For actual Linux packet collection, use [live UDP capture](live-udp-capture.md).
+`--capture-cgroup` and `--capture-udp-port` explicitly start the product eBPF
+producer; `--serve` consumes bounded independent windows and exposes the latest
+export through the runtime API. Read the scope, loss and restart limits before
+using it under a service manager. Socket ingest remains a separate input mode.
+
 ## Monorepo Stack Commands
 
 Use these when the question is about the whole local stack rather than only the

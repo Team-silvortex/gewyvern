@@ -68,7 +68,7 @@ fn protocol_entry_surface_endpoint_exposes_mail_auth_denied_semantics() {
 }
 
 #[test]
-fn protocol_entry_surface_endpoint_exposes_management_denied_semantics() {
+fn protocol_entry_surface_endpoint_distinguishes_management_denial_and_protocol_error() {
     let snapshot = ApiSnapshot::default();
 
     let (snmp_status, _, snmp_body) = api_response_for_request(
@@ -98,11 +98,11 @@ fn protocol_entry_surface_endpoint_exposes_management_denied_semantics() {
     assert!(stun_body.contains("\"entry_semantics\":{"));
     assert!(stun_body.contains("\"category\":\"failure-path\""));
     assert!(stun_body.contains(
-        "\"operator_focus\":\"explicit binding failure response instead of successful reachability confirmation\""
+        "\"operator_focus\":\"bounded Binding error candidate with an ERROR-CODE field; not necessarily authentication or access denial\""
     ));
     assert!(stun_body.contains("\"typical_signal\":null"));
-    assert!(stun_body.contains("\"primary_failure_mode\":\"server_denied\""));
-    assert!(stun_body.contains("\"primary_failure_detail\":\"access_denied\""));
+    assert!(stun_body.contains("\"primary_failure_mode\":\"semantic_error\""));
+    assert!(stun_body.contains("\"primary_failure_detail\":\"protocol_error\""));
     assert!(stun_body.contains("\"primary_failure_basis\":\"direct_protocol_signal\""));
 }
 

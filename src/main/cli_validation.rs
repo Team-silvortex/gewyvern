@@ -6,6 +6,7 @@ use crate::{
 };
 
 pub(crate) struct CliValidationInput<'a> {
+    pub(crate) live_capture: bool,
     pub(crate) summary_only: bool,
     pub(crate) json: bool,
     pub(crate) report_format: Option<ReportFormat>,
@@ -154,7 +155,7 @@ pub(crate) fn validate_cli_options(input: CliValidationInput<'_>) -> Result<(), 
         input.locale.msg("demo_socket_conflict")
     );
     reject!(
-        input.serve && input.socket_target.is_none(),
+        input.serve && input.socket_target.is_none() && !input.live_capture,
         input.locale.msg("serve_requires_socket")
     );
     reject!(

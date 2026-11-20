@@ -11,9 +11,9 @@ use silvortex_bounded_io::atomic_write_bounded_private_file;
 mod gewyvern_validate_stack;
 
 use gewyvern::validation_harness::{
-    DEFAULT_REMOTE_LINUX_HOST, ReleaseCheckMode, ReleaseGateOptions, RemoteLinuxHostOptions,
-    RemoteLinuxTargetKind, ValidationError, read_bounded_json_file, read_bounded_nonempty_lines,
-    read_bounded_phase_timings, read_bounded_unique_key_value_file,
+    DEFAULT_REMOTE_LINUX_HOST, ProductUdpProtocol, ReleaseCheckMode, ReleaseGateOptions,
+    RemoteLinuxHostOptions, RemoteLinuxTargetKind, ValidationError, read_bounded_json_file,
+    read_bounded_nonempty_lines, read_bounded_phase_timings, read_bounded_unique_key_value_file,
     run_container_operator_path_validation, run_container_protocol_validation,
     run_container_runtime_validation, run_container_validation_summary,
     run_debugger_cross_validation, run_external_engine_roundtrip_demo, run_field_smoke_validation,
@@ -29,11 +29,13 @@ use gewyvern::validation_harness::{
     run_linux_capture_soak_validation, run_linux_capture_stream_validation,
     run_linux_data_breadth_validation, run_linux_http_boundaries_validation,
     run_linux_kprobe_smoke, run_linux_messaging_validation, run_linux_mysql_memcached_validation,
-    run_linux_pop3_validation, run_linux_rtsp_validation, run_linux_smtp_validation,
-    run_linux_tc_smoke, run_linux_tcp_capture_validation, run_linux_tcp_juice_shop_validation,
-    run_linux_udp_dns_validation, run_package_install_smoke, run_pathological_container_validation,
-    run_registry_validation, run_release_container_check, run_release_gate,
-    run_remote_linux_host_validation, run_resilience_bundle_validation,
+    run_linux_pop3_validation, run_linux_product_dns_validation, run_linux_product_udp_validation,
+    run_linux_rtsp_validation, run_linux_smtp_validation, run_linux_tc_smoke,
+    run_linux_tcp_capture_validation, run_linux_tcp_juice_shop_validation,
+    run_linux_udp_dns_ipv6_validation, run_linux_udp_dns_validation, run_linux_udp_ntp_validation,
+    run_linux_udp_snmp_validation, run_linux_udp_stun_validation, run_package_install_smoke,
+    run_pathological_container_validation, run_registry_validation, run_release_container_check,
+    run_release_gate, run_remote_linux_host_validation, run_resilience_bundle_validation,
     run_resilience_drive_bad_json_validation, run_resilience_emit_helper_validation,
     run_resilience_log_evidence_validation, run_resilience_roundtrip_validation,
     run_runtime_lifecycle_validation, run_runtime_operator_validation, run_socket_roundtrip_demo,
@@ -557,14 +559,51 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
         }
         "linux-udp-capture" => {
             if wants_subcommand_help(&rest) {
-                println!("Usage: gewyvern_validate linux-udp-capture [--out-dir <new-path>]");
+                println!(
+                    "Usage: gewyvern_validate linux-udp-capture [--ipv6-dns | --production-dns | --production-ipv6-dns | --production-snmp | --production-ntp | --production-stun | --snmp-breadth | --ntp-breadth | --stun-breadth] [--out-dir <new-path>]"
+                );
+                println!(
+                    "--production-dns / --production-ipv6-dns reuse the real CoreDNS target but run target/debug/gewyvern with its own production collector and DNS packages. No validation BPF producer; the excluded neighbor socket is created outside the selected cgroup. Build gewyvern first."
+                );
+                println!(
+                    "--snmp-breadth uses the locally built ebpf/validation/snmp image: bounded read-only GET/GETNEXT/GETBULK, exception, timeout/recovery and socket isolation; no SNMPv3 or product transaction correlation."
+                );
+                println!(
+                    "--production-snmp / --production-ntp / --production-stun reuse those isolated real targets with the formal CLI's own collector, per-package byte/phase checks, outside-cgroup neighbors and replay. Build gewyvern first; IPv4 only in these campaigns."
+                );
+                println!(
+                    "--ntp-breadth uses the locally built ebpf/validation/ntp image: isolated chrony with -x and no SYS_TIME capability, no upstream time sources; v3/v4, unsynchronised status, timeout/recovery. This never adjusts the host clock and does not prove accurate time or clock discipline."
+                );
+                println!(
+                    "--stun-breadth uses the locally built ebpf/validation/stun image: private coturn Binding, 420 error, short timeout/recovery, transaction/address oracle and socket isolation. No TURN relay, public NAT, ICE or authentication proof."
+                );
+                println!(
+                    "--ipv6-dns runs the same CoreDNS A-query campaign on an isolated IPv6-only ULA bridge. Direct IPv6 UDP headers only; no extension headers, fragments, jumbograms, checksum verification or AAAA-query proof. No daemon configuration changes."
+                );
                 println!(
                     "Uses a cached digest-pinned CoreDNS image on an owned internal network without published ports. Captures two selected IPv4 UDP sockets in both directions, checks four RCODEs, truncation, timeout/recovery and an excluded neighbor. Requires Linux, BTF, clang, bpftool, cgroup v2 and BPF privileges. Packet-only evidence; no recursive DNS, TCP fallback or PID attribution."
                 );
                 return Ok(());
             }
-            let out = parse_udp_capture_options(rest)?;
-            let report = run_linux_udp_dns_validation(out)?;
+            let (mode, out) = parse_udp_capture_options(rest)?;
+            let report = match mode {
+                UdpCaptureMode::Dns => run_linux_udp_dns_validation(out)?,
+                UdpCaptureMode::DnsIpv6 => run_linux_udp_dns_ipv6_validation(out)?,
+                UdpCaptureMode::ProductDns => run_linux_product_dns_validation(out, false)?,
+                UdpCaptureMode::ProductDnsIpv6 => run_linux_product_dns_validation(out, true)?,
+                UdpCaptureMode::ProductSnmp => {
+                    run_linux_product_udp_validation(out, ProductUdpProtocol::Snmp)?
+                }
+                UdpCaptureMode::ProductNtp => {
+                    run_linux_product_udp_validation(out, ProductUdpProtocol::Ntp)?
+                }
+                UdpCaptureMode::ProductStun => {
+                    run_linux_product_udp_validation(out, ProductUdpProtocol::Stun)?
+                }
+                UdpCaptureMode::Snmp => run_linux_udp_snmp_validation(out)?,
+                UdpCaptureMode::Ntp => run_linux_udp_ntp_validation(out)?,
+                UdpCaptureMode::Stun => run_linux_udp_stun_validation(out)?,
+            };
             print_validation_report(
                 &command,
                 &report,
@@ -1393,17 +1432,58 @@ fn parse_tcp_capture_options(
     Ok((mode, out_dir))
 }
 
-fn parse_udp_capture_options(args: Vec<String>) -> Result<Option<PathBuf>, ValidationError> {
-    match args.as_slice() {
-        [] => Ok(None),
-        [flag, path] if flag == "--out-dir" && !path.is_empty() && !path.starts_with('-') => {
-            Ok(Some(PathBuf::from(path)))
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum UdpCaptureMode {
+    Dns,
+    DnsIpv6,
+    ProductDns,
+    ProductDnsIpv6,
+    ProductSnmp,
+    ProductNtp,
+    ProductStun,
+    Snmp,
+    Ntp,
+    Stun,
+}
+
+fn parse_udp_capture_options(
+    args: Vec<String>,
+) -> Result<(UdpCaptureMode, Option<PathBuf>), ValidationError> {
+    let mut mode = UdpCaptureMode::Dns;
+    let mut out = None;
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--ipv6-dns" if mode == UdpCaptureMode::Dns => mode = UdpCaptureMode::DnsIpv6,
+            "--production-dns" if mode == UdpCaptureMode::Dns => mode = UdpCaptureMode::ProductDns,
+            "--production-ipv6-dns" if mode == UdpCaptureMode::Dns => {
+                mode = UdpCaptureMode::ProductDnsIpv6
+            }
+            "--snmp-breadth" if mode == UdpCaptureMode::Dns => mode = UdpCaptureMode::Snmp,
+            "--production-snmp" if mode == UdpCaptureMode::Dns => {
+                mode = UdpCaptureMode::ProductSnmp
+            }
+            "--production-ntp" if mode == UdpCaptureMode::Dns => mode = UdpCaptureMode::ProductNtp,
+            "--production-stun" if mode == UdpCaptureMode::Dns => {
+                mode = UdpCaptureMode::ProductStun
+            }
+            "--ntp-breadth" if mode == UdpCaptureMode::Dns => mode = UdpCaptureMode::Ntp,
+            "--stun-breadth" if mode == UdpCaptureMode::Dns => mode = UdpCaptureMode::Stun,
+            "--out-dir" if out.is_none() => {
+                let path = args
+                    .next()
+                    .filter(|p| !p.is_empty() && !p.starts_with('-'))
+                    .ok_or_else(|| ValidationError::new("--out-dir requires a path"))?;
+                out = Some(PathBuf::from(path));
+            }
+            _ => {
+                return Err(ValidationError::new(
+                    "unknown or repeated linux-udp-capture option `choose at most one of --ipv6-dns, --production-dns, --production-ipv6-dns, --production-snmp, --production-ntp, --production-stun, --snmp-breadth, --ntp-breadth or --stun-breadth, with --out-dir <new-path>`",
+                ));
+            }
         }
-        [flag] if flag == "--out-dir" => Err(ValidationError::new("--out-dir requires a path")),
-        _ => Err(ValidationError::new(
-            "unknown or repeated linux-udp-capture option `expected --out-dir <new-path>`",
-        )),
     }
+    Ok((mode, out))
 }
 
 fn parse_optional_out_dir(
@@ -1462,7 +1542,9 @@ fn print_help() {
     );
     println!();
     println!("Commands:");
-    println!("  linux-udp-capture [--out-dir <new-path>] (real private DNS, bounded UDP capture)");
+    println!(
+        "  linux-udp-capture [--ipv6-dns | --production-dns | --production-ipv6-dns | --production-snmp | --production-ntp | --production-stun | --snmp-breadth | --ntp-breadth | --stun-breadth] [--out-dir <new-path>] (real private DNS/SNMP/NTP/STUN, bounded UDP capture)"
+    );
     println!("  list");
     println!("  container-operator-path-validation [--deb|--rpm]");
     println!("  container-protocol-validation [--deb|--rpm]");
@@ -3273,6 +3355,92 @@ fn print_pathological_container_validation_help() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn udp_capture_modes_reject_ambiguous_options_before_effects() {
+        for (option, wanted) in [
+            ("--production-dns", UdpCaptureMode::ProductDns),
+            ("--production-ipv6-dns", UdpCaptureMode::ProductDnsIpv6),
+            ("--production-snmp", UdpCaptureMode::ProductSnmp),
+            ("--production-ntp", UdpCaptureMode::ProductNtp),
+            ("--production-stun", UdpCaptureMode::ProductStun),
+        ] {
+            assert_eq!(
+                parse_udp_capture_options(vec![option.into()]).unwrap(),
+                (wanted, None)
+            );
+            for other in [
+                "--production-dns",
+                "--production-ipv6-dns",
+                "--production-snmp",
+                "--production-ntp",
+                "--production-stun",
+                "--ipv6-dns",
+                "--snmp-breadth",
+                "--ntp-breadth",
+                "--stun-breadth",
+            ] {
+                assert!(parse_udp_capture_options(vec![option.into(), other.into()]).is_err());
+                assert!(parse_udp_capture_options(vec![other.into(), option.into()]).is_err());
+            }
+        }
+        assert_eq!(
+            parse_udp_capture_options(vec!["--ipv6-dns".into()]).unwrap(),
+            (UdpCaptureMode::DnsIpv6, None)
+        );
+        for other in [
+            "--ipv6-dns",
+            "--snmp-breadth",
+            "--ntp-breadth",
+            "--stun-breadth",
+        ] {
+            assert!(parse_udp_capture_options(vec!["--ipv6-dns".into(), other.into()]).is_err());
+            assert!(parse_udp_capture_options(vec![other.into(), "--ipv6-dns".into()]).is_err());
+        }
+        assert_eq!(
+            parse_udp_capture_options(vec!["--stun-breadth".into()]).unwrap(),
+            (UdpCaptureMode::Stun, None)
+        );
+        for first in ["--stun-breadth", "--ntp-breadth", "--snmp-breadth"] {
+            assert!(
+                parse_udp_capture_options(vec![first.into(), "--stun-breadth".into()]).is_err()
+            );
+            assert!(
+                parse_udp_capture_options(vec!["--stun-breadth".into(), first.into()]).is_err()
+            );
+        }
+        assert_eq!(
+            parse_udp_capture_options(vec![]).unwrap(),
+            (UdpCaptureMode::Dns, None)
+        );
+        assert_eq!(
+            parse_udp_capture_options(vec!["--ntp-breadth".into()]).unwrap(),
+            (UdpCaptureMode::Ntp, None)
+        );
+        for args in [
+            vec!["--snmp-breadth", "--out-dir", "new"],
+            vec!["--out-dir", "new", "--snmp-breadth"],
+        ] {
+            assert_eq!(
+                parse_udp_capture_options(args.into_iter().map(str::to_owned).collect()).unwrap(),
+                (UdpCaptureMode::Snmp, Some(PathBuf::from("new")))
+            );
+        }
+        for args in [
+            vec!["--snmp-breadth", "--snmp-breadth"],
+            vec!["--ntp-breadth", "--ntp-breadth"],
+            vec!["--ntp-breadth", "--snmp-breadth"],
+            vec!["--snmp-breadth", "--ntp-breadth"],
+            vec!["--out-dir", "a", "--out-dir", "b"],
+            vec!["--out-dir", "--snmp-breadth"],
+            vec!["--out-dir", ""],
+            vec!["--dns-breadth"],
+        ] {
+            assert!(
+                parse_udp_capture_options(args.into_iter().map(str::to_owned).collect()).is_err()
+            );
+        }
+    }
 
     #[test]
     fn tcp_capture_options_keep_target_selection_explicit_and_reject_ambiguity() {

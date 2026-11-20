@@ -1,0 +1,2884 @@
+{
+  "schema_version": 1,
+  "proof": "linux-real-ipv6-udp-dns-bidirectional-capture",
+  "captured_on": "2026-11-13",
+  "source_base_revision": "39eeb7d1f03c92f007daa1ac5d72aee311fead5e",
+  "working_tree_changes": true,
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "execution": {
+    "kernel": "7.0.0-42-generic",
+    "arch": "x86_64",
+    "host_count": 1,
+    "kernel_count": 1,
+    "live_capture": "physical Linux host, not build container",
+    "build_toolchain": "Rust 1.98.0",
+    "optimization": "gewyvern dev opt-level 2, correctness campaign not performance benchmark",
+    "remote_evidence": "/home/chiharukiryu/.cache/gewyvern/evidence/20261113-ipv6-dns",
+    "local_summary_archive": "target/validation/ipv6-dns-20261113",
+    "target_implementation": "digest-pinned CoreDNS 1.15.0",
+    "target_cpu_cores": 1,
+    "target_memory_bytes": 268435456,
+    "target_pids": 128,
+    "published_ports": false,
+    "host_mounts": false,
+    "host_resolver_changed": false,
+    "docker_daemon_configuration_changed": false,
+    "automatic_image_pulls": false,
+    "macos_builds_or_image_pulls": false,
+    "ipv6_only": true,
+    "dns_query_type": "A",
+    "capture_event_schema": 2,
+    "production_event_abi_changed": false,
+    "protocol_rules_changed": false,
+    "development_campaigns_excluded_from_totals": 1,
+    "binary_hash_is_capture_time_snapshot": true,
+    "manual_host_sysctl_configuration_changed": false,
+    "docker_manages_transient_bridge_firewall_state": true
+  },
+  "artifact_bindings": {
+    "build": {
+      "ebpf/validation/udp_dns.bpf.c": "7e8ac84b29290ae1c94c300506ed384ece6811fc3f929deae0165aac69250404",
+      "src/validation_harness/linux_tcp_capture.rs": "9a2bcf4983282b6a5c4e837c936dd3e2b14227c1a5236f573d12694157a1b4a0",
+      "src/validation_harness/linux_tcp_capture/linux.rs": "5e346ee2edecfba46e2f10dcef2934511099b7caf903d97548da9d0298fae95f",
+      "src/validation_harness/linux_tcp_capture/udp_evidence.rs": "7efa0bad352181da67eef4bec3f238e2a9d5d2012166b34441d90305cfd7438d",
+      "src/validation_harness/linux_tcp_capture/linux/udp_capture.rs": "4529f8107e295c99cf58b5de83b435a02e068efe2389beb4301741db1e74d736",
+      "src/validation_harness/linux_tcp_capture/linux/udp_dns.rs": "c32cce9db10294b7c2040b514d1043c2268e53e2c800f2e804d80c8e6de7fbd9",
+      "src/validation_harness/linux_tcp_capture/linux/docker_target.rs": "578df70539563bb96de290144dd5b06efed113cf97b31b8210f2c98b13e86120",
+      "src/validation_harness/linux_tcp_capture/linux/udp_snmp.rs": "1ada48d1db571cbe47129a12a9552e164049e57742ecdf73213228410ca646a2",
+      "src/validation_harness/linux_tcp_capture/linux/udp_ntp.rs": "4f0752fd47f1791b2da30fba05fae12a683187b14b3560e37de8c1cb12b5fdb5",
+      "src/validation_harness/linux_tcp_capture/linux/udp_stun.rs": "f10de1c7d850e90ae38b90fe55e787a98ed11e1d569091d883df78dd8504385c",
+      "src/validation_harness/linux_tcp_capture/linux/udp_ntp/evidence.rs": "b36266141ce2aaf5c94b495f3e8a0773381ce1965c2b57259d50f761c369d6ea",
+      "src/validation_harness/linux_tcp_capture/linux/udp_stun/evidence.rs": "3014cc2c488b86b3307460c3d0cc58f37fa557ef7989126112b03744a509d970",
+      "src/validation_harness.rs": "410d9d489d4ebe8a222a48ff754e7ab95687b9a9f736fefc9d5e2a1cec0e15c1",
+      "src/bin/gewyvern_validate.rs": "a3ec44eeba1d46cc3a6bf46108e0416e5130238e76464f3920753144e7171c20",
+      "src/validation_harness/linux_tcp_capture/linux/udp_dns/wire.rs": "41bd1bb0e75d5c081036fa68a46f9ca8c84d4bb85bbb76c211ed1b45e38493e3",
+      "ebpf/validation/dns.Corefile": "d9305262b2aebff9f62d39f1007578614177a19a43ba7133cac37f52434a8811",
+      "protocols/dns/udp/main.gewy": "e8bd32047ced23d86b69ec61e5f09028511176f70e2a204444471b1ed3555be8",
+      "protocols/dns/error/main.gewy": "831563e402af213be9ae429af537fd648245670c3b9ebcb24e60652f9ae72aa2",
+      "target/debug/gewyvern_validate": "a1c5895262960313379cd9ab6aa13af872aea2bd4550e266002444a65d01ecc2"
+    },
+    "reports": {
+      "run-1/summary.json": "4b423909757b6aefb1c7feccf2b8787dac3c9704d87a4237e0b6e3fb69326839",
+      "run-2/summary.json": "4dd126a6b8e2f1f7c7886a415a7525589ce91c1eee23fba73ad196d2458e3397",
+      "run-3/summary.json": "7b08790c1d45d27f021b2df99fe12741708f852d35bddb0d81e360b0ffb53c6b",
+      "dns4-regression/summary.json": "7174bcbcb399a0c0f7842e53d34e7a16bca691456a30df3539f847e59a791717",
+      "snmp4-regression/summary.json": "6dee68d8a6f6228953210e58808d029efbbcc3b3ff68975970dbb4521b497069",
+      "ntp4-regression/summary.json": "008ccadba80bb5fa7b09815e859f4192dca1462cb844f7da9c19a9aa4cf9f135",
+      "stun4-regression/summary.json": "da0f6924be03752367b0e083eb04ca8b04781abba6828daaf749820a48c87a0d",
+      "build.log": "31bd946d39cceeba61822419a32723419830dee7529cffa1920af5adb7bf9938",
+      "regression-final.log": "ff1b07371fa32db02c4a98b2430c8bed5d9a7fdee42ce461963a99b750dd03d2",
+      "clippy-final.log": "6da91f5607d9701a12c9eddfe34b741e8a5e0b32aa77ce91951806bc579bba06",
+      "proof-docs-final.log": "1bf0625aecdb0fa5dd4ff49f2fa13fcd8417da29c66a57c6af2188fa067274df"
+    }
+  },
+  "runs": [
+    {
+      "capture_event_schema": 2,
+      "checks": [
+        "real_private_DNS_server",
+        "two_selected_sockets_same_DNS_id",
+        "bidirectional_kernel_bytes_match_client",
+        "four_RCODEs_and_truncation",
+        "bounded_timeout_then_success",
+        "unselected_neighbor_excluded",
+        "packet_only_package_replay",
+        "owned_resources_removed",
+        "fresh_HTTP_capture_after_DNS"
+      ],
+      "config_sha256": "d9305262b2aebff9f62d39f1007578614177a19a43ba7133cac37f52434a8811",
+      "container_id": "881ceed35e22c98d371c11f441772f881eb7d3e64425e44aabb7cfabcca214a3",
+      "egress_counts": {
+        "dropped": 0,
+        "total": 9
+      },
+      "image": "coredns/coredns@sha256:0a9d8c8ddf34347eb59aad9a8784f0710de88d6d112726d11d271f9bc6daca26",
+      "image_id": "sha256:881cbdacb8c168aaba50f10b1458f36d1b976c5a856e72d3589bc9cd262f3442",
+      "ingest_trust_mode": "unverified-local",
+      "ingress_counts": {
+        "dropped": 0,
+        "total": 10
+      },
+      "internal_network": true,
+      "ip_version": 6,
+      "ipv6_only": true,
+      "mode": "udp-dns-ipv6",
+      "network_id": "17fe7faead3c0233610dc6a6563936bea6e933c15440f1e387550ee8e04fc98e",
+      "not_proven": [
+        "other_IP_family_in_this_run",
+        "IP_fragment_reassembly",
+        "IPv6_extension_headers_or_jumbograms",
+        "UDP_checksum_verification",
+        "AAAA_queries",
+        "general_DNS_parser",
+        "EDNS_DNSSEC_DoH_DoT",
+        "TCP_fallback_for_TC",
+        "recursive_resolution_or_cache",
+        "general_UDP_throughput",
+        "PID_or_container_process_attribution",
+        "multiple_hosts_or_kernels"
+      ],
+      "observations": [
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 16460,
+          "elapsed_us": 52213,
+          "end_ns": 69337946015774,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 69337893802572,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "form.test.",
+            "rcode": 1,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+            "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "form.test.",
+            "rcode": 1,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+            "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+          ],
+          "cookie": 16460,
+          "elapsed_us": 50978,
+          "end_ns": 69337997024740,
+          "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+          "response_count": 2,
+          "start_ns": 69337946046081,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "fail.test.",
+            "rcode": 2,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "fail.test.",
+            "rcode": 2,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+          ],
+          "cookie": 16460,
+          "elapsed_us": 50995,
+          "end_ns": 69338048055858,
+          "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+          "response_count": 1,
+          "start_ns": 69337997059867,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+          ],
+          "cookie": 16460,
+          "elapsed_us": 51945,
+          "end_ns": 69338100031360,
+          "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+          "response_count": 1,
+          "start_ns": 69338048086025,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "deny.test.",
+            "rcode": 5,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+            "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "deny.test.",
+            "rcode": 5,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+            "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+          ],
+          "cookie": 16460,
+          "elapsed_us": 50967,
+          "end_ns": 69338151038352,
+          "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+          "response_count": 2,
+          "start_ns": 69338100070644,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                53
+              ]
+            ],
+            "id": 17425,
+            "question": "cut.test.",
+            "rcode": 0,
+            "truncated": true
+          },
+          "captured_response_sha256": [
+            "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                53
+              ]
+            ],
+            "id": 17425,
+            "question": "cut.test.",
+            "rcode": 0,
+            "truncated": true
+          },
+          "client_response_sha256": [
+            "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+          ],
+          "cookie": 16460,
+          "elapsed_us": 51971,
+          "end_ns": 69338203036546,
+          "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+          "response_count": 1,
+          "start_ns": 69338151065082,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+          "captured_reply": null,
+          "captured_response_sha256": [],
+          "client_reply": null,
+          "client_response_sha256": [],
+          "cookie": 16460,
+          "elapsed_us": 350959,
+          "end_ns": 69338554040877,
+          "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+          "response_count": 0,
+          "start_ns": 69338203081742,
+          "timeout": true
+        },
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 16460,
+          "elapsed_us": 50978,
+          "end_ns": 69338605045293,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 69338554066555,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 16461,
+          "elapsed_us": 51957,
+          "end_ns": 69338657025864,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 69338605068828,
+          "timeout": false
+        }
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "packages": [
+        {
+          "facts": 19,
+          "flows": 2,
+          "l3_proto": 34525,
+          "matched_cookies": [
+            16460,
+            16461
+          ],
+          "packet_only": true,
+          "path": "protocols/dns/udp/main.gewy",
+          "phases": [
+            "send_request",
+            "receive_reply"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "e8bd32047ced23d86b69ec61e5f09028511176f70e2a204444471b1ed3555be8"
+        },
+        {
+          "facts": 19,
+          "flows": 2,
+          "l3_proto": 34525,
+          "matched_cookies": [
+            16460
+          ],
+          "packet_only": true,
+          "path": "protocols/dns/error/main.gewy",
+          "phases": [
+            "receive_formerr",
+            "receive_servfail",
+            "receive_nxdomain",
+            "receive_refused"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "831563e402af213be9ae429af537fd648245670c3b9ebcb24e60652f9ae72aa2"
+        }
+      ],
+      "published_ports": false,
+      "query_type": "A",
+      "schema_version": 2,
+      "selected_sockets": [
+        [
+          16460,
+          44797
+        ],
+        [
+          16461,
+          56801
+        ]
+      ],
+      "source_address": "fd7d:fa6a:1f24::1",
+      "target_address": "fd7d:fa6a:1f24::2",
+      "unselected_neighbor_cookie": 4211,
+      "unselected_neighbor_reply": {
+        "addresses": [],
+        "id": 17425,
+        "question": "nx.test.",
+        "rcode": 3,
+        "truncated": false
+      }
+    },
+    {
+      "capture_event_schema": 2,
+      "checks": [
+        "real_private_DNS_server",
+        "two_selected_sockets_same_DNS_id",
+        "bidirectional_kernel_bytes_match_client",
+        "four_RCODEs_and_truncation",
+        "bounded_timeout_then_success",
+        "unselected_neighbor_excluded",
+        "packet_only_package_replay",
+        "owned_resources_removed",
+        "fresh_HTTP_capture_after_DNS"
+      ],
+      "config_sha256": "d9305262b2aebff9f62d39f1007578614177a19a43ba7133cac37f52434a8811",
+      "container_id": "9aa8c08626e8973eade9549befd4a30e5a41052ae7888c50bdd4af4a108ab868",
+      "egress_counts": {
+        "dropped": 0,
+        "total": 9
+      },
+      "image": "coredns/coredns@sha256:0a9d8c8ddf34347eb59aad9a8784f0710de88d6d112726d11d271f9bc6daca26",
+      "image_id": "sha256:881cbdacb8c168aaba50f10b1458f36d1b976c5a856e72d3589bc9cd262f3442",
+      "ingest_trust_mode": "unverified-local",
+      "ingress_counts": {
+        "dropped": 0,
+        "total": 10
+      },
+      "internal_network": true,
+      "ip_version": 6,
+      "ipv6_only": true,
+      "mode": "udp-dns-ipv6",
+      "network_id": "8c6c0786c6fc64d65fd12a158c5438670914f1a7c0cb79780121f2749e322eb4",
+      "not_proven": [
+        "other_IP_family_in_this_run",
+        "IP_fragment_reassembly",
+        "IPv6_extension_headers_or_jumbograms",
+        "UDP_checksum_verification",
+        "AAAA_queries",
+        "general_DNS_parser",
+        "EDNS_DNSSEC_DoH_DoT",
+        "TCP_fallback_for_TC",
+        "recursive_resolution_or_cache",
+        "general_UDP_throughput",
+        "PID_or_container_process_attribution",
+        "multiple_hosts_or_kernels"
+      ],
+      "observations": [
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 16462,
+          "elapsed_us": 50304,
+          "end_ns": 69390629032386,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 69390578727773,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "form.test.",
+            "rcode": 1,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+            "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "form.test.",
+            "rcode": 1,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+            "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+          ],
+          "cookie": 16462,
+          "elapsed_us": 50961,
+          "end_ns": 69390680016191,
+          "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+          "response_count": 2,
+          "start_ns": 69390629054357,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "fail.test.",
+            "rcode": 2,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "fail.test.",
+            "rcode": 2,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+          ],
+          "cookie": 16462,
+          "elapsed_us": 50976,
+          "end_ns": 69390731017860,
+          "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+          "response_count": 1,
+          "start_ns": 69390680041699,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+          ],
+          "cookie": 16462,
+          "elapsed_us": 51970,
+          "end_ns": 69390783014548,
+          "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+          "response_count": 1,
+          "start_ns": 69390731043588,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "deny.test.",
+            "rcode": 5,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+            "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "deny.test.",
+            "rcode": 5,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+            "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+          ],
+          "cookie": 16462,
+          "elapsed_us": 51969,
+          "end_ns": 69390835012138,
+          "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+          "response_count": 2,
+          "start_ns": 69390783042912,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                53
+              ]
+            ],
+            "id": 17425,
+            "question": "cut.test.",
+            "rcode": 0,
+            "truncated": true
+          },
+          "captured_response_sha256": [
+            "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                53
+              ]
+            ],
+            "id": 17425,
+            "question": "cut.test.",
+            "rcode": 0,
+            "truncated": true
+          },
+          "client_response_sha256": [
+            "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+          ],
+          "cookie": 16462,
+          "elapsed_us": 51015,
+          "end_ns": 69390886045387,
+          "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+          "response_count": 1,
+          "start_ns": 69390835029421,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+          "captured_reply": null,
+          "captured_response_sha256": [],
+          "client_reply": null,
+          "client_response_sha256": [],
+          "cookie": 16462,
+          "elapsed_us": 356962,
+          "end_ns": 69391243024857,
+          "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+          "response_count": 0,
+          "start_ns": 69390886062449,
+          "timeout": true
+        },
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 16462,
+          "elapsed_us": 50977,
+          "end_ns": 69391294025293,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 69391243047850,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 16463,
+          "elapsed_us": 51002,
+          "end_ns": 69391345039315,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 69391294037155,
+          "timeout": false
+        }
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "packages": [
+        {
+          "facts": 19,
+          "flows": 2,
+          "l3_proto": 34525,
+          "matched_cookies": [
+            16462,
+            16463
+          ],
+          "packet_only": true,
+          "path": "protocols/dns/udp/main.gewy",
+          "phases": [
+            "send_request",
+            "receive_reply"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "e8bd32047ced23d86b69ec61e5f09028511176f70e2a204444471b1ed3555be8"
+        },
+        {
+          "facts": 19,
+          "flows": 2,
+          "l3_proto": 34525,
+          "matched_cookies": [
+            16462
+          ],
+          "packet_only": true,
+          "path": "protocols/dns/error/main.gewy",
+          "phases": [
+            "receive_formerr",
+            "receive_servfail",
+            "receive_nxdomain",
+            "receive_refused"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "831563e402af213be9ae429af537fd648245670c3b9ebcb24e60652f9ae72aa2"
+        }
+      ],
+      "published_ports": false,
+      "query_type": "A",
+      "schema_version": 2,
+      "selected_sockets": [
+        [
+          16462,
+          44055
+        ],
+        [
+          16463,
+          49955
+        ]
+      ],
+      "source_address": "fd6c:369f:4898::1",
+      "target_address": "fd6c:369f:4898::2",
+      "unselected_neighbor_cookie": 114,
+      "unselected_neighbor_reply": {
+        "addresses": [],
+        "id": 17425,
+        "question": "nx.test.",
+        "rcode": 3,
+        "truncated": false
+      }
+    },
+    {
+      "capture_event_schema": 2,
+      "checks": [
+        "real_private_DNS_server",
+        "two_selected_sockets_same_DNS_id",
+        "bidirectional_kernel_bytes_match_client",
+        "four_RCODEs_and_truncation",
+        "bounded_timeout_then_success",
+        "unselected_neighbor_excluded",
+        "packet_only_package_replay",
+        "owned_resources_removed",
+        "fresh_HTTP_capture_after_DNS"
+      ],
+      "config_sha256": "d9305262b2aebff9f62d39f1007578614177a19a43ba7133cac37f52434a8811",
+      "container_id": "4cbbee9723e173f5ee8dae2a2f957daee52a7ced890362a16a152657e58c8f27",
+      "egress_counts": {
+        "dropped": 0,
+        "total": 9
+      },
+      "image": "coredns/coredns@sha256:0a9d8c8ddf34347eb59aad9a8784f0710de88d6d112726d11d271f9bc6daca26",
+      "image_id": "sha256:881cbdacb8c168aaba50f10b1458f36d1b976c5a856e72d3589bc9cd262f3442",
+      "ingest_trust_mode": "unverified-local",
+      "ingress_counts": {
+        "dropped": 0,
+        "total": 10
+      },
+      "internal_network": true,
+      "ip_version": 6,
+      "ipv6_only": true,
+      "mode": "udp-dns-ipv6",
+      "network_id": "e350a8ed8f5fd34bb081ec57f3ca1a9abf0399ab06f00c83d8f449b9f503b8b1",
+      "not_proven": [
+        "other_IP_family_in_this_run",
+        "IP_fragment_reassembly",
+        "IPv6_extension_headers_or_jumbograms",
+        "UDP_checksum_verification",
+        "AAAA_queries",
+        "general_DNS_parser",
+        "EDNS_DNSSEC_DoH_DoT",
+        "TCP_fallback_for_TC",
+        "recursive_resolution_or_cache",
+        "general_UDP_throughput",
+        "PID_or_container_process_attribution",
+        "multiple_hosts_or_kernels"
+      ],
+      "observations": [
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 49178,
+          "elapsed_us": 51487,
+          "end_ns": 69407180016053,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 69407128528298,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "form.test.",
+            "rcode": 1,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+            "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "form.test.",
+            "rcode": 1,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+            "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+          ],
+          "cookie": 49178,
+          "elapsed_us": 50995,
+          "end_ns": 69407231037437,
+          "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+          "response_count": 2,
+          "start_ns": 69407180042373,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "fail.test.",
+            "rcode": 2,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "fail.test.",
+            "rcode": 2,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+          ],
+          "cookie": 49178,
+          "elapsed_us": 51945,
+          "end_ns": 69407283020928,
+          "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+          "response_count": 1,
+          "start_ns": 69407231075189,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+          ],
+          "cookie": 49178,
+          "elapsed_us": 51967,
+          "end_ns": 69407335014629,
+          "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+          "response_count": 1,
+          "start_ns": 69407283047058,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "deny.test.",
+            "rcode": 5,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+            "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "deny.test.",
+            "rcode": 5,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+            "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+          ],
+          "cookie": 49178,
+          "elapsed_us": 50982,
+          "end_ns": 69407386025102,
+          "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+          "response_count": 2,
+          "start_ns": 69407335042561,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                53
+              ]
+            ],
+            "id": 17425,
+            "question": "cut.test.",
+            "rcode": 0,
+            "truncated": true
+          },
+          "captured_response_sha256": [
+            "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                53
+              ]
+            ],
+            "id": 17425,
+            "question": "cut.test.",
+            "rcode": 0,
+            "truncated": true
+          },
+          "client_response_sha256": [
+            "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+          ],
+          "cookie": 49178,
+          "elapsed_us": 51949,
+          "end_ns": 69407438014284,
+          "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+          "response_count": 1,
+          "start_ns": 69407386064597,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+          "captured_reply": null,
+          "captured_response_sha256": [],
+          "client_reply": null,
+          "client_response_sha256": [],
+          "cookie": 49178,
+          "elapsed_us": 355983,
+          "end_ns": 69407794023128,
+          "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+          "response_count": 0,
+          "start_ns": 69407438040112,
+          "timeout": true
+        },
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 49178,
+          "elapsed_us": 51972,
+          "end_ns": 69407846018903,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 69407794046332,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 49179,
+          "elapsed_us": 50996,
+          "end_ns": 69407897031691,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 69407846035414,
+          "timeout": false
+        }
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "packages": [
+        {
+          "facts": 19,
+          "flows": 2,
+          "l3_proto": 34525,
+          "matched_cookies": [
+            49178,
+            49179
+          ],
+          "packet_only": true,
+          "path": "protocols/dns/udp/main.gewy",
+          "phases": [
+            "send_request",
+            "receive_reply"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "e8bd32047ced23d86b69ec61e5f09028511176f70e2a204444471b1ed3555be8"
+        },
+        {
+          "facts": 19,
+          "flows": 2,
+          "l3_proto": 34525,
+          "matched_cookies": [
+            49178
+          ],
+          "packet_only": true,
+          "path": "protocols/dns/error/main.gewy",
+          "phases": [
+            "receive_formerr",
+            "receive_servfail",
+            "receive_nxdomain",
+            "receive_refused"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "831563e402af213be9ae429af537fd648245670c3b9ebcb24e60652f9ae72aa2"
+        }
+      ],
+      "published_ports": false,
+      "query_type": "A",
+      "schema_version": 2,
+      "selected_sockets": [
+        [
+          49178,
+          35289
+        ],
+        [
+          49179,
+          33742
+        ]
+      ],
+      "source_address": "fdda:9d18:a418::1",
+      "target_address": "fdda:9d18:a418::2",
+      "unselected_neighbor_cookie": 49180,
+      "unselected_neighbor_reply": {
+        "addresses": [],
+        "id": 17425,
+        "question": "nx.test.",
+        "rcode": 3,
+        "truncated": false
+      }
+    }
+  ],
+  "totals": {
+    "selected_requests": 27,
+    "captured_responses": 30,
+    "expected_timeouts": 3,
+    "successful_recoveries": 3,
+    "truncated_responses": 3,
+    "error_response_datagrams": 18,
+    "selected_sockets": 6,
+    "excluded_neighbors": 3,
+    "package_replays": 6,
+    "post_cleanup_http_captures": 3,
+    "capture_dropped": 0
+  },
+  "ipv4_regressions": {
+    "dns": {
+      "capture_event_schema": 2,
+      "checks": [
+        "real_private_DNS_server",
+        "two_selected_sockets_same_DNS_id",
+        "bidirectional_kernel_bytes_match_client",
+        "four_RCODEs_and_truncation",
+        "bounded_timeout_then_success",
+        "unselected_neighbor_excluded",
+        "packet_only_package_replay",
+        "owned_resources_removed",
+        "fresh_HTTP_capture_after_DNS"
+      ],
+      "config_sha256": "d9305262b2aebff9f62d39f1007578614177a19a43ba7133cac37f52434a8811",
+      "container_id": "63d2f73a1d4721b3688593ec1d4e1641124755704b3a34bb42cf4f0862c429eb",
+      "egress_counts": {
+        "dropped": 0,
+        "total": 9
+      },
+      "image": "coredns/coredns@sha256:0a9d8c8ddf34347eb59aad9a8784f0710de88d6d112726d11d271f9bc6daca26",
+      "image_id": "sha256:881cbdacb8c168aaba50f10b1458f36d1b976c5a856e72d3589bc9cd262f3442",
+      "ingest_trust_mode": "unverified-local",
+      "ingress_counts": {
+        "dropped": 0,
+        "total": 10
+      },
+      "internal_network": true,
+      "ip_version": 4,
+      "ipv6_only": false,
+      "mode": "udp-dns",
+      "network_id": "185c2b3fcaf2adbfdcfe979c16ad53875785b2be67f404fe6a089edcdb44a699",
+      "not_proven": [
+        "other_IP_family_in_this_run",
+        "IP_fragment_reassembly",
+        "IPv6_extension_headers_or_jumbograms",
+        "UDP_checksum_verification",
+        "AAAA_queries",
+        "general_DNS_parser",
+        "EDNS_DNSSEC_DoH_DoT",
+        "TCP_fallback_for_TC",
+        "recursive_resolution_or_cache",
+        "general_UDP_throughput",
+        "PID_or_container_process_attribution",
+        "multiple_hosts_or_kernels"
+      ],
+      "observations": [
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 4212,
+          "elapsed_us": 51110,
+          "end_ns": 69420975013391,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 69420923902797,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "form.test.",
+            "rcode": 1,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+            "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "form.test.",
+            "rcode": 1,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "10599cb36c5ddc4492215d17249d438b98795d2d8304fad2bdec86e91d9f56ce",
+            "d6c3e465f48b6ff2551395d64314da5db36c2ca233f4d0590dca26d47212c6c9"
+          ],
+          "cookie": 4212,
+          "elapsed_us": 51004,
+          "end_ns": 69421026046870,
+          "query_sha256": "660841c89150e66df2a2a15de181f096daab86fa2d98328fcf8e403741a4c902",
+          "response_count": 2,
+          "start_ns": 69420975042005,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "fail.test.",
+            "rcode": 2,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "fail.test.",
+            "rcode": 2,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "9fc58e213c54535d01254c7bdda6edc23b6496dd006b7b857adaa78f8f756d6e"
+          ],
+          "cookie": 4212,
+          "elapsed_us": 50971,
+          "end_ns": 69421077048207,
+          "query_sha256": "38f9a9ef808f7192d300edf49a1fb7c9404832101cbde24941747ebbafd92bfb",
+          "response_count": 1,
+          "start_ns": 69421026076215,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "nx.test.",
+            "rcode": 3,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "dd894c34661ce7bbad4b2eb4d64ed05f34eb72c8b469767b0508937efaa01fb4"
+          ],
+          "cookie": 4212,
+          "elapsed_us": 50945,
+          "end_ns": 69421128019688,
+          "query_sha256": "fa64996b046aa411e37b9a7468d7c1bb209719a096bc9d0d253f89087f66ea27",
+          "response_count": 1,
+          "start_ns": 69421077073896,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+          "captured_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "deny.test.",
+            "rcode": 5,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+            "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+          ],
+          "client_reply": {
+            "addresses": [],
+            "id": 17425,
+            "question": "deny.test.",
+            "rcode": 5,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "b6d6d0533beb97031749088e46f89563b02bbc0658a91208efcaefeffc082c8a",
+            "0dd13e8003aca8dfe3957755507c9e781a716c7d2c15c198416aa6f7df076242"
+          ],
+          "cookie": 4212,
+          "elapsed_us": 50975,
+          "end_ns": 69421179026435,
+          "query_sha256": "ed4163a3bc3ebd971471001c1f019ec871528b2e826cbbe6271e3808523cc359",
+          "response_count": 2,
+          "start_ns": 69421128050887,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                53
+              ]
+            ],
+            "id": 17425,
+            "question": "cut.test.",
+            "rcode": 0,
+            "truncated": true
+          },
+          "captured_response_sha256": [
+            "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                53
+              ]
+            ],
+            "id": 17425,
+            "question": "cut.test.",
+            "rcode": 0,
+            "truncated": true
+          },
+          "client_response_sha256": [
+            "278da0f7e7e63222a49056b423e930d10158537499ae259ecd9654d85209fd05"
+          ],
+          "cookie": 4212,
+          "elapsed_us": 51959,
+          "end_ns": 69421231018302,
+          "query_sha256": "46282220d22388b054f856b6704521792895561ea44daf3ee18aae6836cc0bae",
+          "response_count": 1,
+          "start_ns": 69421179058586,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+          "captured_reply": null,
+          "captured_response_sha256": [],
+          "client_reply": null,
+          "client_response_sha256": [],
+          "cookie": 4212,
+          "elapsed_us": 355971,
+          "end_ns": 69421587015710,
+          "query_sha256": "1209e784215cba5dda4c315ad0d0a9f3cfc2cfd5a3f38027e967415a24f40e45",
+          "response_count": 0,
+          "start_ns": 69421231044672,
+          "timeout": true
+        },
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 4212,
+          "elapsed_us": 51976,
+          "end_ns": 69421639012727,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 69421587036569,
+          "timeout": false
+        },
+        {
+          "captured_query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "captured_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "captured_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "client_reply": {
+            "addresses": [
+              [
+                192,
+                0,
+                2,
+                7
+              ]
+            ],
+            "id": 17425,
+            "question": "ok.test.",
+            "rcode": 0,
+            "truncated": false
+          },
+          "client_response_sha256": [
+            "c26f1c0b75411bb813627733aa3afc31365d69074fbea8e2be5d150d17647f50"
+          ],
+          "cookie": 4213,
+          "elapsed_us": 51994,
+          "end_ns": 69421691020805,
+          "query_sha256": "6d9e37dff56e62c8128baf5037f5c66673400b35052a623de8b8cfa63283abd7",
+          "response_count": 1,
+          "start_ns": 69421639026192,
+          "timeout": false
+        }
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "packages": [
+        {
+          "facts": 19,
+          "flows": 2,
+          "l3_proto": 2048,
+          "matched_cookies": [
+            4212,
+            4213
+          ],
+          "packet_only": true,
+          "path": "protocols/dns/udp/main.gewy",
+          "phases": [
+            "send_request",
+            "receive_reply"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "e8bd32047ced23d86b69ec61e5f09028511176f70e2a204444471b1ed3555be8"
+        },
+        {
+          "facts": 19,
+          "flows": 2,
+          "l3_proto": 2048,
+          "matched_cookies": [
+            4212
+          ],
+          "packet_only": true,
+          "path": "protocols/dns/error/main.gewy",
+          "phases": [
+            "receive_formerr",
+            "receive_servfail",
+            "receive_nxdomain",
+            "receive_refused"
+          ],
+          "process_attribution": false,
+          "replay_identical": true,
+          "source_sha256": "831563e402af213be9ae429af537fd648245670c3b9ebcb24e60652f9ae72aa2"
+        }
+      ],
+      "published_ports": false,
+      "query_type": "A",
+      "schema_version": 2,
+      "selected_sockets": [
+        [
+          4212,
+          59200
+        ],
+        [
+          4213,
+          40926
+        ]
+      ],
+      "source_address": "172.21.0.1",
+      "target_address": "172.21.0.2",
+      "unselected_neighbor_cookie": 118,
+      "unselected_neighbor_reply": {
+        "addresses": [],
+        "id": 17425,
+        "question": "nx.test.",
+        "rcode": 3,
+        "truncated": false
+      }
+    },
+    "snmp": {
+      "checks": [
+        "real_private_Net_SNMP",
+        "GET_GETNEXT_GETBULK",
+        "noSuchObject_not_success",
+        "wrong_community_timeout_then_recovery",
+        "same_request_id_distinct_sockets",
+        "bidirectional_kernel_bytes_match_client",
+        "neighbor_excluded",
+        "packet_only_replay",
+        "owned_cleanup_and_fresh_HTTP"
+      ],
+      "config_sha256": "a701b3a4625428925a8429223fd31db50109339066ac9da2fac804d64d92bd8e",
+      "container_id": "5f5be665f051b616bd00453777cd230828325552afaccd5a8ff5bb01e4275d8c",
+      "egress_counts": {
+        "dropped": 0,
+        "total": 7
+      },
+      "image_id": "sha256:47bcb964731d1bfe709363eb9254963d8dac409f148d28e793b674b268541e30",
+      "ingress_counts": {
+        "dropped": 0,
+        "total": 6
+      },
+      "internal_network": true,
+      "mode": "udp-snmp",
+      "neighbor_cookie": 121,
+      "network_id": "fd548fb4a4d5fae1a69cd1e58fc20510fe1254b281678db5cb90864853518d4b",
+      "not_proven": [
+        "SNMPv3_auth_or_privacy",
+        "SET_trap_inform",
+        "full_MIB_walk",
+        "product_request_response_correlation",
+        "IPv6_or_IP_reassembly",
+        "UDP_throughput",
+        "PID_attribution",
+        "multiple_hosts_or_kernels"
+      ],
+      "observations": [
+        {
+          "captured_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+          "captured_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+          "case": "get",
+          "client_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+          "client_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+          "cookie": 119,
+          "end_ns": 69436241402528,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 1,
+          "response_bytes": 62,
+          "start_ns": 69436241239871,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "df0117ccfca6ec571238ecc97fc21fb16e55d6717f78ce2a811db17b2da51e6f",
+          "captured_response_sha256": "145df115d7896a7c58d9838d2900b6969cea01e50d74a1be55d69654781550f6",
+          "case": "get-next",
+          "client_request_sha256": "df0117ccfca6ec571238ecc97fc21fb16e55d6717f78ce2a811db17b2da51e6f",
+          "client_response_sha256": "145df115d7896a7c58d9838d2900b6969cea01e50d74a1be55d69654781550f6",
+          "cookie": 119,
+          "end_ns": 69436241487248,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 128,
+          "response_bytes": 63,
+          "start_ns": 69436241413288,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "c1c2da874ebc4346f5e4d82641da3e62707c352811973322e30ab1e97298dba5",
+          "captured_response_sha256": "fd9eba66a12a24d7790f1f1eb099ffd19dc5fce8a4daa9dc712a8c565175899d",
+          "case": "get-bulk",
+          "client_request_sha256": "c1c2da874ebc4346f5e4d82641da3e62707c352811973322e30ab1e97298dba5",
+          "client_response_sha256": "fd9eba66a12a24d7790f1f1eb099ffd19dc5fce8a4daa9dc712a8c565175899d",
+          "cookie": 119,
+          "end_ns": 69436241550707,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 32768,
+          "response_bytes": 64,
+          "start_ns": 69436241495764,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "fbc39c555c4c61bef1c116501b281fe6b03d04a61662e305d6b6c4b4d66ba240",
+          "captured_response_sha256": "6ba02dafe554f7cab62c4852c90461b5cb958fe64733891790b793ff120cec05",
+          "case": "unknown-oid",
+          "client_request_sha256": "fbc39c555c4c61bef1c116501b281fe6b03d04a61662e305d6b6c4b4d66ba240",
+          "client_response_sha256": "6ba02dafe554f7cab62c4852c90461b5cb958fe64733891790b793ff120cec05",
+          "cookie": 119,
+          "end_ns": 69436241610691,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": true,
+          "request_bytes": 50,
+          "request_id": 2,
+          "response_bytes": 47,
+          "start_ns": 69436241558803,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "a9c790cc666d83a4999b83d973714a54d8e785493d50455926a563139cf3cc3a",
+          "captured_response_sha256": null,
+          "case": "wrong-community",
+          "client_request_sha256": "a9c790cc666d83a4999b83d973714a54d8e785493d50455926a563139cf3cc3a",
+          "client_response_sha256": null,
+          "cookie": 119,
+          "end_ns": 69436594017814,
+          "legacy_request_byte13": 116,
+          "legacy_response_byte13": null,
+          "no_such_object": false,
+          "request_bytes": 51,
+          "request_id": 3,
+          "response_bytes": null,
+          "start_ns": 69436241618325,
+          "timeout": true
+        },
+        {
+          "captured_request_sha256": "22a9ed4a1d258604b81adcccd2f62e152e921e1526a16542a1c2859613dd3b1e",
+          "captured_response_sha256": "bd8fe483a44c244163e6abbe349784a946f0ae414b586aaba3ee1dff7151e8a0",
+          "case": "recovery-get",
+          "client_request_sha256": "22a9ed4a1d258604b81adcccd2f62e152e921e1526a16542a1c2859613dd3b1e",
+          "client_response_sha256": "bd8fe483a44c244163e6abbe349784a946f0ae414b586aaba3ee1dff7151e8a0",
+          "cookie": 119,
+          "end_ns": 69436594191532,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 4,
+          "response_bytes": 62,
+          "start_ns": 69436594041509,
+          "timeout": false
+        },
+        {
+          "captured_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+          "captured_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+          "case": "get",
+          "client_request_sha256": "89be03968ab2e620f254cb196ba01b0d480532a4b017fe718d2c0a7661a1295a",
+          "client_response_sha256": "1608fbc4b9cbc4b5e4d749b6f2a20d8f86207ba54653b74a5de6a11556f2a0b5",
+          "cookie": 120,
+          "end_ns": 69436594281892,
+          "legacy_request_byte13": 114,
+          "legacy_response_byte13": 114,
+          "no_such_object": false,
+          "request_bytes": 49,
+          "request_id": 1,
+          "response_bytes": 62,
+          "start_ns": 69436594195399,
+          "timeout": false
+        }
+      ],
+      "ok": true,
+      "owned_resources_removed": true,
+      "packages": [
+        {
+          "legacy_fixed_offset_matching_stages": 0,
+          "packet_only": true,
+          "path": "protocols/snmp/get/main.gewy",
+          "replay_identical": true,
+          "request_phase": "send_get_request",
+          "response_is_generic_candidate": true,
+          "response_phase": "receive_get_response",
+          "source_sha256": "423e7250bf0a19b818e1bddfe84f7f34a09436c5eddfa8cd89e6b180891610b7",
+          "transaction_correlation": false
+        },
+        {
+          "legacy_fixed_offset_matching_stages": 0,
+          "packet_only": true,
+          "path": "protocols/snmp/get-next/main.gewy",
+          "replay_identical": true,
+          "request_phase": "send_get_next_request",
+          "response_is_generic_candidate": true,
+          "response_phase": "receive_get_next_response",
+          "source_sha256": "d62221db6ad80382e927a6e5821bb3f4754027352fb400cefb4da509c9f74a60",
+          "transaction_correlation": false
+        },
+        {
+          "legacy_fixed_offset_matching_stages": 0,
+          "packet_only": true,
+          "path": "protocols/snmp/bulk/main.gewy",
+          "replay_identical": true,
+          "request_phase": "send_bulk_request",
+          "response_is_generic_candidate": true,
+          "response_phase": "receive_bulk_response",
+          "source_sha256": "d959e72dead16021142a0edfa675d50d6997a87524dd216daa478f5b99f74c66",
+          "transaction_correlation": false
+        }
+      ],
+      "published_ports": false,
+      "schema_version": 1,
+      "selected_sockets": [
+        [
+          119,
+          59120
+        ],
+        [
+          120,
+          44378
+        ]
+      ]
+    },
+    "ntp": {
+      "checks": [
+        "real_private_chrony_no_clock_control",
+        "NTPv3_and_v4",
+        "unsynchronised_reply_not_time_success",
+        "short_datagram_timeout_then_recovery",
+        "same_origin_distinct_sockets",
+        "bidirectional_kernel_bytes_match_client",
+        "neighbor_excluded",
+        "three_packages_both_server_states",
+        "owned_cleanup_and_fresh_HTTP"
+      ],
+      "external_time_sources": false,
+      "host_clock_adjusted": false,
+      "ingest_trust_mode": "unverified-local",
+      "mode": "udp-ntp",
+      "not_proven": [
+        "clock_accuracy_or_clock_discipline",
+        "real_KoD_rate_limit",
+        "NTS_MAC_or_extension_authentication",
+        "product_origin_correlation",
+        "IPv6_or_IP_reassembly",
+        "UDP_throughput",
+        "PID_attribution",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "phases": [
+        {
+          "egress_counts": {
+            "dropped": 0,
+            "total": 5
+          },
+          "ingress_counts": {
+            "dropped": 0,
+            "total": 4
+          },
+          "local_reference": true,
+          "neighbor_cookie": 32875,
+          "observations": [
+            {
+              "captured_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000001",
+                "receive_hex": "eea16a43ece85469",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea16a43eceaef0a",
+                "version": 4
+              },
+              "captured_request_sha256": "96314bcd64d68895050eb3c06c6cd7d7102a50ffc70f9cd1940bd58f8752ec4d",
+              "captured_response_sha256": "5690df7fb42a8428cc704294a2a693ed7fb78004e7dd5d2b3d3c75b69a1005f1",
+              "case": "v4",
+              "client_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000001",
+                "receive_hex": "eea16a43ece85469",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea16a43eceaef0a",
+                "version": 4
+              },
+              "client_request_sha256": "96314bcd64d68895050eb3c06c6cd7d7102a50ffc70f9cd1940bd58f8752ec4d",
+              "client_response_sha256": "5690df7fb42a8428cc704294a2a693ed7fb78004e7dd5d2b3d3c75b69a1005f1",
+              "cookie": 36889,
+              "end_ns": 69447018418475,
+              "request_bytes": 48,
+              "start_ns": 69447018299410,
+              "timeout": false
+            },
+            {
+              "captured_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea16a43ecef74bd",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea16a43ecf02a42",
+                "version": 3
+              },
+              "captured_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "captured_response_sha256": "fc3e5adec5bd7f309e77fa3f503223c57dfadded346f96e37cc5d103a871a0eb",
+              "case": "v3",
+              "client_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea16a43ecef74bd",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea16a43ecf02a42",
+                "version": 3
+              },
+              "client_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "client_response_sha256": "fc3e5adec5bd7f309e77fa3f503223c57dfadded346f96e37cc5d103a871a0eb",
+              "cookie": 36889,
+              "end_ns": 69447018467838,
+              "request_bytes": 48,
+              "start_ns": 69447018437090,
+              "timeout": false
+            },
+            {
+              "captured_reply": null,
+              "captured_request_sha256": "4913d32b3cf57d7c18b2211b48ac7f3e6efe37732207148b4ae8164d6258c3a2",
+              "captured_response_sha256": null,
+              "case": "short-timeout",
+              "client_reply": null,
+              "client_request_sha256": "4913d32b3cf57d7c18b2211b48ac7f3e6efe37732207148b4ae8164d6258c3a2",
+              "client_response_sha256": null,
+              "cookie": 36889,
+              "end_ns": 69447371022455,
+              "request_bytes": 12,
+              "start_ns": 69447018478218,
+              "timeout": true
+            },
+            {
+              "captured_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000003",
+                "receive_hex": "eea16a4447363277",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea16a444739273c",
+                "version": 4
+              },
+              "captured_request_sha256": "76beafd8a23dfcf743ecfee3ea12e41b1f954528f17e98e8d55356b013959982",
+              "captured_response_sha256": "0b8690f80092bc7ed74fb6ac96c5837de9ae51542c006e1fb73ac6840a9fc807",
+              "case": "recovery-v4",
+              "client_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000003",
+                "receive_hex": "eea16a4447363277",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea16a444739273c",
+                "version": 4
+              },
+              "client_request_sha256": "76beafd8a23dfcf743ecfee3ea12e41b1f954528f17e98e8d55356b013959982",
+              "client_response_sha256": "0b8690f80092bc7ed74fb6ac96c5837de9ae51542c006e1fb73ac6840a9fc807",
+              "cookie": 36889,
+              "end_ns": 69447371166998,
+              "request_bytes": 48,
+              "start_ns": 69447371056650,
+              "timeout": false
+            },
+            {
+              "captured_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea16a44473d3591",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea16a44473e85d2",
+                "version": 3
+              },
+              "captured_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "captured_response_sha256": "9a33ad03969db1f51b923fba2fc40f6ce53a940f6f95ade56c7ba0cde032e501",
+              "case": "v3",
+              "client_reply": {
+                "leap": 0,
+                "local_reference": true,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea16a44473d3591",
+                "reference_id": [
+                  127,
+                  127,
+                  1,
+                  1
+                ],
+                "stratum": 10,
+                "transmit_hex": "eea16a44473e85d2",
+                "version": 3
+              },
+              "client_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "client_response_sha256": "9a33ad03969db1f51b923fba2fc40f6ce53a940f6f95ade56c7ba0cde032e501",
+              "cookie": 36890,
+              "end_ns": 69447371235157,
+              "request_bytes": 48,
+              "start_ns": 69447371171446,
+              "timeout": false
+            }
+          ],
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 1,
+              "matched_request_cookies": [
+                36889,
+                36890
+              ],
+              "matched_response_cookies": [
+                36889,
+                36890
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/client/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_request",
+              "response_phase": "receive_response",
+              "source_sha256": "16a1adbbfa0f19dac089d1f6702361b9a445874387f97bb3bd64ae68fdb0e4a9"
+            },
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 1,
+              "matched_request_cookies": [
+                36889,
+                36890
+              ],
+              "matched_response_cookies": [
+                36889,
+                36890
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/query/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_query",
+              "response_phase": "receive_response",
+              "source_sha256": "7758334c61434644932c36a25019481b02612816796e1e99ef1a010dfdf88e25"
+            },
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 1,
+              "matched_request_cookies": [
+                36889,
+                36890
+              ],
+              "matched_response_cookies": [
+                36889,
+                36890
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/sync/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_sync_request",
+              "response_phase": "receive_sync_response",
+              "source_sha256": "41adc3a3089a2e113141cc0c98c3af65b81ff591fc33022af0ede6f9a9978ce1"
+            }
+          ],
+          "selected_sockets": [
+            [
+              36889,
+              36835
+            ],
+            [
+              36890,
+              40668
+            ]
+          ],
+          "target": {
+            "clock_control_disabled": true,
+            "config_sha256": "04cd8f4643fc1f4a431a9aa27f3efe1a7712c7d4d6ad3b1b214bf9b404549fad",
+            "container_id": "b65220a388cbe609e0442bce60b917151e146ceba88436163c3a3c76d7d05720",
+            "entrypoint": [
+              "/usr/sbin/chronyd",
+              "-d",
+              "-x",
+              "-u",
+              "root",
+              "-4"
+            ],
+            "external_time_sources": false,
+            "host_mounts": false,
+            "image_id": "sha256:f4586d2381b0c4e5a3a21cb9a997d437e9cb71168090de8948ad32df81f47725",
+            "internal_network": true,
+            "network_id": "dccfc985c4ab8dabead7b36f4a3d967a9276f1c4fb9b5be0aa7f0918e9bab274",
+            "published_ports": false,
+            "sys_time_capability": false
+          }
+        },
+        {
+          "egress_counts": {
+            "dropped": 0,
+            "total": 5
+          },
+          "ingress_counts": {
+            "dropped": 0,
+            "total": 4
+          },
+          "local_reference": false,
+          "neighbor_cookie": 32876,
+          "observations": [
+            {
+              "captured_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000001",
+                "receive_hex": "eea16a453aadd009",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea16a453ab04e26",
+                "version": 4
+              },
+              "captured_request_sha256": "96314bcd64d68895050eb3c06c6cd7d7102a50ffc70f9cd1940bd58f8752ec4d",
+              "captured_response_sha256": "fd94bef121b9aa917f36345ecd10d757009d5cfe588fb8b10982344f95dd6f46",
+              "case": "v4",
+              "client_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000001",
+                "receive_hex": "eea16a453aadd009",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea16a453ab04e26",
+                "version": 4
+              },
+              "client_request_sha256": "96314bcd64d68895050eb3c06c6cd7d7102a50ffc70f9cd1940bd58f8752ec4d",
+              "client_response_sha256": "fd94bef121b9aa917f36345ecd10d757009d5cfe588fb8b10982344f95dd6f46",
+              "cookie": 12361,
+              "end_ns": 69448322202439,
+              "request_bytes": 48,
+              "start_ns": 69448322094185,
+              "timeout": false
+            },
+            {
+              "captured_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea16a453ab3ea23",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea16a453ab4af2c",
+                "version": 3
+              },
+              "captured_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "captured_response_sha256": "8b9590efe2f1e407b29e9088e82e2406ffa51a71f8af8205ace0ec6c87054f2d",
+              "case": "v3",
+              "client_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea16a453ab3ea23",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea16a453ab4af2c",
+                "version": 3
+              },
+              "client_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "client_response_sha256": "8b9590efe2f1e407b29e9088e82e2406ffa51a71f8af8205ace0ec6c87054f2d",
+              "cookie": 12361,
+              "end_ns": 69448322247223,
+              "request_bytes": 48,
+              "start_ns": 69448322215794,
+              "timeout": false
+            },
+            {
+              "captured_reply": null,
+              "captured_request_sha256": "4913d32b3cf57d7c18b2211b48ac7f3e6efe37732207148b4ae8164d6258c3a2",
+              "captured_response_sha256": null,
+              "case": "short-timeout",
+              "client_reply": null,
+              "client_request_sha256": "4913d32b3cf57d7c18b2211b48ac7f3e6efe37732207148b4ae8164d6258c3a2",
+              "client_response_sha256": null,
+              "cookie": 12361,
+              "end_ns": 69448674019048,
+              "request_bytes": 12,
+              "start_ns": 69448322259727,
+              "timeout": true
+            },
+            {
+              "captured_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000003",
+                "receive_hex": "eea16a4594c5fda1",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea16a4594c8b8de",
+                "version": 4
+              },
+              "captured_request_sha256": "76beafd8a23dfcf743ecfee3ea12e41b1f954528f17e98e8d55356b013959982",
+              "captured_response_sha256": "7dc8d95473ee86b0b35a3d9baf767cc27854ba4c55396c0fdb0b870f5bd9ae79",
+              "case": "recovery-v4",
+              "client_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000003",
+                "receive_hex": "eea16a4594c5fda1",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea16a4594c8b8de",
+                "version": 4
+              },
+              "client_request_sha256": "76beafd8a23dfcf743ecfee3ea12e41b1f954528f17e98e8d55356b013959982",
+              "client_response_sha256": "7dc8d95473ee86b0b35a3d9baf767cc27854ba4c55396c0fdb0b870f5bd9ae79",
+              "cookie": 12361,
+              "end_ns": 69448674135738,
+              "request_bytes": 48,
+              "start_ns": 69448674039737,
+              "timeout": false
+            },
+            {
+              "captured_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea16a4594cc2ffd",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea16a4594cd37d6",
+                "version": 3
+              },
+              "captured_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "captured_response_sha256": "d8566415361cf0c59126614cc653fd0df84381bfcd4a619c41f33007b3411453",
+              "case": "v3",
+              "client_reply": {
+                "leap": 3,
+                "local_reference": false,
+                "origin_hex": "1234567800000002",
+                "receive_hex": "eea16a4594cc2ffd",
+                "reference_id": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "stratum": 0,
+                "transmit_hex": "eea16a4594cd37d6",
+                "version": 3
+              },
+              "client_request_sha256": "cf1ca782a4999e342ef6282b0698011217811cb1c0779082eeaac1d380a3a03f",
+              "client_response_sha256": "d8566415361cf0c59126614cc653fd0df84381bfcd4a619c41f33007b3411453",
+              "cookie": 12362,
+              "end_ns": 69448674195290,
+              "request_bytes": 48,
+              "start_ns": 69448674140357,
+              "timeout": false
+            }
+          ],
+          "owned_resources_removed": true,
+          "packages": [
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 0,
+              "matched_request_cookies": [
+                12361,
+                12362
+              ],
+              "matched_response_cookies": [
+                12361,
+                12362
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/client/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_request",
+              "response_phase": "receive_response",
+              "source_sha256": "16a1adbbfa0f19dac089d1f6702361b9a445874387f97bb3bd64ae68fdb0e4a9"
+            },
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 0,
+              "matched_request_cookies": [
+                12361,
+                12362
+              ],
+              "matched_response_cookies": [
+                12361,
+                12362
+              ],
+              "packet_only": true,
+              "path": "protocols/ntp/query/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_query",
+              "response_phase": "receive_response",
+              "source_sha256": "7758334c61434644932c36a25019481b02612816796e1e99ef1a010dfdf88e25"
+            },
+            {
+              "clock_discipline_proven": false,
+              "legacy_response_stages": 0,
+              "matched_request_cookies": [
+                12361,
+                12362
+              ],
+              "matched_response_cookies": [],
+              "packet_only": true,
+              "path": "protocols/ntp/sync/main.gewy",
+              "product_origin_correlation": false,
+              "replay_identical": true,
+              "request_phase": "send_sync_request",
+              "response_phase": "receive_sync_response",
+              "source_sha256": "41adc3a3089a2e113141cc0c98c3af65b81ff591fc33022af0ede6f9a9978ce1"
+            }
+          ],
+          "selected_sockets": [
+            [
+              12361,
+              50192
+            ],
+            [
+              12362,
+              48462
+            ]
+          ],
+          "target": {
+            "clock_control_disabled": true,
+            "config_sha256": "a0dffda1b57deeb76e1da64e68e120ab0fa899fadd1923ebe983f2427ca6fafc",
+            "container_id": "023f0ddcc47b016d55feb79a7a43f74f8fc0ed3e930939e4977d3ea0f8c2099b",
+            "entrypoint": [
+              "/usr/sbin/chronyd",
+              "-d",
+              "-x",
+              "-u",
+              "root",
+              "-4"
+            ],
+            "external_time_sources": false,
+            "host_mounts": false,
+            "image_id": "sha256:f4586d2381b0c4e5a3a21cb9a997d437e9cb71168090de8948ad32df81f47725",
+            "internal_network": true,
+            "network_id": "db3a3320223e9e09a252a53a032da1f8ae51ffa3ba67e6249ae0e496f4373251",
+            "published_ports": false,
+            "sys_time_capability": false
+          }
+        }
+      ],
+      "schema_version": 1
+    },
+    "stun": {
+      "campaign": {
+        "egress_counts": {
+          "dropped": 0,
+          "total": 6
+        },
+        "ingress_counts": {
+          "dropped": 0,
+          "total": 5
+        },
+        "neighbor_cookie": 24665,
+        "observations": [
+          {
+            "captured_reply": null,
+            "captured_request_sha256": "b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d2",
+            "captured_response_sha256": null,
+            "case": "short-timeout",
+            "client_reply": null,
+            "client_request_sha256": "b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d2",
+            "client_response_sha256": null,
+            "cookie": 57382,
+            "end_ns": 69462690016127,
+            "request_bytes": 2,
+            "start_ns": 69462332455671,
+            "timeout": true
+          },
+          {
+            "captured_reply": {
+              "error_code": null,
+              "mapped_address": "172.21.0.1:55213",
+              "transaction_hex": "010101010101010101010101",
+              "unknown_attributes": []
+            },
+            "captured_request_sha256": "c24f72d3917534f8258c32150288b11b4ccb5b5e6bbd4a633f69fdf20f6ad2b4",
+            "captured_response_sha256": "8dc1f93f815b8826eb20d92f87ad46fc1c356cef38e93310bc0ffe5cff596e09",
+            "case": "binding",
+            "client_reply": {
+              "error_code": null,
+              "mapped_address": "172.21.0.1:55213",
+              "transaction_hex": "010101010101010101010101",
+              "unknown_attributes": []
+            },
+            "client_request_sha256": "c24f72d3917534f8258c32150288b11b4ccb5b5e6bbd4a633f69fdf20f6ad2b4",
+            "client_response_sha256": "8dc1f93f815b8826eb20d92f87ad46fc1c356cef38e93310bc0ffe5cff596e09",
+            "cookie": 57382,
+            "end_ns": 69462690379112,
+            "request_bytes": 20,
+            "start_ns": 69462690059970,
+            "timeout": false
+          },
+          {
+            "captured_reply": {
+              "error_code": 420,
+              "mapped_address": null,
+              "transaction_hex": "020202020202020202020202",
+              "unknown_attributes": [
+                30583
+              ]
+            },
+            "captured_request_sha256": "42d13a233571d4fc7a9e68a75ad5265e91a6f39cd85c329f39e29693ba94f9d3",
+            "captured_response_sha256": "11b924d51db0b9df759bd6ce1397d85f18a0efe56b21ce895039b80b5fd137f2",
+            "case": "unknown-required",
+            "client_reply": {
+              "error_code": 420,
+              "mapped_address": null,
+              "transaction_hex": "020202020202020202020202",
+              "unknown_attributes": [
+                30583
+              ]
+            },
+            "client_request_sha256": "42d13a233571d4fc7a9e68a75ad5265e91a6f39cd85c329f39e29693ba94f9d3",
+            "client_response_sha256": "11b924d51db0b9df759bd6ce1397d85f18a0efe56b21ce895039b80b5fd137f2",
+            "cookie": 57382,
+            "end_ns": 69462690483940,
+            "request_bytes": 24,
+            "start_ns": 69462690402526,
+            "timeout": false
+          },
+          {
+            "captured_reply": {
+              "error_code": null,
+              "mapped_address": "172.21.0.1:55213",
+              "transaction_hex": "040404040404040404040404",
+              "unknown_attributes": []
+            },
+            "captured_request_sha256": "d945f633bb03d8c8b3447a7db27add6283647491579b5016c64af50f5fc783a9",
+            "captured_response_sha256": "51ae61412039e937c280b4da4c043f876debb137aa2d4bc16a82ae6eb36c5ddb",
+            "case": "recovery-binding",
+            "client_reply": {
+              "error_code": null,
+              "mapped_address": "172.21.0.1:55213",
+              "transaction_hex": "040404040404040404040404",
+              "unknown_attributes": []
+            },
+            "client_request_sha256": "d945f633bb03d8c8b3447a7db27add6283647491579b5016c64af50f5fc783a9",
+            "client_response_sha256": "51ae61412039e937c280b4da4c043f876debb137aa2d4bc16a82ae6eb36c5ddb",
+            "cookie": 57382,
+            "end_ns": 69462690546478,
+            "request_bytes": 20,
+            "start_ns": 69462690501914,
+            "timeout": false
+          },
+          {
+            "captured_reply": {
+              "error_code": null,
+              "mapped_address": "172.21.0.1:55213",
+              "transaction_hex": "050505050505050505050505",
+              "unknown_attributes": []
+            },
+            "captured_request_sha256": "69851c1d5aa63687e79b0737fbfcd2c930f9fb8d1e0afa37510aa0c977cbb663",
+            "captured_response_sha256": "2c10b03aa7308bc0a906a40b3852d44d56a227608bdfd073c7fcea5dcd271997",
+            "case": "optional-padded",
+            "client_reply": {
+              "error_code": null,
+              "mapped_address": "172.21.0.1:55213",
+              "transaction_hex": "050505050505050505050505",
+              "unknown_attributes": []
+            },
+            "client_request_sha256": "69851c1d5aa63687e79b0737fbfcd2c930f9fb8d1e0afa37510aa0c977cbb663",
+            "client_response_sha256": "2c10b03aa7308bc0a906a40b3852d44d56a227608bdfd073c7fcea5dcd271997",
+            "cookie": 57382,
+            "end_ns": 69462690593627,
+            "request_bytes": 28,
+            "start_ns": 69462690559553,
+            "timeout": false
+          },
+          {
+            "captured_reply": {
+              "error_code": null,
+              "mapped_address": "172.21.0.1:36438",
+              "transaction_hex": "010101010101010101010101",
+              "unknown_attributes": []
+            },
+            "captured_request_sha256": "c24f72d3917534f8258c32150288b11b4ccb5b5e6bbd4a633f69fdf20f6ad2b4",
+            "captured_response_sha256": "5b5b70bcfc6785963afc1dfe5ac786c465097176bc3fd804342a056ad9ae9ae3",
+            "case": "binding",
+            "client_reply": {
+              "error_code": null,
+              "mapped_address": "172.21.0.1:36438",
+              "transaction_hex": "010101010101010101010101",
+              "unknown_attributes": []
+            },
+            "client_request_sha256": "c24f72d3917534f8258c32150288b11b4ccb5b5e6bbd4a633f69fdf20f6ad2b4",
+            "client_response_sha256": "5b5b70bcfc6785963afc1dfe5ac786c465097176bc3fd804342a056ad9ae9ae3",
+            "cookie": 57383,
+            "end_ns": 69462690670412,
+            "request_bytes": 20,
+            "start_ns": 69462690599328,
+            "timeout": false
+          }
+        ],
+        "owned_resources_removed": true,
+        "packages": [
+          {
+            "NAT_traversal_proven": false,
+            "legacy_short_request_matches": 1,
+            "matched_request_cookies": [
+              57382,
+              57383
+            ],
+            "matched_response_cookies": [
+              57382,
+              57383
+            ],
+            "packet_only": true,
+            "path": "protocols/stun/binding/main.gewy",
+            "product_transaction_correlation": false,
+            "replay_identical": true,
+            "short_request_matches": 0,
+            "source_sha256": "6368318a8f0e77e9cf907634107be24f85cd466470165e4aab0da7909487e4fa"
+          },
+          {
+            "NAT_traversal_proven": false,
+            "legacy_short_request_matches": 1,
+            "matched_request_cookies": [
+              57382,
+              57383
+            ],
+            "matched_response_cookies": [
+              57382
+            ],
+            "packet_only": true,
+            "path": "protocols/stun/binding-error/main.gewy",
+            "product_transaction_correlation": false,
+            "replay_identical": true,
+            "short_request_matches": 0,
+            "source_sha256": "1021bdbee18fcae7cd5f07ded8146ef2340cb55dff085d773bdcc7f1c4f3b464"
+          }
+        ],
+        "selected_sockets": [
+          [
+            57382,
+            55213
+          ],
+          [
+            57383,
+            36438
+          ]
+        ],
+        "target": {
+          "config_sha256": "6347da9230b33d76dbe167b7d1900dd324f3a13c45b4574f0118e7d0f49044a5",
+          "container_id": "31a04a87c6b8839413e584d366d56d0fc57382c81be629e17ed5182ef719e365",
+          "host_mounts": false,
+          "image_id": "sha256:c70417b726230b54f21f19663d890c2fb3b6739b4d985c42c260aed8545497cd",
+          "internal_network": true,
+          "network_id": "acdc1bae81180a36c59cb97001fd2b071f55c16642df32cad00468ff8937555b",
+          "published_ports": false,
+          "turn_relay_enabled": false
+        }
+      },
+      "checks": [
+        "real_private_coturn_binding",
+        "exact_transaction_and_mapped_address",
+        "unknown_required_420",
+        "optional_attribute_padding",
+        "short_timeout_then_recovery",
+        "same_transaction_distinct_sockets",
+        "bidirectional_kernel_bytes_match_client",
+        "neighbor_excluded",
+        "two_packages_packet_only_replay",
+        "owned_cleanup_and_fresh_HTTP"
+      ],
+      "ingest_trust_mode": "unverified-local",
+      "mode": "udp-stun",
+      "not_proven": [
+        "TURN_allocation_or_relay",
+        "ICE_connectivity",
+        "NAT_traversal_or_public_mapping",
+        "authentication_or_FINGERPRINT_verification",
+        "product_transaction_correlation",
+        "RFC3489_legacy",
+        "IPv6_or_IP_reassembly",
+        "UDP_throughput",
+        "PID_attribution",
+        "multiple_hosts_or_kernels"
+      ],
+      "ok": true,
+      "schema_version": 1
+    }
+  },
+  "cleanup": {
+    "owned_targets_networks_cgroups_bpf_links_removed": true,
+    "baseline_containers": 15,
+    "baseline_networks": 6,
+    "baseline_volumes": 54,
+    "unrelated_container_network_volume_inventory_unchanged": true,
+    "build_container_removed": true,
+    "bpffs_and_cgroup_capture_paths_remaining": 0,
+    "global_prune_used": false
+  },
+  "validation": {
+    "related_test_targets": 16,
+    "passed": 2546,
+    "failed": 0,
+    "ignored": 14,
+    "ignored_reason": "13 existing CLI benchmarks and one fixed synthetic input stage profile; not live capture throughput",
+    "post_capture_docs_status_guard_passed": 364,
+    "clippy_warnings_denied": true,
+    "cargo_fmt_check": true,
+    "git_diff_check": true,
+    "scope": "library, main and validation CLIs, DNS-related DSL/IR/export, STUN/NTP/SNMP regression, native evidence harness, status, language docs and independence; not a full workspace or release gate"
+  },
+  "limitations": [
+    "other_IP_family_in_this_run",
+    "IP_fragment_reassembly",
+    "IPv6_extension_headers_or_jumbograms",
+    "UDP_checksum_verification",
+    "AAAA_queries",
+    "general_DNS_parser",
+    "EDNS_DNSSEC_DoH_DoT",
+    "TCP_fallback_for_TC",
+    "recursive_resolution_or_cache",
+    "general_UDP_throughput",
+    "PID_or_container_process_attribution",
+    "multiple_hosts_or_kernels",
+    "IPv6_TCP_and_other_protocol_targets",
+    "IPv6_extension_rejection_has_no_live_fault_injection",
+    "private_ULA_bridge_not_public_IPv6_routing",
+    "not_full_catalog_or_release_certification",
+    "pre_hook_kernel_reassembly_is_not_excluded"
+  ]
+}

@@ -88,6 +88,27 @@ where
 {
     match predicate {
         FlowPredicate::ProcessBound => flow.evidence.lineage_facts.contains(&fact.id),
+        FlowPredicate::StunBindingObserved { remote_port, kind } => {
+            flow.evidence.packet_facts.contains(&fact.id)
+                && matches!(&fact.kind, FactKind::PacketMeta(packet)
+                    if packet.l4_proto == 17 && packet.dir == kind.direction()
+                    && packet.remote_port == Some(*remote_port)
+                    && super::stun::matches(packet, *kind))
+        }
+        FlowPredicate::NtpMessageObserved { remote_port, kind } => {
+            flow.evidence.packet_facts.contains(&fact.id)
+                && matches!(&fact.kind, FactKind::PacketMeta(packet)
+                    if packet.l4_proto == 17 && packet.dir == kind.direction()
+                    && packet.remote_port == Some(*remote_port)
+                    && super::ntp::matches(packet, *kind))
+        }
+        FlowPredicate::SnmpPduObserved { remote_port, kind } => {
+            flow.evidence.packet_facts.contains(&fact.id)
+                && matches!(&fact.kind, FactKind::PacketMeta(packet)
+                    if packet.l4_proto == 17 && packet.dir == kind.direction()
+                    && packet.remote_port == Some(*remote_port)
+                    && super::snmp::matches(packet, *kind))
+        }
         FlowPredicate::RtspResponseObserved { remote_port, kind } => {
             flow.evidence.packet_facts.contains(&fact.id)
                 && matches!(&fact.kind,

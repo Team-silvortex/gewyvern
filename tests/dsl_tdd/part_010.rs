@@ -101,7 +101,7 @@ fn ntp_client_path_materializes_request_and_response_datagrams() {
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 813, 7000, "chrony-client"));
     session.ingest(route_fact(2, 813, 7));
-    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+    session.ingest(support::complete_ntp_packet(
         3,
         813,
         48,
@@ -111,7 +111,7 @@ fn ntp_client_path_materializes_request_and_response_datagrams() {
         Some(0x23),
         Some(0x2300),
     ));
-    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+    session.ingest(support::complete_ntp_packet(
         4,
         813,
         48,
@@ -157,7 +157,7 @@ fn ntp_client_path_does_not_match_wrong_response_mode() {
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(sock_lineage_fact(1, 814, 7000, "chrony-client"));
     session.ingest(route_fact(2, 814, 7));
-    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+    session.ingest(support::complete_ntp_packet(
         3,
         814,
         48,
@@ -167,7 +167,7 @@ fn ntp_client_path_does_not_match_wrong_response_mode() {
         Some(0x23),
         Some(0x2300),
     ));
-    session.ingest(udp_packet_fact_with_dir_and_ports_and_payload(
+    session.ingest(support::complete_ntp_packet(
         4,
         814,
         48,
