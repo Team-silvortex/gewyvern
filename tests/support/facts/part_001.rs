@@ -134,6 +134,7 @@ pub fn packet_fact_with_dir_and_payload_and_byte1(
         session: SessionId(1),
         fragment_id: "tcp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns: 1,
             sk_cookie: Some(cookie),
             dir,
@@ -180,6 +181,7 @@ pub fn packet_fact_with_dir_and_payload_and_byte10(
         session: SessionId(1),
         fragment_id: "tcp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns: 1,
             sk_cookie: Some(cookie),
             dir,
@@ -226,6 +228,7 @@ pub fn packet_fact_with_dir_and_payload_and_byte4(
         session: SessionId(1),
         fragment_id: "tcp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns: 1,
             sk_cookie: Some(cookie),
             dir,
@@ -273,6 +276,7 @@ pub fn packet_fact_with_dir_and_payload_and_bytes4_and5(
         session: SessionId(1),
         fragment_id: "tcp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns: 1,
             sk_cookie: Some(cookie),
             dir,
@@ -321,6 +325,7 @@ pub fn packet_fact_with_dir_and_payload_and_bytes4_5_and9(
         session: SessionId(1),
         fragment_id: "tcp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns: 1,
             sk_cookie: Some(cookie),
             dir,
@@ -373,6 +378,7 @@ pub fn packet_fact_with_dir_and_payload_bytes(
         session: SessionId(1),
         fragment_id: "tcp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns: 1,
             sk_cookie: Some(cookie),
             dir,

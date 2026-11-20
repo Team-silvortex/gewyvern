@@ -2,6 +2,10 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+mod udp_offload;
+pub(crate) use udp_offload::groups::{GroupIssue, GroupKey, group_key, invalid_groups, same_group};
+pub use udp_offload::{MAX_UDP_OFFLOAD_SEGMENTS, UdpOffloadSegment};
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct FactId(pub u64);
 
@@ -167,6 +171,8 @@ pub struct TcpStateFact {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PacketMetaFact {
+    /// Present only for an explicitly normalized aggregate observation.
+    pub udp_offload: Option<UdpOffloadSegment>,
     pub netns: u32,
     pub sk_cookie: Option<u64>,
     pub dir: PacketDir,

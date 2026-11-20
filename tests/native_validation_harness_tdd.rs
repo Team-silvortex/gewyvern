@@ -1,6 +1,13 @@
 use std::fs;
 use std::path::Path;
 
+#[path = "native_validation_harness_tdd/udp_errors.rs"]
+mod udp_errors;
+#[path = "native_validation_harness_tdd/udp_offload.rs"]
+mod udp_offload;
+#[path = "native_validation_harness_tdd/udp_pressure.rs"]
+mod udp_pressure;
+
 fn read_repo_file(relative: &str) -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(relative);
     fs::read_to_string(&path).unwrap_or_else(|err| {

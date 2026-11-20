@@ -228,6 +228,7 @@ fn packet() -> FactEnvelope {
         session: SessionId(1),
         fragment_id: "udp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns: 1,
             sk_cookie: Some(123),
             dir: PacketDir::Egress,

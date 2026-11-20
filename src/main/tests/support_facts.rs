@@ -250,6 +250,7 @@ pub(super) fn packet_fact_with_dir_and_payload_for_tests(
         session: SessionId(1),
         fragment_id: "tcp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns: 1,
             sk_cookie: Some(cookie),
             dir,
@@ -302,6 +303,7 @@ pub(super) fn packet_fact_with_dir_and_payload_bytes_for_tests(
         session: SessionId(1),
         fragment_id: "tcp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns: 1,
             sk_cookie: Some(cookie),
             dir,
@@ -352,6 +354,7 @@ pub(super) fn udp_packet_fact_with_dir_and_ports_and_payload_for_tests(
         session: SessionId(1),
         fragment_id: "udp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns: 1,
             sk_cookie: Some(cookie),
             dir,
@@ -403,6 +406,7 @@ pub(super) fn udp_packet_fact_with_payload_bytes_for_tests(
         session: SessionId(1),
         fragment_id: "udp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns: 1,
             sk_cookie: Some(cookie),
             dir,
@@ -459,6 +463,7 @@ pub(super) fn packet_fact_with_l4_proto_and_payload_bytes_for_tests(
         session: SessionId(1),
         fragment_id: "udp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns: 1,
             sk_cookie: cookie,
             dir,

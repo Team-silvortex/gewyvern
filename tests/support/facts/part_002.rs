@@ -67,6 +67,7 @@ pub fn udp_packet_fact_with_dir_and_ports_and_payload_prefix4(
         session: SessionId(1),
         fragment_id: "udp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns: 1,
             sk_cookie: Some(cookie),
             dir,
@@ -113,6 +114,7 @@ pub fn udp_packet_fact_with_dir_and_ports_and_payload_prefix4_and_byte13(
         session: SessionId(1),
         fragment_id: "udp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns: 1,
             sk_cookie: Some(cookie),
             dir,

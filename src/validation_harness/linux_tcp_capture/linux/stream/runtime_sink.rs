@@ -291,6 +291,7 @@ fn packet_fact(
         session: SessionId(session),
         fragment_id: "tcp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns,
             sk_cookie: Some(record.cookie),
             dir: PacketDir::Ingress,

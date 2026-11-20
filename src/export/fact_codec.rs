@@ -10,6 +10,7 @@ use std::collections::BTreeMap;
 
 mod decode;
 mod encode;
+mod offload;
 
 pub(super) use self::decode::{
     parse_fact, parse_fact_ids, parse_optional_fact_id, parse_optional_u8, parse_optional_u16,

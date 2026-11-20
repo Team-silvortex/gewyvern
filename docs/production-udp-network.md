@@ -114,7 +114,57 @@ not counted as injected delay. The product does not classify the netem cause;
 the independent fixture establishes it. The original loss and MTU checks also
 pass fresh regressions after the shared-worker extraction.
 
+## Send Errors And Socket Recovery
+
+Use the same native build and a fresh output directory:
+
+```bash
+sudo env GEWY_NETWORK_ERRORS_OUT=/tmp/gewy-network-errors-new \
+  target/debug/deps/production_capture_linux_tdd-<build-hash> \
+  --ignored --exact network::errors::production_capture_network_errors --nocapture
+```
+
+Connected IPv4/IPv6 client sockets enable error queues and force PMTU discovery
+only on these disposable sockets. Five phases exercise baseline, local MTU
+rejection, short-message recovery, a closed remote port and service recovery.
+The controller observes server close/rebind readiness before releasing clients.
+Clients keep their original sockets; the server's replacement sockets must have
+new, separately observed cookies within the same run-local namespace identity.
+
+Each 4096-byte send over MTU 1500 fails locally with `EMSGSIZE`. The native
+error queue reports local origin and MTU 1500, while the server times out.
+No UDP observation is invented for this rejected send. With the remote port
+closed, a 32-byte send succeeds but receive returns `ECONNREFUSED`. Native
+`MSG_ERRQUEUE` reports IPv4 ICMP type/code `3/3` or IPv6 `1/4`, and quotes the
+exact request payload and destination. Only client egress is captured: there
+is no server socket to receive it. Error consumption and subsequent successful
+small exchanges prove that the original clients remain usable.
+
+The [dated error/recovery proof](fixtures/gewyvern_product_udp_errors_linux_x86_64_20261120.json)
+retains three final runs: 30 send attempts, six local MTU rejections, six remote
+port refusals, 18 successful exchanges and 78 captured observations. Each run
+has 8, 0, 8, 2 and 8 expected facts across its five phases. Exact packet
+multisets, all socket generations, interface/namespace identity, final accounting,
+replay and owned-resource cleanup pass. Fresh fragmentation, TC loss and actual
+collector-overflow/lifecycle regressions also pass. No product defect was found.
+
+Application failure is not collector loss. The error queue is an independent
+native test oracle, not a product ICMP decoder or automatic cause classifier.
+This proves local MTU rejection and remote port refusal on one private link,
+not routed PMTU discovery, ICMP blackholes, multi-hop failures or physical
+network behavior. No release artifact or status maturity is promoted. See
+the Linux [receive error-queue contract](https://man7.org/linux/man-pages/man2/recvmsg.2.html)
+for the ancillary-message interface used by the oracle.
+
 ## Evidence And Limits
+
+For application read truncation and socket queue exhaustion, see the separate
+[receive-pressure check](production-udp-receive-pressure.md). It distinguishes
+hook observations, kernel queue admission and actual application reads using
+native receive flags and two independent drop counters.
+For a real GSO/GRO false-completeness repair and explicit unsupported behavior,
+see the [offload boundary check](production-udp-offload.md). It verifies native
+segmentation/merging without claiming per-datagram normalization by the product.
 
 The [dated proof](fixtures/gewyvern_product_udp_network_linux_x86_64_20261120.json)
 records three final runs: six captures, 90 request/reply exchanges and 360
@@ -125,7 +175,7 @@ I/O digests are not full captured-payload digests.
 The kernel fragments/reassembles these datagrams; the product sees normalized
 data at cgroup hooks. It does not implement reassembly or archive raw fragments.
 This does not establish handling of arbitrary IPv6 extension chains, overlapping
-or malformed fragments, missing fragments, checksums, GSO/GRO, NAT, physical
+or malformed fragments, missing fragments, checksums, GSO/GRO normalization, NAT, physical
 links, multi-host paths or sustained load. Namespace IDs remain run-local, not
 stable host/container identifiers. No product defect was reproduced in these
 bounded runs; no release artifact or status maturity is promoted.

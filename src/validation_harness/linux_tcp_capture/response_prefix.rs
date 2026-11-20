@@ -205,6 +205,7 @@ mod tests {
                 session: SessionId(1),
                 fragment_id: "tcp_packet_meta_fragment".into(),
                 kind: FactKind::PacketMeta(PacketMetaFact {
+                    udp_offload: None,
                     netns: 42,
                     sk_cookie: Some(1),
                     dir: PacketDir::Ingress,

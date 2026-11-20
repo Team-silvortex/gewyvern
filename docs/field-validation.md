@@ -75,6 +75,22 @@ The [bounded netem variant](production-udp-network.md#delay-duplication-and-reor
 adds actual delay, request/response copies and inverted receive sequences. Require
 full multiplicity, exact per-socket directional order, live selected-port queue
 settings/counters and same-socket recovery; do not infer global wire ordering.
+The [native error/recovery variant](production-udp-network.md#send-errors-and-socket-recovery)
+adds local `EMSGSIZE`, remote `ECONNREFUSED`, actual ICMP error-queue entries,
+unchanged client sockets and distinct server socket generations. Require no
+invented local sends or server receives, exact native error metadata and clean
+recovery; do not confuse the independent oracle with product ICMP analysis or
+routed PMTU support.
+The [receive-pressure variant](production-udp-receive-pressure.md) adds actual
+application truncation and receive-queue exhaustion. Require exact read/send
+counter deltas, observed partial bytes and flags, native queue drops reconciled
+with delivered IDs, a matching recovery `SO_RXQ_OVFL` count, and independent
+packet facts. Never equate cgroup ingress with a successful application read.
+The [GSO/GRO boundary variant](production-udp-offload.md) requires native
+segmentation and actual GRO ancillary metadata, rejects selected aggregates
+without inventing single datagrams, preserves truthful incomplete status and
+checks ordinary recovery plus unselected-port exclusion. Treat this as explicit
+unsupported behavior, not successful offload normalization.
 
 The [formal packet/socket boundary check](production-udp-boundaries.md) adds
 empty/short/large native UDP payloads, unconnected clients and servers, and

@@ -40,6 +40,21 @@ that the kernel fragments and reassembles around these hooks. This does not
 change the direct-header parser restriction or add product-owned reassembly;
 raw fragments and arbitrary extension chains remain unsupported.
 
+GSO/GRO aggregate buffers are also unsupported by ABI v1. For the selected UDP
+port, nonzero `gso_size` or multiple `gso_segs` is explicitly rejected before
+packet admission, counted in `kernel.unsupported` and marked incomplete (exit 3).
+Do not interpret an aggregate as one giant datagram or assume the product splits
+it into wire segments. Ordinary packets and already segmented ingress can still
+be retained; unrelated ports are excluded first. See the [real offload boundary
+and false-completeness repair](production-udp-offload.md).
+
+The [prepared segment provenance contract](production-udp-offload.md#prepared-segment-contract)
+adds a distinct import/export representation for future bounded normalization.
+It does not change this live producer's rejection policy or private event ABI.
+The [whole-group staging and replay rules](production-udp-offload.md#group-admission-and-replay)
+now prevent partial normalized groups from crossing publication windows. This
+path is prepared in userspace; the current BPF producer still rejects aggregates.
+
 ## Start And Consume
 
 Replace the example cgroup with the workload's actual existing cgroup, and use
@@ -139,6 +154,16 @@ after an egress hook or before reaching a selected ingress hook. Application
 timeouts are not collector-drop counters. The [isolated network-loss check](production-udp-network.md#network-loss-and-recovery)
 verifies both sides of this distinction without inventing remote reception or
 claiming automatic root-cause classification.
+The [native send-error check](production-udp-network.md#send-errors-and-socket-recovery)
+also verifies that local `EMSGSIZE` produces no invented UDP packet and a closed
+remote UDP port produces client egress without invented server ingress. Native
+error-queue evidence is independent of this UDP-only collector; an absent fact
+alone does not identify the cause, and complete capture does not mean a send
+or request succeeded.
+Even ingress does not guarantee an application read: the [receive-pressure check](production-udp-receive-pressure.md)
+observes packets before the socket queue drops them, and preserves packet length
+when the application copies only a truncated prefix. Native socket-drop counters
+are independent test oracles, not product telemetry or collector-drop counters.
 Successful complete stops return 0; accounted but incomplete stops return 3;
 runtime/startup failures return 1 and invalid CLI input returns 2. Monitor the
 capture status/export, not only protocol findings. Use a supervisor policy that

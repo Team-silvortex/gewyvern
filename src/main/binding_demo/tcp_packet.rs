@@ -27,6 +27,7 @@
                 session: SessionId(1),
                 fragment_id: "tcp_packet_meta_fragment".into(),
                 kind: FactKind::PacketMeta(PacketMetaFact {
+                    udp_offload: None,
                     netns: 1,
                     sk_cookie: Some(42),
                     dir: PacketDir::Egress,

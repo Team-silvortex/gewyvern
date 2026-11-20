@@ -240,6 +240,7 @@ pub(super) fn reconstruct_with_prefix(
                 session: SessionId(1),
                 fragment_id: "tcp_packet_meta_fragment".into(),
                 kind: FactKind::PacketMeta(PacketMetaFact {
+                    udp_offload: None,
                     netns: state.netns,
                     sk_cookie: Some(packet.cookie),
                     dir: PacketDir::Ingress,

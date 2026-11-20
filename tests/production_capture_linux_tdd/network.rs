@@ -4,10 +4,16 @@ use super::*;
 use std::collections::{BTreeMap, BTreeSet};
 use std::os::fd::AsRawFd;
 
+#[path = "network/errors.rs"]
+mod errors;
 #[path = "network/faults.rs"]
 mod faults;
 #[path = "network/netem.rs"]
 mod netem;
+#[path = "network/offload.rs"]
+mod offload;
+#[path = "network/pressure.rs"]
+mod pressure;
 
 const FIT: &[usize] = &[0, 1, 128, 129, 1400, 1452, 1, 0, 32];
 const FRAGMENTED: &[usize] = &[1473, 4096, 60000, 1, 0, 32];
@@ -296,7 +302,9 @@ fn check_namespaces(bundle: &ExportBundle, oracles: &[Value]) -> Vec<u32> {
             .iter()
             .map(|cookie| cookie.as_str().unwrap().parse().unwrap())
             .collect();
-        assert_eq!(cookies.len(), 2);
+        assert!(cookies.len() >= 2 && cookies.len().is_multiple_of(2));
+        assert_eq!(cookies.len(), oracle["cookies"].as_array().unwrap().len());
+        assert!(!cookies.contains(&0));
         for cookie in &cookies {
             assert!(all_cookies.insert(*cookie));
         }
@@ -304,6 +312,15 @@ fn check_namespaces(bundle: &ExportBundle, oracles: &[Value]) -> Vec<u32> {
         let mut selected = bundle.clone();
         selected.facts.retain(|fact| matches!(&fact.kind, FactKind::PacketMeta(p) if p.sk_cookie.is_some_and(|c| cookies.contains(&c))));
         check_packets(&selected, &expected);
+        let observed: BTreeSet<_> = selected
+            .facts
+            .iter()
+            .filter_map(|fact| match &fact.kind {
+                FactKind::PacketMeta(p) => p.sk_cookie,
+                _ => None,
+            })
+            .collect();
+        assert_eq!(observed, cookies, "unobserved socket generation");
         let FactKind::PacketMeta(first) = &selected.facts[0].kind else {
             unreachable!()
         };
@@ -337,8 +354,9 @@ fn namespace_oracle_rejects_merged_identity_and_foreign_packets() {
     for (role, server) in [false, true].into_iter().enumerate() {
         let mut expected = Vec::new();
         let mut cookies = Vec::new();
-        for family in 0..2 {
-            let cookie = (role * 2 + family + 1) as u64;
+        for generation in 0..if server { 4 } else { 2 } {
+            let family = generation % 2;
+            let cookie = (role * 2 + generation + 1) as u64;
             cookies.push(cookie.to_string());
             let local = endpoint(family, server);
             let remote = endpoint(family, !server);
@@ -388,6 +406,21 @@ fn namespace_oracle_rejects_merged_identity_and_foreign_packets() {
             }
         }
         assert!(std::panic::catch_unwind(|| check_namespaces(&bad, &oracles)).is_err());
+    }
+    for mutation in 0..4 {
+        let mut bad = oracles.clone();
+        match mutation {
+            0 => bad[0]["cookies"][1] = bad[0]["cookies"][0].clone(),
+            1 => bad[0]["cookies"][0] = json!("0"),
+            2 => bad[1]["cookies"]
+                .as_array_mut()
+                .unwrap()
+                .extend([json!("98"), json!("99")]),
+            _ => {
+                bad[1]["cookies"].as_array_mut().unwrap().pop();
+            }
+        }
+        assert!(std::panic::catch_unwind(|| check_namespaces(&bundle, &bad)).is_err());
     }
 }
 

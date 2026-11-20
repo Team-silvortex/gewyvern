@@ -1,0 +1,2702 @@
+{
+  "schema_version": 1,
+  "campaign": "production-cli-native-receive-truncation-and-udp-queue-pressure",
+  "date": "2026-11-20",
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "source_base_commit": "c1047db904a168d4404b0d027e42a2d11f476aa0",
+  "source_commit_subject": "fix(ci): restore Rust gates and record UDP fault coverage",
+  "source_worktree_dirty": true,
+  "source_sha256": {
+    "tests/production_capture_linux_tdd.rs": "7919c47c9c65bbe50ff740ce2146d08881fad10709d46a34873f0a6f0edd25ed",
+    "tests/production_capture_linux_tdd/boundaries.rs": "d4873971eeea71cac35c43f553439664ef03558a0dca4729b95ce294e2426921",
+    "tests/production_capture_linux_tdd/network.rs": "a98b9fea95eb272e43db0f164ef89b062ccbbb0fb0e06ba487f11d7c0b970012",
+    "tests/production_capture_linux_tdd/network/faults.rs": "babf573e6eea35b6f68ad64038bd0e31c16d7dd45042191589ff78f006f91939",
+    "tests/production_capture_linux_tdd/network/errors.rs": "9e7ce41c4ea2a41e8dda4b3ac731c26029e7ebdfe8243819178281b097af39bb",
+    "tests/production_capture_linux_tdd/network/netem.rs": "d3114ccd6a81b7e8288f446b69540d35dfb25a262a033f16da0d5a2f1c946d73",
+    "tests/production_capture_linux_tdd/network/pressure.rs": "86f567b70997c9c80fd2f3457539973c224c8ed78c113292ca7b65bf234e2025",
+    "tests/native_validation_harness_tdd.rs": "30ff2af69b0cb31234accd8bb1d690b29b17ccb2ced7aca662ccebaa68c66a28",
+    "tests/native_validation_harness_tdd/udp_pressure.rs": "ae512352f554e21ee68b954cbcabb2e149e88363910082189a6e4688441dab69",
+    "src/live_capture.rs": "fd14b4925528b4c8b22ebc3a3d0f1890c098d862fa5df8f0fdb9a59eb42448ab",
+    "src/live_capture/linux.rs": "1e166da359d5f11624e545fc2fef57182fa1a48b76c4dbc4d34dd5cd9ac084ed",
+    "src/live_capture/linux/api.rs": "77426bb0cee7018f88a3d1a0cc24d316f99ad8df35e05c962fab8382942b7d0d",
+    "src/main.rs": "c898522bdfc59485d4375b180a15f7a68ac1b5358c4dd2da18f5a2ca7bf6b5e0",
+    "src/main/capture_cli.rs": "92fa52a61995c9cf3e5fbff54d24238a26bad53ecd9f3c99c105d596d103f0c3",
+    "src/main/capture_runtime.rs": "80836255e2c49daa600ec4457faf7da9bce429faf875e2358a6a26f5dbdd1462",
+    "src/packet_capture.rs": "50cf644ff5bf466169296b79850bd8e128df60734978ee500ddb1d3c70ac8014",
+    "src/export.rs": "58691c97e23343d041630d3aafd63febb8568f0eb0114b43dbb3b45ad96b78c4",
+    "src/export/capture_codec.rs": "55c07226d16d934f7c0586e26c42fca419f46d4daab5fb9b6784ace76f6243da",
+    "ebpf/production/udp.bpf.c": "867e71774df6c9bbf69370ce712d527c0d7a8dede8eba1eff0975d76e1c1c1e3",
+    "Cargo.toml": "e46a3f093e6162f78752db705f375d37e41a50f13567b35033383e04a67238fa",
+    "Cargo.lock": "52492d8def30e48e97cdc2b576a018e1bb7d90654091afc8cdcc44099f6041a8"
+  },
+  "source_scope": "21 selected production, ABI, test and build inputs match the Linux workspace byte-for-byte; not a hermetic whole-worktree release manifest.",
+  "binary_sha256": {
+    "target/debug/gewyvern": "ec483f0039ced51bd02ce0c118263cbf9b7addf620e82653978d1495589446f8",
+    "target/debug/deps/production_capture_linux_tdd-7c042461d79d8c7b": "c607253ee0d57098fb9777d11262b0ff3a1a94ef0ad1b0618d8eca7b7c9c9850"
+  },
+  "execution": {
+    "kernel": "7.0.0-43-generic",
+    "architecture": "x86_64",
+    "cargo_package_version": "2.5.0",
+    "build_image": "rust:1.98",
+    "build_location": "remote Linux temporary unprivileged container",
+    "build_limits": {
+      "cpus": 2,
+      "memory_gib": 4,
+      "pids": 512
+    },
+    "build_profile": "dev/test, unoptimized, debug=0, incremental=0",
+    "runtime": "native root host CLI, two private MTU-1500 namespaces, one cgroup and persistent connected IPv4/IPv6 socket pairs",
+    "evidence_root": "/home/chiharukiryu/.cache/gewyvern/evidence/20261120-product-udp-pressure",
+    "run_directories": [
+      "final-1",
+      "final-2",
+      "final-3"
+    ],
+    "test_selector": "--ignored --exact network::pressure::production_capture_receive_pressure --nocapture",
+    "normal_receive_deadline_ms": 3000,
+    "overflow_drain_deadline_ms": 200,
+    "burst_per_family": 64,
+    "burst_payload_bytes": 1024,
+    "server_requested_receive_buffer_bytes": 4096,
+    "application_truncation_buffer_bytes": 64,
+    "lifecycle_service_count": 200,
+    "docker_runtime_targets": false,
+    "host_network_configuration_changed": false
+  },
+  "results": {
+    "accepted_runs": 3,
+    "product_capture_sessions": 3,
+    "requests_sent": 408,
+    "request_replies": 24,
+    "application_truncations": 6,
+    "overflow_sent": 384,
+    "overflow_delivered": 18,
+    "socket_queue_drops": 366,
+    "retained_packet_facts": 864,
+    "recorded_collector_loss": 0
+  },
+  "findings": {
+    "new_product_capture_defect_reproduced": false,
+    "product_runtime_source_changed": false,
+    "change": "Add native MSG_TRUNC and socket receive-queue overflow acceptance, independent per-namespace UDP counters and per-socket SO_RXQ_OVFL recovery receipts. Keep full packet oracles on Linux; record deterministic packet-oracle digests in this compact fixture.",
+    "interpretation": "A cgroup ingress observation precedes receive-queue admission in these runs. It does not prove application delivery or full application reads. Socket queue drops and application truncation are not collector loss.",
+    "product_socket_drop_classifier_claim": false,
+    "development_attempts": [
+      "attempt-1: initial native run passed; excluded from final repeats after adding exact UDP InDatagrams/OutDatagrams and error-counter checks"
+    ],
+    "failed_attempts_counted": false,
+    "regressions": [
+      "errors-regression: dual-stack local EMSGSIZE, remote ECONNREFUSED and socket reuse passed",
+      "lifecycle-regression: actual collector overflow and fault recovery passed"
+    ],
+    "raw_packet_oracles": "Each run retains client/oracle.json, server/oracle.json and export.json at evidence_root. expected_sha256 hashes serde_json compact serialization of the original expected array; tests reconstruct all 144 expected observations per peer, not only the delivered subset."
+  },
+  "runs": [
+    {
+      "application_truncations": 2,
+      "binary_sha256": "ec483f0039ced51bd02ce0c118263cbf9b7addf620e82653978d1495589446f8",
+      "capture": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3922486-1795178245480441890",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "288",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "288",
+        "retained": "288",
+        "run_id": "3922499-99420428043604",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "facts": 288,
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "limits": [
+        "single_host_private_veth",
+        "selected_udp_only",
+        "bounded_burst_not_sustained_load",
+        "ingress_observation_is_not_application_delivery",
+        "native_drop_counters_are_independent_oracles"
+      ],
+      "namespace_ids": [
+        1,
+        2
+      ],
+      "ok": true,
+      "oracles": [
+        {
+          "cookies": [
+            "12321",
+            "12322"
+          ],
+          "expected_count": 144,
+          "expected_sha256": "a8828a7bd8ae440eae7e47d93ed54c1406c3a3dcee231b3c076aaf9202d1b3d6",
+          "ifindex": 2,
+          "namespace": "net:[4026534049]",
+          "overflow_expected_basis": "sender_bytes_and_native_rcvbuf_drop_accounting_not_application_delivery",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "12321",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "12322",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "baseline",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "12321",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "12322",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "truncate",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "12321",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "12322",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "truncate-recovery",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "12321",
+                  "family": 4,
+                  "receipts": [
+
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30,
+                    31,
+                    32,
+                    33,
+                    34,
+                    35,
+                    36,
+                    37,
+                    38,
+                    39,
+                    40,
+                    41,
+                    42,
+                    43,
+                    44,
+                    45,
+                    46,
+                    47,
+                    48,
+                    49,
+                    50,
+                    51,
+                    52,
+                    53,
+                    54,
+                    55,
+                    56,
+                    57,
+                    58,
+                    59,
+                    60,
+                    61,
+                    62,
+                    63
+                  ]
+                },
+                {
+                  "cookie": "12322",
+                  "family": 6,
+                  "receipts": [
+
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30,
+                    31,
+                    32,
+                    33,
+                    34,
+                    35,
+                    36,
+                    37,
+                    38,
+                    39,
+                    40,
+                    41,
+                    42,
+                    43,
+                    44,
+                    45,
+                    46,
+                    47,
+                    48,
+                    49,
+                    50,
+                    51,
+                    52,
+                    53,
+                    54,
+                    55,
+                    56,
+                    57,
+                    58,
+                    59,
+                    60,
+                    61,
+                    62,
+                    63
+                  ]
+                }
+              ],
+              "phase": "overflow",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 0,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 64,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 0,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 64,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "12321",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "8cea9965cf2e67fb19afe25afbee618c58426aaceeebe7a11f8bb65ae2f3bb30",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "12322",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "c1009393cb91d73ca0bcc098010eea83b5eaf9ee8230c0d0821f1a08dbc2b2d4",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "overflow-recovery",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            }
+          ],
+          "role": "client",
+          "same_sockets_all_phases": true
+        },
+        {
+          "cookies": [
+            "32783",
+            "32784"
+          ],
+          "expected_count": 144,
+          "expected_sha256": "c55c2b3e0d84915060b5363a80ad3b20e42b06fcbc8bc5d5b349178356b18e36",
+          "ifindex": 2,
+          "namespace": "net:[4026534225]",
+          "overflow_expected_basis": "sender_bytes_and_native_rcvbuf_drop_accounting_not_application_delivery",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "32783",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "32784",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "baseline",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "32783",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 64,
+                      "copied_sha256": "ce600d0a98aa9a1929699346f28b09314c0ed9ace05b9f6bd2b9abc0321e9cd9",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": true,
+                      "wire_len": 1024
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "32784",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 64,
+                      "copied_sha256": "08840f0de0003f7bab182d235a6402d5a6c15cb8b365ae4fec02c9eb38faf729",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": true,
+                      "wire_len": 1024
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "truncate",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "32783",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "32784",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "truncate-recovery",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "32783",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "fb5a01ce1804c2e0e7f9340fb4842ea92e8ba5fe23d42ed62b1b79ee87d81b40",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    },
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "e141412756a85e57e7aa88301f1c79a71c83dae11d7b570606406a70539656d2",
+                      "id": 1,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    },
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "0c60f8bacc3ec4af1128898d0a7acd9a371627bb68465dd9a45067d5550fc903",
+                      "id": 2,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    }
+                  ],
+                  "receive_buffer_bytes": 8192,
+                  "request_length": 1024,
+                  "sent_ids": [
+
+                  ]
+                },
+                {
+                  "cookie": "32784",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "0ea71e2a31431fec58c06493555aec133bd64c2b2f787f573760c8f8156ec7f9",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    },
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "e2ea3b41aedd44ddc67d2ae247a64f53a2785489b99a024c2e1c43fdb4afc531",
+                      "id": 1,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    },
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "0278abae9c32dc03bd651abb188e7f0d2476159725a70252a406a38db32aebb5",
+                      "id": 2,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    }
+                  ],
+                  "receive_buffer_bytes": 8192,
+                  "request_length": 1024,
+                  "sent_ids": [
+
+                  ]
+                }
+              ],
+              "phase": "overflow",
+              "receiver_paused_until_all_sends": true,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 3,
+                "Udp6InErrors": 61,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 0,
+                "Udp6RcvbufErrors": 61,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 3,
+                "UdpInErrors": 61,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 0,
+                "UdpRcvbufErrors": 61,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "32783",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "8cea9965cf2e67fb19afe25afbee618c58426aaceeebe7a11f8bb65ae2f3bb30",
+                      "id": 0,
+                      "rxq_drops": 61,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 8192,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "32784",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "c1009393cb91d73ca0bcc098010eea83b5eaf9ee8230c0d0821f1a08dbc2b2d4",
+                      "id": 0,
+                      "rxq_drops": 61,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 8192,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "overflow-recovery",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            }
+          ],
+          "role": "server",
+          "same_sockets_all_phases": true
+        }
+      ],
+      "overflow_delivered": 6,
+      "overflow_sent": 128,
+      "owned_resources_removed": true,
+      "packet_multiset_matches": true,
+      "product_socket_drop_classifier_claim": false,
+      "production_cli": true,
+      "replay_identical": true,
+      "request_replies": 8,
+      "requests_sent": 136,
+      "same_socket_recovery": true,
+      "schema_version": 1,
+      "socket_queue_drops": 122,
+      "validation_capture_used": false
+    },
+    {
+      "application_truncations": 2,
+      "binary_sha256": "ec483f0039ced51bd02ce0c118263cbf9b7addf620e82653978d1495589446f8",
+      "capture": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3922585-1795178247502872781",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "288",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "288",
+        "retained": "288",
+        "run_id": "3922598-99422445458890",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "facts": 288,
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "limits": [
+        "single_host_private_veth",
+        "selected_udp_only",
+        "bounded_burst_not_sustained_load",
+        "ingress_observation_is_not_application_delivery",
+        "native_drop_counters_are_independent_oracles"
+      ],
+      "namespace_ids": [
+        1,
+        2
+      ],
+      "ok": true,
+      "oracles": [
+        {
+          "cookies": [
+            "16422",
+            "16423"
+          ],
+          "expected_count": 144,
+          "expected_sha256": "87e346023eddd143100f32242b09e89dd978bb3689077374d8342eb1cf0bc50e",
+          "ifindex": 2,
+          "namespace": "net:[4026534224]",
+          "overflow_expected_basis": "sender_bytes_and_native_rcvbuf_drop_accounting_not_application_delivery",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "16422",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "16423",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "baseline",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "16422",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "16423",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "truncate",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "16422",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "16423",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "truncate-recovery",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "16422",
+                  "family": 4,
+                  "receipts": [
+
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30,
+                    31,
+                    32,
+                    33,
+                    34,
+                    35,
+                    36,
+                    37,
+                    38,
+                    39,
+                    40,
+                    41,
+                    42,
+                    43,
+                    44,
+                    45,
+                    46,
+                    47,
+                    48,
+                    49,
+                    50,
+                    51,
+                    52,
+                    53,
+                    54,
+                    55,
+                    56,
+                    57,
+                    58,
+                    59,
+                    60,
+                    61,
+                    62,
+                    63
+                  ]
+                },
+                {
+                  "cookie": "16423",
+                  "family": 6,
+                  "receipts": [
+
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30,
+                    31,
+                    32,
+                    33,
+                    34,
+                    35,
+                    36,
+                    37,
+                    38,
+                    39,
+                    40,
+                    41,
+                    42,
+                    43,
+                    44,
+                    45,
+                    46,
+                    47,
+                    48,
+                    49,
+                    50,
+                    51,
+                    52,
+                    53,
+                    54,
+                    55,
+                    56,
+                    57,
+                    58,
+                    59,
+                    60,
+                    61,
+                    62,
+                    63
+                  ]
+                }
+              ],
+              "phase": "overflow",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 0,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 64,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 0,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 64,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "16422",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "8cea9965cf2e67fb19afe25afbee618c58426aaceeebe7a11f8bb65ae2f3bb30",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "16423",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "c1009393cb91d73ca0bcc098010eea83b5eaf9ee8230c0d0821f1a08dbc2b2d4",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "overflow-recovery",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            }
+          ],
+          "role": "client",
+          "same_sockets_all_phases": true
+        },
+        {
+          "cookies": [
+            "8227",
+            "8228"
+          ],
+          "expected_count": 144,
+          "expected_sha256": "8eba1335acc414d05d5578810c76a4834eea0ad3b8094528d3a3955a194176c6",
+          "ifindex": 2,
+          "namespace": "net:[4026534277]",
+          "overflow_expected_basis": "sender_bytes_and_native_rcvbuf_drop_accounting_not_application_delivery",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "8227",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "8228",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "baseline",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8227",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 64,
+                      "copied_sha256": "ce600d0a98aa9a1929699346f28b09314c0ed9ace05b9f6bd2b9abc0321e9cd9",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": true,
+                      "wire_len": 1024
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "8228",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 64,
+                      "copied_sha256": "08840f0de0003f7bab182d235a6402d5a6c15cb8b365ae4fec02c9eb38faf729",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": true,
+                      "wire_len": 1024
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "truncate",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8227",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "8228",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "truncate-recovery",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8227",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "fb5a01ce1804c2e0e7f9340fb4842ea92e8ba5fe23d42ed62b1b79ee87d81b40",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    },
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "e141412756a85e57e7aa88301f1c79a71c83dae11d7b570606406a70539656d2",
+                      "id": 1,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    },
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "0c60f8bacc3ec4af1128898d0a7acd9a371627bb68465dd9a45067d5550fc903",
+                      "id": 2,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    }
+                  ],
+                  "receive_buffer_bytes": 8192,
+                  "request_length": 1024,
+                  "sent_ids": [
+
+                  ]
+                },
+                {
+                  "cookie": "8228",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "0ea71e2a31431fec58c06493555aec133bd64c2b2f787f573760c8f8156ec7f9",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    },
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "e2ea3b41aedd44ddc67d2ae247a64f53a2785489b99a024c2e1c43fdb4afc531",
+                      "id": 1,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    },
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "0278abae9c32dc03bd651abb188e7f0d2476159725a70252a406a38db32aebb5",
+                      "id": 2,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    }
+                  ],
+                  "receive_buffer_bytes": 8192,
+                  "request_length": 1024,
+                  "sent_ids": [
+
+                  ]
+                }
+              ],
+              "phase": "overflow",
+              "receiver_paused_until_all_sends": true,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 3,
+                "Udp6InErrors": 61,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 0,
+                "Udp6RcvbufErrors": 61,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 3,
+                "UdpInErrors": 61,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 0,
+                "UdpRcvbufErrors": 61,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8227",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "8cea9965cf2e67fb19afe25afbee618c58426aaceeebe7a11f8bb65ae2f3bb30",
+                      "id": 0,
+                      "rxq_drops": 61,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 8192,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "8228",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "c1009393cb91d73ca0bcc098010eea83b5eaf9ee8230c0d0821f1a08dbc2b2d4",
+                      "id": 0,
+                      "rxq_drops": 61,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 8192,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "overflow-recovery",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            }
+          ],
+          "role": "server",
+          "same_sockets_all_phases": true
+        }
+      ],
+      "overflow_delivered": 6,
+      "overflow_sent": 128,
+      "owned_resources_removed": true,
+      "packet_multiset_matches": true,
+      "product_socket_drop_classifier_claim": false,
+      "production_cli": true,
+      "replay_identical": true,
+      "request_replies": 8,
+      "requests_sent": 136,
+      "same_socket_recovery": true,
+      "schema_version": 1,
+      "socket_queue_drops": 122,
+      "validation_capture_used": false
+    },
+    {
+      "application_truncations": 2,
+      "binary_sha256": "ec483f0039ced51bd02ce0c118263cbf9b7addf620e82653978d1495589446f8",
+      "capture": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3922659-1795178249542493485",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "288",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "288",
+        "retained": "288",
+        "run_id": "3922672-99424485230747",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "facts": 288,
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "limits": [
+        "single_host_private_veth",
+        "selected_udp_only",
+        "bounded_burst_not_sustained_load",
+        "ingress_observation_is_not_application_delivery",
+        "native_drop_counters_are_independent_oracles"
+      ],
+      "namespace_ids": [
+        1,
+        2
+      ],
+      "ok": true,
+      "oracles": [
+        {
+          "cookies": [
+            "8229",
+            "8230"
+          ],
+          "expected_count": 144,
+          "expected_sha256": "78171b9eb92d0a05f99731de26f657475cde35d53b7cd5024a31c66798390a4f",
+          "ifindex": 2,
+          "namespace": "net:[4026534049]",
+          "overflow_expected_basis": "sender_bytes_and_native_rcvbuf_drop_accounting_not_application_delivery",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "8229",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "8230",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "baseline",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8229",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "8230",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "truncate",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8229",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "8230",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "truncate-recovery",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8229",
+                  "family": 4,
+                  "receipts": [
+
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30,
+                    31,
+                    32,
+                    33,
+                    34,
+                    35,
+                    36,
+                    37,
+                    38,
+                    39,
+                    40,
+                    41,
+                    42,
+                    43,
+                    44,
+                    45,
+                    46,
+                    47,
+                    48,
+                    49,
+                    50,
+                    51,
+                    52,
+                    53,
+                    54,
+                    55,
+                    56,
+                    57,
+                    58,
+                    59,
+                    60,
+                    61,
+                    62,
+                    63
+                  ]
+                },
+                {
+                  "cookie": "8230",
+                  "family": 6,
+                  "receipts": [
+
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30,
+                    31,
+                    32,
+                    33,
+                    34,
+                    35,
+                    36,
+                    37,
+                    38,
+                    39,
+                    40,
+                    41,
+                    42,
+                    43,
+                    44,
+                    45,
+                    46,
+                    47,
+                    48,
+                    49,
+                    50,
+                    51,
+                    52,
+                    53,
+                    54,
+                    55,
+                    56,
+                    57,
+                    58,
+                    59,
+                    60,
+                    61,
+                    62,
+                    63
+                  ]
+                }
+              ],
+              "phase": "overflow",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 0,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 64,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 0,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 64,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8229",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "8cea9965cf2e67fb19afe25afbee618c58426aaceeebe7a11f8bb65ae2f3bb30",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "8230",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "c1009393cb91d73ca0bcc098010eea83b5eaf9ee8230c0d0821f1a08dbc2b2d4",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "overflow-recovery",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            }
+          ],
+          "role": "client",
+          "same_sockets_all_phases": true
+        },
+        {
+          "cookies": [
+            "16424",
+            "16425"
+          ],
+          "expected_count": 144,
+          "expected_sha256": "46487cc712152769234c5990392db8d0ed0d2d3fb30895c34929c004acb117e0",
+          "ifindex": 2,
+          "namespace": "net:[4026534226]",
+          "overflow_expected_basis": "sender_bytes_and_native_rcvbuf_drop_accounting_not_application_delivery",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "16424",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "16425",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "baseline",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "16424",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 64,
+                      "copied_sha256": "ce600d0a98aa9a1929699346f28b09314c0ed9ace05b9f6bd2b9abc0321e9cd9",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": true,
+                      "wire_len": 1024
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "16425",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 64,
+                      "copied_sha256": "08840f0de0003f7bab182d235a6402d5a6c15cb8b365ae4fec02c9eb38faf729",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": true,
+                      "wire_len": 1024
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 1024,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "truncate",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "16424",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "16425",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 212992,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "truncate-recovery",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "16424",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "fb5a01ce1804c2e0e7f9340fb4842ea92e8ba5fe23d42ed62b1b79ee87d81b40",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    },
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "e141412756a85e57e7aa88301f1c79a71c83dae11d7b570606406a70539656d2",
+                      "id": 1,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    },
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "0c60f8bacc3ec4af1128898d0a7acd9a371627bb68465dd9a45067d5550fc903",
+                      "id": 2,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    }
+                  ],
+                  "receive_buffer_bytes": 8192,
+                  "request_length": 1024,
+                  "sent_ids": [
+
+                  ]
+                },
+                {
+                  "cookie": "16425",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "0ea71e2a31431fec58c06493555aec133bd64c2b2f787f573760c8f8156ec7f9",
+                      "id": 0,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    },
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "e2ea3b41aedd44ddc67d2ae247a64f53a2785489b99a024c2e1c43fdb4afc531",
+                      "id": 1,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    },
+                    {
+                      "copied_len": 1024,
+                      "copied_sha256": "0278abae9c32dc03bd651abb188e7f0d2476159725a70252a406a38db32aebb5",
+                      "id": 2,
+                      "rxq_drops": null,
+                      "truncated": false,
+                      "wire_len": 1024
+                    }
+                  ],
+                  "receive_buffer_bytes": 8192,
+                  "request_length": 1024,
+                  "sent_ids": [
+
+                  ]
+                }
+              ],
+              "phase": "overflow",
+              "receiver_paused_until_all_sends": true,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 3,
+                "Udp6InErrors": 61,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 0,
+                "Udp6RcvbufErrors": 61,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 3,
+                "UdpInErrors": 61,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 0,
+                "UdpRcvbufErrors": 61,
+                "UdpSndbufErrors": 0
+              }
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "16424",
+                  "family": 4,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "8cea9965cf2e67fb19afe25afbee618c58426aaceeebe7a11f8bb65ae2f3bb30",
+                      "id": 0,
+                      "rxq_drops": 61,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 8192,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                },
+                {
+                  "cookie": "16425",
+                  "family": 6,
+                  "receipts": [
+                    {
+                      "copied_len": 32,
+                      "copied_sha256": "c1009393cb91d73ca0bcc098010eea83b5eaf9ee8230c0d0821f1a08dbc2b2d4",
+                      "id": 0,
+                      "rxq_drops": 61,
+                      "truncated": false,
+                      "wire_len": 32
+                    }
+                  ],
+                  "receive_buffer_bytes": 8192,
+                  "request_length": 32,
+                  "sent_ids": [
+                    0
+                  ]
+                }
+              ],
+              "phase": "overflow-recovery",
+              "receiver_paused_until_all_sends": false,
+              "udp_counter_deltas": {
+                "Udp6IgnoredMulti": 0,
+                "Udp6InCsumErrors": 0,
+                "Udp6InDatagrams": 1,
+                "Udp6InErrors": 0,
+                "Udp6MemErrors": 0,
+                "Udp6NoPorts": 0,
+                "Udp6OutDatagrams": 1,
+                "Udp6RcvbufErrors": 0,
+                "Udp6SndbufErrors": 0,
+                "UdpIgnoredMulti": 0,
+                "UdpInCsumErrors": 0,
+                "UdpInDatagrams": 1,
+                "UdpInErrors": 0,
+                "UdpMemErrors": 0,
+                "UdpNoPorts": 0,
+                "UdpOutDatagrams": 1,
+                "UdpRcvbufErrors": 0,
+                "UdpSndbufErrors": 0
+              }
+            }
+          ],
+          "role": "server",
+          "same_sockets_all_phases": true
+        }
+      ],
+      "overflow_delivered": 6,
+      "overflow_sent": 128,
+      "owned_resources_removed": true,
+      "packet_multiset_matches": true,
+      "product_socket_drop_classifier_claim": false,
+      "production_cli": true,
+      "replay_identical": true,
+      "request_replies": 8,
+      "requests_sent": 136,
+      "same_socket_recovery": true,
+      "schema_version": 1,
+      "socket_queue_drops": 122,
+      "validation_capture_used": false
+    }
+  ]
+}

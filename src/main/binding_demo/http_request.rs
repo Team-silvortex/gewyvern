@@ -76,6 +76,7 @@
                 session: SessionId(2),
                 fragment_id: "tcp_packet_meta_fragment".into(),
                 kind: FactKind::PacketMeta(PacketMetaFact {
+                    udp_offload: None,
                     netns: 1,
                     sk_cookie: Some(99),
                     dir: PacketDir::Egress,
@@ -108,6 +109,7 @@
                 session: SessionId(2),
                 fragment_id: "tcp_packet_meta_fragment".into(),
                 kind: FactKind::PacketMeta(PacketMetaFact {
+                    udp_offload: None,
                     netns: 1,
                     sk_cookie: Some(99),
                     dir: PacketDir::Ingress,

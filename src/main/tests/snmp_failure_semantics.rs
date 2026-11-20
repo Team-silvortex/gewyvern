@@ -34,6 +34,7 @@ fn snmp_udp_packet_fact(
         session: SessionId(1),
         fragment_id: "udp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns: 1,
             sk_cookie: Some(cookie),
             dir,

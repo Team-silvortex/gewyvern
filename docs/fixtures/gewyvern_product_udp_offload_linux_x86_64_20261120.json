@@ -1,0 +1,3756 @@
+{
+  "schema_version": 1,
+  "campaign": "production-cli-udp-gso-gro-truthful-unsupported-boundary",
+  "date": "2026-11-20",
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "source_base_commit": "c1047db904a168d4404b0d027e42a2d11f476aa0",
+  "source_commit_subject": "fix(ci): restore Rust gates and record UDP fault coverage",
+  "source_worktree_dirty": true,
+  "source_sha256": {
+    "tests/production_capture_linux_tdd.rs": "7919c47c9c65bbe50ff740ce2146d08881fad10709d46a34873f0a6f0edd25ed",
+    "tests/production_capture_linux_tdd/boundaries.rs": "d4873971eeea71cac35c43f553439664ef03558a0dca4729b95ce294e2426921",
+    "tests/production_capture_linux_tdd/network.rs": "14de482b780d993108e5f88c712dfbb4b74ec6d598214b0412ad8f2793e2979d",
+    "tests/production_capture_linux_tdd/network/faults.rs": "babf573e6eea35b6f68ad64038bd0e31c16d7dd45042191589ff78f006f91939",
+    "tests/production_capture_linux_tdd/network/offload.rs": "de40347c37ac6ed181eb987d11542cda897212ee8a04bc04a2b12aba5f483882",
+    "tests/native_validation_harness_tdd.rs": "7d6659ddb07ee6a7d9c0b3fdefc892b92da9c9e4bb18321035ec3f2e3dd201f9",
+    "tests/native_validation_harness_tdd/udp_offload.rs": "e03b43831da179acefdeadcb021c1bfaea831625bee785ee7dd3d336d905708c",
+    "src/live_capture.rs": "fd14b4925528b4c8b22ebc3a3d0f1890c098d862fa5df8f0fdb9a59eb42448ab",
+    "src/live_capture/linux.rs": "1e166da359d5f11624e545fc2fef57182fa1a48b76c4dbc4d34dd5cd9ac084ed",
+    "src/live_capture/linux/api.rs": "77426bb0cee7018f88a3d1a0cc24d316f99ad8df35e05c962fab8382942b7d0d",
+    "src/main.rs": "c898522bdfc59485d4375b180a15f7a68ac1b5358c4dd2da18f5a2ca7bf6b5e0",
+    "src/main/capture_cli.rs": "92fa52a61995c9cf3e5fbff54d24238a26bad53ecd9f3c99c105d596d103f0c3",
+    "src/main/capture_runtime.rs": "80836255e2c49daa600ec4457faf7da9bce429faf875e2358a6a26f5dbdd1462",
+    "src/packet_capture.rs": "50cf644ff5bf466169296b79850bd8e128df60734978ee500ddb1d3c70ac8014",
+    "src/export.rs": "58691c97e23343d041630d3aafd63febb8568f0eb0114b43dbb3b45ad96b78c4",
+    "src/export/capture_codec.rs": "55c07226d16d934f7c0586e26c42fca419f46d4daab5fb9b6784ace76f6243da",
+    "ebpf/production/udp.bpf.c": "b2d10e9128b5532dd6edf8f2e28aa3f03d0d723150e726b4b9efe8e119b71d23",
+    "Cargo.toml": "e46a3f093e6162f78752db705f375d37e41a50f13567b35033383e04a67238fa",
+    "Cargo.lock": "52492d8def30e48e97cdc2b576a018e1bb7d90654091afc8cdcc44099f6041a8"
+  },
+  "source_scope": "19 selected production, ABI, test and build inputs match Linux byte-for-byte; not a hermetic whole-worktree release manifest.",
+  "binary_sha256": {
+    "target/debug/gewyvern": "6da3f68e8e1525037ffac7c59867a1fd503713f67cfaefbe06b5e1ac0124b523",
+    "target/debug/deps/production_capture_linux_tdd-7c042461d79d8c7b": "955c82073d00324808d00429e4dc74cc7f54178a29d6a2eb145afbd9bb5c5188"
+  },
+  "before_source_and_binary_sha256": {
+    "ebpf/production/udp.bpf.c": "867e71774df6c9bbf69370ce712d527c0d7a8dede8eba1eff0975d76e1c1c1e3",
+    "target/debug/gewyvern": "ec483f0039ced51bd02ce0c118263cbf9b7addf620e82653978d1495589446f8",
+    "target/debug/deps/production_capture_linux_tdd-7c042461d79d8c7b": "955c82073d00324808d00429e4dc74cc7f54178a29d6a2eb145afbd9bb5c5188"
+  },
+  "execution": {
+    "kernel": "7.0.0-43-generic",
+    "architecture": "x86_64",
+    "cargo_package_version": "2.5.0",
+    "build_image": "rust:1.98",
+    "build_location": "remote Linux temporary unprivileged container",
+    "build_limits": {
+      "cpus": 2,
+      "memory_gib": 4,
+      "pids": 512
+    },
+    "build_profile": "dev/test, unoptimized, debug=0, incremental=0",
+    "runtime": "native root host CLI; two private MTU-1500 network namespaces, selected cgroup, persistent connected dual-stack sockets",
+    "evidence_root": "/home/chiharukiryu/.cache/gewyvern/evidence/20261120-product-udp-offload",
+    "run_directories": [
+      "final-false-1",
+      "final-false-2",
+      "final-false-3",
+      "final-true-1",
+      "final-true-2",
+      "final-true-3"
+    ],
+    "test_selector": "--ignored --exact network::offload::production_capture_udp_offload_boundary --nocapture",
+    "segment_payload_bytes": 1024,
+    "offload_request_lengths": [
+      1024,
+      1024,
+      1024,
+      17
+    ],
+    "normal_receive_deadline_ms": 3000,
+    "extra_datagram_guard_ms": 40,
+    "lifecycle_service_count": 200,
+    "docker_runtime_targets": false,
+    "host_network_configuration_changed": false
+  },
+  "results": {
+    "accepted_runs": 6,
+    "native_requests": 120,
+    "native_replies": 48,
+    "selected_offload_datagrams": 48,
+    "unselected_offload_datagrams": 48,
+    "retained_packet_facts": 144,
+    "unsupported_aggregate_observations": 18,
+    "ring_or_userspace_or_decode_drops": 0
+  },
+  "findings": {
+    "new_product_capture_defect_reproduced": true,
+    "product_runtime_source_changed": true,
+    "before": "Both modes exited 0 and claimed complete capture. GSO-only exported two fictitious aggregate datagrams; GSO+GRO exported four. Full IP lengths 3117/3137 represented multiple native datagrams rather than a valid single observed UDP datagram.",
+    "fix": "Check gso_size or gso_segs > 1 after selected-port filtering and before normal datagram length validation/admission. Reject aggregates as unsupported; existing capture accounting marks incomplete and exits 3. Original traffic is always allowed.",
+    "interpretation": "This fixes false evidence and false completeness; it does not normalize GSO/GRO into per-datagram facts. Unsupported counts are aggregate hook observations, not missing wire-packet counts.",
+    "product_offload_normalization_claim": false,
+    "development_attempts": [
+      "before-false and before-true: expected failing reproductions with the old product",
+      "after-false and after-true: first repaired passes, excluded from final repeats"
+    ],
+    "failed_attempts_counted": false,
+    "regressions": [
+      "mtu-regression: real unfragmented and fragmented IPv4/IPv6 passed",
+      "pressure-regression: application truncation and receive-queue drops passed",
+      "lifecycle-regression: real collector overflow and fault recovery passed"
+    ],
+    "raw_evidence": "Each directory retains native worker oracles, diagnostic.json and actual export.json. Compact expected_sha256 values bind exact accepted per-peer packet multisets."
+  },
+  "before": [
+    {
+      "gro_enabled": false,
+      "diagnostic": {
+        "capture": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3959704-1795179162640580816",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "30",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "30",
+          "retained": "30",
+          "run_id": "3959717-100337583941290",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "exit": 0,
+        "fact_ip_lengths": [
+          60,
+          60,
+          60,
+          60,
+          80,
+          80,
+          80,
+          80,
+          3117,
+          1052,
+          1052,
+          1052,
+          45,
+          60,
+          60,
+          3137,
+          1072,
+          1072,
+          1072,
+          65,
+          80,
+          80,
+          60,
+          60,
+          60,
+          60,
+          80,
+          80,
+          80,
+          80
+        ]
+      },
+      "native_server_offload": {
+        "observations": [
+          {
+            "cookie": "8239",
+            "extra_datagram_observed": false,
+            "family": 4,
+            "local_port": 41002,
+            "receives": [
+              {
+                "gro_segment": null,
+                "length": 1024,
+                "sha256": "71148c9872fa3991b9cb599e66dc89b699a086a5c9feaf534c06cb8f0b6235ae"
+              },
+              {
+                "gro_segment": null,
+                "length": 1024,
+                "sha256": "80d356ffe08a16104a9e283fd0d0edd2f23018a66e76e08374761f80968943b9"
+              },
+              {
+                "gro_segment": null,
+                "length": 1024,
+                "sha256": "c6483b84ea7de5fb6d416e8c68a90df002e985b53a09b916f3c7cccd9249531c"
+              },
+              {
+                "gro_segment": null,
+                "length": 17,
+                "sha256": "88d3d0cf640e835c8042aa58076ba6cd00c66f6e887d378c0efd2a440e02bb6c"
+              }
+            ],
+            "remote_port": 41001,
+            "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+            "request_lengths": [
+              1024,
+              1024,
+              1024,
+              17
+            ],
+            "request_sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55",
+            "selected_port": true,
+            "send_bytes": 32,
+            "send_calls": 1
+          },
+          {
+            "cookie": "8240",
+            "extra_datagram_observed": false,
+            "family": 6,
+            "local_port": 41002,
+            "receives": [
+              {
+                "gro_segment": null,
+                "length": 1024,
+                "sha256": "25fffbbdf8f650b0d4545676b289b704d05b6f0416bcc63891f3e5336026cc70"
+              },
+              {
+                "gro_segment": null,
+                "length": 1024,
+                "sha256": "fc04343ff8e5bb53745bde52630451722670c13314584905c17993c4683b6b45"
+              },
+              {
+                "gro_segment": null,
+                "length": 1024,
+                "sha256": "85f462450f7a5e8fbc3463fe9c9a0390195e10ea152923f88b1cc98c7784b259"
+              },
+              {
+                "gro_segment": null,
+                "length": 17,
+                "sha256": "450e7407509fc6098e5cfff255c8e1cc27d992ebe7511307ce6c2c3e742b0345"
+              }
+            ],
+            "remote_port": 41001,
+            "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+            "request_lengths": [
+              1024,
+              1024,
+              1024,
+              17
+            ],
+            "request_sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8",
+            "selected_port": true,
+            "send_bytes": 32,
+            "send_calls": 1
+          }
+        ],
+        "phase": "offload"
+      }
+    },
+    {
+      "gro_enabled": true,
+      "diagnostic": {
+        "capture": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3959752-1795179164243011139",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "24",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "24",
+          "retained": "24",
+          "run_id": "3959765-100339185272900",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "exit": 0,
+        "fact_ip_lengths": [
+          60,
+          60,
+          60,
+          60,
+          80,
+          80,
+          80,
+          80,
+          3117,
+          3117,
+          60,
+          60,
+          3137,
+          3137,
+          80,
+          80,
+          60,
+          60,
+          60,
+          60,
+          80,
+          80,
+          80,
+          80
+        ]
+      },
+      "native_server_offload": {
+        "observations": [
+          {
+            "cookie": "24583",
+            "extra_datagram_observed": false,
+            "family": 4,
+            "local_port": 41002,
+            "receives": [
+              {
+                "gro_segment": 1024,
+                "length": 3089,
+                "sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55"
+              }
+            ],
+            "remote_port": 41001,
+            "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+            "request_lengths": [
+              1024,
+              1024,
+              1024,
+              17
+            ],
+            "request_sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55",
+            "selected_port": true,
+            "send_bytes": 32,
+            "send_calls": 1
+          },
+          {
+            "cookie": "24584",
+            "extra_datagram_observed": false,
+            "family": 6,
+            "local_port": 41002,
+            "receives": [
+              {
+                "gro_segment": 1024,
+                "length": 3089,
+                "sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8"
+              }
+            ],
+            "remote_port": 41001,
+            "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+            "request_lengths": [
+              1024,
+              1024,
+              1024,
+              17
+            ],
+            "request_sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8",
+            "selected_port": true,
+            "send_bytes": 32,
+            "send_calls": 1
+          }
+        ],
+        "phase": "offload"
+      }
+    }
+  ],
+  "runs": [
+    {
+      "binary_sha256": "6da3f68e8e1525037ffac7c59867a1fd503713f67cfaefbe06b5e1ac0124b523",
+      "capture": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3967718-1795179343118446537",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "28",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "2"
+        },
+        "received": "28",
+        "retained": "28",
+        "run_id": "3967731-100518061215412",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "capture_exit": 3,
+      "facts": 28,
+      "gro_enabled": false,
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "limits": [
+        "single_host_private_veth",
+        "offloaded_aggregates_rejected_not_normalized",
+        "no_physical_nic_certification"
+      ],
+      "namespace_ids": [
+        1,
+        2
+      ],
+      "native_replies": 8,
+      "native_requests": 20,
+      "ok": true,
+      "oracles": [
+        {
+          "cookies": [
+            "12327",
+            "12328"
+          ],
+          "excluded_cookies": [
+            "12329",
+            "12330"
+          ],
+          "expected_count": 10,
+          "expected_sha256": "55c42eaf36a1c21543953f8e2b805712700efdc43c02ac5b943335097c788b3c",
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "ifindex": 2,
+          "namespace": "net:[4026534049]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "12327",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "12328",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "12327",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55",
+                  "selected_port": true,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "12328",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8",
+                  "selected_port": true,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "12329",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41003,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75"
+                    }
+                  ],
+                  "remote_port": 41004,
+                  "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "53c120b05eacf714f2d9c9914affb68c0ba6112eafe164d235437f65a009d8e9",
+                  "selected_port": false,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "12330",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41003,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae"
+                    }
+                  ],
+                  "remote_port": 41004,
+                  "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c5f1a425520b269398b25ce47c6cd313106fc52caa638fa8d5fef537562647f2",
+                  "selected_port": false,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "unselected-offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "12327",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "12328",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "client",
+          "same_sockets_all_phases": true
+        },
+        {
+          "cookies": [
+            "20531",
+            "20532"
+          ],
+          "excluded_cookies": [
+            "20533",
+            "20534"
+          ],
+          "expected_count": 18,
+          "expected_sha256": "21bccf5119d8b9e9052e4a38d4ddf3a08f87173899e26d3240b224544c5eb373",
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "ifindex": 2,
+          "namespace": "net:[4026534225]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "20531",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "20532",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20531",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "71148c9872fa3991b9cb599e66dc89b699a086a5c9feaf534c06cb8f0b6235ae"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "80d356ffe08a16104a9e283fd0d0edd2f23018a66e76e08374761f80968943b9"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "c6483b84ea7de5fb6d416e8c68a90df002e985b53a09b916f3c7cccd9249531c"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 17,
+                      "sha256": "88d3d0cf640e835c8042aa58076ba6cd00c66f6e887d378c0efd2a440e02bb6c"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "20532",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "25fffbbdf8f650b0d4545676b289b704d05b6f0416bcc63891f3e5336026cc70"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "fc04343ff8e5bb53745bde52630451722670c13314584905c17993c4683b6b45"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "85f462450f7a5e8fbc3463fe9c9a0390195e10ea152923f88b1cc98c7784b259"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 17,
+                      "sha256": "450e7407509fc6098e5cfff255c8e1cc27d992ebe7511307ce6c2c3e742b0345"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20533",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41004,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "6d2bac18d9bace10140f55f658eaafa58eb449dff63a8577047c000d5872aaac"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "84a7a96434fe5d21da443f88338ddf710d55be7f060cef2ecd7cd26e67d6a8b3"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "670a5c333294f63b4adb53bbfcc8c5c35ade16bc487cd026c3078b6a5cb17744"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 17,
+                      "sha256": "944eef741cfd3de9bfbf8b360e03e9106ef15a7604680831fbc2a920c53fd93b"
+                    }
+                  ],
+                  "remote_port": 41003,
+                  "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "53c120b05eacf714f2d9c9914affb68c0ba6112eafe164d235437f65a009d8e9",
+                  "selected_port": false,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "20534",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41004,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "200cbcf82d27fee045ac605ee3cd15fec9502fe66ebb44b7745869853d12735d"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "8337d12238962c645e3180bbd7a4ea9f76697e44b3f856dab1713439e0b984e6"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "874d2455b97743670eaff27ff31ab1f3df4f5f7b344cfd1647b13db07b0bf2b5"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 17,
+                      "sha256": "b48ede1fb8dd099b5ffc3aae234325d15dc06c6cc6bb4753d01e7124186bc90d"
+                    }
+                  ],
+                  "remote_port": 41003,
+                  "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c5f1a425520b269398b25ce47c6cd313106fc52caa638fa8d5fef537562647f2",
+                  "selected_port": false,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "unselected-offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20531",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "20532",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "server",
+          "same_sockets_all_phases": true
+        }
+      ],
+      "owned_resources_removed": true,
+      "packet_multiset_matches": true,
+      "product_offload_normalization_claim": false,
+      "production_cli": true,
+      "replay_identical": true,
+      "same_socket_recovery": true,
+      "schema_version": 1,
+      "selected_offload_datagrams": 8,
+      "unselected_offload_datagrams": 8,
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "6da3f68e8e1525037ffac7c59867a1fd503713f67cfaefbe06b5e1ac0124b523",
+      "capture": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3967783-1795179344761149675",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "28",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "2"
+        },
+        "received": "28",
+        "retained": "28",
+        "run_id": "3967796-100519703994613",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "capture_exit": 3,
+      "facts": 28,
+      "gro_enabled": false,
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "limits": [
+        "single_host_private_veth",
+        "offloaded_aggregates_rejected_not_normalized",
+        "no_physical_nic_certification"
+      ],
+      "namespace_ids": [
+        1,
+        2
+      ],
+      "native_replies": 8,
+      "native_requests": 20,
+      "ok": true,
+      "oracles": [
+        {
+          "cookies": [
+            "16426",
+            "16427"
+          ],
+          "excluded_cookies": [
+            "16428",
+            "16429"
+          ],
+          "expected_count": 10,
+          "expected_sha256": "02c7e75f4e9d38a178b705c6eb2bf834afb0b515038c8d9ecac6abdd68accdd7",
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "ifindex": 2,
+          "namespace": "net:[4026534050]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "16426",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "16427",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "16426",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55",
+                  "selected_port": true,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "16427",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8",
+                  "selected_port": true,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "16428",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41003,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75"
+                    }
+                  ],
+                  "remote_port": 41004,
+                  "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "53c120b05eacf714f2d9c9914affb68c0ba6112eafe164d235437f65a009d8e9",
+                  "selected_port": false,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "16429",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41003,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae"
+                    }
+                  ],
+                  "remote_port": 41004,
+                  "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c5f1a425520b269398b25ce47c6cd313106fc52caa638fa8d5fef537562647f2",
+                  "selected_port": false,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "unselected-offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "16426",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "16427",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "client",
+          "same_sockets_all_phases": true
+        },
+        {
+          "cookies": [
+            "40997",
+            "40998"
+          ],
+          "excluded_cookies": [
+            "40999",
+            "41000"
+          ],
+          "expected_count": 18,
+          "expected_sha256": "95d89c8c3a4d9e7f073a1c9564b7aa361bd0a654c848614d34d39cb494ccf80e",
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "ifindex": 2,
+          "namespace": "net:[4026534049]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "40997",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "40998",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "40997",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "71148c9872fa3991b9cb599e66dc89b699a086a5c9feaf534c06cb8f0b6235ae"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "80d356ffe08a16104a9e283fd0d0edd2f23018a66e76e08374761f80968943b9"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "c6483b84ea7de5fb6d416e8c68a90df002e985b53a09b916f3c7cccd9249531c"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 17,
+                      "sha256": "88d3d0cf640e835c8042aa58076ba6cd00c66f6e887d378c0efd2a440e02bb6c"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "40998",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "25fffbbdf8f650b0d4545676b289b704d05b6f0416bcc63891f3e5336026cc70"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "fc04343ff8e5bb53745bde52630451722670c13314584905c17993c4683b6b45"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "85f462450f7a5e8fbc3463fe9c9a0390195e10ea152923f88b1cc98c7784b259"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 17,
+                      "sha256": "450e7407509fc6098e5cfff255c8e1cc27d992ebe7511307ce6c2c3e742b0345"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "40999",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41004,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "6d2bac18d9bace10140f55f658eaafa58eb449dff63a8577047c000d5872aaac"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "84a7a96434fe5d21da443f88338ddf710d55be7f060cef2ecd7cd26e67d6a8b3"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "670a5c333294f63b4adb53bbfcc8c5c35ade16bc487cd026c3078b6a5cb17744"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 17,
+                      "sha256": "944eef741cfd3de9bfbf8b360e03e9106ef15a7604680831fbc2a920c53fd93b"
+                    }
+                  ],
+                  "remote_port": 41003,
+                  "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "53c120b05eacf714f2d9c9914affb68c0ba6112eafe164d235437f65a009d8e9",
+                  "selected_port": false,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "41000",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41004,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "200cbcf82d27fee045ac605ee3cd15fec9502fe66ebb44b7745869853d12735d"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "8337d12238962c645e3180bbd7a4ea9f76697e44b3f856dab1713439e0b984e6"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "874d2455b97743670eaff27ff31ab1f3df4f5f7b344cfd1647b13db07b0bf2b5"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 17,
+                      "sha256": "b48ede1fb8dd099b5ffc3aae234325d15dc06c6cc6bb4753d01e7124186bc90d"
+                    }
+                  ],
+                  "remote_port": 41003,
+                  "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c5f1a425520b269398b25ce47c6cd313106fc52caa638fa8d5fef537562647f2",
+                  "selected_port": false,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "unselected-offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "40997",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "40998",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "server",
+          "same_sockets_all_phases": true
+        }
+      ],
+      "owned_resources_removed": true,
+      "packet_multiset_matches": true,
+      "product_offload_normalization_claim": false,
+      "production_cli": true,
+      "replay_identical": true,
+      "same_socket_recovery": true,
+      "schema_version": 1,
+      "selected_offload_datagrams": 8,
+      "unselected_offload_datagrams": 8,
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "6da3f68e8e1525037ffac7c59867a1fd503713f67cfaefbe06b5e1ac0124b523",
+      "capture": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3967841-1795179346412606300",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "28",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "2"
+        },
+        "received": "28",
+        "retained": "28",
+        "run_id": "3967854-100521355467810",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "capture_exit": 3,
+      "facts": 28,
+      "gro_enabled": false,
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "limits": [
+        "single_host_private_veth",
+        "offloaded_aggregates_rejected_not_normalized",
+        "no_physical_nic_certification"
+      ],
+      "namespace_ids": [
+        1,
+        2
+      ],
+      "native_replies": 8,
+      "native_requests": 20,
+      "ok": true,
+      "oracles": [
+        {
+          "cookies": [
+            "54",
+            "55"
+          ],
+          "excluded_cookies": [
+            "56",
+            "57"
+          ],
+          "expected_count": 10,
+          "expected_sha256": "c6a606f58bf5d809c94cbd20d308d9f2fa4370925b84fe73f5cf8f59f0fbb12b",
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "ifindex": 2,
+          "namespace": "net:[4026534049]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "54",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "55",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "54",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55",
+                  "selected_port": true,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "55",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8",
+                  "selected_port": true,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "56",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41003,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75"
+                    }
+                  ],
+                  "remote_port": 41004,
+                  "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "53c120b05eacf714f2d9c9914affb68c0ba6112eafe164d235437f65a009d8e9",
+                  "selected_port": false,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "57",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41003,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae"
+                    }
+                  ],
+                  "remote_port": 41004,
+                  "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c5f1a425520b269398b25ce47c6cd313106fc52caa638fa8d5fef537562647f2",
+                  "selected_port": false,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "unselected-offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "54",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "55",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "client",
+          "same_sockets_all_phases": true
+        },
+        {
+          "cookies": [
+            "12331",
+            "12332"
+          ],
+          "excluded_cookies": [
+            "12333",
+            "12334"
+          ],
+          "expected_count": 18,
+          "expected_sha256": "e6803c364c2a4ae730daf04986a1bc5ec6893badb3a6237bacf34843eeaf4eed",
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "ifindex": 2,
+          "namespace": "net:[4026534277]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "12331",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "12332",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "12331",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "71148c9872fa3991b9cb599e66dc89b699a086a5c9feaf534c06cb8f0b6235ae"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "80d356ffe08a16104a9e283fd0d0edd2f23018a66e76e08374761f80968943b9"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "c6483b84ea7de5fb6d416e8c68a90df002e985b53a09b916f3c7cccd9249531c"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 17,
+                      "sha256": "88d3d0cf640e835c8042aa58076ba6cd00c66f6e887d378c0efd2a440e02bb6c"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "12332",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "25fffbbdf8f650b0d4545676b289b704d05b6f0416bcc63891f3e5336026cc70"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "fc04343ff8e5bb53745bde52630451722670c13314584905c17993c4683b6b45"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "85f462450f7a5e8fbc3463fe9c9a0390195e10ea152923f88b1cc98c7784b259"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 17,
+                      "sha256": "450e7407509fc6098e5cfff255c8e1cc27d992ebe7511307ce6c2c3e742b0345"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "12333",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41004,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "6d2bac18d9bace10140f55f658eaafa58eb449dff63a8577047c000d5872aaac"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "84a7a96434fe5d21da443f88338ddf710d55be7f060cef2ecd7cd26e67d6a8b3"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "670a5c333294f63b4adb53bbfcc8c5c35ade16bc487cd026c3078b6a5cb17744"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 17,
+                      "sha256": "944eef741cfd3de9bfbf8b360e03e9106ef15a7604680831fbc2a920c53fd93b"
+                    }
+                  ],
+                  "remote_port": 41003,
+                  "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "53c120b05eacf714f2d9c9914affb68c0ba6112eafe164d235437f65a009d8e9",
+                  "selected_port": false,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "12334",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41004,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "200cbcf82d27fee045ac605ee3cd15fec9502fe66ebb44b7745869853d12735d"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "8337d12238962c645e3180bbd7a4ea9f76697e44b3f856dab1713439e0b984e6"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 1024,
+                      "sha256": "874d2455b97743670eaff27ff31ab1f3df4f5f7b344cfd1647b13db07b0bf2b5"
+                    },
+                    {
+                      "gro_segment": null,
+                      "length": 17,
+                      "sha256": "b48ede1fb8dd099b5ffc3aae234325d15dc06c6cc6bb4753d01e7124186bc90d"
+                    }
+                  ],
+                  "remote_port": 41003,
+                  "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c5f1a425520b269398b25ce47c6cd313106fc52caa638fa8d5fef537562647f2",
+                  "selected_port": false,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "unselected-offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "12331",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "12332",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "server",
+          "same_sockets_all_phases": true
+        }
+      ],
+      "owned_resources_removed": true,
+      "packet_multiset_matches": true,
+      "product_offload_normalization_claim": false,
+      "production_cli": true,
+      "replay_identical": true,
+      "same_socket_recovery": true,
+      "schema_version": 1,
+      "selected_offload_datagrams": 8,
+      "unselected_offload_datagrams": 8,
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "6da3f68e8e1525037ffac7c59867a1fd503713f67cfaefbe06b5e1ac0124b523",
+      "capture": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3967940-1795179348074832046",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "20",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "4"
+        },
+        "received": "20",
+        "retained": "20",
+        "run_id": "3967953-100523017739033",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "capture_exit": 3,
+      "facts": 20,
+      "gro_enabled": true,
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "limits": [
+        "single_host_private_veth",
+        "offloaded_aggregates_rejected_not_normalized",
+        "no_physical_nic_certification"
+      ],
+      "namespace_ids": [
+        1,
+        2
+      ],
+      "native_replies": 8,
+      "native_requests": 20,
+      "ok": true,
+      "oracles": [
+        {
+          "cookies": [
+            "53262",
+            "53263"
+          ],
+          "excluded_cookies": [
+            "53264",
+            "53265"
+          ],
+          "expected_count": 10,
+          "expected_sha256": "e1cefa14f67f22fb0f6f7e033dec7a3acffde150f2be0fcf64c29ced299ccab5",
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "ifindex": 2,
+          "namespace": "net:[4026534050]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "53262",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "53263",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "53262",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55",
+                  "selected_port": true,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "53263",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8",
+                  "selected_port": true,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "53264",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41003,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75"
+                    }
+                  ],
+                  "remote_port": 41004,
+                  "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "53c120b05eacf714f2d9c9914affb68c0ba6112eafe164d235437f65a009d8e9",
+                  "selected_port": false,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "53265",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41003,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae"
+                    }
+                  ],
+                  "remote_port": 41004,
+                  "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c5f1a425520b269398b25ce47c6cd313106fc52caa638fa8d5fef537562647f2",
+                  "selected_port": false,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "unselected-offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "53262",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "53263",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "client",
+          "same_sockets_all_phases": true
+        },
+        {
+          "cookies": [
+            "36875",
+            "36876"
+          ],
+          "excluded_cookies": [
+            "36877",
+            "36878"
+          ],
+          "expected_count": 10,
+          "expected_sha256": "c19013c859e07c4fa42dd0cad8964f194ac4a096f3e50e28022af265b6f839b6",
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "ifindex": 2,
+          "namespace": "net:[4026534226]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "36875",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "36876",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "36875",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": 1024,
+                      "length": 3089,
+                      "sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "36876",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": 1024,
+                      "length": 3089,
+                      "sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "36877",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41004,
+                  "receives": [
+                    {
+                      "gro_segment": 1024,
+                      "length": 3089,
+                      "sha256": "53c120b05eacf714f2d9c9914affb68c0ba6112eafe164d235437f65a009d8e9"
+                    }
+                  ],
+                  "remote_port": 41003,
+                  "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "53c120b05eacf714f2d9c9914affb68c0ba6112eafe164d235437f65a009d8e9",
+                  "selected_port": false,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "36878",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41004,
+                  "receives": [
+                    {
+                      "gro_segment": 1024,
+                      "length": 3089,
+                      "sha256": "c5f1a425520b269398b25ce47c6cd313106fc52caa638fa8d5fef537562647f2"
+                    }
+                  ],
+                  "remote_port": 41003,
+                  "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c5f1a425520b269398b25ce47c6cd313106fc52caa638fa8d5fef537562647f2",
+                  "selected_port": false,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "unselected-offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "36875",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "36876",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "server",
+          "same_sockets_all_phases": true
+        }
+      ],
+      "owned_resources_removed": true,
+      "packet_multiset_matches": true,
+      "product_offload_normalization_claim": false,
+      "production_cli": true,
+      "replay_identical": true,
+      "same_socket_recovery": true,
+      "schema_version": 1,
+      "selected_offload_datagrams": 8,
+      "unselected_offload_datagrams": 8,
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "6da3f68e8e1525037ffac7c59867a1fd503713f67cfaefbe06b5e1ac0124b523",
+      "capture": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3968093-1795179349723895845",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "20",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "4"
+        },
+        "received": "20",
+        "retained": "20",
+        "run_id": "3968106-100524666809435",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "capture_exit": 3,
+      "facts": 20,
+      "gro_enabled": true,
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "limits": [
+        "single_host_private_veth",
+        "offloaded_aggregates_rejected_not_normalized",
+        "no_physical_nic_certification"
+      ],
+      "namespace_ids": [
+        1,
+        2
+      ],
+      "native_replies": 8,
+      "native_requests": 20,
+      "ok": true,
+      "oracles": [
+        {
+          "cookies": [
+            "49167",
+            "49168"
+          ],
+          "excluded_cookies": [
+            "49169",
+            "49170"
+          ],
+          "expected_count": 10,
+          "expected_sha256": "2d90fab2bfaf05bda265a4f32b63ebac1b2a388f92762fbc0e715f444ac919a0",
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "ifindex": 2,
+          "namespace": "net:[4026534049]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "49167",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "49168",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "49167",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55",
+                  "selected_port": true,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "49168",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8",
+                  "selected_port": true,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "49169",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41003,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75"
+                    }
+                  ],
+                  "remote_port": 41004,
+                  "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "53c120b05eacf714f2d9c9914affb68c0ba6112eafe164d235437f65a009d8e9",
+                  "selected_port": false,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "49170",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41003,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae"
+                    }
+                  ],
+                  "remote_port": 41004,
+                  "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c5f1a425520b269398b25ce47c6cd313106fc52caa638fa8d5fef537562647f2",
+                  "selected_port": false,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "unselected-offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "49167",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "49168",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "client",
+          "same_sockets_all_phases": true
+        },
+        {
+          "cookies": [
+            "8251",
+            "8252"
+          ],
+          "excluded_cookies": [
+            "8253",
+            "8254"
+          ],
+          "expected_count": 10,
+          "expected_sha256": "008e2d0a1593c3b8a2f9ff780907d82cb17eee2c840ceffe486ddbc293877ff5",
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "ifindex": 2,
+          "namespace": "net:[4026534226]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "8251",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "8252",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8251",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": 1024,
+                      "length": 3089,
+                      "sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "8252",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": 1024,
+                      "length": 3089,
+                      "sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8253",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41004,
+                  "receives": [
+                    {
+                      "gro_segment": 1024,
+                      "length": 3089,
+                      "sha256": "53c120b05eacf714f2d9c9914affb68c0ba6112eafe164d235437f65a009d8e9"
+                    }
+                  ],
+                  "remote_port": 41003,
+                  "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "53c120b05eacf714f2d9c9914affb68c0ba6112eafe164d235437f65a009d8e9",
+                  "selected_port": false,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "8254",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41004,
+                  "receives": [
+                    {
+                      "gro_segment": 1024,
+                      "length": 3089,
+                      "sha256": "c5f1a425520b269398b25ce47c6cd313106fc52caa638fa8d5fef537562647f2"
+                    }
+                  ],
+                  "remote_port": 41003,
+                  "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c5f1a425520b269398b25ce47c6cd313106fc52caa638fa8d5fef537562647f2",
+                  "selected_port": false,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "unselected-offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8251",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "8252",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "server",
+          "same_sockets_all_phases": true
+        }
+      ],
+      "owned_resources_removed": true,
+      "packet_multiset_matches": true,
+      "product_offload_normalization_claim": false,
+      "production_cli": true,
+      "replay_identical": true,
+      "same_socket_recovery": true,
+      "schema_version": 1,
+      "selected_offload_datagrams": 8,
+      "unselected_offload_datagrams": 8,
+      "validation_capture_used": false
+    },
+    {
+      "binary_sha256": "6da3f68e8e1525037ffac7c59867a1fd503713f67cfaefbe06b5e1ac0124b523",
+      "capture": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-3968171-1795179351329304434",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "20",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "4"
+        },
+        "received": "20",
+        "retained": "20",
+        "run_id": "3968184-100526271480033",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "capture_exit": 3,
+      "facts": 20,
+      "gro_enabled": true,
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "limits": [
+        "single_host_private_veth",
+        "offloaded_aggregates_rejected_not_normalized",
+        "no_physical_nic_certification"
+      ],
+      "namespace_ids": [
+        1,
+        2
+      ],
+      "native_replies": 8,
+      "native_requests": 20,
+      "ok": true,
+      "oracles": [
+        {
+          "cookies": [
+            "8255",
+            "8256"
+          ],
+          "excluded_cookies": [
+            "8257",
+            "8258"
+          ],
+          "expected_count": 10,
+          "expected_sha256": "97acc226491a81f82c85467150855cf90835b8da9e16fa399343ecbd2582ef70",
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "ifindex": 2,
+          "namespace": "net:[4026534050]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "8255",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "8256",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8255",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55",
+                  "selected_port": true,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "8256",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8",
+                  "selected_port": true,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8257",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41003,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75"
+                    }
+                  ],
+                  "remote_port": 41004,
+                  "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "53c120b05eacf714f2d9c9914affb68c0ba6112eafe164d235437f65a009d8e9",
+                  "selected_port": false,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "8258",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41003,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae"
+                    }
+                  ],
+                  "remote_port": 41004,
+                  "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c5f1a425520b269398b25ce47c6cd313106fc52caa638fa8d5fef537562647f2",
+                  "selected_port": false,
+                  "send_bytes": 3089,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "unselected-offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8255",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "8256",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41001,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385"
+                    }
+                  ],
+                  "remote_port": 41002,
+                  "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "client",
+          "same_sockets_all_phases": true
+        },
+        {
+          "cookies": [
+            "41001",
+            "41002"
+          ],
+          "excluded_cookies": [
+            "41003",
+            "41004"
+          ],
+          "expected_count": 10,
+          "expected_sha256": "917ccc6e699fd7ffe2b7a7b6faa6d91b9cc7a5c1a26f824a779c81b9206daccf",
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "ifindex": 2,
+          "namespace": "net:[4026534277]",
+          "phases": [
+            {
+              "observations": [
+                {
+                  "cookie": "41001",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "41002",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "baseline"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "41001",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": 1024,
+                      "length": 3089,
+                      "sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "eb734c07ef66a4cc33778937c3145bb84fd35cc2698fdb40d6e0cb910072be55",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "41002",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": 1024,
+                      "length": 3089,
+                      "sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c3479fd007c28070a39af6e2dae148908cfe68036835c831850dd3b84baa8ea8",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "41003",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41004,
+                  "receives": [
+                    {
+                      "gro_segment": 1024,
+                      "length": 3089,
+                      "sha256": "53c120b05eacf714f2d9c9914affb68c0ba6112eafe164d235437f65a009d8e9"
+                    }
+                  ],
+                  "remote_port": 41003,
+                  "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "53c120b05eacf714f2d9c9914affb68c0ba6112eafe164d235437f65a009d8e9",
+                  "selected_port": false,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "41004",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41004,
+                  "receives": [
+                    {
+                      "gro_segment": 1024,
+                      "length": 3089,
+                      "sha256": "c5f1a425520b269398b25ce47c6cd313106fc52caa638fa8d5fef537562647f2"
+                    }
+                  ],
+                  "remote_port": 41003,
+                  "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c5f1a425520b269398b25ce47c6cd313106fc52caa638fa8d5fef537562647f2",
+                  "selected_port": false,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "unselected-offload"
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "41001",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                },
+                {
+                  "cookie": "41002",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "local_port": 41002,
+                  "receives": [
+                    {
+                      "gro_segment": null,
+                      "length": 32,
+                      "sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385"
+                    }
+                  ],
+                  "remote_port": 41001,
+                  "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "request_lengths": [
+                    32
+                  ],
+                  "request_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "selected_port": true,
+                  "send_bytes": 32,
+                  "send_calls": 1
+                }
+              ],
+              "phase": "recovery"
+            }
+          ],
+          "role": "server",
+          "same_sockets_all_phases": true
+        }
+      ],
+      "owned_resources_removed": true,
+      "packet_multiset_matches": true,
+      "product_offload_normalization_claim": false,
+      "production_cli": true,
+      "replay_identical": true,
+      "same_socket_recovery": true,
+      "schema_version": 1,
+      "selected_offload_datagrams": 8,
+      "unselected_offload_datagrams": 8,
+      "validation_capture_used": false
+    }
+  ]
+}

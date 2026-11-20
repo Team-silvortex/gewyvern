@@ -1,6 +1,6 @@
 use crate::flow::{FlowSnapshot, ModuleFinding, ProgramFinding, ProgramFlow};
 use crate::fragment::{AttachPlan, AttachReport, BindingDiagnostics, EvidenceTier};
-use crate::ledger::{FactEnvelope, FactKindTag};
+use crate::ledger::{FactEnvelope, FactKindTag, group_key, invalid_groups};
 use crate::reason::{ReasonChain, ReasonProfile};
 use crate::runtime::{
     RejectedFact, RuntimeError, RuntimeSession, SessionConfig, summarize_rejected_facts,
@@ -108,6 +108,7 @@ pub enum ExportError {
 
 impl ExportBundle {
     pub fn replay(&self) -> Result<Self, ExportError> {
+        validate_offload_groups(&self.facts)?;
         let reason_profile = self.reason_profile.clone();
         let template = Template {
             id: self.template_id.clone(),
@@ -133,6 +134,21 @@ impl ExportBundle {
         }
         session.seed_rejected_facts(self.rejected_facts.clone());
         let mut replay = session.into_export_bundle();
+        if self
+            .facts
+            .iter()
+            .filter(|fact| group_key(fact).is_some())
+            .count()
+            != replay
+                .facts
+                .iter()
+                .filter(|fact| group_key(fact).is_some())
+                .count()
+        {
+            return Err(ExportError::InvalidValue(
+                "UDP offload group rejected during replay".into(),
+            ));
+        }
         replay.ingest_trust_mode = self.ingest_trust_mode.clone();
         replay.capture = self.capture.clone();
         if self.capture.is_some() {
@@ -291,7 +307,7 @@ impl ExportBundle {
         let value = JsonParser::new(input).parse()?;
         let root = value.into_object()?;
 
-        Ok(Self {
+        let bundle = Self {
             capture: root.get("capture").map(capture_codec::decode).transpose()?,
             template_id: root
                 .get("template_id")
@@ -425,12 +441,24 @@ impl ExportBundle {
                 .iter()
                 .map(parse_reason)
                 .collect::<Result<Vec<_>, _>>()?,
-        })
+        };
+        validate_offload_groups(&bundle.facts)?;
+        Ok(bundle)
     }
 }
 
 pub fn fact_to_json(fact: &FactEnvelope) -> String {
     fact_json(fact).render()
+}
+
+fn validate_offload_groups(facts: &[FactEnvelope]) -> Result<(), ExportError> {
+    if invalid_groups(facts).is_empty() {
+        Ok(())
+    } else {
+        Err(ExportError::InvalidValue(
+            "incomplete, duplicate or conflicting UDP offload group".into(),
+        ))
+    }
 }
 
 pub fn fact_from_json(input: &str) -> Result<FactEnvelope, ExportError> {

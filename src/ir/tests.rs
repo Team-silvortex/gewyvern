@@ -18,6 +18,7 @@ fn payload_matcher_set_ref_matches_packet_and_quic_payloads() {
     }];
     let matchers = PayloadMatcherSetRef::new(&byte_matches, &byte_sequences);
     let packet = PacketMetaFact {
+        udp_offload: None,
         netns: 1,
         sk_cookie: Some(7),
         dir: PacketDir::Egress,

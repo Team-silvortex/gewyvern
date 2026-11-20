@@ -45,6 +45,7 @@ fn packet_fact(id: u64, cookie: Option<u64>, dir: PacketDir, type_byte: u8) -> F
         session: SessionId(1),
         fragment_id: "udp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns: 1,
             sk_cookie: cookie,
             dir,

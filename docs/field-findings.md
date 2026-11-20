@@ -1,5 +1,158 @@
 # Field Findings
 
+## `2026-11-20` Whole Offload Groups Stay Intact Across Publication Windows
+
+The production collector now uses a bounded fact buffer that reserves a whole
+normalized group's slots before admission, holds incomplete groups across
+windows, and publishes only complete groups. Duplicate/conflicting records,
+fixed two-second expiry, ID-window retirement and shutdown release reservations
+with explicit received-record accounting. The recent-ID window is 4096 values,
+not an unbounded lifetime cache; retired groups cannot be reopened by late tails.
+
+Runtime views and exports exclude all observed members of bad groups and retain
+structured incomplete/duplicate/conflict rejections. A nonconsuming snapshot
+does not destroy pending input, so a later complete group can become analyzable.
+Bundle import and Rust replay independently enforce completeness, hook-identity
+consistency and unambiguous normalized fact IDs across the entire bundle.
+Filtering just a short tail cannot publish the remainder as a complete group,
+and replay cannot hide newly filtered normalized records behind old summaries.
+
+Ten buffer tests exercise ordering, cross-window holds, reservations, timeout,
+poisoned groups, 2/16-segment masks, ID retirement, shutdown and counter
+conservation. Eighteen source/group contract tests pass, including real socket
+import. The final root library/CLI, protocol, export and status selection passes
+2,149 regular tests; socket import is also run explicitly, as are the three
+privileged lifecycle/GSO/GRO tests. Format and all-target/all-feature Clippy with
+warnings denied pass.
+
+Fresh real CLI lifecycle tests retain 800 service observations, account for
+ring overflow and a 1-record userspace budget, detach after SIGKILL/output/scope
+failure, and successfully restart. Native GSO/GRO regression runs retain 28/20
+ordinary records, reject 2/4 aggregates, exit 3 with truthful incomplete status,
+and show no additional ring/userspace/decode loss. Recovery and cleanup pass.
+
+The [whole-group contract](production-udp-offload.md#group-admission-and-replay)
+is tested through deterministic normalized-record injection. The production BPF
+ABI is still v1 and does **not** emit normalized groups yet: live tests above
+prove preservation of its existing rejection policy, not completed offload
+support. The next gate is the bounded kernel splitter/private event ABI and its
+real normalized-traffic proof. Raw evidence is in the Linux directory
+`20261120-udp-offload-groups`; no status maturity is promoted.
+
+## `2026-11-20` UDP Segment Provenance Is Prepared, Not Yet Produced
+
+The capture adapter, ledger, export/import codec and runtime now preserve a
+bounded UDP aggregate-origin record: aggregate ID/length, segment size/index/count
+and IP header length. The distinct `packet_meta_udp_segment_v1` wire tag prevents
+legacy readers from silently erasing provenance. Ordinary `packet_meta` exports
+remain unchanged. Record validation checks a maximum of 16 segments, short tails,
+IP/UDP length limits, socket identity and all bounded-prefix aliases.
+
+Eleven Linux contract tests pass, including real loopback socket import, malformed
+metadata, narrowing/downgrade attempts and direct Rust replay. A development
+regression reproduced a bypass where direct bundle replay could discard a new
+invalid record and then restore old summaries; replay now validates provenance
+before analysis. Shape validation is not producer authentication or aggregate
+completeness, and it does not claim individual wire timestamps.
+
+Fresh native GSO and GSO+GRO runs still retain 28/20 ordinary observations and
+reject 2/4 aggregates with exit 3 and incomplete capture. Ring, userspace and
+decode loss are zero; same-socket recovery, exact packet multisets, replay and
+cleanup pass. These are regression runs of the existing rejection policy, not
+evidence of production normalization. Raw outputs and test logs remain under
+the Linux evidence directory `20261120-udp-offload-provenance`.
+
+The final root-package library/CLI, protocol, export and status selection passes
+2,132 regular tests. Loopback socket import and three privileged capture tests
+are additionally run explicitly. The lifecycle test covers normal collection,
+service windows, ring overflow/resume, userspace budgets, SIGKILL detachment,
+output failure, scope removal and restart. Workspace formatting and root-package
+all-target/all-feature Clippy with warnings denied pass. Nineteen selected
+source-input hashes match the local worktree; these hashes are not a hermetic
+build manifest or a release certification.
+
+See the [prepared contract and remaining gates](production-udp-offload.md#prepared-segment-contract)
+and `tests/udp_offload_provenance_tdd.rs`. The production BPF ABI remains v1.
+Bounded kernel splitting and aggregate/window accounting are still required;
+no production normalization or status-maturity promotion is claimed.
+
+## `2026-11-20` GSO/GRO Aggregates No Longer Become False Complete UDP Facts
+
+Real dual-stack `UDP_SEGMENT`/`UDP_GRO` traffic reproduced a product correctness
+defect: aggregate buffers were accepted as normal single datagrams. Both modes
+returned exit 0 and complete capture; GSO-only contained two invalid aggregate
+facts and GSO+GRO four, with IP lengths 3117/3137. Native reads independently
+verified four real datagrams or one GRO buffer with explicit segment metadata.
+
+The BPF producer now checks offload metadata after selected-port filtering and
+before normal datagram admission. It rejects aggregates as unsupported, keeps
+valid packet observations and lets existing accounting publish incomplete status
+and exit 3. It does not block or modify native traffic. Same-cgroup aggregates on
+other UDP ports are neither recorded nor counted as selected unsupported traffic.
+
+Six final runs retain 144 valid observations and explicitly reject 18 aggregate
+hook observations. Native peers complete 120 request datagrams and 48 replies;
+ordinary same-socket recovery, packet multisets, replay and cleanup pass. Fresh
+IP-fragmentation, receive-pressure and collector-overflow/lifecycle regressions
+pass with the repaired product binary. Before/after source and binary hashes
+are retained; failed reproductions are excluded from accepted-run counts.
+
+See [offload acceptance and limits](production-udp-offload.md) and the
+[source-bound proof](fixtures/gewyvern_product_udp_offload_linux_x86_64_20261120.json).
+This is a false-evidence repair, not implementation of GSO/GRO normalization or
+a physical-NIC guarantee. Rejected counts are aggregates, not wire segments.
+No schema, protocol count or status maturity is promoted.
+
+## `2026-11-20` Ingress Observation Is Not Application Delivery
+
+Three formal-CLI receive-pressure runs retain 864 exact observations for 408
+native requests and 24 replies, including six partial-read acknowledgements.
+Servers deliberately copy only 64 of 1024 bytes in the truncation phase. Native
+`MSG_TRUNC`, original length and copied bytes agree; the collector independently
+retains the full packet length and its bounded 128-byte prefix. Subsequent short
+traffic remains correct on the same sockets.
+
+During three paused-reader bursts, applications read 18 of 384 datagrams and
+socket queues drop 366. Per-namespace `RcvbufErrors` and socket-specific
+`SO_RXQ_OVFL` on recovery agree exactly. The formal collector observes all burst
+ingress before queue rejection and reports no collector loss. Thus even a real
+ingress fact is not proof that an application received or fully copied a packet.
+
+No product defect was reproduced. Native send-error and collector-overflow/
+lifecycle regressions pass again. The compact evidence keeps packet-oracle
+digests that ordinary tests reconstruct, while full exports stay on Linux.
+The initial passed development run is excluded from final counts; final runs
+also require exact native UDP read/send/error counters and reject other errors.
+
+See [receive-pressure acceptance](production-udp-receive-pressure.md) and the
+[source-bound proof](fixtures/gewyvern_product_udp_pressure_linux_x86_64_20261120.json).
+This does not add automatic socket-drop classification, application-delivery
+proof, a full-payload archive, sustained-load certification or a maturity claim.
+
+## `2026-11-20` Send Failures Do Not Become Fabricated UDP Observations
+
+Three native dual-stack runs exercise local MTU rejection, remote port refusal
+and recovery through the formal CLI. Across 30 send attempts, six 4096-byte
+datagrams fail locally with `EMSGSIZE`, six requests reach closed UDP ports and
+return `ECONNREFUSED`, and 18 exchanges succeed. Twelve independent native
+error-queue entries retain the actual origin, type/code, MTU or quoted payload
+and destination. The same client socket cookies survive both failure types;
+server rebinds receive new cookies without merging namespace identities.
+
+The exact 78 retained observations match native I/O: no fact for rejected local
+sends, and only client egress for remote refusals. No invented server ingress,
+recorded collector loss or product defect was found. Fresh fragmentation,
+selected-port TC loss and collector-overflow/lifecycle regressions also pass.
+The nonprivileged namespace oracle now accepts multiple observed socket
+generations while rejecting duplicates, zero, unobserved cookies and merged
+identities. Evidence tests reject fabricated delivery and stale identities.
+
+See [error/recovery acceptance](production-udp-network.md#send-errors-and-socket-recovery)
+and the [source-bound proof](fixtures/gewyvern_product_udp_errors_linux_x86_64_20261120.json).
+Native error queues establish fixture behavior, not product ICMP support.
+No routed PMTU, ICMP-blackhole, physical-path, release-artifact or maturity claim
+is made. The first passed development run is excluded from the three final runs.
+
 ## `2026-11-20` Formal UDP Capture Preserves Copies And Reordered Delivery
 
 Three final dual-stack netem runs retain 672 observations for 144 application

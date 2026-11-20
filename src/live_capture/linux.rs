@@ -10,7 +10,10 @@ use std::process::Command;
 use std::ptr::NonNull;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use super::{CaptureError, CaptureOptions, CaptureSnapshot, CaptureState, KernelCounters};
+use super::{
+    CaptureError, CaptureFactBuffer, CaptureOptions, CaptureSnapshot, CaptureState,
+    FactBufferAccounting, KernelCounters,
+};
 use crate::ledger::{FactEnvelope, FactId, PacketDir, SessionId};
 use crate::packet_capture::{CapturedUdpDatagram, PacketObservation};
 
@@ -176,9 +179,8 @@ pub struct Collector {
     counters_fd: c_int,
     namespaces: BTreeMap<u64, u32>,
     anchor: (u64, SystemTime),
-    options: CaptureOptions,
     snapshot: CaptureSnapshot,
-    facts: Vec<FactEnvelope>,
+    facts: CaptureFactBuffer,
     next_id: u64,
 }
 
@@ -225,8 +227,7 @@ impl Collector {
                 final_accounted: false,
                 incomplete: false,
             },
-            facts: Vec::with_capacity(options.max_facts),
-            options,
+            facts: CaptureFactBuffer::new(options.max_facts)?,
             next_id: 1,
         };
         let path = CString::new(object_path.as_os_str().as_bytes())
@@ -290,6 +291,9 @@ impl Collector {
     }
 
     pub fn consume(&mut self) -> Result<usize, CaptureError> {
+        let now = Instant::now();
+        let expired = self.facts.expire(now);
+        self.account_facts(expired);
         let ring = self
             .ring
             .ok_or_else(|| CaptureError::new("capture_ring_closed", "reader closed"))?;
@@ -308,16 +312,21 @@ impl Collector {
         for record in records.drain(..) {
             self.snapshot.received += 1;
             match self.decode(record) {
-                Ok(fact) if self.facts.len() < self.options.max_facts => {
-                    self.facts.push(fact);
-                    self.snapshot.retained += 1;
+                Ok(fact) => {
+                    let delta = self.facts.push(fact, now);
+                    self.account_facts(delta);
                 }
-                Ok(_) => self.snapshot.userspace_dropped += 1,
                 Err(_) => self.snapshot.decode_rejected += 1,
             }
         }
         self.state.records = records;
         Ok(count as usize)
+    }
+
+    fn account_facts(&mut self, delta: FactBufferAccounting) {
+        self.snapshot.retained += delta.retained;
+        self.snapshot.userspace_dropped += delta.userspace_dropped;
+        self.snapshot.decode_rejected += delta.decode_rejected;
     }
 
     fn decode(&mut self, record: Record) -> Result<FactEnvelope, CaptureError> {
@@ -402,7 +411,7 @@ impl Collector {
     }
 
     pub fn take_facts(&mut self) -> Vec<FactEnvelope> {
-        std::mem::replace(&mut self.facts, Vec::with_capacity(self.options.max_facts))
+        self.facts.take_facts()
     }
     pub fn snapshot(&mut self) -> Result<CaptureSnapshot, CaptureError> {
         let zero = 0u32;
@@ -436,6 +445,8 @@ impl Collector {
                 ));
             }
         }
+        let unfinished = self.facts.finish();
+        self.account_facts(unfinished);
         self.snapshot.state = CaptureState::Stopped;
         self.snapshot()?;
         self.snapshot.final_accounted = self.snapshot.reconciles();

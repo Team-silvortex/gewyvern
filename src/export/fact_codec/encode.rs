@@ -5,7 +5,7 @@ use super::{
 };
 
 pub(crate) fn fact_json(fact: &FactEnvelope) -> JsonValue {
-    let kind = match &fact.kind {
+    let mut kind = match &fact.kind {
         FactKind::TcpState(value) => JsonValue::Object(BTreeMap::from([
             (
                 "tag".into(),
@@ -292,6 +292,14 @@ pub(crate) fn fact_json(fact: &FactEnvelope) -> JsonValue {
             ("complete".into(), JsonValue::Bool(value.complete)),
         ])),
     };
+
+    if let FactKind::PacketMeta(packet) = &fact.kind
+        && let Some(segment) = packet.udp_offload
+        && let JsonValue::Object(object) = &mut kind
+    {
+        object.insert("tag".into(), JsonValue::String(super::offload::TAG.into()));
+        object.insert("udp_offload".into(), super::offload::encode(segment));
+    }
 
     JsonValue::Object(BTreeMap::from([
         ("id".into(), JsonValue::Number(fact.id.0 as i64)),

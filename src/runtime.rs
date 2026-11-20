@@ -17,6 +17,7 @@ use std::time::{Duration, SystemTime};
 
 mod analysis;
 mod flows;
+mod offload;
 
 use self::analysis::{build_program_findings, summarize_module_findings};
 pub use self::flows::build_flow_snapshots;
@@ -67,6 +68,7 @@ pub struct RuntimeSession {
     rejected_facts: Vec<RejectedFact>,
     window_end: Option<SystemTime>,
     frozen_at: Option<SystemTime>,
+    has_udp_offload: bool,
 }
 
 struct ExportState {
@@ -163,6 +165,10 @@ pub enum RejectedFactReason {
     FilteredByFragmentParam,
     BeforeWindowStart,
     AfterLatenessCutoff,
+    InvalidUdpOffload,
+    IncompleteUdpOffload,
+    ConflictingUdpOffload,
+    DuplicateUdpOffload,
 }
 
 impl RejectedFactReason {
@@ -172,6 +178,10 @@ impl RejectedFactReason {
             Self::FilteredByFragmentParam => "filtered_by_fragment_param",
             Self::BeforeWindowStart => "before_window_start",
             Self::AfterLatenessCutoff => "after_lateness_cutoff",
+            Self::InvalidUdpOffload => "invalid_udp_offload",
+            Self::IncompleteUdpOffload => "incomplete_udp_offload",
+            Self::ConflictingUdpOffload => "conflicting_udp_offload",
+            Self::DuplicateUdpOffload => "duplicate_udp_offload",
         }
     }
 }
@@ -321,10 +331,19 @@ impl RuntimeSession {
             rejected_facts: Vec::new(),
             window_end: None,
             frozen_at: None,
+            has_udp_offload: false,
         })
     }
 
     pub fn ingest(&mut self, mut fact: FactEnvelope) {
+        if let FactKind::PacketMeta(packet) = &fact.kind
+            && packet
+                .udp_offload
+                .is_some_and(|segment| !segment.matches_packet(packet))
+        {
+            self.reject_fact(fact, RejectedFactReason::InvalidUdpOffload);
+            return;
+        }
         if !self
             .attach_report
             .fragments_loaded
@@ -362,6 +381,7 @@ impl RuntimeSession {
             });
             return;
         }
+        self.has_udp_offload |= crate::ledger::group_key(&fact).is_some();
         self.insert_fact_in_id_order(fact);
     }
 
@@ -389,33 +409,45 @@ impl RuntimeSession {
     }
 
     pub fn flow_snapshots(&self) -> Vec<FlowSnapshot> {
-        build_flow_snapshots(&self.facts)
+        let prepared = self.offload_export_view();
+        build_flow_snapshots(&prepared.as_ref().unwrap_or(self).facts)
     }
 
     pub fn reasons(&self) -> Vec<ReasonChain> {
-        let flows = build_flow_snapshots(&self.facts);
-        let fact_index = FactIndex::new(&self.facts);
+        let prepared = self.offload_export_view();
+        let session = prepared.as_ref().unwrap_or(self);
+        let flows = build_flow_snapshots(&session.facts);
+        let fact_index = FactIndex::new(&session.facts);
         build_reason_chains_indexed(&self.reason_profile, &flows, &fact_index)
     }
 
     pub fn export_bundle(&self) -> ExportBundle {
-        let analysis = self.export_analysis(None);
-        build_export_bundle(self.cloned_export_state(), analysis)
+        let prepared = self.offload_export_view();
+        let session = prepared.as_ref().unwrap_or(self);
+        let analysis = session.export_analysis(None);
+        build_export_bundle(session.cloned_export_state(), analysis)
     }
 
-    pub fn into_export_bundle(self) -> ExportBundle {
+    pub fn into_export_bundle(mut self) -> ExportBundle {
+        self.finalize_offload_groups();
         let analysis = self.export_analysis(None);
         build_export_bundle(self.into_export_state(), analysis)
     }
 
     /// Analyze using a stable caller-owned protocol snapshot instead of rediscovery.
     pub fn export_bundle_with_context(&self, context: &RuntimeExportContext) -> ExportBundle {
-        let analysis = self.export_analysis(Some(context));
-        build_export_bundle(self.cloned_export_state(), analysis)
+        let prepared = self.offload_export_view();
+        let session = prepared.as_ref().unwrap_or(self);
+        let analysis = session.export_analysis(Some(context));
+        build_export_bundle(session.cloned_export_state(), analysis)
     }
 
     /// Consuming counterpart of `export_bundle_with_context`.
-    pub fn into_export_bundle_with_context(self, context: &RuntimeExportContext) -> ExportBundle {
+    pub fn into_export_bundle_with_context(
+        mut self,
+        context: &RuntimeExportContext,
+    ) -> ExportBundle {
+        self.finalize_offload_groups();
         let analysis = self.export_analysis(Some(context));
         build_export_bundle(self.into_export_state(), analysis)
     }

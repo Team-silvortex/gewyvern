@@ -3,7 +3,9 @@
 use std::net::SocketAddr;
 use std::time::SystemTime;
 
-use crate::ledger::{CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, SessionId};
+use crate::ledger::{
+    CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, SessionId, UdpOffloadSegment,
+};
 
 pub const MAX_UDP_CAPTURE_PREFIX: usize = 128;
 
@@ -42,6 +44,7 @@ pub enum CaptureDecodeError {
     PayloadPrefix,
     SocketIdentity,
     CpuOverflow,
+    OffloadMetadata,
 }
 
 impl CaptureDecodeError {
@@ -53,6 +56,7 @@ impl CaptureDecodeError {
             Self::PayloadPrefix => "capture_payload_prefix_invalid",
             Self::SocketIdentity => "capture_socket_identity_missing",
             Self::CpuOverflow => "capture_cpu_overflow",
+            Self::OffloadMetadata => "capture_udp_offload_invalid",
         }
     }
 }
@@ -66,6 +70,28 @@ impl std::fmt::Display for CaptureDecodeError {
 impl std::error::Error for CaptureDecodeError {}
 
 impl CapturedUdpDatagram<'_> {
+    /// Accepts one already-normalized segment, preserving its aggregate origin.
+    /// The supplied prefix must contain all bytes up to the capture prefix cap.
+    /// This does not split a buffer or prove that the other segments were seen.
+    pub fn into_offload_segment_fact(
+        self,
+        observation: PacketObservation,
+        provenance: UdpOffloadSegment,
+    ) -> Result<FactEnvelope, CaptureDecodeError> {
+        if provenance.ip_header_len != self.ip_header_len {
+            return Err(CaptureDecodeError::OffloadMetadata);
+        }
+        let mut fact = self.into_fact(observation)?;
+        let FactKind::PacketMeta(packet) = &mut fact.kind else {
+            return Err(CaptureDecodeError::OffloadMetadata);
+        };
+        if !provenance.matches_packet(packet) {
+            return Err(CaptureDecodeError::OffloadMetadata);
+        }
+        packet.udp_offload = Some(provenance);
+        Ok(fact)
+    }
+
     pub fn into_fact(
         self,
         observation: PacketObservation,
@@ -106,6 +132,7 @@ impl CapturedUdpDatagram<'_> {
             ifindex: Some(observation.ifindex),
             fragment_id: "udp_packet_meta_fragment".into(),
             kind: FactKind::PacketMeta(PacketMetaFact {
+                udp_offload: None,
                 netns: observation.netns,
                 sk_cookie: Some(observation.socket_cookie),
                 dir: observation.direction,

@@ -17,6 +17,22 @@ pub(crate) fn parse_fact(value: &JsonValue) -> Result<FactEnvelope, ExportError>
         .ok_or_else(|| ExportError::InvalidShape("fact.kind.tag".into()))?
         .as_str()?;
 
+    if tag != super::offload::TAG && kind.contains_key("udp_offload") {
+        return Err(super::offload::invalid());
+    }
+    if tag == super::offload::TAG {
+        for key in ["id", "session", "ts_ms"] {
+            if object
+                .get(key)
+                .ok_or_else(super::offload::invalid)?
+                .as_i64()?
+                < 0
+            {
+                return Err(super::offload::invalid());
+            }
+        }
+    }
+
     let fact_kind = match tag {
         "tcp_state" => FactKind::TcpState(TcpStateFact {
             netns: kind
@@ -50,7 +66,12 @@ pub(crate) fn parse_fact(value: &JsonValue) -> Result<FactEnvelope, ExportError>
                 .ok_or_else(|| ExportError::InvalidShape("fact.tcp_state.new".into()))?
                 .as_i64()? as u8,
         }),
-        "packet_meta" => FactKind::PacketMeta(PacketMetaFact {
+        "packet_meta" | super::offload::TAG => FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: if tag == super::offload::TAG {
+                Some(super::offload::decode(kind.get("udp_offload"))?)
+            } else {
+                None
+            },
             netns: kind
                 .get("netns")
                 .ok_or_else(|| ExportError::InvalidShape("fact.packet_meta.netns".into()))?
@@ -317,7 +338,15 @@ pub(crate) fn parse_fact(value: &JsonValue) -> Result<FactEnvelope, ExportError>
         _ => return Err(ExportError::InvalidValue("unknown fact tag".into())),
     };
 
-    Ok(FactEnvelope {
+    if let FactKind::PacketMeta(packet) = &fact_kind
+        && packet
+            .udp_offload
+            .is_some_and(|segment| !segment.matches_packet(packet))
+    {
+        return Err(super::offload::invalid());
+    }
+
+    let fact = FactEnvelope {
         id: FactId(
             object
                 .get("id")
@@ -349,7 +378,16 @@ pub(crate) fn parse_fact(value: &JsonValue) -> Result<FactEnvelope, ExportError>
             .as_str()?
             .to_string(),
         kind: fact_kind,
-    })
+    };
+    if tag == super::offload::TAG {
+        // V1 segment records have an exact canonical shape, unlike legacy
+        // packet_meta aliases. Reject narrowing, duplicate offsets and unknown
+        // fields instead of silently changing an offload observation on import.
+        if super::encode::fact_json(&fact) != *value {
+            return Err(super::offload::invalid());
+        }
+    }
+    Ok(fact)
 }
 
 fn parse_tcp_address(value: Option<&JsonValue>, field: &str) -> Result<[u8; 16], ExportError> {
@@ -384,6 +422,10 @@ pub(crate) fn parse_rejected_fact(value: &JsonValue) -> Result<RejectedFact, Exp
         "filtered_by_fragment_param" => RejectedFactReason::FilteredByFragmentParam,
         "before_window_start" => RejectedFactReason::BeforeWindowStart,
         "after_lateness_cutoff" => RejectedFactReason::AfterLatenessCutoff,
+        "invalid_udp_offload" => RejectedFactReason::InvalidUdpOffload,
+        "incomplete_udp_offload" => RejectedFactReason::IncompleteUdpOffload,
+        "conflicting_udp_offload" => RejectedFactReason::ConflictingUdpOffload,
+        "duplicate_udp_offload" => RejectedFactReason::DuplicateUdpOffload,
         other => {
             return Err(ExportError::InvalidValue(format!(
                 "unknown rejected fact reason: {other}"

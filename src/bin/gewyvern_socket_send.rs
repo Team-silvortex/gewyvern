@@ -262,6 +262,7 @@ fn sample_facts(template_mode: TemplateMode) -> Vec<FactEnvelope> {
                 session: SessionId(1),
                 fragment_id: "tcp_packet_meta_fragment".into(),
                 kind: FactKind::PacketMeta(PacketMetaFact {
+                    udp_offload: None,
                     netns: 1,
                     sk_cookie: Some(42),
                     dir: PacketDir::Egress,
@@ -297,6 +298,7 @@ fn sample_facts(template_mode: TemplateMode) -> Vec<FactEnvelope> {
                 session: SessionId(2),
                 fragment_id: "udp_packet_meta_fragment".into(),
                 kind: FactKind::PacketMeta(PacketMetaFact {
+                    udp_offload: None,
                     netns: 1,
                     sk_cookie: Some(99),
                     dir: PacketDir::Egress,

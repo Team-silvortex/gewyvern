@@ -3,6 +3,11 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+mod fact_buffer;
+pub use fact_buffer::{
+    CaptureFactBuffer, FactBufferAccounting, UDP_OFFLOAD_ID_WINDOW, UDP_OFFLOAD_WAIT,
+};
+
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "linux")]

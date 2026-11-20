@@ -35,6 +35,7 @@ fn gre_packet_fact(id: u64, dir: PacketDir, prefix2: u16) -> FactEnvelope {
         session: SessionId(1),
         fragment_id: "udp_packet_meta_fragment".into(),
         kind: FactKind::PacketMeta(PacketMetaFact {
+            udp_offload: None,
             netns: 1,
             sk_cookie: None,
             dir,

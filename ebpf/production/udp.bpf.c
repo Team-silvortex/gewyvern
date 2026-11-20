@@ -46,10 +46,14 @@ static __always_inline int observe(struct __sk_buff *ctx, __u8 outbound) {
         header = 40;
         total = 40 + be16(ip + 4);
     } else return 1;
-    if (total < header + 8 || total != ctx->len || bpf_skb_load_bytes(ctx, header, udp, 8))
+    if (total < header + 8 || bpf_skb_load_bytes(ctx, header, udp, 8))
         goto malformed;
     if (be16(udp) != UDP_PORT && be16(udp + 2) != UDP_PORT) return 1;
-    if (be16(udp + 4) != total - header || !be16(udp) || !be16(udp + 2)) goto malformed;
+    /* ABI v1 describes one datagram, not a GSO/GRO aggregate. Filter the
+     * selected port first so unrelated offload does not poison this capture. */
+    if (ctx->gso_size || ctx->gso_segs > 1) goto unsupported;
+    if (total != ctx->len || be16(udp + 4) != total - header || !be16(udp) || !be16(udp + 2))
+        goto malformed;
     __u64 cookie = bpf_get_socket_cookie(ctx), netns = bpf_get_netns_cookie(ctx);
     if (!cookie || !netns) { __sync_fetch_and_add(&stats->no_cookie, 1); return 1; }
     __sync_fetch_and_add(&stats->matched, 1);
