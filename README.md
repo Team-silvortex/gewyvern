@@ -1,4 +1,4 @@
-# gewyvern v2.5.x
+# gewyvern v2.7.x
 
 [![CI](https://github.com/Team-silvortex/gewyvern/actions/workflows/ci.yml/badge.svg)](https://github.com/Team-silvortex/gewyvern/actions/workflows/ci.yml)
 
@@ -110,13 +110,15 @@ session data.
 
 ## Status
 
-- project version: `2.5.x`
+- project version: `2.7.x`
 - stage: stable community release, with the Gewyvern debugger core and
   Rust Leserpent/Leselang control plane shipped as one protocolized system
-- transport support: TCP + UDP
+- protocol analysis: TCP and UDP from supplied facts; the built-in live
+  collector observes direct UDP, not arbitrary TCP streams
 - protocol registry coverage: 70 protocol families and 361 package entries
   under `protocols/`
-- input modes: demo facts, Unix socket, TCP socket
+- input modes: demo facts, Unix/TCP fact sockets, and opt-in
+  [Linux eBPF UDP capture](docs/live-udp-capture.md) for a workload cgroup and port
 - Linux probe support: tracepoint, kprobe, tc ingress smoke/probe paths
 - replay: deterministic for exported sessions
 - DSL shape: pipeline-driven `gewylang` stable subset
@@ -159,11 +161,11 @@ is [project/product/open-source-core.json](project/product/open-source-core.json
 `gewyvern` is no longer just a convergence story. The current line is:
 
 - historical validation baseline: `v0.10.0`
-- current release line: `v2.5.x`, with `v2.5.0` as the current shared release
+- current release line: `v2.7.x`, with `v2.7.0` as the current shared release
 - completed seal: the ten-slot `v1.20.0` through `v1.20.9` stabilization window
-- current focus: preserve the released contracts, improve operator experience,
-  and expand community validation without moving existing capabilities behind
-  an account or subscription
+- current focus: make Linux capture loss and shutdown visible and preserve
+  committed history across interruptions. See the [field results](docs/field-findings.md)
+  for tested failure modes and the limits of that evidence.
 
 The 2.0 seal completes the declared Gewyvern/Leserpent/Leselang function chain.
 Existing regression and security gates remain required after release; broader
@@ -179,7 +181,7 @@ Leserpent/Leselang architecture.
 Primary release-line shelves:
 
 - [ROADMAP.md](ROADMAP.md)
-- [Current maintenance notes](docs/history/v2.5.x.md)
+- [Current maintenance notes](docs/history/v2.7.x.md)
 - [docs/history/v2.0.0-release-notes.md](docs/history/v2.0.0-release-notes.md)
 - [project/release/leserpent-2-patch-seal.json](project/release/leserpent-2-patch-seal.json)
 - [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md)

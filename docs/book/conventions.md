@@ -145,7 +145,7 @@ Avoid:
 
 ## Release-Line Discipline
 
-During the active `2.5.x` line, documentation changes should bias toward:
+During the active `2.7.x` line, documentation changes should bias toward:
 
 - clarifying current behavior
 - reducing contradiction
@@ -189,12 +189,12 @@ For this project, the middle numeric version component is the minor line:
 
 - `v0.13.x`
 - `v0.15.x`
-- current and future lines such as `v2.5.x` when those lines actually begin
+- the [current maintenance line](../history/v2.7.x.md), plus future lines when they begin
 
 When a new minor line begins:
 
 - add one new page under
-  [docs/history](docs/history/index.md)
+  [docs/history](../history/index.md)
 - describe what that line means
 - describe what was already whole enough
 - describe what was still intentionally incomplete
@@ -205,7 +205,7 @@ When a new minor line begins:
 If you need the compact checklist for what those companion artifacts should
 look like, use:
 
-- [docs/history/minor-line-evidence-bundle.md](docs/history/minor-line-evidence-bundle.md)
+- [docs/history/minor-line-evidence-bundle.md](../history/minor-line-evidence-bundle.md)
 
 Do not create a separate history page for every patch version unless the patch
 series fundamentally changes the line's meaning.

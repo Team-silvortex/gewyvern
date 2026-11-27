@@ -836,7 +836,7 @@ A generic Response PDU can contain errors or exception values and is not
 operation-success proof. Default sparse collectors retain unsupported-offset
 diagnostics; the real campaign explicitly supplies complete bounded samples.
 
-This note records the highest-signal findings inherited by the active `2.5.x` line
+This note records the highest-signal findings inherited by the active `2.7.x` line
 while preserving a shorter historical tail from the earlier `0.15.x`
 field-validation phase.
 
@@ -1393,7 +1393,7 @@ The fixed helper was also still version 2.0.0 and its source path design relied
 on the build checkout. Five allowlisted BPF/loader sources now ship inside the
 binary and are exclusively materialized in a private directory. This removes
 runtime dependency on mutable or removed workspace C files. The installed helper
-was updated to the current Cargo package version 2.5.0 (the source commit is
+was updated to the then-current Cargo package version 2.5.0 (the source commit is
 labelled 2.6.1; this is not a release artifact). Dedicated-account tracepoint,
 kprobe and TC tests passed through default sudo on an owned dummy interface.
 The old binary/policy backups remain on Linux only. This is one physical host
@@ -2278,7 +2278,7 @@ That is useful and intentional, but it is not the same thing as saying:
 
 ## Strict Remote Evidence Consumption
 
-The `2.5.x` validation CLI now consumes synchronized Linux-host evidence with
+The validation CLI consumes synchronized Linux-host evidence with
 the same fail-closed posture used by the producer. Key-value evidence has a
 shared bounded unique-key codec, phase timings require complete finite schemas,
 and local history JSON and recent-history text have explicit file and record
@@ -2309,7 +2309,7 @@ it described the attempted run.
 
 ## Practical Read Of The Current Line
 
-The current `2.5.x` line inherits strength in these areas:
+The current `2.7.x` line inherits strength in these areas:
 
 - protocol/package shelf is stable
 - current tree-native artifacts are the ones being exercised

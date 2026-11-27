@@ -136,7 +136,7 @@ Before cutting a release, use `cargo dev version check` to verify that Cargo,
 product version. Preview a deliberate version change before applying it:
 
 ```bash
-cargo dev version set 2.5.0 --dry-run
+cargo dev version set 2.7.0 --dry-run
 ```
 
 Removing `--dry-run` applies the update transactionally. It does not create a
@@ -144,6 +144,18 @@ Git tag or rewrite retained historical evidence.
 In particular, a retained macOS preflight report keeps its recorded product
 version and binary hashes. Current-version gate tests use temporary synthetic
 inputs; release validation still requires a fresh report for the actual bundle.
+
+For a new minor line, add its maintenance note and select it as the only
+active row in the [release history](history/index.md). The isolated Leselang
+consumer has its own lockfile: update its local product-package entries
+without changing the upstream pin. Verify both the consumer and the public
+version surfaces before packaging:
+
+```bash
+cargo metadata --manifest-path tests/fixtures/leselang-product-hir-boundary/Cargo.toml --locked --format-version 1 > /dev/null
+cargo dev version check
+cargo test --locked -p gewyvern --test version_posture_tdd
+```
 
 Type-check the Rust workspace without code generation while incrementally
 building the managed stacks in parallel:

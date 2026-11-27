@@ -1,7 +1,7 @@
 # gewyvern Roadmap
 
-This roadmap treats `v2.5.x` as the active stable line.
-The current shared community release is `v2.5.0`.
+This roadmap treats `v2.7.x` as the active stable line.
+The current shared community release is `v2.7.0`.
 
 `gewyvern` is no longer on the road to `1.0.0` or `2.0.0`; both seals are now
 release history. The current question is how to preserve the released Gewyvern
@@ -12,7 +12,7 @@ core and Rust control-plane/automation contracts while community evidence grows.
 - last fully documented historical validation baseline: `v0.10.0`
 - sealed stable baseline: `v1.0.0`
 - current documented checkpoint: the shared community release shown above
-- active line: `v2.5.x` maintenance, operator polish, and community validation
+- active line: `v2.7.x` maintenance, operator polish, and community validation
 - released architecture:
   [docs/leserpent-2-architecture.md](docs/leserpent-2-architecture.md)
 - completed delivery record and maintenance roadmap:
@@ -25,7 +25,7 @@ For the explicit `0.15.x -> 0.20.x -> 1.0.0` spine, see
 Machine-readable current progress is tracked by the
 [project status tensor](docs/project-status-system.md), not duplicated here.
 
-## What `v2.5.x` Means Right Now
+## What `v2.7.x` Means Right Now
 
 At the current checkpoint, the active line should be interpreted as:
 
@@ -59,7 +59,7 @@ provider persistence and real-provider evaluation remain open; legacy memory
 data stays compatible. See [provider setup](apps/etragon/docs/external-providers.md).
 Etragon must never become a prerequisite for Gewyvern diagnosis or Leserpent control.
 
-### 1. `v2.5.x`: Release Maintenance And Operating Confidence
+### 1. `v2.7.x`: Release Maintenance And Operating Confidence
 
 - keep release-gate, remote-Linux, and target-lab validation paths easy to rerun
 - keep startup, stop, logs, persistence, and cleanup predictable under failed
@@ -68,6 +68,9 @@ Etragon must never become a prerequisite for Gewyvern diagnosis or Leserpent con
   reopening machine-contract drift
 - improve performance and UX where the stable core is already proven
 - keep adjacent apps aligned to the same mainline version and stable boundaries
+- distinguish the [tested process-crash cases](docs/production-udp-offload-service.md#changing-retention-between-evictions)
+  from the open gates: two writers with different limits on one shelf,
+  power-loss durability, and independent Linux hosts/kernels
 
 The final ten-slot `v1.20.0` through `v1.20.9` closure window completed before
 `v2.0.0`. Its proof shelves remain mandatory; expanded platform/device testing

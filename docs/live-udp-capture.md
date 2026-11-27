@@ -8,9 +8,10 @@ runtime API. Capture is explicit, never enabled by installing the program.
 ## Prerequisites And Scope
 
 - Linux with cgroup v2, BPF ring buffers, cgroup BPF links and the required
-  socket/netns-cookie helpers. The dated proofs cover x86_64 kernels 7.0.0-42
-  and 7.0.0-43 on the same physical host; they do not establish the minimum
-  supported kernel or another host.
+  socket/netns-cookie helpers. The dated x86_64 proofs include 7.0.0-42 and
+  7.0.0-43; the [archive recovery checks](production-udp-offload-service.md#changing-retention-between-evictions)
+  ran on 7.0.0-44. These do not establish a minimum supported kernel or
+  qualify a second physical host.
 - `/usr/bin/clang` with the BPF target, Linux/libbpf development headers and
   `libbpf.so.1` providing `ring_buffer__consume_n`. The embedded product source
   is compiled at startup in a private temporary directory, with a 30-second
@@ -207,8 +208,10 @@ start. SIGKILL/host failure cannot flush pending facts or final counters; stale
 status may still say `running`. Verify process liveness and `run_id`; never
 claim the previous run is complete or resumed. The [offload service check](production-udp-offload-service.md)
 verifies same-socket restart, fresh run identity and no downtime backfill after
-SIGKILL, together with cross-window groups and atomic budget refusal. Startup compiler termination
-under SIGKILL and automatic supervisor restart have not been proven here.
+SIGKILL, together with cross-window groups and atomic budget refusal.
+[Installed systemd recovery](systemd-udp-recovery.md) separately verifies
+automatic restart. Killing the collector during startup compilation is a
+different case and is not covered by those results.
 
 ## Reproduce The Linux Check
 

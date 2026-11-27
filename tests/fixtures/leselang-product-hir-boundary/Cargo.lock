@@ -31,7 +31,7 @@ dependencies = [
 
 [[package]]
 name = "leselang-host-contract"
-version = "2.5.0"
+version = "2.7.0"
 dependencies = [
  "serde",
  "silvortex-identity",
@@ -78,7 +78,7 @@ dependencies = [
 
 [[package]]
 name = "leserpent-hir"
-version = "2.5.0"
+version = "2.7.0"
 dependencies = [
  "leselang-hir-core",
  "leselang-host-contract",
@@ -156,7 +156,7 @@ dependencies = [
 
 [[package]]
 name = "silvortex-identity"
-version = "2.5.0"
+version = "2.7.0"
 dependencies = [
  "serde",
 ]

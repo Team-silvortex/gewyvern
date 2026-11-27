@@ -18,6 +18,8 @@ For `gewyvern`, the middle numeric component is treated as the **minor** line:
 - `v2.3.x`
 - `v2.4.x`
 - `v2.5.x`
+- `v2.6.x`
+- `v2.7.x`
 
 The rule from here forward is simple:
 
@@ -38,45 +40,45 @@ background cleanup.
 
 ## Recorded Minor Lines
 
-- [docs/history/v0.10.0.md](docs/history/v0.10.0.md)
+- [docs/history/v0.10.0.md](v0.10.0.md)
   Last fully documented early validation baseline before the later
   convergence and `0.14.x` maturity line.
-- [docs/history/v0.13.x.md](docs/history/v0.13.x.md)
+- [docs/history/v0.13.x.md](v0.13.x.md)
   First deliberate convergence line before the later `0.14.x` posture.
-- [docs/history/1.0-readiness.md](docs/history/1.0-readiness.md)
+- [docs/history/1.0-readiness.md](1.0-readiness.md)
   Archived readiness note from the earlier `v0.13.x` through `v0.15.x`
   convergence phase; useful as historical rationale, not as the current line's
   ship read.
-- [docs/history/v0.14.x.md](docs/history/v0.14.x.md)
+- [docs/history/v0.14.x.md](v0.14.x.md)
   Earlier maturity line focused on protocol depth, compiler ergonomics, and
   runtime/report maturity.
-- [docs/history/v0.15.x.md](docs/history/v0.15.x.md)
+- [docs/history/v0.15.x.md](v0.15.x.md)
   Historical line focused on carrying earlier maturity into runtime layout,
   upgrade handling, and clearer operational contracts.
-- [docs/history/v0.17.x.md](docs/history/v0.17.x.md)
+- [docs/history/v0.17.x.md](v0.17.x.md)
   Historical line focused on family-first protocol deepening plus stronger
   compiler/IR maturity without losing runtime evidence discipline.
-- [docs/history/v0.17.x-midline-checklist.md](docs/history/v0.17.x-midline-checklist.md)
+- [docs/history/v0.17.x-midline-checklist.md](v0.17.x-midline-checklist.md)
   Second-half checklist used to close the `0.17.x` line cleanly before the
   `0.18.x` validation and runtime-confidence line.
-- [docs/history/v0.18.x.md](docs/history/v0.18.x.md)
+- [docs/history/v0.18.x.md](v0.18.x.md)
   Historical line focused on protocol breadth, packaged/runtime confidence,
   and physical-host validation.
-- [docs/history/v0.18.x-pathological-container.md](docs/history/v0.18.x-pathological-container.md)
+- [docs/history/v0.18.x-pathological-container.md](v0.18.x-pathological-container.md)
   Physical-host pathological container evidence for runtime ingest fault
   handling and resilience degradation.
-- [docs/history/v0.19.x.md](docs/history/v0.19.x.md)
+- [docs/history/v0.19.x.md](v0.19.x.md)
   Historical integration line focused on integrated debugger behavior,
   reliability hardening, cross-validation, and pre-seal convergence.
-- [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
+- [docs/history/v0.20.x.md](v0.20.x.md)
   Final pre-`1.0` sealing line focused on repeatable release gates, surface
   freeze judgment, and documentation/system coherence.
-- [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
+- [docs/history/v1.0.0.md](v1.0.0.md)
   First sealed stable line focused on keeping the core, machine contracts,
   Linux proof paths, and release evidence coherent.
-- [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md)
+- [docs/history/v1.0.0-release-notes.md](v1.0.0-release-notes.md)
   Formal release note for the first sealed stable line.
-- [docs/history/v2.0.0-release-notes.md](docs/history/v2.0.0-release-notes.md)
+- [docs/history/v2.0.0-release-notes.md](v2.0.0-release-notes.md)
   Formal release note for the protocolized Gewyvern, Leserpent, and Leselang
   infrastructure release.
 - [docs/history/v2.1.x.md](v2.1.x.md)
@@ -92,15 +94,21 @@ background cleanup.
   Historical maintenance line with continued Leselang independence, shared-owner
   restoration, and isolated native source verification.
 - [docs/history/v2.5.x.md](v2.5.x.md)
-  Current maintenance line with command-adapter separation, preserved native
+  Historical maintenance line with command-adapter separation, preserved native
   transaction authority, and evidence-safe shared version alignment.
-- [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md)
+- [docs/history/v2.6.x.md](v2.6.x.md)
+  Linux UDP capture in the formal CLI and installed service, real protocol
+  checks and bounded loss/recovery evidence.
+- [docs/history/v2.7.x.md](v2.7.x.md)
+  Current maintenance line: terminal publication, recoverable history pruning
+  and clear limits on what a live collector can attest.
+- [docs/history/v0.15-to-v1-roadmap.md](v0.15-to-v1-roadmap.md)
   Forward-looking minor-line plan from `0.15.x` through `0.20.x`, intended to
   make `v1.0.0` the direct next step after the final pre-`1.0` seal.
-- [docs/history/v0.16.x-checklist.md](docs/history/v0.16.x-checklist.md)
+- [docs/history/v0.16.x-checklist.md](v0.16.x-checklist.md)
   Protocol-semantics and runtime-evidence execution checklist for the planned
   `0.16.x` line.
-- [docs/history/minor-line-evidence-bundle.md](docs/history/minor-line-evidence-bundle.md)
+- [docs/history/minor-line-evidence-bundle.md](minor-line-evidence-bundle.md)
   Small durable template for what validation artifacts should accompany a new
   minor-line history page.
 
@@ -108,23 +116,25 @@ background cleanup.
 
 | Line | Role | Status | Canonical note |
 | --- | --- | --- | --- |
-| `v0.10.0` | Historical validation baseline before the later convergence and `0.14.x` posture work | historical baseline | [docs/history/v0.10.0.md](docs/history/v0.10.0.md) |
-| `v0.13.x` | First deliberate convergence line for documentation, boundaries, and release judgment | recorded | [docs/history/v0.13.x.md](docs/history/v0.13.x.md) |
-| `v0.14.x` | Earlier maturity line before the `0.15.x` operationalization pass | historical snapshot | [docs/history/v0.14.x.md](docs/history/v0.14.x.md) |
-| `v0.15.x` | Runtime layout, upgrade shape, and operationalization baseline before later deepening lines | recorded baseline | [docs/history/v0.15.x.md](docs/history/v0.15.x.md) |
-| `v0.17.x` | Protocol-cluster deepening plus compiler/IR maturity with runtime-evidence discipline | historical snapshot | [docs/history/v0.17.x.md](docs/history/v0.17.x.md) |
-| `v0.18.x` | Protocol breadth, packaged/runtime confidence, and physical-host validation | historical snapshot | [docs/history/v0.18.x.md](docs/history/v0.18.x.md) |
-| `v0.19.x` | Integrated debugger behavior, reliability hardening, and pre-seal convergence | historical snapshot | [docs/history/v0.19.x.md](docs/history/v0.19.x.md) |
-| `v0.20.x` | Final pre-`1.0` seal with repeatable release gates and frozen core surfaces | historical prelude | [docs/history/v0.20.x.md](docs/history/v0.20.x.md) |
-| `v1.0.0` | First sealed stable line with repeatable release gates, Linux proof, and frozen machine-facing shelves | sealed baseline | [docs/history/v1.0.0.md](docs/history/v1.0.0.md) |
+| `v0.10.0` | Historical validation baseline before the later convergence and `0.14.x` posture work | historical baseline | [docs/history/v0.10.0.md](v0.10.0.md) |
+| `v0.13.x` | First deliberate convergence line for documentation, boundaries, and release judgment | recorded | [docs/history/v0.13.x.md](v0.13.x.md) |
+| `v0.14.x` | Earlier maturity line before the `0.15.x` operationalization pass | historical snapshot | [docs/history/v0.14.x.md](v0.14.x.md) |
+| `v0.15.x` | Runtime layout, upgrade shape, and operationalization baseline before later deepening lines | recorded baseline | [docs/history/v0.15.x.md](v0.15.x.md) |
+| `v0.17.x` | Protocol-cluster deepening plus compiler/IR maturity with runtime-evidence discipline | historical snapshot | [docs/history/v0.17.x.md](v0.17.x.md) |
+| `v0.18.x` | Protocol breadth, packaged/runtime confidence, and physical-host validation | historical snapshot | [docs/history/v0.18.x.md](v0.18.x.md) |
+| `v0.19.x` | Integrated debugger behavior, reliability hardening, and pre-seal convergence | historical snapshot | [docs/history/v0.19.x.md](v0.19.x.md) |
+| `v0.20.x` | Final pre-`1.0` seal with repeatable release gates and frozen core surfaces | historical prelude | [docs/history/v0.20.x.md](v0.20.x.md) |
+| `v1.0.0` | First sealed stable line with repeatable release gates, Linux proof, and frozen machine-facing shelves | sealed baseline | [docs/history/v1.0.0.md](v1.0.0.md) |
 | `v1.20.x` | Final closure window for reliability, security, performance, frontend conformance, deployment, desktop UX, and documentation | completed seal | [project/release/leserpent-2-patch-seal.json](../../project/release/leserpent-2-patch-seal.json) |
 | `v2.0.0` | Released protocolized network-debugging infrastructure with Rust control authority and replaceable operator frontends | sealed release baseline | [docs/history/v2.0.0-release-notes.md](v2.0.0-release-notes.md) |
 | `v2.1.x` | Post-release maintenance and bounded Leselang computation/control-flow development without relabeling frozen contracts | historical snapshot | [docs/history/v2.1.x.md](v2.1.x.md) |
 | `v2.3.x` | Shared release alignment and acceptance-gated Leselang extraction readiness | historical snapshot | [docs/history/v2.3.x.md](v2.3.x.md) |
 | `v2.4.x` | Shared maintenance line with continued Leselang independence and isolated native source verification | historical snapshot | [docs/history/v2.4.x.md](v2.4.x.md) |
-| `v2.5.x` | Shared release alignment with command-adapter separation and preserved native transaction authority | active line | [docs/history/v2.5.x.md](v2.5.x.md) |
-| `v1.0.0 release` | Formal stable-release note for the first sealed mainline ship | release note | [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md) |
-| `v0.15.x -> v1.0.0` | Forward roadmap through `v0.20.x` with `v1.0.0` as the intended direct successor | completed roadmap | [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md) |
+| `v2.5.x` | Shared release alignment with command-adapter separation and preserved native transaction authority | historical snapshot | [docs/history/v2.5.x.md](v2.5.x.md) |
+| `v2.6.x` | Formal CLI and installed UDP capture, network fault and service recovery evidence | historical snapshot | [docs/history/v2.6.x.md](v2.6.x.md) |
+| `v2.7.x` | Linux capture shutdown, write failures and index-bound archive recovery | active line | [docs/history/v2.7.x.md](v2.7.x.md) |
+| `v1.0.0 release` | Formal stable-release note for the first sealed mainline ship | release note | [docs/history/v1.0.0-release-notes.md](v1.0.0-release-notes.md) |
+| `v0.15.x -> v1.0.0` | Forward roadmap through `v0.20.x` with `v1.0.0` as the intended direct successor | completed roadmap | [docs/history/v0.15-to-v1-roadmap.md](v0.15-to-v1-roadmap.md) |
 
 This table is the shortest answer to:
 
@@ -154,7 +164,7 @@ trail, including the latest two-snapshot delta summary for:
 For the IR-side archival baseline that can accompany one of these pages, the
 repo now includes:
 
-- [scripts/history/render_minor_line_ir_snapshot.sh](scripts/history/render_minor_line_ir_snapshot.sh)
+- [scripts/history/render_minor_line_ir_snapshot.sh](../../scripts/history/render_minor_line_ir_snapshot.sh)
   Thin helper that renders Markdown-ready IR history snapshot blocks from one
   or more `.gewy` inputs.
 - `cargo run --quiet --bin gewyvern_validate -- three-module-stack-smoke`
@@ -163,18 +173,18 @@ repo now includes:
 - `cargo run --quiet --bin gewyvern_validate -- pathological-container-validation`
   Containerized malformed-client gate for runtime ingest resilience and
   post-fault service continuity.
-- [docs/history/minor-line-evidence-bundle.md](docs/history/minor-line-evidence-bundle.md)
+- [docs/history/minor-line-evidence-bundle.md](minor-line-evidence-bundle.md)
   Compact rule sheet for what to preserve alongside the history page when one
   line's validation posture needs durable companion artifacts.
 
 Use other pages when you want something else:
 
 - for the current top-level documentation map, use
-  [docs/index.md](docs/index.md)
+  [docs/index.md](../index.md)
 - for the current structured reading paths, use
-  [docs/book/index.md](docs/book/index.md)
+  [docs/book/index.md](../book/index.md)
 - for the current active release posture, use
-  [docs/history/v2.4.x.md](v2.4.x.md)
+  [docs/history/v2.7.x.md](v2.7.x.md)
 - for the formal stable-release announcement shelf, use
-  [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md)
+  [docs/history/v1.0.0-release-notes.md](v1.0.0-release-notes.md)
 - for the shortest ledger of historical release lines, use this page

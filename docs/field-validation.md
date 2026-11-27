@@ -1,7 +1,7 @@
 # Field Validation
 
 This note defines the practical field-validation phase for the active
-`2.5.x` line.
+`2.7.x` line.
 
 The goal is simple:
 
@@ -17,8 +17,13 @@ language's future full-VM work do not block Gewyvern capability field testing.
 The runtime dependency gate keeps Gewyvern itself independent of the control
 stack; its development-only integration tests are a separate concern.
 
-Resume the existing native validation entrypoints rather than building a new
-parallel harness. The next campaign should cover these ordered layers:
+For the current operating scope, see the [release notes](history/v2.7.x.md).
+The [history recovery results](production-udp-offload-service.md#changing-retention-between-evictions)
+cover a single writer interrupted during eviction. Concurrent writers on one
+shelf, power loss and independent-host qualification remain open.
+
+Use the following layers to repeat or extend a campaign. A harness check is
+not evidence for the formal CLI unless that check actually runs the product.
 
 1. Establish the server/kernel/toolchain and packaged-binary identity, then verify standalone CLI, service startup, stop and restart behavior.
 2. Cross-check high-frequency and mixed protocol evidence through `registry`, `high-frequency` and `debugger-cross`, including negative cases that must not overclaim.
@@ -174,7 +179,7 @@ This is the bridge between:
 
 - contract freeze
 - benchmark acceptance
-- current release judgment for the active `2.5.x` line
+- current release judgment for the active `2.7.x` line
 
 For the sealed `1.0.0` release posture and the final pre-stable checkpoint,
 see [1.0.0 release posture](history/v1.0.0.md) and
@@ -230,7 +235,7 @@ For those, use:
 
 ## Current Prelaunch Scope
 
-Keep the current `2.5.x` field-validation line intentionally narrow.
+Keep the current `2.7.x` field-validation line intentionally narrow.
 
 The question is not "what else could `gewyvern` support".
 
@@ -596,6 +601,6 @@ This note does not replace:
 - release gate judgment
 - the dedicated multi-project collaboration gate with `etragon` and `leserpent`
 
-It exists so the active `2.5.x` line has a concrete "keep validating for
+It exists so the active `2.7.x` line has a concrete "keep validating for
 real" shelf rather
 than only architecture cleanup.

@@ -27,7 +27,7 @@ For those, use:
 
 ## Layout Policy
 
-The active `2.5.x` policy is:
+The active `2.7.x` policy is:
 
 - standard roots are explicit
 - environment overrides stay supported
@@ -82,7 +82,7 @@ and one packaged share root:
 
 ## Config File Name
 
-The standard config file name for the active `2.5.x` line is:
+The standard config file name for the active `2.7.x` line is:
 
 - `gewyvern.toml`
 
@@ -92,7 +92,7 @@ For the exact search order, fallback names, and supported sections, use:
 
 ## Current Asset Expectations
 
-The current `2.5.x` expectation is:
+The current `2.7.x` expectation is:
 
 - protocol registry packages live under `data/protocols/`
 - built-in DSL helpers can live under `data/dsl/`
@@ -116,10 +116,12 @@ without overwriting files already present in the standard layout.
 - archived API snapshot artifacts live under `state/history/api/`
 - packaged read-only assets still live under `/usr/share/gewyvern/` on Linux
 
-The current `2.5.x` history retention rule is intentionally simple:
+The current `2.7.x` history retention rule is intentionally simple:
 
-- keep the most recent 32 archived API snapshot refreshes
-- prune older archived refreshes during later successful writes
+- keep the most recent 32 archived API snapshots by default; continuous UDP
+  capture publishes running windows but writes history at terminal publication
+- expose only committed entries once an index exists; finish an interrupted
+  cleanup on the next history publication, not merely on process startup
 
 That default can now be overridden with:
 
@@ -138,6 +140,11 @@ structured runtime ledger with:
 - `entries[]`
 
 Treat it as the machine-facing summary for the current on-disk history shelf.
+For an indexed shelf with a recorded limit, both `--list-history` and
+`--list-history --json` report the committed retention. If the reader's local
+setting differs, the text view labels it separately. Raising that setting does
+not restore already evicted snapshots. See the [crash and reconfiguration
+example](../production-udp-offload-service.md#changing-retention-between-evictions).
 
 The packaged Linux tree remains:
 
@@ -257,7 +264,7 @@ Watch these files when validating control-plane consumers:
 - `latest/api/v1/latest/targets/<path-segment>/protocol-surface.json`
 - `latest/api/v1/latest/protocols/<protocol>/entries/<entry>/surface.json`
 
-In the current `2.5.x` line those JSON artifacts may include:
+In the current `2.7.x` line those JSON artifacts may include:
 
 - `selected_overlay`
 - `overlays`
