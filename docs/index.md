@@ -34,6 +34,7 @@ that owns your question; do not scan the repository by filename.
 - Formal collector across namespaces, MTU and network faults: [UDP network checks](production-udp-network.md)
 - Hook visibility versus socket/application delivery: [UDP receive pressure](production-udp-receive-pressure.md)
 - Bounded UDP L4 GSO/GRO normalization, provenance and loss accounting: [offload boundary](production-udp-offload.md)
+- Whole offload groups across windows, multi-CPU loss/recovery, expiry, history rollover and SIGKILL: [service reliability](production-udp-offload-service.md)
 - Live progress and evidence: [status entry](../STATUS.md)
 - Local cache retention and cleanup: [workspace hygiene](development.md#workspace-hygiene)
 

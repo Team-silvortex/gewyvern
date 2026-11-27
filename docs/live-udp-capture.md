@@ -128,7 +128,8 @@ For the installed TLS service, see [installed UDP service](installed-udp-service
 `capture.schema_version = 1`; exact 64-bit counters are decimal strings. They
 are cumulative within a `run_id`, while export facts belong to one window:
 
-- `kernel.matched`: admitted observations before ring reservation.
+- `kernel.matched`: admitted logical datagrams before ring reservation, including
+  each planned normalized segment rather than one count for its aggregate.
 - `kernel.ring_dropped`: ring reservation failures or discarded failed loads.
 - `kernel.unsupported`, `malformed`, `no_cookie`: rejected observations before
   usable facts. Unsupported headers can prevent port inspection, so these are
@@ -137,8 +138,19 @@ are cumulative within a `run_id`, while export facts belong to one window:
   must not be blindly added together.
 - `received`: ring records consumed; `retained`: facts admitted to bounded
   analysis windows, **not proof of durable archival**.
-- `userspace_dropped`: admitted record exceeded the current fact budget;
-  `decode_rejected`: unusable ABI/framing/identity record.
+- `userspace_dropped`: record refused by the fact budget, including all members
+  of an atomically refused offload group even if a later window frees capacity.
+- `decode_rejected`: unusable ABI/framing/identity record or received member of
+  an invalid/incomplete/expired group; this does not always mean malformed wire data.
+
+Pending offload members are received but not yet retained or rejected. Their
+fixed two-second reservation expires even with no new traffic; empty publications
+neither release it early nor renew it. The [idle expiry proof](production-udp-offload-service.md#idle-expiry-and-capacity-recovery)
+checks this distinction, capacity recovery and exact kernel/userspace accounting.
+The bounded 4,096-ID history also retires old pending/closed groups without
+allowing late tails to reenter. The [rollover proof](production-udp-offload-service.md#aggregate-history-rollover)
+checks 10,244 real groups in one process; its paced memory/CPU samples do not
+establish long-term leak freedom or peak capture performance.
 
 Running snapshots are not globally atomic. On graceful shutdown, links are
 detached first, the remaining ring is drained within two seconds, and
@@ -177,7 +189,9 @@ same cgroup, not overlapping ancestor/descendant scopes or unrelated BPF tools.
 Links are process-owned and unpinned: SIGKILL releases them, and a fresh run can
 start. SIGKILL/host failure cannot flush pending facts or final counters; stale
 status may still say `running`. Verify process liveness and `run_id`; never
-claim the previous run is complete or resumed. Startup compiler termination
+claim the previous run is complete or resumed. The [offload service check](production-udp-offload-service.md)
+verifies same-socket restart, fresh run identity and no downtime backfill after
+SIGKILL, together with cross-window groups and atomic budget refusal. Startup compiler termination
 under SIGKILL and automatic supervisor restart have not been proven here.
 
 ## Reproduce The Linux Check

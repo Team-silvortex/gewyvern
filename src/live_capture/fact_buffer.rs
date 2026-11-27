@@ -68,6 +68,10 @@ impl CaptureFactBuffer {
     }
 
     pub fn take_facts(&mut self) -> Vec<FactEnvelope> {
+        // Idle publications must not replace a full-sized ready allocation.
+        if self.facts.is_empty() {
+            return Vec::new();
+        }
         std::mem::replace(&mut self.facts, Vec::with_capacity(self.max_facts))
     }
 

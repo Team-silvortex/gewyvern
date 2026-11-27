@@ -204,6 +204,9 @@ timestamp; the entire bundle is imported and replayed. The compact artifact
 records native hashes and source/binary hashes; raw exports remain on Linux.
 This is not a physical-NIC, older-kernel, tunnel or multi-host certification.
 The status cell is not promoted merely because these cases pass.
+The [service-window and restart proof](production-udp-offload-service.md) adds
+real groups straddling a 512-record consume, whole-group budget rejection and
+same-socket SIGKILL/restart checks with distinct run identities.
 The `OFFLOAD_CORE=0` conservative object also compiles and loads on this host,
 without attaching to traffic; its temporary pins are removed. That check does
 not substitute for executing on an older kernel with unavailable kfuncs.

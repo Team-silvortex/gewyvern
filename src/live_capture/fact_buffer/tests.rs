@@ -50,6 +50,49 @@ fn ordinary() -> FactEnvelope {
     fact
 }
 
+#[test]
+fn empty_windows_keep_the_ready_allocation_without_exporting_capacity() {
+    for limit in [1, 24, 65536] {
+        let mut buffer = CaptureFactBuffer::new(limit).unwrap();
+        let pointer = buffer.facts.as_ptr();
+        let capacity = buffer.facts.capacity();
+        for _ in 0..1000 {
+            let empty = buffer.take_facts();
+            assert!(empty.is_empty());
+            assert_eq!(empty.capacity(), 0);
+            assert_eq!(buffer.facts.as_ptr(), pointer);
+            assert_eq!(buffer.facts.capacity(), capacity);
+        }
+    }
+}
+
+#[test]
+fn empty_windows_do_not_release_or_renew_pending_reservations() {
+    let mut h = Harness::new(24);
+    let now = Instant::now();
+    h.push(fact_with_count(1, 0, 16), now);
+    let pointer = h.buffer.facts.as_ptr();
+    for _ in 0..10 {
+        assert_eq!(h.buffer.take_facts().capacity(), 0);
+        assert_eq!(h.buffer.facts.as_ptr(), pointer);
+        assert_eq!(h.buffer.reserved, 16);
+        assert_eq!(h.buffer.pending_records(), 1);
+    }
+    let expired = h.buffer.expire(now + UDP_OFFLOAD_WAIT);
+    h.account(expired);
+    assert_eq!(h.buffer.reserved, 0);
+    for index in 0..16 {
+        h.push(fact_with_count(2, index, 16), now + UDP_OFFLOAD_WAIT);
+    }
+    let ready = h.buffer.take_facts();
+    assert_eq!(ready.len(), 16);
+    assert!(invalid_groups(&ready).is_empty());
+    h.finish();
+    assert_eq!(h.counts.retained, 16);
+    assert_eq!(h.counts.decode_rejected, 1);
+    assert_eq!(h.counts.userspace_dropped, 0);
+}
+
 struct Harness {
     buffer: CaptureFactBuffer,
     received: u64,
@@ -232,6 +275,62 @@ fn timeout_releases_reservation_and_never_resurrects_group() {
 }
 
 #[test]
+fn expiry_frees_capacity_without_reclassifying_a_budget_refused_groups_tail() {
+    let now = Instant::now();
+    let mut h = Harness::new(24);
+    let mut next = 0;
+    let mut unique = |mut fact: FactEnvelope| {
+        next += 1;
+        fact.id = FactId(next);
+        fact
+    };
+    for _ in 0..8 {
+        h.push(unique(ordinary()), now);
+    }
+    for index in 0..9 {
+        h.push(unique(fact_with_count(1, index, 16)), now);
+    }
+    h.push(unique(fact_with_count(2, 0, 16)), now);
+    assert_eq!(h.buffer.reserved, 16);
+    assert_eq!(h.counts.userspace_dropped, 1);
+    assert_eq!(h.buffer.take_facts().len(), 8);
+    let delta = h.buffer.expire(now + UDP_OFFLOAD_WAIT);
+    h.account(delta);
+    assert_eq!(h.buffer.reserved, 0);
+    assert_eq!(h.counts.decode_rejected, 9);
+    // A different group's expiry frees all 24 slots, but cannot reopen the
+    // budget tombstone or charge its later members as timeout rejects.
+    for index in 1..16 {
+        h.push(
+            unique(fact_with_count(2, index, 16)),
+            now + UDP_OFFLOAD_WAIT,
+        );
+    }
+    assert!(h.buffer.take_facts().is_empty());
+    assert_eq!(h.counts.userspace_dropped, 16);
+    assert_eq!(h.counts.decode_rejected, 9);
+    for index in 0..16 {
+        h.push(
+            unique(fact_with_count(3, index, 16)),
+            now + UDP_OFFLOAD_WAIT,
+        );
+    }
+    let ready = h.buffer.take_facts();
+    assert_eq!(ready.len(), 16);
+    assert!(invalid_groups(&ready).is_empty());
+    h.finish();
+    assert_eq!(h.received, 49);
+    assert_eq!(
+        h.counts,
+        FactBufferAccounting {
+            retained: 24,
+            userspace_dropped: 16,
+            decode_rejected: 9
+        }
+    );
+}
+
+#[test]
 fn two_and_sixteen_segment_masks_admit_complete_reversed_groups() {
     let mut h = Harness::new(16);
     let now = Instant::now();
@@ -332,4 +431,92 @@ fn ordinary_packets_remain_bounded_and_u64_id_edges_do_not_overflow() {
     h.push(fact(1, 0), now);
     h.finish();
     assert_eq!(h.counts.decode_rejected, 1);
+}
+
+#[test]
+fn repeated_history_retirement_releases_pending_slots_and_never_revives_old_ids() {
+    let mut buffer = CaptureFactBuffer::new(4).unwrap();
+    let now = Instant::now();
+    let partial = [1, UDP_OFFLOAD_ID_WINDOW + 1, UDP_OFFLOAD_ID_WINDOW * 2 + 1];
+    let highest = UDP_OFFLOAD_ID_WINDOW * 3 + 1;
+    let mut received = 0;
+    let mut counts = FactBufferAccounting::default();
+    let mut account = |delta: FactBufferAccounting| {
+        counts.retained += delta.retained;
+        counts.userspace_dropped += delta.userspace_dropped;
+        counts.decode_rejected += delta.decode_rejected;
+    };
+    for group in 1..=highest {
+        for index in 0..if partial.contains(&group) { 1 } else { 2 } {
+            let mut fact = fact_with_count(group, index, 2);
+            fact.id = FactId(group * 2 + u64::from(index));
+            account(buffer.push(fact, now));
+            received += 1;
+        }
+        assert!(buffer.entries.len() <= UDP_OFFLOAD_ID_WINDOW as usize);
+        assert!(buffer.reserved <= 2 && buffer.deadlines.len() <= 1);
+        assert_eq!(
+            buffer.take_facts().len(),
+            if partial.contains(&group) { 0 } else { 2 }
+        );
+    }
+    assert_eq!(buffer.entries.len(), UDP_OFFLOAD_ID_WINDOW as usize);
+    assert_eq!(
+        buffer.entries.first_key_value().unwrap().0,
+        &(highest - UDP_OFFLOAD_ID_WINDOW + 1)
+    );
+    assert_eq!(buffer.reserved, 0);
+    assert_eq!(buffer.pending_records(), 0);
+    assert!(buffer.deadlines.is_empty());
+    for group in partial {
+        account(buffer.push(fact_with_count(group, 1, 2), now));
+        received += 1;
+    }
+    assert!(buffer.take_facts().is_empty());
+    account(buffer.finish());
+    assert_eq!(counts.retained, (highest - 3) * 2);
+    assert_eq!(counts.userspace_dropped, 0);
+    assert_eq!(counts.decode_rejected, 6);
+    assert_eq!(received, counts.retained + counts.decode_rejected);
+    assert!(buffer.entries.is_empty() && buffer.deadlines.is_empty());
+}
+
+#[test]
+fn interleaved_out_of_order_groups_survive_publication_and_history_rollover() {
+    let mut h = Harness::new(64);
+    let now = Instant::now();
+    let mut next_fact = 0;
+    let mut seen = std::collections::BTreeSet::new();
+    for block in 0..160 {
+        let order: Vec<u64> = (0..32).map(|n| block * 32 + (n * 13) % 32 + 1).collect();
+        // Tail-first arrivals and non-monotonic group IDs model an adversarial
+        // bounded interleave without depending on real CPU scheduling luck.
+        for group in &order {
+            let mut fact = fact_with_count(*group, 1, 2);
+            next_fact += 1;
+            fact.id = FactId(next_fact);
+            fact.cpu = crate::ledger::CpuId((*group % 8) as u16);
+            h.push(fact, now);
+            assert!(h.buffer.take_facts().is_empty());
+        }
+        assert_eq!(h.buffer.reserved, 64);
+        for group in order.into_iter().rev() {
+            let mut fact = fact_with_count(group, 0, 2);
+            next_fact += 1;
+            fact.id = FactId(next_fact);
+            fact.cpu = crate::ledger::CpuId((group % 8) as u16);
+            h.push(fact, now);
+            let ready = h.buffer.take_facts();
+            assert_eq!(ready.len(), 2);
+            assert!(invalid_groups(&ready).is_empty());
+            assert!(ready.iter().all(|fact| seen.insert(fact.id)));
+        }
+        assert_eq!(h.buffer.reserved, 0);
+        assert!(h.buffer.deadlines.is_empty());
+        assert!(h.buffer.entries.len() <= UDP_OFFLOAD_ID_WINDOW as usize);
+    }
+    h.finish();
+    assert_eq!(h.counts.retained, 10240);
+    assert_eq!(seen.len(), 10240);
+    assert_eq!(h.counts.userspace_dropped + h.counts.decode_rejected, 0);
 }

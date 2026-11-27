@@ -1,5 +1,177 @@
 # Field Findings
 
+## `2026-11-27` Ring Loss And Userspace Refusal Remain Distinguishable
+
+Three [mixed-pressure runs](production-udp-offload-service.md#mixed-ring-and-budget-pressure)
+on Linux 7.0.0-44-generic ended with 2,004 matched, 1,758 ring drops, 246
+received and 168 retained. Scheduling changed the split between budget refusals
+and idle-expired members (57/21, 63/15, 55/23), not their sum. All nine cycles
+recovered on their original sockets without publishing incomplete groups or
+clearing the loss flag. This is forced observation loss, not network loss.
+
+## `2026-11-20` Multi-CPU Ring Loss Keeps Partial Groups Out And Recovery Honest
+
+Three fresh CLI runs each perform three pressure/expiry/recovery cycles using
+four pinned dual-stack peer pairs and the same sockets. A paused 4 KiB ring first
+holds eight ordinary records, then receives a concurrent 544-observation burst.
+Only 17 records fit; no full 16-segment pressure group can fit in the remaining
+nine slots. Each cycle retains the ordinary prelude, expires nine received
+partial members without new traffic, then captures all four lanes' minimum
+two-segment recovery groups. Actual native I/O, GRO metadata, packet prefixes,
+namespace/cookie identity, complete group membership and replay are checked.
+
+Every final snapshot reconciles 1,800 matched = 1,605 ring-dropped + 195 received
+and 195 received = 168 retained + 27 decode-rejected. Other rejection and
+userspace-budget counters stay zero. Recovery does not clear `incomplete`:
+all runs correctly exit 3. The native 822 logical request datagrams and 78
+replies succeed; only observation was deliberately impaired. Idle expiry is
+published in about 2.55..2.57 seconds, including the 600 ms cadence.
+
+The [dated proof](production-udp-offload-service.md#multi-cpu-ring-loss-and-recovery)
+binds 23 matching local/remote inputs and both binaries. Offline checks rebuild
+every retained packet and native payload digest, verify counter conservation and
+refuse six kinds of fabricated completion/recovery. An initial test-helper probe
+incorrectly passed two namespaces to a single-namespace packet audit; it is
+retained separately and excluded. The fix verifies each peer independently before
+reconciling the whole capture. No production defect was found or maturity raised.
+Raw evidence remains on Linux under `20261120-udp-offload-multicpu-pressure`.
+This is a paced failure-path check, not a measured production loss rate or peak
+performance, physical-NIC or cross-kernel qualification.
+The root library/CLI, protocol, export, evidence and status selection passes 2,166
+regular tests. The original lossless multi-CPU/window scenario passes again with
+the shared worker, as do formal CLI lifecycle/loss recovery and real socket
+provenance import. Strict all-target/all-feature Clippy, workspace formatting and
+diff checks pass; owned cgroups and network namespaces are removed.
+
+## `2026-11-20` Real Multi-CPU Offload Groups Survive Interleaving And Publication
+
+Four private dual-stack veth pairs use eight pinned workers and overlapping native
+client intervals. Actual request/reply egress CPU IDs match affinity, while native
+GRO ancillary data and full request/reply payloads are independently checked.
+Each accepted run publishes 528 complete groups and 8,784 facts across forced
+512-record consume boundaries, followed by same-socket short-group recovery.
+Three fresh final runs all exit 0 with complete accounting and no loss/rejection.
+
+The runs observe 358/258/188 groups with interleaved members and 22/13/12 descents
+in group-ID first-arrival order. All 16 boundary windows in each run have pending
+members; maxima are 40/40/8. No group is split across exports or duplicated.
+A separate deterministic tail-first/permuted-order regression keeps all 10,240
+members across 5,120 groups, including history rollover and publication between
+completions, without relying on scheduler timing.
+
+An initial probe found a test-controller race, not missing collector accounting:
+the first observed window held 510 facts at received=3,776/retained=3,774; by the
+next read, an empty publication had replaced the 34-fact completion window while
+received=retained=3,808. The controller now freezes immediately after reading the
+publication, before replay/checks, and uses a 600 ms cadence. Prior probes remain
+excluded from accepted evidence. Latest-window output is still not a durable
+history queue; no backfill or archive guarantee is implied.
+
+The [source-bound proof](production-udp-offload-service.md#multi-cpu-interleaving)
+records all fact IDs/window ownership and exact native/hash oracles, plus six
+negative evidence controls. Raw data stays on Linux under
+`20261120-udp-offload-concurrent`. This is paced single-host correctness, not peak
+throughput, exhaustive contention or older-kernel/physical-NIC qualification.
+No production behavior or status maturity was changed this round.
+The root library/CLI, protocol, export, evidence and status selection passes 2,164
+regular tests. The formal CLI lifecycle/loss recovery and real socket provenance
+import pass again after the multi-CPU runs. Strict all-target/all-feature Clippy,
+workspace formatting and diff checks pass; test cgroups and namespaces are clean.
+
+## `2026-11-20` One CLI Run Crosses Multiple Offload History Windows
+
+Three fresh dual-stack native runs each retain 51,268 observations from 10,244
+GSO/GRO groups in one CLI process. All 129 nonempty publications match independent
+per-peer packet oracles and replay, with unique payload/fact IDs and contiguous
+group IDs. Native full-payload hashes and GRO ancillary metadata match in every
+block. Both 4,096 and 8,192 history boundaries are crossed before a final complete
+16-segment recovery block. Every run exits 0 with complete final accounting and
+zero kernel loss, userspace drop or decode rejection.
+
+A fixed-time in-memory regression separately advances 12,289 IDs, retires three
+pending groups in different history cycles and refuses their late tails. It
+directly checks the 4,096-ID map bound, reservation/deadline release and received-
+only rejection accounting. The real CLI test does not introspect that map.
+
+The approximately one-minute paced runs sample RSS at 46,384..51,048 KiB overall,
+with no observed monotonic growth. Collector user+system CPU at the final sample
+is 18.13..19.04 seconds, excluding workload-side BPF work. Deliberate pauses,
+unoptimized binaries and single-host veth traffic make this a reliability check,
+not a throughput benchmark, long soak or proof of leak freedom.
+
+No new production defect was found. The [history proof](production-udp-offload-service.md#aggregate-history-rollover)
+binds 21 matching local/remote inputs and both executed binaries, stores one full
+compact run plus three raw-summary hashes, and keeps raw exports on Linux under
+`20261120-udp-offload-history`. Status records evidence without maturity promotion.
+The root library/CLI, protocol, export, evidence and status selection passes 2,161
+regular tests. Fresh window/budget/SIGKILL, IPv6 idle-expiry, full CLI lifecycle
+and real socket provenance-import regressions also pass. Final evidence/status
+rechecks, strict all-target/all-feature Clippy, workspace formatting and diff
+checks pass; owned test cgroups and network namespaces are removed.
+
+## `2026-11-20` Idle Offload Expiry Releases Capacity Without New Traffic
+
+The real CLI now has a dual-stack service check for a nine-member partial group
+held across empty publications. Before its fixed two-second expiry, a full
+16-segment probe is atomically budget-rejected. Without new traffic or a stop
+signal, idle polling rejects the nine received partial members and releases the
+reservation. Fresh complete 16- and 4-segment groups then succeed on the same
+socket. IPv4 and IPv6 each pass three final repetitions, with actual native GRO
+metadata/full-payload checks and exact captured packet/replay oracles.
+
+Each run finishes at 64 matched, 8 ring-dropped, 56 received, 31 retained,
+16 userspace-dropped and 9 decode-rejected. The partial and budget-refused groups
+never appear in published facts. Recovery remains incomplete and exits 3;
+it cannot undo the earlier loss. Idle timeout publication was observed about
+2.16..2.24 seconds after the first partial publication, including the 200 ms
+publication cadence, rather than being triggered by final shutdown.
+
+The empty-window path also had avoidable full-capacity Vec allocation/release
+on every `take_facts()`. It now keeps the ready buffer and returns an unallocated
+empty vector. Both new regressions fail before the change and pass after it,
+covering three capacities and preserving pending reservations/deadlines. This
+removes that allocation churn, not all service allocations or measured CPU/RSS.
+
+Fresh cross-window/budget/SIGKILL and collector lifecycle regressions pass with
+the optimized producer/collector binary. The [idle-expiry proof](production-udp-offload-service.md#idle-expiry-and-capacity-recovery)
+binds 20 matching local/remote inputs and actual binaries. Raw evidence remains
+under Linux `20261120-udp-offload-expiry`; no status maturity is promoted.
+The root library/CLI, protocol, export and status selection plus new evidence
+checks pass 2,158 regular tests. Real socket provenance import, strict
+all-target/all-feature Clippy, workspace formatting and diff checks also pass.
+
+## `2026-11-20` Real Offload Groups Survive Windows And Refuse Budget Tails
+
+The formal CLI now has a native service regression that pauses after a verified
+idle-loop boundary, queues 544 real GSO/GRO hook records and splits consumption
+at record 512, two members into a 16-segment group. At capacity 528, publications
+contain 510 then 34 facts, retaining the group intact. At capacity 512, they
+contain 510 then 18: all 16 members stay budget-rejected even after capacity is
+freed. A later 20-record recovery window succeeds in both cases. Terminal totals
+are 564 retained without loss, or 548 retained plus 16 userspace drops; neither
+case has kernel ring loss, unsupported observations or decode rejections.
+
+The same persistent peer sockets then run through a separate collector's
+SIGKILL, a complete downtime round and a fresh collector in the same output
+directory. The old snapshot remains running/nonfinal; the new run ID admits only
+20 new observations. Reused aggregate IDs do not import old or downtime traffic.
+This is not a crash-flush or durable-window recovery claim.
+
+Two capacities pass three fresh repetitions each. Every native request/reply is
+byte-checked with actual GRO ancillary metadata; published windows check exact
+packet multisets, complete groups and replay. Initial probing exposed a test
+race when pausing on startup status before the window clock began. The controller
+now confirms an idle main-loop syscall after a real publication; failed probes
+are retained separately and excluded from the accepted proof.
+
+No production defect was found in these scenarios. The [service proof](production-udp-offload-service.md)
+binds 18 matching local/remote source inputs and both executed binaries. Raw
+evidence remains under Linux `20261120-udp-offload-service`; no Mac build cache
+or status-maturity promotion was added.
+The root library/CLI, protocol, export and status selection plus the new evidence
+checks pass 2,154 regular tests. Real loopback provenance import also passes;
+strict all-target/all-feature Clippy, workspace formatting and diff checks pass.
+
 ## `2026-11-20` Production UDP L4 Offload Normalizes Bounded Whole Groups
 
 The production BPF producer now emits private ABI-v2 records and uses the existing

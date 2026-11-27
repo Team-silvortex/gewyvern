@@ -110,31 +110,21 @@ fn summary_json_carries_snmp_get_timeout_detail() {
         "udp_packet_meta_fragment",
         "missing_signal:packet_observed",
     );
-    let json = summary_json(SNMP_GET_TARGET_NAME, &export);
-    assert!(
-        json.contains("\"primary_module_kind\":\"management_query\""),
-        "json={}",
-        json
+    let report: serde_json::Value =
+        serde_json::from_str(&summary_json(SNMP_GET_TARGET_NAME, &export)).unwrap();
+    assert_eq!(report["primary_module_kind"], "management_query");
+    assert_eq!(report["primary_failure_mode"], "no_response");
+    assert_eq!(report["primary_failure_detail"], "request_sent_no_reply");
+    assert_eq!(report["primary_failure_basis"], "missing_transition");
+    assert_eq!(report["primary_failure_confidence"], "medium");
+    assert_eq!(
+        report["operator_guidance_action"],
+        "collect_more_runtime_evidence"
     );
-    assert!(
-        json.contains("\"primary_failure_mode\":\"no_response\""),
-        "json={}",
-        json
-    );
-    assert!(
-        json.contains("\"primary_failure_detail\":\"request_sent_no_reply\""),
-        "json={}",
-        json
-    );
-    assert!(
-        json.contains("\"primary_failure_basis\":\"missing_transition\""),
-        "json={}",
-        json
-    );
-    assert!(
-        json.contains("\"missing_transitions\":[\"send_get_request->receive_get_response\"]"),
-        "json={}",
-        json
+    assert_eq!(report["operator_guidance_reason"], "missing_transition");
+    assert_eq!(
+        report["missing_transitions"],
+        serde_json::json!(["send_get_request->receive_get_response"])
     );
 }
 

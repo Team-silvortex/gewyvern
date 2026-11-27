@@ -1,0 +1,3722 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-11-20",
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "host": "Linux 7.0.0-43-generic x86_64 GNU/Linux",
+  "evidence_directory": "/home/chiharukiryu/.cache/gewyvern/evidence/20261120-udp-offload-service",
+  "binary_sha256": "4e640b955eb06abe6eecd0c477476b626779c048424d8524ce764ce00c0841f7",
+  "test_binary_sha256": "ca1dff0920df4ad91f7171d1557129f9b2b5428b12774b231f937d01ca3d51ad",
+  "source_inputs": [
+    {
+      "path": "Cargo.toml",
+      "sha256": "e46a3f093e6162f78752db705f375d37e41a50f13567b35033383e04a67238fa"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "52492d8def30e48e97cdc2b576a018e1bb7d90654091afc8cdcc44099f6041a8"
+    },
+    {
+      "path": "ebpf/production/udp.bpf.c",
+      "sha256": "282658aff4776731f7cb28f07bdb762154c819d3716285a5107dfe35bfc9a4e1"
+    },
+    {
+      "path": "src/main/capture_runtime.rs",
+      "sha256": "80836255e2c49daa600ec4457faf7da9bce429faf875e2358a6a26f5dbdd1462"
+    },
+    {
+      "path": "src/live_capture/linux.rs",
+      "sha256": "919789e2b4ac3d77e27e0b80d70daae8634ea7f0819efbf5e9574b46ba9ee033"
+    },
+    {
+      "path": "src/live_capture/linux/api.rs",
+      "sha256": "77426bb0cee7018f88a3d1a0cc24d316f99ad8df35e05c962fab8382942b7d0d"
+    },
+    {
+      "path": "src/live_capture/fact_buffer.rs",
+      "sha256": "c610ded073bfb9a80b75a7fa92ac6b6284b3e2d918f1ae80b8d3b2db286f7b0c"
+    },
+    {
+      "path": "src/ledger/udp_offload.rs",
+      "sha256": "b9542b9cf4a28ecd849f3b578e54d94be1dc6e4de6301ee6ce0d080be816cc64"
+    },
+    {
+      "path": "src/ledger/udp_offload/groups.rs",
+      "sha256": "0b95dc65a9762c8377c231c764eda0f0107c8499470653fb1fd717a7ed9e4b5f"
+    },
+    {
+      "path": "src/packet_capture.rs",
+      "sha256": "4daaaa11eb7b8c19d132d2d5c132c8ed228c16b308685b61e87441405623315f"
+    },
+    {
+      "path": "src/runtime/offload.rs",
+      "sha256": "320206bd98a15af376f42855d50c974d42f0aff54bf4d50211e346c94ec5011a"
+    },
+    {
+      "path": "src/export/fact_codec/offload.rs",
+      "sha256": "8a805b4d6a84e7fccd4b651211c05fc4660a8fa9ee7f3387ff9685b3af8b46fb"
+    },
+    {
+      "path": "tests/production_capture_linux_tdd.rs",
+      "sha256": "7919c47c9c65bbe50ff740ce2146d08881fad10709d46a34873f0a6f0edd25ed"
+    },
+    {
+      "path": "tests/production_capture_linux_tdd/network.rs",
+      "sha256": "14de482b780d993108e5f88c712dfbb4b74ec6d598214b0412ad8f2793e2979d"
+    },
+    {
+      "path": "tests/production_capture_linux_tdd/boundaries.rs",
+      "sha256": "3119b3657a4175c182093f7cc9f9d8e5aa7169d6d4073c7c4041559194311509"
+    },
+    {
+      "path": "tests/production_capture_linux_tdd/network/offload.rs",
+      "sha256": "da15e4bd059a20a48d47a602a02b41cc9adbacc39512dfd38e21386559186c4b"
+    },
+    {
+      "path": "tests/production_capture_linux_tdd/network/offload/service.rs",
+      "sha256": "179fb817e3fd58de2680d9dcf18b01af4886ec15018dfb1f39d46b4054c4d922"
+    },
+    {
+      "path": "tests/production_capture_linux_tdd/network/faults.rs",
+      "sha256": "babf573e6eea35b6f68ad64038bd0e31c16d7dd45042191589ff78f006f91939"
+    }
+  ],
+  "runs": [
+    {
+      "binary_sha256": "4e640b955eb06abe6eecd0c477476b626779c048424d8524ce764ce00c0841f7",
+      "crash_oracle": {
+        "facts": 20,
+        "group_ids": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "oracles": [
+          {
+            "cookies": [
+              "57363",
+              "57364"
+            ],
+            "expected_count": 10,
+            "expected_sha256": "e66d8525a64d688b8c42004500ca4e2155a4f5cf51eed07c624835de7593e0f5",
+            "ifindex": 2,
+            "namespace": "net:[4026534049]",
+            "role": "client"
+          },
+          {
+            "cookies": [
+              "41033",
+              "41034"
+            ],
+            "expected_count": 10,
+            "expected_sha256": "b48f05407c1bcbf7d89f4dcc029f1c60e24e34f2cfd78b2912d971b1a2d1c7f1",
+            "ifindex": 2,
+            "namespace": "net:[4026534225]",
+            "role": "server"
+          }
+        ]
+      },
+      "crash_snapshot": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-35829-1795184906741110358",
+        "decode_rejected": "0",
+        "final_accounted": false,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "20",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "20",
+        "retained": "20",
+        "run_id": "35976-106084617996739",
+        "schema_version": 1,
+        "state": "running",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "downtime_not_backfilled": true,
+      "first_window": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-35829-1795184906741110358",
+        "decode_rejected": "0",
+        "final_accounted": false,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "544",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "512",
+        "retained": "510",
+        "run_id": "35842-106081708755643",
+        "schema_version": 1,
+        "state": "running",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "first_window_facts": 510,
+      "first_window_groups": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "group_ids_restart_at_one": true,
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "kernel_batch_limit": 512,
+      "limit": 528,
+      "limits": [
+        "single_host_private_veth",
+        "bounded_12_round_scenario",
+        "no_durable_window_archive",
+        "no_crash_flush_claim"
+      ],
+      "native": [
+        {
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "identity": {
+            "cookies": [
+              "57363",
+              "57364"
+            ],
+            "ifindex": 2,
+            "namespace": "net:[4026534049]",
+            "role": "client"
+          },
+          "rounds": [
+            {
+              "observations": [
+                {
+                  "cookie": "57363",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "711048ee041baf3b74d18486d5c5a4ddaecf90a5de36935a49a186fd4ecef8f1"
+                },
+                {
+                  "cookie": "57364",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c606a2974085b4a976d19150927ab3335f1ff5811abade0a2cd2c3130a6af541"
+                }
+              ],
+              "round": 0,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "57363",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "caae5fdd9d47cb6bd094718b25033a8eddf0cdffc0531c95a3df4d04acfd1681"
+                },
+                {
+                  "cookie": "57364",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "cdafe7452308fc5a5ecd0c66f16f4c744289c5f9742b23fd90e7b311a38b5ce1"
+                }
+              ],
+              "round": 1,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "57363",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "1eaa8df95afc12f1c0550f33b06a70bb87ff7803e4f22cbbb88bf0e16717e898"
+                },
+                {
+                  "cookie": "57364",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "19320dbd67fa604909b6bbb38147dc0e29621739e727e84ba5bd45a93da27eb7"
+                }
+              ],
+              "round": 2,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "57363",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "930bd569ae757630b35e5eeb3685aafbf7c711b6926644d284b8439363325d40"
+                },
+                {
+                  "cookie": "57364",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "924a2cced99885248a4fabc7ef46bf9fa2ac97c0358a4cf164b0ed72ea224462"
+                }
+              ],
+              "round": 3,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "57363",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "8cea9965cf2e67fb19afe25afbee618c58426aaceeebe7a11f8bb65ae2f3bb30",
+                  "reply_sha256": "8cea9965cf2e67fb19afe25afbee618c58426aaceeebe7a11f8bb65ae2f3bb30",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "cf2cd9bf3c1b3b06306c2500dd52ed72ad1344010f171414dcf80a5cfc615ab1"
+                },
+                {
+                  "cookie": "57364",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "c1009393cb91d73ca0bcc098010eea83b5eaf9ee8230c0d0821f1a08dbc2b2d4",
+                  "reply_sha256": "c1009393cb91d73ca0bcc098010eea83b5eaf9ee8230c0d0821f1a08dbc2b2d4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "8856c598822b9030e40bc324395754e13d902d949b533ab0a6501ee2e16dc509"
+                }
+              ],
+              "round": 4,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "57363",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "396d89c0b6bab43da94ba060a44c3419565b1f14c164853fd06518de69c1fa44",
+                  "reply_sha256": "396d89c0b6bab43da94ba060a44c3419565b1f14c164853fd06518de69c1fa44",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "8bed6957ecd39a8d0c4ca368b756a0b1857d2438f68522fecae8e1b30350aa04"
+                },
+                {
+                  "cookie": "57364",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "0682732e7bb26df18e885d3c666cb2d0c48b7ecf68e09762f5a6f352920c7387",
+                  "reply_sha256": "0682732e7bb26df18e885d3c666cb2d0c48b7ecf68e09762f5a6f352920c7387",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "4e90b25b2484266789395d7721720d9032499c8c004ceb7977999b3e38874d06"
+                }
+              ],
+              "round": 5,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "57363",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "d09ffff2c93704b143e7158f2f37bc8e8af947847fe837c4d798cd8c6786fea8",
+                  "reply_sha256": "d09ffff2c93704b143e7158f2f37bc8e8af947847fe837c4d798cd8c6786fea8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "e924fcdad3cbe0787db0f466058c6eecdb2697a27332e70445f747c9438838c2"
+                },
+                {
+                  "cookie": "57364",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "fdaf0bbce40aad0b39d9c80d0632147d55fa7defe618c4e2829d7f7a6b3f4c68",
+                  "reply_sha256": "fdaf0bbce40aad0b39d9c80d0632147d55fa7defe618c4e2829d7f7a6b3f4c68",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "366a806546eb4c6353c484041be1a0b67a8cb5d8458a7226ce2209fb5689cb3d"
+                }
+              ],
+              "round": 6,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "57363",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "a4906d91552faf99dfb7dc1e11fdefcd4c5b2a46a5cc9ce855d855b3090c3dcb",
+                  "reply_sha256": "a4906d91552faf99dfb7dc1e11fdefcd4c5b2a46a5cc9ce855d855b3090c3dcb",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "07c370ae99706b4e2866469a20f152c943d69d7591f1ab89efac9a0ae250fa13"
+                },
+                {
+                  "cookie": "57364",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "6ec2e772a1a941bf2330c62a6922740d020e601e8ee8704b370d7a4e2a9ec1b7",
+                  "reply_sha256": "6ec2e772a1a941bf2330c62a6922740d020e601e8ee8704b370d7a4e2a9ec1b7",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "606a3147a17760b83f13f33ca7bf1379eb8a6ddf0d428dfe1b442c27d97e9b8a"
+                }
+              ],
+              "round": 7,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "57363",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "87b9705e0440aaf7b1d4ecfebb4b5c677b801e94430f5e5615dba7931ec271db",
+                  "reply_sha256": "87b9705e0440aaf7b1d4ecfebb4b5c677b801e94430f5e5615dba7931ec271db",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "b0b557d2678717ba59c80135c8630e1335200b816a5c7cf8ccba8777822e5e76"
+                },
+                {
+                  "cookie": "57364",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "e9e3a6d8251721ae82a62b09c7993829d4ea0e2c4cefbdbec647e736050b3337",
+                  "reply_sha256": "e9e3a6d8251721ae82a62b09c7993829d4ea0e2c4cefbdbec647e736050b3337",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "7758bfcdf3fee9241eb05075739ddfa2ad7ae2bb891d467f2107acc6bc6054aa"
+                }
+              ],
+              "round": 8,
+              "segment_count": 4
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "57363",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "fb06286e8ee932bba433f296e81c8fe32518bff8539953e25877e48a290abfaa",
+                  "reply_sha256": "fb06286e8ee932bba433f296e81c8fe32518bff8539953e25877e48a290abfaa",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "4206add9455957217b94c06285ba93618da4791bf056d4e07769ed66298a0495"
+                },
+                {
+                  "cookie": "57364",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "41837df92536c9f91e472755c5897e4155a378244f9bebc86573fc617eaf82ad",
+                  "reply_sha256": "41837df92536c9f91e472755c5897e4155a378244f9bebc86573fc617eaf82ad",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "2fed5d0503e7b580298b945d3107935de126a8c445624b08a986dfd5e1880cb5"
+                }
+              ],
+              "round": 9,
+              "segment_count": 4
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "57363",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "c40b043131fd86059e45299074cda336fc4bdd06e1bf33ce5e05127c898bae33",
+                  "reply_sha256": "c40b043131fd86059e45299074cda336fc4bdd06e1bf33ce5e05127c898bae33",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "8bb131750b865a7f9e77ec2a5d0f18a90e3978f24d30469c2bb9119078a36a05"
+                },
+                {
+                  "cookie": "57364",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "7bd68b4677b80ad415a365dc4dad9d86ea8678e2a41b7cc9101a4f43ded75697",
+                  "reply_sha256": "7bd68b4677b80ad415a365dc4dad9d86ea8678e2a41b7cc9101a4f43ded75697",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "23a9f84ff5fd0fc09eeb1fc2225a4bdeac25d33a768c291fa7ae121528a384b0"
+                }
+              ],
+              "round": 10,
+              "segment_count": 4
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "57363",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "e97e7dcde2a9011cac7c2b598c4aeaa86dbad7ccd5a15941908b6761bd32f911",
+                  "reply_sha256": "e97e7dcde2a9011cac7c2b598c4aeaa86dbad7ccd5a15941908b6761bd32f911",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "974ca7e648a4a1d7b3ef241dbbd35f592575aa149f29f9eaee622cc8316cc1cf"
+                },
+                {
+                  "cookie": "57364",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "e1671b6315011607955f4b2a8730af8ef7152c04d5773f426656366626b3b91b",
+                  "reply_sha256": "e1671b6315011607955f4b2a8730af8ef7152c04d5773f426656366626b3b91b",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "69bf1525683b02bf6daaf0bd43bf25f06ff50f36f7dde125c217000cc8594e9f"
+                }
+              ],
+              "round": 11,
+              "segment_count": 4
+            }
+          ],
+          "same_sockets_all_rounds": true
+        },
+        {
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "identity": {
+            "cookies": [
+              "41033",
+              "41034"
+            ],
+            "ifindex": 2,
+            "namespace": "net:[4026534225]",
+            "role": "server"
+          },
+          "rounds": [
+            {
+              "observations": [
+                {
+                  "cookie": "41033",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "711048ee041baf3b74d18486d5c5a4ddaecf90a5de36935a49a186fd4ecef8f1",
+                  "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "711048ee041baf3b74d18486d5c5a4ddaecf90a5de36935a49a186fd4ecef8f1"
+                },
+                {
+                  "cookie": "41034",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "c606a2974085b4a976d19150927ab3335f1ff5811abade0a2cd2c3130a6af541",
+                  "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c606a2974085b4a976d19150927ab3335f1ff5811abade0a2cd2c3130a6af541"
+                }
+              ],
+              "round": 0,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "41033",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "caae5fdd9d47cb6bd094718b25033a8eddf0cdffc0531c95a3df4d04acfd1681",
+                  "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "caae5fdd9d47cb6bd094718b25033a8eddf0cdffc0531c95a3df4d04acfd1681"
+                },
+                {
+                  "cookie": "41034",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "cdafe7452308fc5a5ecd0c66f16f4c744289c5f9742b23fd90e7b311a38b5ce1",
+                  "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "cdafe7452308fc5a5ecd0c66f16f4c744289c5f9742b23fd90e7b311a38b5ce1"
+                }
+              ],
+              "round": 1,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "41033",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "1eaa8df95afc12f1c0550f33b06a70bb87ff7803e4f22cbbb88bf0e16717e898",
+                  "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "1eaa8df95afc12f1c0550f33b06a70bb87ff7803e4f22cbbb88bf0e16717e898"
+                },
+                {
+                  "cookie": "41034",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "19320dbd67fa604909b6bbb38147dc0e29621739e727e84ba5bd45a93da27eb7",
+                  "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "19320dbd67fa604909b6bbb38147dc0e29621739e727e84ba5bd45a93da27eb7"
+                }
+              ],
+              "round": 2,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "41033",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "930bd569ae757630b35e5eeb3685aafbf7c711b6926644d284b8439363325d40",
+                  "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "930bd569ae757630b35e5eeb3685aafbf7c711b6926644d284b8439363325d40"
+                },
+                {
+                  "cookie": "41034",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "924a2cced99885248a4fabc7ef46bf9fa2ac97c0358a4cf164b0ed72ea224462",
+                  "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "924a2cced99885248a4fabc7ef46bf9fa2ac97c0358a4cf164b0ed72ea224462"
+                }
+              ],
+              "round": 3,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "41033",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "cf2cd9bf3c1b3b06306c2500dd52ed72ad1344010f171414dcf80a5cfc615ab1",
+                  "reply_sha256": "8cea9965cf2e67fb19afe25afbee618c58426aaceeebe7a11f8bb65ae2f3bb30",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "cf2cd9bf3c1b3b06306c2500dd52ed72ad1344010f171414dcf80a5cfc615ab1"
+                },
+                {
+                  "cookie": "41034",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "8856c598822b9030e40bc324395754e13d902d949b533ab0a6501ee2e16dc509",
+                  "reply_sha256": "c1009393cb91d73ca0bcc098010eea83b5eaf9ee8230c0d0821f1a08dbc2b2d4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "8856c598822b9030e40bc324395754e13d902d949b533ab0a6501ee2e16dc509"
+                }
+              ],
+              "round": 4,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "41033",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "8bed6957ecd39a8d0c4ca368b756a0b1857d2438f68522fecae8e1b30350aa04",
+                  "reply_sha256": "396d89c0b6bab43da94ba060a44c3419565b1f14c164853fd06518de69c1fa44",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "8bed6957ecd39a8d0c4ca368b756a0b1857d2438f68522fecae8e1b30350aa04"
+                },
+                {
+                  "cookie": "41034",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "4e90b25b2484266789395d7721720d9032499c8c004ceb7977999b3e38874d06",
+                  "reply_sha256": "0682732e7bb26df18e885d3c666cb2d0c48b7ecf68e09762f5a6f352920c7387",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "4e90b25b2484266789395d7721720d9032499c8c004ceb7977999b3e38874d06"
+                }
+              ],
+              "round": 5,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "41033",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "e924fcdad3cbe0787db0f466058c6eecdb2697a27332e70445f747c9438838c2",
+                  "reply_sha256": "d09ffff2c93704b143e7158f2f37bc8e8af947847fe837c4d798cd8c6786fea8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "e924fcdad3cbe0787db0f466058c6eecdb2697a27332e70445f747c9438838c2"
+                },
+                {
+                  "cookie": "41034",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "366a806546eb4c6353c484041be1a0b67a8cb5d8458a7226ce2209fb5689cb3d",
+                  "reply_sha256": "fdaf0bbce40aad0b39d9c80d0632147d55fa7defe618c4e2829d7f7a6b3f4c68",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "366a806546eb4c6353c484041be1a0b67a8cb5d8458a7226ce2209fb5689cb3d"
+                }
+              ],
+              "round": 6,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "41033",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "07c370ae99706b4e2866469a20f152c943d69d7591f1ab89efac9a0ae250fa13",
+                  "reply_sha256": "a4906d91552faf99dfb7dc1e11fdefcd4c5b2a46a5cc9ce855d855b3090c3dcb",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "07c370ae99706b4e2866469a20f152c943d69d7591f1ab89efac9a0ae250fa13"
+                },
+                {
+                  "cookie": "41034",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "606a3147a17760b83f13f33ca7bf1379eb8a6ddf0d428dfe1b442c27d97e9b8a",
+                  "reply_sha256": "6ec2e772a1a941bf2330c62a6922740d020e601e8ee8704b370d7a4e2a9ec1b7",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "606a3147a17760b83f13f33ca7bf1379eb8a6ddf0d428dfe1b442c27d97e9b8a"
+                }
+              ],
+              "round": 7,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "41033",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 3089,
+                  "received_sha256": "b0b557d2678717ba59c80135c8630e1335200b816a5c7cf8ccba8777822e5e76",
+                  "reply_sha256": "87b9705e0440aaf7b1d4ecfebb4b5c677b801e94430f5e5615dba7931ec271db",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "b0b557d2678717ba59c80135c8630e1335200b816a5c7cf8ccba8777822e5e76"
+                },
+                {
+                  "cookie": "41034",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 3089,
+                  "received_sha256": "7758bfcdf3fee9241eb05075739ddfa2ad7ae2bb891d467f2107acc6bc6054aa",
+                  "reply_sha256": "e9e3a6d8251721ae82a62b09c7993829d4ea0e2c4cefbdbec647e736050b3337",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "7758bfcdf3fee9241eb05075739ddfa2ad7ae2bb891d467f2107acc6bc6054aa"
+                }
+              ],
+              "round": 8,
+              "segment_count": 4
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "41033",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 3089,
+                  "received_sha256": "4206add9455957217b94c06285ba93618da4791bf056d4e07769ed66298a0495",
+                  "reply_sha256": "fb06286e8ee932bba433f296e81c8fe32518bff8539953e25877e48a290abfaa",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "4206add9455957217b94c06285ba93618da4791bf056d4e07769ed66298a0495"
+                },
+                {
+                  "cookie": "41034",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 3089,
+                  "received_sha256": "2fed5d0503e7b580298b945d3107935de126a8c445624b08a986dfd5e1880cb5",
+                  "reply_sha256": "41837df92536c9f91e472755c5897e4155a378244f9bebc86573fc617eaf82ad",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "2fed5d0503e7b580298b945d3107935de126a8c445624b08a986dfd5e1880cb5"
+                }
+              ],
+              "round": 9,
+              "segment_count": 4
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "41033",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 3089,
+                  "received_sha256": "8bb131750b865a7f9e77ec2a5d0f18a90e3978f24d30469c2bb9119078a36a05",
+                  "reply_sha256": "c40b043131fd86059e45299074cda336fc4bdd06e1bf33ce5e05127c898bae33",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "8bb131750b865a7f9e77ec2a5d0f18a90e3978f24d30469c2bb9119078a36a05"
+                },
+                {
+                  "cookie": "41034",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 3089,
+                  "received_sha256": "23a9f84ff5fd0fc09eeb1fc2225a4bdeac25d33a768c291fa7ae121528a384b0",
+                  "reply_sha256": "7bd68b4677b80ad415a365dc4dad9d86ea8678e2a41b7cc9101a4f43ded75697",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "23a9f84ff5fd0fc09eeb1fc2225a4bdeac25d33a768c291fa7ae121528a384b0"
+                }
+              ],
+              "round": 10,
+              "segment_count": 4
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "41033",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 3089,
+                  "received_sha256": "974ca7e648a4a1d7b3ef241dbbd35f592575aa149f29f9eaee622cc8316cc1cf",
+                  "reply_sha256": "e97e7dcde2a9011cac7c2b598c4aeaa86dbad7ccd5a15941908b6761bd32f911",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "974ca7e648a4a1d7b3ef241dbbd35f592575aa149f29f9eaee622cc8316cc1cf"
+                },
+                {
+                  "cookie": "41034",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 3089,
+                  "received_sha256": "69bf1525683b02bf6daaf0bd43bf25f06ff50f36f7dde125c217000cc8594e9f",
+                  "reply_sha256": "e1671b6315011607955f4b2a8730af8ef7152c04d5773f426656366626b3b91b",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "69bf1525683b02bf6daaf0bd43bf25f06ff50f36f7dde125c217000cc8594e9f"
+                }
+              ],
+              "round": 11,
+              "segment_count": 4
+            }
+          ],
+          "same_sockets_all_rounds": true
+        }
+      ],
+      "native_replies": 24,
+      "native_requests": 288,
+      "ok": true,
+      "owned_resources_removed": true,
+      "production_cli": true,
+      "recovery_window": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-35829-1795184906741110358",
+        "decode_rejected": "0",
+        "final_accounted": false,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "564",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "564",
+        "retained": "564",
+        "run_id": "35842-106081708755643",
+        "schema_version": 1,
+        "state": "running",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "recovery_window_facts": 20,
+      "recovery_window_groups": [
+        33,
+        34,
+        35,
+        36
+      ],
+      "restart_oracle": {
+        "facts": 20,
+        "group_ids": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "oracles": [
+          {
+            "cookies": [
+              "57363",
+              "57364"
+            ],
+            "expected_count": 10,
+            "expected_sha256": "a3eca04f32eacf20bb902e432eb6db8b062518bd8951388234d987c7235593db",
+            "ifindex": 2,
+            "namespace": "net:[4026534049]",
+            "role": "client"
+          },
+          {
+            "cookies": [
+              "41033",
+              "41034"
+            ],
+            "expected_count": 10,
+            "expected_sha256": "e01948f1f59b7f1abaa659a77e168259eb1d9181ca16ab55bb54b783150b9f1d",
+            "ifindex": 2,
+            "namespace": "net:[4026534225]",
+            "role": "server"
+          }
+        ]
+      },
+      "restart_terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-35829-1795184906741110358",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "20",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "20",
+        "retained": "20",
+        "run_id": "35981-106085073326208",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "run_id_changed": true,
+      "same_socket_restart": true,
+      "schema_version": 1,
+      "second_window": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-35829-1795184906741110358",
+        "decode_rejected": "0",
+        "final_accounted": false,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "544",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "544",
+        "retained": "544",
+        "run_id": "35842-106081708755643",
+        "schema_version": 1,
+        "state": "running",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "second_window_facts": 34,
+      "second_window_groups": [
+        31,
+        32
+      ],
+      "service_oracle": {
+        "facts": 564,
+        "group_ids": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36
+        ],
+        "oracles": [
+          {
+            "cookies": [
+              "57363",
+              "57364"
+            ],
+            "expected_count": 282,
+            "expected_sha256": "f1904d5fe588bc3533116e69186f890307ebc70ad0861f48e9c270104b787b95",
+            "ifindex": 2,
+            "namespace": "net:[4026534049]",
+            "role": "client"
+          },
+          {
+            "cookies": [
+              "41033",
+              "41034"
+            ],
+            "expected_count": 282,
+            "expected_sha256": "43e5da27eea20398a5fe7a6f542ea338bf0523868f9844e70c516d42ba378e83",
+            "ifindex": 2,
+            "namespace": "net:[4026534225]",
+            "role": "server"
+          }
+        ]
+      },
+      "service_terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-35829-1795184906741110358",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "564",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "564",
+        "retained": "564",
+        "run_id": "35842-106081708755643",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "whole_groups_per_window": true,
+      "window_replay_identical": true,
+      "evidence_subdirectory": "verified-528-1"
+    },
+    {
+      "binary_sha256": "4e640b955eb06abe6eecd0c477476b626779c048424d8524ce764ce00c0841f7",
+      "crash_oracle": {
+        "facts": 20,
+        "group_ids": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "oracles": [
+          {
+            "cookies": [
+              "20554",
+              "20555"
+            ],
+            "expected_count": 10,
+            "expected_sha256": "64a174e6b0ae66a81a4f08af7b3aa34328ba33afa1c819076749be8089ed553e",
+            "ifindex": 2,
+            "namespace": "net:[4026534050]",
+            "role": "client"
+          },
+          {
+            "cookies": [
+              "8290",
+              "8291"
+            ],
+            "expected_count": 10,
+            "expected_sha256": "70aa2bd45b2b3c6bd5fe2cce4f4c0c82c3622e262f36f53570d7feaa16b09243",
+            "ifindex": 2,
+            "namespace": "net:[4026534226]",
+            "role": "server"
+          }
+        ]
+      },
+      "crash_snapshot": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-36064-1795184910670870669",
+        "decode_rejected": "0",
+        "final_accounted": false,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "20",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "20",
+        "retained": "20",
+        "run_id": "36250-106088564443218",
+        "schema_version": 1,
+        "state": "running",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "downtime_not_backfilled": true,
+      "first_window": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-36064-1795184910670870669",
+        "decode_rejected": "0",
+        "final_accounted": false,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "544",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "512",
+        "retained": "510",
+        "run_id": "36077-106085639288500",
+        "schema_version": 1,
+        "state": "running",
+        "udp_port": 41002,
+        "userspace_dropped": "2"
+      },
+      "first_window_facts": 510,
+      "first_window_groups": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "group_ids_restart_at_one": true,
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "kernel_batch_limit": 512,
+      "limit": 512,
+      "limits": [
+        "single_host_private_veth",
+        "bounded_12_round_scenario",
+        "no_durable_window_archive",
+        "no_crash_flush_claim"
+      ],
+      "native": [
+        {
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "identity": {
+            "cookies": [
+              "20554",
+              "20555"
+            ],
+            "ifindex": 2,
+            "namespace": "net:[4026534050]",
+            "role": "client"
+          },
+          "rounds": [
+            {
+              "observations": [
+                {
+                  "cookie": "20554",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "711048ee041baf3b74d18486d5c5a4ddaecf90a5de36935a49a186fd4ecef8f1"
+                },
+                {
+                  "cookie": "20555",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c606a2974085b4a976d19150927ab3335f1ff5811abade0a2cd2c3130a6af541"
+                }
+              ],
+              "round": 0,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20554",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "caae5fdd9d47cb6bd094718b25033a8eddf0cdffc0531c95a3df4d04acfd1681"
+                },
+                {
+                  "cookie": "20555",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "cdafe7452308fc5a5ecd0c66f16f4c744289c5f9742b23fd90e7b311a38b5ce1"
+                }
+              ],
+              "round": 1,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20554",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "1eaa8df95afc12f1c0550f33b06a70bb87ff7803e4f22cbbb88bf0e16717e898"
+                },
+                {
+                  "cookie": "20555",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "19320dbd67fa604909b6bbb38147dc0e29621739e727e84ba5bd45a93da27eb7"
+                }
+              ],
+              "round": 2,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20554",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "930bd569ae757630b35e5eeb3685aafbf7c711b6926644d284b8439363325d40"
+                },
+                {
+                  "cookie": "20555",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "924a2cced99885248a4fabc7ef46bf9fa2ac97c0358a4cf164b0ed72ea224462"
+                }
+              ],
+              "round": 3,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20554",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "8cea9965cf2e67fb19afe25afbee618c58426aaceeebe7a11f8bb65ae2f3bb30",
+                  "reply_sha256": "8cea9965cf2e67fb19afe25afbee618c58426aaceeebe7a11f8bb65ae2f3bb30",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "cf2cd9bf3c1b3b06306c2500dd52ed72ad1344010f171414dcf80a5cfc615ab1"
+                },
+                {
+                  "cookie": "20555",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "c1009393cb91d73ca0bcc098010eea83b5eaf9ee8230c0d0821f1a08dbc2b2d4",
+                  "reply_sha256": "c1009393cb91d73ca0bcc098010eea83b5eaf9ee8230c0d0821f1a08dbc2b2d4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "8856c598822b9030e40bc324395754e13d902d949b533ab0a6501ee2e16dc509"
+                }
+              ],
+              "round": 4,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20554",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "396d89c0b6bab43da94ba060a44c3419565b1f14c164853fd06518de69c1fa44",
+                  "reply_sha256": "396d89c0b6bab43da94ba060a44c3419565b1f14c164853fd06518de69c1fa44",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "8bed6957ecd39a8d0c4ca368b756a0b1857d2438f68522fecae8e1b30350aa04"
+                },
+                {
+                  "cookie": "20555",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "0682732e7bb26df18e885d3c666cb2d0c48b7ecf68e09762f5a6f352920c7387",
+                  "reply_sha256": "0682732e7bb26df18e885d3c666cb2d0c48b7ecf68e09762f5a6f352920c7387",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "4e90b25b2484266789395d7721720d9032499c8c004ceb7977999b3e38874d06"
+                }
+              ],
+              "round": 5,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20554",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "d09ffff2c93704b143e7158f2f37bc8e8af947847fe837c4d798cd8c6786fea8",
+                  "reply_sha256": "d09ffff2c93704b143e7158f2f37bc8e8af947847fe837c4d798cd8c6786fea8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "e924fcdad3cbe0787db0f466058c6eecdb2697a27332e70445f747c9438838c2"
+                },
+                {
+                  "cookie": "20555",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "fdaf0bbce40aad0b39d9c80d0632147d55fa7defe618c4e2829d7f7a6b3f4c68",
+                  "reply_sha256": "fdaf0bbce40aad0b39d9c80d0632147d55fa7defe618c4e2829d7f7a6b3f4c68",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "366a806546eb4c6353c484041be1a0b67a8cb5d8458a7226ce2209fb5689cb3d"
+                }
+              ],
+              "round": 6,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20554",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "a4906d91552faf99dfb7dc1e11fdefcd4c5b2a46a5cc9ce855d855b3090c3dcb",
+                  "reply_sha256": "a4906d91552faf99dfb7dc1e11fdefcd4c5b2a46a5cc9ce855d855b3090c3dcb",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "07c370ae99706b4e2866469a20f152c943d69d7591f1ab89efac9a0ae250fa13"
+                },
+                {
+                  "cookie": "20555",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "6ec2e772a1a941bf2330c62a6922740d020e601e8ee8704b370d7a4e2a9ec1b7",
+                  "reply_sha256": "6ec2e772a1a941bf2330c62a6922740d020e601e8ee8704b370d7a4e2a9ec1b7",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "606a3147a17760b83f13f33ca7bf1379eb8a6ddf0d428dfe1b442c27d97e9b8a"
+                }
+              ],
+              "round": 7,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20554",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "87b9705e0440aaf7b1d4ecfebb4b5c677b801e94430f5e5615dba7931ec271db",
+                  "reply_sha256": "87b9705e0440aaf7b1d4ecfebb4b5c677b801e94430f5e5615dba7931ec271db",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "b0b557d2678717ba59c80135c8630e1335200b816a5c7cf8ccba8777822e5e76"
+                },
+                {
+                  "cookie": "20555",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "e9e3a6d8251721ae82a62b09c7993829d4ea0e2c4cefbdbec647e736050b3337",
+                  "reply_sha256": "e9e3a6d8251721ae82a62b09c7993829d4ea0e2c4cefbdbec647e736050b3337",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "7758bfcdf3fee9241eb05075739ddfa2ad7ae2bb891d467f2107acc6bc6054aa"
+                }
+              ],
+              "round": 8,
+              "segment_count": 4
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20554",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "fb06286e8ee932bba433f296e81c8fe32518bff8539953e25877e48a290abfaa",
+                  "reply_sha256": "fb06286e8ee932bba433f296e81c8fe32518bff8539953e25877e48a290abfaa",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "4206add9455957217b94c06285ba93618da4791bf056d4e07769ed66298a0495"
+                },
+                {
+                  "cookie": "20555",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "41837df92536c9f91e472755c5897e4155a378244f9bebc86573fc617eaf82ad",
+                  "reply_sha256": "41837df92536c9f91e472755c5897e4155a378244f9bebc86573fc617eaf82ad",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "2fed5d0503e7b580298b945d3107935de126a8c445624b08a986dfd5e1880cb5"
+                }
+              ],
+              "round": 9,
+              "segment_count": 4
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20554",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "c40b043131fd86059e45299074cda336fc4bdd06e1bf33ce5e05127c898bae33",
+                  "reply_sha256": "c40b043131fd86059e45299074cda336fc4bdd06e1bf33ce5e05127c898bae33",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "8bb131750b865a7f9e77ec2a5d0f18a90e3978f24d30469c2bb9119078a36a05"
+                },
+                {
+                  "cookie": "20555",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "7bd68b4677b80ad415a365dc4dad9d86ea8678e2a41b7cc9101a4f43ded75697",
+                  "reply_sha256": "7bd68b4677b80ad415a365dc4dad9d86ea8678e2a41b7cc9101a4f43ded75697",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "23a9f84ff5fd0fc09eeb1fc2225a4bdeac25d33a768c291fa7ae121528a384b0"
+                }
+              ],
+              "round": 10,
+              "segment_count": 4
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "20554",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "e97e7dcde2a9011cac7c2b598c4aeaa86dbad7ccd5a15941908b6761bd32f911",
+                  "reply_sha256": "e97e7dcde2a9011cac7c2b598c4aeaa86dbad7ccd5a15941908b6761bd32f911",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "974ca7e648a4a1d7b3ef241dbbd35f592575aa149f29f9eaee622cc8316cc1cf"
+                },
+                {
+                  "cookie": "20555",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": null,
+                  "received_length": 32,
+                  "received_sha256": "e1671b6315011607955f4b2a8730af8ef7152c04d5773f426656366626b3b91b",
+                  "reply_sha256": "e1671b6315011607955f4b2a8730af8ef7152c04d5773f426656366626b3b91b",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "69bf1525683b02bf6daaf0bd43bf25f06ff50f36f7dde125c217000cc8594e9f"
+                }
+              ],
+              "round": 11,
+              "segment_count": 4
+            }
+          ],
+          "same_sockets_all_rounds": true
+        },
+        {
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "identity": {
+            "cookies": [
+              "8290",
+              "8291"
+            ],
+            "ifindex": 2,
+            "namespace": "net:[4026534226]",
+            "role": "server"
+          },
+          "rounds": [
+            {
+              "observations": [
+                {
+                  "cookie": "8290",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "711048ee041baf3b74d18486d5c5a4ddaecf90a5de36935a49a186fd4ecef8f1",
+                  "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "711048ee041baf3b74d18486d5c5a4ddaecf90a5de36935a49a186fd4ecef8f1"
+                },
+                {
+                  "cookie": "8291",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "c606a2974085b4a976d19150927ab3335f1ff5811abade0a2cd2c3130a6af541",
+                  "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "c606a2974085b4a976d19150927ab3335f1ff5811abade0a2cd2c3130a6af541"
+                }
+              ],
+              "round": 0,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8290",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "caae5fdd9d47cb6bd094718b25033a8eddf0cdffc0531c95a3df4d04acfd1681",
+                  "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "caae5fdd9d47cb6bd094718b25033a8eddf0cdffc0531c95a3df4d04acfd1681"
+                },
+                {
+                  "cookie": "8291",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "cdafe7452308fc5a5ecd0c66f16f4c744289c5f9742b23fd90e7b311a38b5ce1",
+                  "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "cdafe7452308fc5a5ecd0c66f16f4c744289c5f9742b23fd90e7b311a38b5ce1"
+                }
+              ],
+              "round": 1,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8290",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "1eaa8df95afc12f1c0550f33b06a70bb87ff7803e4f22cbbb88bf0e16717e898",
+                  "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "1eaa8df95afc12f1c0550f33b06a70bb87ff7803e4f22cbbb88bf0e16717e898"
+                },
+                {
+                  "cookie": "8291",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "19320dbd67fa604909b6bbb38147dc0e29621739e727e84ba5bd45a93da27eb7",
+                  "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "19320dbd67fa604909b6bbb38147dc0e29621739e727e84ba5bd45a93da27eb7"
+                }
+              ],
+              "round": 2,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8290",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "930bd569ae757630b35e5eeb3685aafbf7c711b6926644d284b8439363325d40",
+                  "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "930bd569ae757630b35e5eeb3685aafbf7c711b6926644d284b8439363325d40"
+                },
+                {
+                  "cookie": "8291",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "924a2cced99885248a4fabc7ef46bf9fa2ac97c0358a4cf164b0ed72ea224462",
+                  "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "924a2cced99885248a4fabc7ef46bf9fa2ac97c0358a4cf164b0ed72ea224462"
+                }
+              ],
+              "round": 3,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8290",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "cf2cd9bf3c1b3b06306c2500dd52ed72ad1344010f171414dcf80a5cfc615ab1",
+                  "reply_sha256": "8cea9965cf2e67fb19afe25afbee618c58426aaceeebe7a11f8bb65ae2f3bb30",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "cf2cd9bf3c1b3b06306c2500dd52ed72ad1344010f171414dcf80a5cfc615ab1"
+                },
+                {
+                  "cookie": "8291",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "8856c598822b9030e40bc324395754e13d902d949b533ab0a6501ee2e16dc509",
+                  "reply_sha256": "c1009393cb91d73ca0bcc098010eea83b5eaf9ee8230c0d0821f1a08dbc2b2d4",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "8856c598822b9030e40bc324395754e13d902d949b533ab0a6501ee2e16dc509"
+                }
+              ],
+              "round": 4,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8290",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "8bed6957ecd39a8d0c4ca368b756a0b1857d2438f68522fecae8e1b30350aa04",
+                  "reply_sha256": "396d89c0b6bab43da94ba060a44c3419565b1f14c164853fd06518de69c1fa44",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "8bed6957ecd39a8d0c4ca368b756a0b1857d2438f68522fecae8e1b30350aa04"
+                },
+                {
+                  "cookie": "8291",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "4e90b25b2484266789395d7721720d9032499c8c004ceb7977999b3e38874d06",
+                  "reply_sha256": "0682732e7bb26df18e885d3c666cb2d0c48b7ecf68e09762f5a6f352920c7387",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "4e90b25b2484266789395d7721720d9032499c8c004ceb7977999b3e38874d06"
+                }
+              ],
+              "round": 5,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8290",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "e924fcdad3cbe0787db0f466058c6eecdb2697a27332e70445f747c9438838c2",
+                  "reply_sha256": "d09ffff2c93704b143e7158f2f37bc8e8af947847fe837c4d798cd8c6786fea8",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "e924fcdad3cbe0787db0f466058c6eecdb2697a27332e70445f747c9438838c2"
+                },
+                {
+                  "cookie": "8291",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "366a806546eb4c6353c484041be1a0b67a8cb5d8458a7226ce2209fb5689cb3d",
+                  "reply_sha256": "fdaf0bbce40aad0b39d9c80d0632147d55fa7defe618c4e2829d7f7a6b3f4c68",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "366a806546eb4c6353c484041be1a0b67a8cb5d8458a7226ce2209fb5689cb3d"
+                }
+              ],
+              "round": 6,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8290",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "07c370ae99706b4e2866469a20f152c943d69d7591f1ab89efac9a0ae250fa13",
+                  "reply_sha256": "a4906d91552faf99dfb7dc1e11fdefcd4c5b2a46a5cc9ce855d855b3090c3dcb",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "07c370ae99706b4e2866469a20f152c943d69d7591f1ab89efac9a0ae250fa13"
+                },
+                {
+                  "cookie": "8291",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 15377,
+                  "received_sha256": "606a3147a17760b83f13f33ca7bf1379eb8a6ddf0d428dfe1b442c27d97e9b8a",
+                  "reply_sha256": "6ec2e772a1a941bf2330c62a6922740d020e601e8ee8704b370d7a4e2a9ec1b7",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "606a3147a17760b83f13f33ca7bf1379eb8a6ddf0d428dfe1b442c27d97e9b8a"
+                }
+              ],
+              "round": 7,
+              "segment_count": 16
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8290",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 3089,
+                  "received_sha256": "b0b557d2678717ba59c80135c8630e1335200b816a5c7cf8ccba8777822e5e76",
+                  "reply_sha256": "87b9705e0440aaf7b1d4ecfebb4b5c677b801e94430f5e5615dba7931ec271db",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "b0b557d2678717ba59c80135c8630e1335200b816a5c7cf8ccba8777822e5e76"
+                },
+                {
+                  "cookie": "8291",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 3089,
+                  "received_sha256": "7758bfcdf3fee9241eb05075739ddfa2ad7ae2bb891d467f2107acc6bc6054aa",
+                  "reply_sha256": "e9e3a6d8251721ae82a62b09c7993829d4ea0e2c4cefbdbec647e736050b3337",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "7758bfcdf3fee9241eb05075739ddfa2ad7ae2bb891d467f2107acc6bc6054aa"
+                }
+              ],
+              "round": 8,
+              "segment_count": 4
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8290",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 3089,
+                  "received_sha256": "4206add9455957217b94c06285ba93618da4791bf056d4e07769ed66298a0495",
+                  "reply_sha256": "fb06286e8ee932bba433f296e81c8fe32518bff8539953e25877e48a290abfaa",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "4206add9455957217b94c06285ba93618da4791bf056d4e07769ed66298a0495"
+                },
+                {
+                  "cookie": "8291",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 3089,
+                  "received_sha256": "2fed5d0503e7b580298b945d3107935de126a8c445624b08a986dfd5e1880cb5",
+                  "reply_sha256": "41837df92536c9f91e472755c5897e4155a378244f9bebc86573fc617eaf82ad",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "2fed5d0503e7b580298b945d3107935de126a8c445624b08a986dfd5e1880cb5"
+                }
+              ],
+              "round": 9,
+              "segment_count": 4
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8290",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 3089,
+                  "received_sha256": "8bb131750b865a7f9e77ec2a5d0f18a90e3978f24d30469c2bb9119078a36a05",
+                  "reply_sha256": "c40b043131fd86059e45299074cda336fc4bdd06e1bf33ce5e05127c898bae33",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "8bb131750b865a7f9e77ec2a5d0f18a90e3978f24d30469c2bb9119078a36a05"
+                },
+                {
+                  "cookie": "8291",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 3089,
+                  "received_sha256": "23a9f84ff5fd0fc09eeb1fc2225a4bdeac25d33a768c291fa7ae121528a384b0",
+                  "reply_sha256": "7bd68b4677b80ad415a365dc4dad9d86ea8678e2a41b7cc9101a4f43ded75697",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "23a9f84ff5fd0fc09eeb1fc2225a4bdeac25d33a768c291fa7ae121528a384b0"
+                }
+              ],
+              "round": 10,
+              "segment_count": 4
+            },
+            {
+              "observations": [
+                {
+                  "cookie": "8290",
+                  "extra_datagram_observed": false,
+                  "family": 4,
+                  "gro_segment": 1024,
+                  "received_length": 3089,
+                  "received_sha256": "974ca7e648a4a1d7b3ef241dbbd35f592575aa149f29f9eaee622cc8316cc1cf",
+                  "reply_sha256": "e97e7dcde2a9011cac7c2b598c4aeaa86dbad7ccd5a15941908b6761bd32f911",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "974ca7e648a4a1d7b3ef241dbbd35f592575aa149f29f9eaee622cc8316cc1cf"
+                },
+                {
+                  "cookie": "8291",
+                  "extra_datagram_observed": false,
+                  "family": 6,
+                  "gro_segment": 1024,
+                  "received_length": 3089,
+                  "received_sha256": "69bf1525683b02bf6daaf0bd43bf25f06ff50f36f7dde125c217000cc8594e9f",
+                  "reply_sha256": "e1671b6315011607955f4b2a8730af8ef7152c04d5773f426656366626b3b91b",
+                  "request_lengths": [
+                    1024,
+                    1024,
+                    1024,
+                    17
+                  ],
+                  "request_sha256": "69bf1525683b02bf6daaf0bd43bf25f06ff50f36f7dde125c217000cc8594e9f"
+                }
+              ],
+              "round": 11,
+              "segment_count": 4
+            }
+          ],
+          "same_sockets_all_rounds": true
+        }
+      ],
+      "native_replies": 24,
+      "native_requests": 288,
+      "ok": true,
+      "owned_resources_removed": true,
+      "production_cli": true,
+      "recovery_window": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-36064-1795184910670870669",
+        "decode_rejected": "0",
+        "final_accounted": false,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "564",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "564",
+        "retained": "548",
+        "run_id": "36077-106085639288500",
+        "schema_version": 1,
+        "state": "running",
+        "udp_port": 41002,
+        "userspace_dropped": "16"
+      },
+      "recovery_window_facts": 20,
+      "recovery_window_groups": [
+        33,
+        34,
+        35,
+        36
+      ],
+      "restart_oracle": {
+        "facts": 20,
+        "group_ids": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "oracles": [
+          {
+            "cookies": [
+              "20554",
+              "20555"
+            ],
+            "expected_count": 10,
+            "expected_sha256": "50afc5f57cb4d7762c786f459d4a8995322b0803e0c174a14403d70113ae0cf5",
+            "ifindex": 2,
+            "namespace": "net:[4026534050]",
+            "role": "client"
+          },
+          {
+            "cookies": [
+              "8290",
+              "8291"
+            ],
+            "expected_count": 10,
+            "expected_sha256": "c93ede2d34f71dba7ee3b8d03151f3ae11ca5c6afcebe993205267a9859653a4",
+            "ifindex": 2,
+            "namespace": "net:[4026534226]",
+            "role": "server"
+          }
+        ]
+      },
+      "restart_terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-36064-1795184910670870669",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "20",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "20",
+        "retained": "20",
+        "run_id": "36276-106089022523087",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "run_id_changed": true,
+      "same_socket_restart": true,
+      "schema_version": 1,
+      "second_window": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-36064-1795184910670870669",
+        "decode_rejected": "0",
+        "final_accounted": false,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "544",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "544",
+        "retained": "528",
+        "run_id": "36077-106085639288500",
+        "schema_version": 1,
+        "state": "running",
+        "udp_port": 41002,
+        "userspace_dropped": "16"
+      },
+      "second_window_facts": 18,
+      "second_window_groups": [
+        32
+      ],
+      "service_oracle": {
+        "facts": 548,
+        "group_ids": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          32,
+          33,
+          34,
+          35,
+          36
+        ],
+        "oracles": [
+          {
+            "cookies": [
+              "20554",
+              "20555"
+            ],
+            "expected_count": 266,
+            "expected_sha256": "415c4d7c6de7d878eb9a9e0ced920153cc4092161ab6b9fa5ddaedcdb9053e4d",
+            "ifindex": 2,
+            "namespace": "net:[4026534050]",
+            "role": "client"
+          },
+          {
+            "cookies": [
+              "8290",
+              "8291"
+            ],
+            "expected_count": 282,
+            "expected_sha256": "6f9256f6dd3d88efe7a018c3b2ee6dfac2942a2f401849ee910062571fe872eb",
+            "ifindex": 2,
+            "namespace": "net:[4026534226]",
+            "role": "server"
+          }
+        ]
+      },
+      "service_terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-36064-1795184910670870669",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "564",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "564",
+        "retained": "548",
+        "run_id": "36077-106085639288500",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "16"
+      },
+      "whole_groups_per_window": true,
+      "window_replay_identical": true,
+      "evidence_subdirectory": "verified-512-1"
+    }
+  ],
+  "repetitions": [
+    {
+      "limit": 528,
+      "iteration": 1,
+      "evidence_subdirectory": "verified-528-1",
+      "summary_sha256": "35f8055efa692cdc346b0b627e12620d944753b2a64d6264c4346142a179306a",
+      "service_terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-35829-1795184906741110358",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "564",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "564",
+        "retained": "564",
+        "run_id": "35842-106081708755643",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "restart_terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-35829-1795184906741110358",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "20",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "20",
+        "retained": "20",
+        "run_id": "35981-106085073326208",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      }
+    },
+    {
+      "limit": 512,
+      "iteration": 1,
+      "evidence_subdirectory": "verified-512-1",
+      "summary_sha256": "c714de5c87e8cafafc46fe0945f032ade22400231f952e0a27d355c4be82292a",
+      "service_terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-36064-1795184910670870669",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "564",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "564",
+        "retained": "548",
+        "run_id": "36077-106085639288500",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "16"
+      },
+      "restart_terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-36064-1795184910670870669",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "20",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "20",
+        "retained": "20",
+        "run_id": "36276-106089022523087",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      }
+    },
+    {
+      "limit": 528,
+      "iteration": 2,
+      "evidence_subdirectory": "verified-528-2",
+      "summary_sha256": "e09e89e59f87e0fbdf3f77b42e106cd6de8691ef286fde072409eaf8789062af",
+      "service_terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-36303-1795184914622493912",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "564",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "564",
+        "retained": "564",
+        "run_id": "36316-106089601776157",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "restart_terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-36303-1795184914622493912",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "20",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "20",
+        "retained": "20",
+        "run_id": "36454-106093012950236",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      }
+    },
+    {
+      "limit": 512,
+      "iteration": 2,
+      "evidence_subdirectory": "verified-512-2",
+      "summary_sha256": "029ddb8aa3cd0d657fcc0385b51c80fb86c65ff0e65e25c4a4b1448f87e7c7a6",
+      "service_terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-36488-1795184918628879461",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "564",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "564",
+        "retained": "548",
+        "run_id": "36501-106093607460585",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "16"
+      },
+      "restart_terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-36488-1795184918628879461",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "20",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "20",
+        "retained": "20",
+        "run_id": "36632-106096946889283",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      }
+    },
+    {
+      "limit": 528,
+      "iteration": 3,
+      "evidence_subdirectory": "verified-528-3",
+      "summary_sha256": "ba10d5766a3a7935cfe2546798f9fd741f485d730367a054e02f2a8d7b70e79b",
+      "service_terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-36639-1795184922546609876",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "564",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "564",
+        "retained": "564",
+        "run_id": "36652-106097514376641",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      },
+      "restart_terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-36639-1795184922546609876",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "20",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "20",
+        "retained": "20",
+        "run_id": "36806-106100879111246",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      }
+    },
+    {
+      "limit": 512,
+      "iteration": 3,
+      "evidence_subdirectory": "verified-512-3",
+      "summary_sha256": "3d51cae4f6af4e8d5cc980cac9139267f9204eb29e71367483a2277625d9a727",
+      "service_terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-36816-1795184926468740757",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "564",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "564",
+        "retained": "548",
+        "run_id": "36829-106101447518594",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "16"
+      },
+      "restart_terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-offload-service-36816-1795184926468740757",
+        "decode_rejected": "0",
+        "final_accounted": true,
+        "incomplete": false,
+        "kernel": {
+          "malformed": "0",
+          "matched": "20",
+          "no_cookie": "0",
+          "ring_dropped": "0",
+          "unsupported": "0"
+        },
+        "received": "20",
+        "retained": "20",
+        "run_id": "36987-106104858693317",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "0"
+      }
+    }
+  ]
+}

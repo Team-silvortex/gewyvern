@@ -92,6 +92,28 @@ normalization at 4/16 segments, explicit 17-segment rejection, short tails,
 ordinary recovery and unselected-port exclusion. A paused-reader/4 KiB ring case
 must discard received partial groups, reconcile loss and resume correctly.
 Do not extend this single-host veth proof to tunnels or physical NIC offloads.
+The [offload service variant](production-udp-offload-service.md) forces a real
+group across consume/publication boundaries. Check whole-group reservation or
+refusal, no tail resurrection after freeing capacity, cumulative counters and
+fresh `run_id` after SIGKILL, rather than assuming a `running` file proves recovery.
+Its [idle-expiry variant](production-udp-offload-service.md#idle-expiry-and-capacity-recovery)
+keeps a real partial group across empty windows, verifies timeout without new
+traffic or shutdown, and requires capacity recovery without erasing prior loss.
+The [history rollover variant](production-udp-offload-service.md#aggregate-history-rollover)
+crosses two 4,096-ID boundaries in one process. Require unique payload/fact/group
+identities, complete groups in every window and a final 16-segment recovery;
+resource sampling in this paced run is not a throughput or leak-freedom result.
+The [multi-CPU variant](production-udp-offload-service.md#multi-cpu-interleaving)
+requires actual egress CPU binding, overlapping native clients, observed producer
+interleaving and complete groups across the 512-record consume boundary. Freeze
+before expensive replay: latest-window files are not a durable history queue.
+Its [small-ring recovery variant](production-udp-offload-service.md#multi-cpu-ring-loss-and-recovery)
+requires native I/O success despite injected observation loss, no published
+partial group, idle cleanup without traffic, same-socket two-segment recovery,
+and exit 3 after recovery. Never report the induced drop ratio as throughput.
+The [mixed-budget variant](production-udp-offload-service.md#mixed-ring-and-budget-pressure)
+also requires that a budget-refused probe leave pending and retained counts
+unchanged; idle expiry must charge only the admitted partial members.
 
 The [formal packet/socket boundary check](production-udp-boundaries.md) adds
 empty/short/large native UDP payloads, unconnected clients and servers, and

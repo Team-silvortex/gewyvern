@@ -7,6 +7,16 @@ mod udp_errors;
 mod udp_normalization;
 #[path = "native_validation_harness_tdd/udp_offload.rs"]
 mod udp_offload;
+#[path = "native_validation_harness_tdd/udp_offload_concurrent.rs"]
+mod udp_offload_concurrent;
+#[path = "native_validation_harness_tdd/udp_offload_expiry.rs"]
+mod udp_offload_expiry;
+#[path = "native_validation_harness_tdd/udp_offload_history.rs"]
+mod udp_offload_history;
+#[path = "native_validation_harness_tdd/udp_offload_ring_pressure.rs"]
+mod udp_offload_ring_pressure;
+#[path = "native_validation_harness_tdd/udp_offload_service.rs"]
+mod udp_offload_service;
 #[path = "native_validation_harness_tdd/udp_pressure.rs"]
 mod udp_pressure;
 

@@ -1,0 +1,1385 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-11-20",
+  "release_artifact": false,
+  "status_maturity_promoted": false,
+  "host": "Linux 7.0.0-43-generic x86_64 GNU/Linux",
+  "evidence_directory": "/home/chiharukiryu/.cache/gewyvern/evidence/20261120-udp-offload-expiry",
+  "binary_sha256": "18c312c214bea37212f029606ba981353add29e0e3dfbe8ebdce37f2ef21b78e",
+  "test_binary_sha256": "c22feae1acaf785395dd3eb4bcb07baee8f24fb06a5a59ca76f238e12652a521",
+  "source_inputs": [
+    {
+      "path": "Cargo.toml",
+      "sha256": "e46a3f093e6162f78752db705f375d37e41a50f13567b35033383e04a67238fa"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "52492d8def30e48e97cdc2b576a018e1bb7d90654091afc8cdcc44099f6041a8"
+    },
+    {
+      "path": "ebpf/production/udp.bpf.c",
+      "sha256": "282658aff4776731f7cb28f07bdb762154c819d3716285a5107dfe35bfc9a4e1"
+    },
+    {
+      "path": "src/main/capture_runtime.rs",
+      "sha256": "80836255e2c49daa600ec4457faf7da9bce429faf875e2358a6a26f5dbdd1462"
+    },
+    {
+      "path": "src/live_capture/linux.rs",
+      "sha256": "919789e2b4ac3d77e27e0b80d70daae8634ea7f0819efbf5e9574b46ba9ee033"
+    },
+    {
+      "path": "src/live_capture/linux/api.rs",
+      "sha256": "77426bb0cee7018f88a3d1a0cc24d316f99ad8df35e05c962fab8382942b7d0d"
+    },
+    {
+      "path": "src/live_capture/fact_buffer.rs",
+      "sha256": "48d4474e35d64dae805f158b1ab15d619c952f0157b3619c9f5fd633ca11af74"
+    },
+    {
+      "path": "src/live_capture/fact_buffer/tests.rs",
+      "sha256": "13de9e4bf8caca48c6aa5abb243b4f00f9207fd3ce9c30b2861ea4c0e4a962a1"
+    },
+    {
+      "path": "src/ledger/udp_offload.rs",
+      "sha256": "b9542b9cf4a28ecd849f3b578e54d94be1dc6e4de6301ee6ce0d080be816cc64"
+    },
+    {
+      "path": "src/ledger/udp_offload/groups.rs",
+      "sha256": "0b95dc65a9762c8377c231c764eda0f0107c8499470653fb1fd717a7ed9e4b5f"
+    },
+    {
+      "path": "src/packet_capture.rs",
+      "sha256": "4daaaa11eb7b8c19d132d2d5c132c8ed228c16b308685b61e87441405623315f"
+    },
+    {
+      "path": "src/runtime/offload.rs",
+      "sha256": "320206bd98a15af376f42855d50c974d42f0aff54bf4d50211e346c94ec5011a"
+    },
+    {
+      "path": "src/export/fact_codec/offload.rs",
+      "sha256": "8a805b4d6a84e7fccd4b651211c05fc4660a8fa9ee7f3387ff9685b3af8b46fb"
+    },
+    {
+      "path": "tests/production_capture_linux_tdd.rs",
+      "sha256": "7919c47c9c65bbe50ff740ce2146d08881fad10709d46a34873f0a6f0edd25ed"
+    },
+    {
+      "path": "tests/production_capture_linux_tdd/network.rs",
+      "sha256": "14de482b780d993108e5f88c712dfbb4b74ec6d598214b0412ad8f2793e2979d"
+    },
+    {
+      "path": "tests/production_capture_linux_tdd/boundaries.rs",
+      "sha256": "3119b3657a4175c182093f7cc9f9d8e5aa7169d6d4073c7c4041559194311509"
+    },
+    {
+      "path": "tests/production_capture_linux_tdd/network/offload.rs",
+      "sha256": "da15e4bd059a20a48d47a602a02b41cc9adbacc39512dfd38e21386559186c4b"
+    },
+    {
+      "path": "tests/production_capture_linux_tdd/network/offload/service.rs",
+      "sha256": "ca9bad51652777b2bac2f130fe21083ec17ed3926c2b2105b484a8c8adc6e617"
+    },
+    {
+      "path": "tests/production_capture_linux_tdd/network/offload/expiry.rs",
+      "sha256": "5449d5b943a0135acff1cc382ee1e19c0ddc3c929c0e74c850eb88274bdd88ad"
+    },
+    {
+      "path": "tests/production_capture_linux_tdd/network/faults.rs",
+      "sha256": "babf573e6eea35b6f68ad64038bd0e31c16d7dd45042191589ff78f006f91939"
+    }
+  ],
+  "allocation_regression": {
+    "before_failed_tests": 2,
+    "after_passed_tests": 2,
+    "before_log": "empty-windows-before.log",
+    "after_log": "build-and-empty-windows.log",
+    "capacities": [
+      1,
+      24,
+      65536
+    ],
+    "empty_calls_per_capacity": 1000,
+    "whole_service_allocation_free_claim": false
+  },
+  "runs": [
+    {
+      "binary_sha256": "18c312c214bea37212f029606ba981353add29e0e3dfbe8ebdce37f2ef21b78e",
+      "capacity_recovered": true,
+      "expected_count": 31,
+      "expected_sha256": "28f6b80333870f4e4e0a400f9c50771724e6928a89d132453449c2a30882a698",
+      "expired_without_new_traffic": true,
+      "expiry_elapsed_ms": 2162.3089489999998,
+      "family": 4,
+      "group_indexes": {
+        "3": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "4": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "limits": [
+        "single_host_private_veth",
+        "client_scope_only",
+        "bounded_idle_expiry_not_soak",
+        "no_physical_nic_certification"
+      ],
+      "native": [
+        {
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "identity": {
+            "cookie": "20560",
+            "family": 4,
+            "ifindex": 2,
+            "namespace": "net:[4026534049]",
+            "role": "client"
+          },
+          "phases": [
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 0,
+              "received_length": 32,
+              "received_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+              "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+              "request_lengths": [
+                32
+              ],
+              "request_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+              "segment_count": 1
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 1,
+              "received_length": 32,
+              "received_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+              "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+              "request_lengths": [
+                32
+              ],
+              "request_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+              "segment_count": 1
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 2,
+              "received_length": 32,
+              "received_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+              "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+              "request_lengths": [
+                32
+              ],
+              "request_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+              "segment_count": 1
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 3,
+              "received_length": 32,
+              "received_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+              "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+              "request_lengths": [
+                32
+              ],
+              "request_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+              "segment_count": 1
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 4,
+              "received_length": 32,
+              "received_sha256": "8cea9965cf2e67fb19afe25afbee618c58426aaceeebe7a11f8bb65ae2f3bb30",
+              "reply_sha256": "8cea9965cf2e67fb19afe25afbee618c58426aaceeebe7a11f8bb65ae2f3bb30",
+              "request_lengths": [
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                17
+              ],
+              "request_sha256": "cf2cd9bf3c1b3b06306c2500dd52ed72ad1344010f171414dcf80a5cfc615ab1",
+              "segment_count": 16
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 5,
+              "received_length": 32,
+              "received_sha256": "396d89c0b6bab43da94ba060a44c3419565b1f14c164853fd06518de69c1fa44",
+              "reply_sha256": "396d89c0b6bab43da94ba060a44c3419565b1f14c164853fd06518de69c1fa44",
+              "request_lengths": [
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                17
+              ],
+              "request_sha256": "8bed6957ecd39a8d0c4ca368b756a0b1857d2438f68522fecae8e1b30350aa04",
+              "segment_count": 16
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 6,
+              "received_length": 32,
+              "received_sha256": "d09ffff2c93704b143e7158f2f37bc8e8af947847fe837c4d798cd8c6786fea8",
+              "reply_sha256": "d09ffff2c93704b143e7158f2f37bc8e8af947847fe837c4d798cd8c6786fea8",
+              "request_lengths": [
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                17
+              ],
+              "request_sha256": "e924fcdad3cbe0787db0f466058c6eecdb2697a27332e70445f747c9438838c2",
+              "segment_count": 16
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 7,
+              "received_length": 32,
+              "received_sha256": "a4906d91552faf99dfb7dc1e11fdefcd4c5b2a46a5cc9ce855d855b3090c3dcb",
+              "reply_sha256": "a4906d91552faf99dfb7dc1e11fdefcd4c5b2a46a5cc9ce855d855b3090c3dcb",
+              "request_lengths": [
+                1024,
+                1024,
+                1024,
+                17
+              ],
+              "request_sha256": "df6b35ced29d0be9dc9bf7887e554a54f88050aa989537ab969fc539a14bfe83",
+              "segment_count": 4
+            }
+          ],
+          "same_socket_all_phases": true
+        },
+        {
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "identity": {
+            "cookie": "57369",
+            "family": 4,
+            "ifindex": 2,
+            "namespace": "net:[4026534225]",
+            "role": "server"
+          },
+          "phases": [
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 0,
+              "received_length": 32,
+              "received_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+              "reply_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+              "request_lengths": [
+                32
+              ],
+              "request_sha256": "b485ecdb0094ea69a126ed4a0527f13881df17d9e5c2535137ee8790590f37d3",
+              "segment_count": 1
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 1,
+              "received_length": 32,
+              "received_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+              "reply_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+              "request_lengths": [
+                32
+              ],
+              "request_sha256": "b4891782e9b1bab89fd904ae0f77ae112580742e74506ad894576b887c77c6a4",
+              "segment_count": 1
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 2,
+              "received_length": 32,
+              "received_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+              "reply_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+              "request_lengths": [
+                32
+              ],
+              "request_sha256": "db6cde4f520e7a6a7a0ef841ab4bb36c5186b83c40accb0ac0795cd8437f9a75",
+              "segment_count": 1
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 3,
+              "received_length": 32,
+              "received_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+              "reply_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+              "request_lengths": [
+                32
+              ],
+              "request_sha256": "3cceb30312d6f1d076b44f698a246ac3eeebb15d6563e191b6230152cf7413f7",
+              "segment_count": 1
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": 1024,
+              "phase": 4,
+              "received_length": 15377,
+              "received_sha256": "cf2cd9bf3c1b3b06306c2500dd52ed72ad1344010f171414dcf80a5cfc615ab1",
+              "reply_sha256": "8cea9965cf2e67fb19afe25afbee618c58426aaceeebe7a11f8bb65ae2f3bb30",
+              "request_lengths": [
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                17
+              ],
+              "request_sha256": "cf2cd9bf3c1b3b06306c2500dd52ed72ad1344010f171414dcf80a5cfc615ab1",
+              "segment_count": 16
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": 1024,
+              "phase": 5,
+              "received_length": 15377,
+              "received_sha256": "8bed6957ecd39a8d0c4ca368b756a0b1857d2438f68522fecae8e1b30350aa04",
+              "reply_sha256": "396d89c0b6bab43da94ba060a44c3419565b1f14c164853fd06518de69c1fa44",
+              "request_lengths": [
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                17
+              ],
+              "request_sha256": "8bed6957ecd39a8d0c4ca368b756a0b1857d2438f68522fecae8e1b30350aa04",
+              "segment_count": 16
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": 1024,
+              "phase": 6,
+              "received_length": 15377,
+              "received_sha256": "e924fcdad3cbe0787db0f466058c6eecdb2697a27332e70445f747c9438838c2",
+              "reply_sha256": "d09ffff2c93704b143e7158f2f37bc8e8af947847fe837c4d798cd8c6786fea8",
+              "request_lengths": [
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                17
+              ],
+              "request_sha256": "e924fcdad3cbe0787db0f466058c6eecdb2697a27332e70445f747c9438838c2",
+              "segment_count": 16
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": 1024,
+              "phase": 7,
+              "received_length": 3089,
+              "received_sha256": "df6b35ced29d0be9dc9bf7887e554a54f88050aa989537ab969fc539a14bfe83",
+              "reply_sha256": "a4906d91552faf99dfb7dc1e11fdefcd4c5b2a46a5cc9ce855d855b3090c3dcb",
+              "request_lengths": [
+                1024,
+                1024,
+                1024,
+                17
+              ],
+              "request_sha256": "df6b35ced29d0be9dc9bf7887e554a54f88050aa989537ab969fc539a14bfe83",
+              "segment_count": 4
+            }
+          ],
+          "same_socket_all_phases": true
+        }
+      ],
+      "native_replies": 8,
+      "native_requests": 56,
+      "ok": true,
+      "owned_resources_removed": true,
+      "packet_multiset_matches": true,
+      "production_cli": true,
+      "replay_identical": true,
+      "same_socket_recovery": true,
+      "schema_version": 1,
+      "stages": [
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-77889-1795185840828032695-client",
+            "decode_rejected": "0",
+            "final_accounted": false,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "25",
+              "no_cookie": "0",
+              "ring_dropped": "8",
+              "unsupported": "0"
+            },
+            "received": "17",
+            "retained": "8",
+            "run_id": "77902-107015801135856",
+            "schema_version": 1,
+            "state": "running",
+            "udp_port": 41002,
+            "userspace_dropped": "0"
+          },
+          "facts": 8,
+          "stage": "partial"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-77889-1795185840828032695-client",
+            "decode_rejected": "0",
+            "final_accounted": false,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "42",
+              "no_cookie": "0",
+              "ring_dropped": "8",
+              "unsupported": "0"
+            },
+            "received": "34",
+            "retained": "9",
+            "run_id": "77902-107015801135856",
+            "schema_version": 1,
+            "state": "running",
+            "udp_port": 41002,
+            "userspace_dropped": "16"
+          },
+          "facts": 1,
+          "stage": "reserved"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-77889-1795185840828032695-client",
+            "decode_rejected": "9",
+            "final_accounted": false,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "42",
+              "no_cookie": "0",
+              "ring_dropped": "8",
+              "unsupported": "0"
+            },
+            "received": "34",
+            "retained": "9",
+            "run_id": "77902-107015801135856",
+            "schema_version": 1,
+            "state": "running",
+            "udp_port": 41002,
+            "userspace_dropped": "16"
+          },
+          "facts": 0,
+          "stage": "expired"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-77889-1795185840828032695-client",
+            "decode_rejected": "9",
+            "final_accounted": false,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "59",
+              "no_cookie": "0",
+              "ring_dropped": "8",
+              "unsupported": "0"
+            },
+            "received": "51",
+            "retained": "26",
+            "run_id": "77902-107015801135856",
+            "schema_version": 1,
+            "state": "running",
+            "udp_port": 41002,
+            "userspace_dropped": "16"
+          },
+          "facts": 17,
+          "stage": "admitted"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-77889-1795185840828032695-client",
+            "decode_rejected": "9",
+            "final_accounted": false,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "8",
+              "unsupported": "0"
+            },
+            "received": "56",
+            "retained": "31",
+            "run_id": "77902-107015801135856",
+            "schema_version": 1,
+            "state": "running",
+            "udp_port": 41002,
+            "userspace_dropped": "16"
+          },
+          "facts": 5,
+          "stage": "recovery"
+        }
+      ],
+      "terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-77889-1795185840828032695-client",
+        "decode_rejected": "9",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "64",
+          "no_cookie": "0",
+          "ring_dropped": "8",
+          "unsupported": "0"
+        },
+        "received": "56",
+        "retained": "31",
+        "run_id": "77902-107015801135856",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "16"
+      },
+      "evidence_subdirectory": "final-4-1"
+    },
+    {
+      "binary_sha256": "18c312c214bea37212f029606ba981353add29e0e3dfbe8ebdce37f2ef21b78e",
+      "capacity_recovered": true,
+      "expected_count": 31,
+      "expected_sha256": "9cad0c700a8e024e74ec5428f1813b756de226a271ee75b6f43bb7ef8b19b530",
+      "expired_without_new_traffic": true,
+      "expiry_elapsed_ms": 2188.853752,
+      "family": 6,
+      "group_indexes": {
+        "3": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "4": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "hooks_detached": true,
+      "host_network_changed": false,
+      "limits": [
+        "single_host_private_veth",
+        "client_scope_only",
+        "bounded_idle_expiry_not_soak",
+        "no_physical_nic_certification"
+      ],
+      "native": [
+        {
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "identity": {
+            "cookie": "8301",
+            "family": 6,
+            "ifindex": 2,
+            "namespace": "net:[4026534226]",
+            "role": "client"
+          },
+          "phases": [
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 0,
+              "received_length": 32,
+              "received_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+              "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+              "request_lengths": [
+                32
+              ],
+              "request_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+              "segment_count": 1
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 1,
+              "received_length": 32,
+              "received_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+              "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+              "request_lengths": [
+                32
+              ],
+              "request_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+              "segment_count": 1
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 2,
+              "received_length": 32,
+              "received_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+              "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+              "request_lengths": [
+                32
+              ],
+              "request_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+              "segment_count": 1
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 3,
+              "received_length": 32,
+              "received_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+              "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+              "request_lengths": [
+                32
+              ],
+              "request_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+              "segment_count": 1
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 4,
+              "received_length": 32,
+              "received_sha256": "c1009393cb91d73ca0bcc098010eea83b5eaf9ee8230c0d0821f1a08dbc2b2d4",
+              "reply_sha256": "c1009393cb91d73ca0bcc098010eea83b5eaf9ee8230c0d0821f1a08dbc2b2d4",
+              "request_lengths": [
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                17
+              ],
+              "request_sha256": "8856c598822b9030e40bc324395754e13d902d949b533ab0a6501ee2e16dc509",
+              "segment_count": 16
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 5,
+              "received_length": 32,
+              "received_sha256": "0682732e7bb26df18e885d3c666cb2d0c48b7ecf68e09762f5a6f352920c7387",
+              "reply_sha256": "0682732e7bb26df18e885d3c666cb2d0c48b7ecf68e09762f5a6f352920c7387",
+              "request_lengths": [
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                17
+              ],
+              "request_sha256": "4e90b25b2484266789395d7721720d9032499c8c004ceb7977999b3e38874d06",
+              "segment_count": 16
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 6,
+              "received_length": 32,
+              "received_sha256": "fdaf0bbce40aad0b39d9c80d0632147d55fa7defe618c4e2829d7f7a6b3f4c68",
+              "reply_sha256": "fdaf0bbce40aad0b39d9c80d0632147d55fa7defe618c4e2829d7f7a6b3f4c68",
+              "request_lengths": [
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                17
+              ],
+              "request_sha256": "366a806546eb4c6353c484041be1a0b67a8cb5d8458a7226ce2209fb5689cb3d",
+              "segment_count": 16
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 7,
+              "received_length": 32,
+              "received_sha256": "6ec2e772a1a941bf2330c62a6922740d020e601e8ee8704b370d7a4e2a9ec1b7",
+              "reply_sha256": "6ec2e772a1a941bf2330c62a6922740d020e601e8ee8704b370d7a4e2a9ec1b7",
+              "request_lengths": [
+                1024,
+                1024,
+                1024,
+                17
+              ],
+              "request_sha256": "751e70855905e0610fa9df1e1ab12b5db07e5041797f2f578d6bc4e2aede16ef",
+              "segment_count": 4
+            }
+          ],
+          "same_socket_all_phases": true
+        },
+        {
+          "fragment_counter_deltas": {
+            "Ip6FragCreates": 0,
+            "Ip6FragFails": 0,
+            "Ip6FragOKs": 0,
+            "Ip6ReasmFails": 0,
+            "Ip6ReasmOKs": 0,
+            "Ip6ReasmReqds": 0,
+            "Ip6ReasmTimeout": 0,
+            "IpFragCreates": 0,
+            "IpFragFails": 0,
+            "IpFragOKs": 0,
+            "IpReasmFails": 0,
+            "IpReasmOKs": 0,
+            "IpReasmReqds": 0,
+            "IpReasmTimeout": 0
+          },
+          "identity": {
+            "cookie": "53279",
+            "family": 6,
+            "ifindex": 2,
+            "namespace": "net:[4026534279]",
+            "role": "server"
+          },
+          "phases": [
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 0,
+              "received_length": 32,
+              "received_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+              "reply_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+              "request_lengths": [
+                32
+              ],
+              "request_sha256": "47fa84db1e18d6e4e7572f1e8aab210caba1f49b27c0bf633338bf0998ab87a3",
+              "segment_count": 1
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 1,
+              "received_length": 32,
+              "received_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+              "reply_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+              "request_lengths": [
+                32
+              ],
+              "request_sha256": "d1f1603db7b20b54fbcff039094f6918b1947e1394c70f3ce33de68ab6b1cec8",
+              "segment_count": 1
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 2,
+              "received_length": 32,
+              "received_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+              "reply_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+              "request_lengths": [
+                32
+              ],
+              "request_sha256": "a284c896ba7fb02a94441c24c7d81a479d21030b994aa3d21a6b22e9955f35ae",
+              "segment_count": 1
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": null,
+              "phase": 3,
+              "received_length": 32,
+              "received_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+              "reply_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+              "request_lengths": [
+                32
+              ],
+              "request_sha256": "d51c3e2c2960c19a7b19ff9cb232ad0d4bb851e88f6441631deaadb3ae981385",
+              "segment_count": 1
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": 1024,
+              "phase": 4,
+              "received_length": 15377,
+              "received_sha256": "8856c598822b9030e40bc324395754e13d902d949b533ab0a6501ee2e16dc509",
+              "reply_sha256": "c1009393cb91d73ca0bcc098010eea83b5eaf9ee8230c0d0821f1a08dbc2b2d4",
+              "request_lengths": [
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                17
+              ],
+              "request_sha256": "8856c598822b9030e40bc324395754e13d902d949b533ab0a6501ee2e16dc509",
+              "segment_count": 16
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": 1024,
+              "phase": 5,
+              "received_length": 15377,
+              "received_sha256": "4e90b25b2484266789395d7721720d9032499c8c004ceb7977999b3e38874d06",
+              "reply_sha256": "0682732e7bb26df18e885d3c666cb2d0c48b7ecf68e09762f5a6f352920c7387",
+              "request_lengths": [
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                17
+              ],
+              "request_sha256": "4e90b25b2484266789395d7721720d9032499c8c004ceb7977999b3e38874d06",
+              "segment_count": 16
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": 1024,
+              "phase": 6,
+              "received_length": 15377,
+              "received_sha256": "366a806546eb4c6353c484041be1a0b67a8cb5d8458a7226ce2209fb5689cb3d",
+              "reply_sha256": "fdaf0bbce40aad0b39d9c80d0632147d55fa7defe618c4e2829d7f7a6b3f4c68",
+              "request_lengths": [
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                1024,
+                17
+              ],
+              "request_sha256": "366a806546eb4c6353c484041be1a0b67a8cb5d8458a7226ce2209fb5689cb3d",
+              "segment_count": 16
+            },
+            {
+              "extra_datagram_observed": false,
+              "gro_segment": 1024,
+              "phase": 7,
+              "received_length": 3089,
+              "received_sha256": "751e70855905e0610fa9df1e1ab12b5db07e5041797f2f578d6bc4e2aede16ef",
+              "reply_sha256": "6ec2e772a1a941bf2330c62a6922740d020e601e8ee8704b370d7a4e2a9ec1b7",
+              "request_lengths": [
+                1024,
+                1024,
+                1024,
+                17
+              ],
+              "request_sha256": "751e70855905e0610fa9df1e1ab12b5db07e5041797f2f578d6bc4e2aede16ef",
+              "segment_count": 4
+            }
+          ],
+          "same_socket_all_phases": true
+        }
+      ],
+      "native_replies": 8,
+      "native_requests": 56,
+      "ok": true,
+      "owned_resources_removed": true,
+      "packet_multiset_matches": true,
+      "production_cli": true,
+      "replay_identical": true,
+      "same_socket_recovery": true,
+      "schema_version": 1,
+      "stages": [
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-78061-1795185844461363605-client",
+            "decode_rejected": "0",
+            "final_accounted": false,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "25",
+              "no_cookie": "0",
+              "ring_dropped": "8",
+              "unsupported": "0"
+            },
+            "received": "17",
+            "retained": "8",
+            "run_id": "78074-107019434141920",
+            "schema_version": 1,
+            "state": "running",
+            "udp_port": 41002,
+            "userspace_dropped": "0"
+          },
+          "facts": 8,
+          "stage": "partial"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-78061-1795185844461363605-client",
+            "decode_rejected": "0",
+            "final_accounted": false,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "42",
+              "no_cookie": "0",
+              "ring_dropped": "8",
+              "unsupported": "0"
+            },
+            "received": "34",
+            "retained": "9",
+            "run_id": "78074-107019434141920",
+            "schema_version": 1,
+            "state": "running",
+            "udp_port": 41002,
+            "userspace_dropped": "16"
+          },
+          "facts": 1,
+          "stage": "reserved"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-78061-1795185844461363605-client",
+            "decode_rejected": "9",
+            "final_accounted": false,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "42",
+              "no_cookie": "0",
+              "ring_dropped": "8",
+              "unsupported": "0"
+            },
+            "received": "34",
+            "retained": "9",
+            "run_id": "78074-107019434141920",
+            "schema_version": 1,
+            "state": "running",
+            "udp_port": 41002,
+            "userspace_dropped": "16"
+          },
+          "facts": 0,
+          "stage": "expired"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-78061-1795185844461363605-client",
+            "decode_rejected": "9",
+            "final_accounted": false,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "59",
+              "no_cookie": "0",
+              "ring_dropped": "8",
+              "unsupported": "0"
+            },
+            "received": "51",
+            "retained": "26",
+            "run_id": "78074-107019434141920",
+            "schema_version": 1,
+            "state": "running",
+            "udp_port": 41002,
+            "userspace_dropped": "16"
+          },
+          "facts": 17,
+          "stage": "admitted"
+        },
+        {
+          "capture": {
+            "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-78061-1795185844461363605-client",
+            "decode_rejected": "9",
+            "final_accounted": false,
+            "incomplete": true,
+            "kernel": {
+              "malformed": "0",
+              "matched": "64",
+              "no_cookie": "0",
+              "ring_dropped": "8",
+              "unsupported": "0"
+            },
+            "received": "56",
+            "retained": "31",
+            "run_id": "78074-107019434141920",
+            "schema_version": 1,
+            "state": "running",
+            "udp_port": 41002,
+            "userspace_dropped": "16"
+          },
+          "facts": 5,
+          "stage": "recovery"
+        }
+      ],
+      "terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-78061-1795185844461363605-client",
+        "decode_rejected": "9",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "64",
+          "no_cookie": "0",
+          "ring_dropped": "8",
+          "unsupported": "0"
+        },
+        "received": "56",
+        "retained": "31",
+        "run_id": "78074-107019434141920",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "16"
+      },
+      "evidence_subdirectory": "final-6-1"
+    }
+  ],
+  "repetitions": [
+    {
+      "family": 4,
+      "iteration": 1,
+      "evidence_subdirectory": "final-4-1",
+      "summary_sha256": "325d38601fe80bc3a2012af10fd24057706d349fd503611aad5f7a5e1de83222",
+      "expiry_elapsed_ms": 2162.3089489999998,
+      "terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-77889-1795185840828032695-client",
+        "decode_rejected": "9",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "64",
+          "no_cookie": "0",
+          "ring_dropped": "8",
+          "unsupported": "0"
+        },
+        "received": "56",
+        "retained": "31",
+        "run_id": "77902-107015801135856",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "16"
+      }
+    },
+    {
+      "family": 6,
+      "iteration": 1,
+      "evidence_subdirectory": "final-6-1",
+      "summary_sha256": "7312b632dd47c8d891005a4bf53fffed748316fdd7b1ef2e40a40a227e539dad",
+      "expiry_elapsed_ms": 2188.853752,
+      "terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-78061-1795185844461363605-client",
+        "decode_rejected": "9",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "64",
+          "no_cookie": "0",
+          "ring_dropped": "8",
+          "unsupported": "0"
+        },
+        "received": "56",
+        "retained": "31",
+        "run_id": "78074-107019434141920",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "16"
+      }
+    },
+    {
+      "family": 4,
+      "iteration": 2,
+      "evidence_subdirectory": "final-4-2",
+      "summary_sha256": "1ea427901dc82d292514c36a8849292bcb91c8fd72b74064a700f6accd71b3c0",
+      "expiry_elapsed_ms": 2210.978838,
+      "terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-78379-1795185849177207799-client",
+        "decode_rejected": "9",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "64",
+          "no_cookie": "0",
+          "ring_dropped": "8",
+          "unsupported": "0"
+        },
+        "received": "56",
+        "retained": "31",
+        "run_id": "78393-107024160884813",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "16"
+      }
+    },
+    {
+      "family": 6,
+      "iteration": 2,
+      "evidence_subdirectory": "final-6-2",
+      "summary_sha256": "cead5bf03a323f857c12cf27e5f91e85f39bdb8235f9b1b277e34b47ce355154",
+      "expiry_elapsed_ms": 2225.270379,
+      "terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-78559-1795185852919020242-client",
+        "decode_rejected": "9",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "64",
+          "no_cookie": "0",
+          "ring_dropped": "8",
+          "unsupported": "0"
+        },
+        "received": "56",
+        "retained": "31",
+        "run_id": "78572-107027903241170",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "16"
+      }
+    },
+    {
+      "family": 4,
+      "iteration": 3,
+      "evidence_subdirectory": "final-4-3",
+      "summary_sha256": "144d2a210688f6ea6f0d6c327db1cb5244d124604e23ce6aaff04b66b081bfb6",
+      "expiry_elapsed_ms": 2220.575882,
+      "terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-78833-1795185857749039880-client",
+        "decode_rejected": "9",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "64",
+          "no_cookie": "0",
+          "ring_dropped": "8",
+          "unsupported": "0"
+        },
+        "received": "56",
+        "retained": "31",
+        "run_id": "78846-107032748472436",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "16"
+      }
+    },
+    {
+      "family": 6,
+      "iteration": 3,
+      "evidence_subdirectory": "final-6-3",
+      "summary_sha256": "9890ed4eb0fbe7d89b24eff239115278077077eba1298b19d358dae707667cc8",
+      "expiry_elapsed_ms": 2237.808099,
+      "terminal": {
+        "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-79109-1795185861534975597-client",
+        "decode_rejected": "9",
+        "final_accounted": true,
+        "incomplete": true,
+        "kernel": {
+          "malformed": "0",
+          "matched": "64",
+          "no_cookie": "0",
+          "ring_dropped": "8",
+          "unsupported": "0"
+        },
+        "received": "56",
+        "retained": "31",
+        "run_id": "79125-107036513923059",
+        "schema_version": 1,
+        "state": "stopped",
+        "udp_port": 41002,
+        "userspace_dropped": "16"
+      }
+    }
+  ]
+}

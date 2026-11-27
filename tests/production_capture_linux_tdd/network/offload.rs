@@ -3,6 +3,9 @@ use super::faults::{await_file, worker};
 use super::*;
 use std::io::BufRead;
 
+#[path = "offload/service.rs"]
+mod service;
+
 const SEGMENT: usize = 1024;
 const LENGTHS: [usize; 4] = [SEGMENT, SEGMENT, SEGMENT, 17];
 const PHASES: [&str; 4] = ["baseline", "offload", "unselected-offload", "recovery"];
