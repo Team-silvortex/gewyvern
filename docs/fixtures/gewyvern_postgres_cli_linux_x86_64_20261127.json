@@ -1,0 +1,264 @@
+{
+  "schema_version": 1,
+  "release_artifact": false,
+  "base_revision": "ad3ec2c77c5f79b5c29a4350983ee9ded59a27b3",
+  "raw_campaign": "pg-frames-1795789733534",
+  "kernel": "Linux 7.0.0-44-generic x86_64 GNU/Linux",
+  "product": "gewyvern 2.7.0",
+  "servers": [
+    "postgres (PostgreSQL) 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)",
+    "postgres (PostgreSQL) 18.6 (Ubuntu 18.6-0ubuntu0.26.04.1)"
+  ],
+  "scope": "Plaintext direct IPv4 loopback backend frame observation, process-local BPF on the client cgroup. Independent psql outputs and errors were checked. Not request correlation or server deployment certification.",
+  "binary_sha256": {
+    "gewyvern": "1d6eb600552e189e534d712f799ec0454737faf206537bda318b6dd958395f84",
+    "test": "9cd63e1fa3ec97be5bab18a21323956cf481398d636650207d9dfef478e953a2",
+    "/usr/lib/postgresql/16/bin/postgres": "201d8daff9a5bd9df70b820471b965c39f5a776d677f395232c477d051270722",
+    "/usr/lib/postgresql/16/bin/psql": "df8031178589c31c7bc20aa2adf902e1cc3f0aa9ea12428aa5db3d476cbcac1a",
+    "/usr/lib/postgresql/18/bin/postgres": "30a38e0516ec1bde4b8ca710cf28ba51ee78bd004cabbf3107e7a52d5414a64a",
+    "/usr/lib/postgresql/18/bin/psql": "d1108fdb45b87f2313d7acfbb91a0a65ca97c6c2195f15d8ae9295121029ef67"
+  },
+  "source_sha256": {
+    "ebpf/production/postgres.bpf.c": "4e675753f590948641664fceeb469e494e2b18b282f7f0220cbc67e815ee27c5",
+    "ebpf/production/redis_resp.bpf.c": "58e5c8dc4cc0f56d5b918b6b8b394999e683bffcd71231e06fcd0c3d7864fbce",
+    "ebpf/production/scoped_stream.inc.c": "e9acea3e076156d8332dcda30c13fb0b8181617954275b80cc6222a4c0a6e7f0",
+    "src/live_capture.rs": "300b60d0995a133eea9e27ae557199fdbbe2ce83953dd70ea8a53f1a3006e6db",
+    "src/live_capture/linux.rs": "05b28f40883444a56a3551c9356a5dae25ae2ad271ac55fe76730fbb60274410",
+    "src/live_capture/linux/postgres.rs": "262b7525a1b3d9c2f6e7959e8e75b0f45149ceb3bbae95378620a6b3529e82a9",
+    "src/live_capture/linux/redis_resp.rs": "aff8480e86aecba1c5039eff7c5d369711dde4f6b580e0bbf7d11bc143e3fbb1",
+    "src/live_capture/linux/tcp_observer.rs": "01fd163f93f607c9ecd23e28c5647c646a3e20f428a3796a7b4ba89d20fa6eb9",
+    "src/live_capture/linux/http_status.rs": "4d7669fc9a764d64de4fa90ff6b61d07bc3d2bf25505a64974d5d5997d3df31c",
+    "src/main.rs": "92604098dff4d5b45d4dc7465b4486c26cb8cbb4c7e05d78832424a1f701f7b0",
+    "src/main/http_status_cli.rs": "69aa51d468c45d4d850b34a120be9595eb98ee9dea510d568878eb7ca91660c0",
+    "tests/production_capture_linux_tdd.rs": "243d969ebbc16f558c8df3525fab096b1401e7fa627ce4e4d4dc4138bb11e558",
+    "tests/production_capture_linux_tdd/postgres.rs": "1987d7f9f66a8c5b8a63648bbc917c20c065b6fe13c9d7ea1666e9b94df7139d"
+  },
+  "scenarios": {
+    "copy": {
+      "exit_code_verified_by_test": 3,
+      "connections": 1,
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "outcome": "unsupported_type",
+      "events": []
+    },
+    "denied": {
+      "exit_code_verified_by_test": 0,
+      "connections": 1,
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "outcome": "framed",
+      "events": [
+        {
+          "phase": "before_first_ready",
+          "sqlstate_bucket": "28P01",
+          "type": "error_response"
+        }
+      ]
+    },
+    "overflow": {
+      "exit_code_verified_by_test": 3,
+      "connections": 1,
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "outcome": "limit_reached",
+      "events": []
+    },
+    "transaction": {
+      "exit_code_verified_by_test": 0,
+      "connections": 1,
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "outcome": "framed",
+      "events": [
+        {
+          "state": "I",
+          "type": "ready"
+        },
+        {
+          "state": "T",
+          "type": "ready"
+        },
+        {
+          "type": "data_row"
+        },
+        {
+          "state": "T",
+          "type": "ready"
+        },
+        {
+          "phase": "after_first_ready",
+          "sqlstate_bucket": "22012",
+          "type": "error_response"
+        },
+        {
+          "state": "E",
+          "type": "ready"
+        },
+        {
+          "phase": "after_first_ready",
+          "sqlstate_bucket": "25P02",
+          "type": "error_response"
+        },
+        {
+          "state": "E",
+          "type": "ready"
+        },
+        {
+          "state": "I",
+          "type": "ready"
+        },
+        {
+          "type": "data_row"
+        },
+        {
+          "state": "I",
+          "type": "ready"
+        },
+        {
+          "phase": "after_first_ready",
+          "sqlstate_bucket": "other",
+          "type": "error_response"
+        },
+        {
+          "state": "I",
+          "type": "ready"
+        }
+      ]
+    }
+  },
+  "runs": {
+    "verified-pg16-1": {
+      "copy": {
+        "server_payload_segments": 4,
+        "report_sha256": "3e0231503047cafe68054a12685133bc6db5ff30aa6faa792f8ff7121fffde37"
+      },
+      "denied": {
+        "server_payload_segments": 3,
+        "report_sha256": "3406e2a64b680e7df1da84081e068030ee6d773c7645bed9c39f3eeaf99e4321"
+      },
+      "overflow": {
+        "server_payload_segments": 4,
+        "report_sha256": "87f31c3648d150326cfd6acff75db152675a7c2acc0d286015d748619a5cf825"
+      },
+      "transaction": {
+        "server_payload_segments": 25,
+        "report_sha256": "57bf878366e87700a630490d201e4317368d36002e00add24b6977407fa8cd4a"
+      }
+    },
+    "verified-pg16-2": {
+      "copy": {
+        "server_payload_segments": 4,
+        "report_sha256": "82417a02f63be578c5f9d86d38df4d5fa76fff72c69673dc71acfca621f80fcc"
+      },
+      "denied": {
+        "server_payload_segments": 3,
+        "report_sha256": "94472bd23ca4cbaccc16e4bd63312562dee0b66154f441d4f2ad2778af461b1c"
+      },
+      "overflow": {
+        "server_payload_segments": 4,
+        "report_sha256": "160d78aaec078bbfe2c9edcabf4095c377795622271c0fc49a7a38b83bc2ff45"
+      },
+      "transaction": {
+        "server_payload_segments": 25,
+        "report_sha256": "a2eeca42f6ea5acf8217be12da5731fdcdea74d47514eb3bcf0b4d9433af7b2b"
+      }
+    },
+    "verified-pg16-3": {
+      "copy": {
+        "server_payload_segments": 4,
+        "report_sha256": "7b4496419bf39af2e8a8571078bcac8fdb7ef592f6dc6c9452178f035d6ae2c6"
+      },
+      "denied": {
+        "server_payload_segments": 3,
+        "report_sha256": "b26131a26932bdf65a51e89e540d50605220f8e40c5095e525cd5db062b312e5"
+      },
+      "overflow": {
+        "server_payload_segments": 4,
+        "report_sha256": "e257bd50a4b790ad02710b805a4ed44b1ae4f6a7311355140d57c042d0dbfcbc"
+      },
+      "transaction": {
+        "server_payload_segments": 25,
+        "report_sha256": "4c1152801d6e74e6440c7248878e898b4d44a846fcfbc3f4940dbd4be0254bd5"
+      }
+    },
+    "verified-pg18-1": {
+      "copy": {
+        "server_payload_segments": 4,
+        "report_sha256": "6a08c5db24c7900d986fdd61f9b41c710133201f5bd7419196e33982440d649a"
+      },
+      "denied": {
+        "server_payload_segments": 3,
+        "report_sha256": "568c9e08b03fd7e382e05fede5e0dff3735ea802567a045407551279292023e7"
+      },
+      "overflow": {
+        "server_payload_segments": 4,
+        "report_sha256": "5ba8b4f9274c67188abdecfb1b39f0ccf8f6bfa8143d76b669631d718b0ee9d5"
+      },
+      "transaction": {
+        "server_payload_segments": 16,
+        "report_sha256": "4135ef93c596a9f6d4d2679f0a3317f3697a4a2f89c829543fda83712a0fcec1"
+      }
+    },
+    "verified-pg18-2": {
+      "copy": {
+        "server_payload_segments": 4,
+        "report_sha256": "335886198a71888bb9c6bd3dd363a583ec6e624a151e9f23b1486be01b3d37d2"
+      },
+      "denied": {
+        "server_payload_segments": 3,
+        "report_sha256": "efae2a47ffc118c5f979b391d83a17d7325a4c50361ca3a2a58897c5528903ea"
+      },
+      "overflow": {
+        "server_payload_segments": 4,
+        "report_sha256": "96b3ffb9c8feef3935cf60ebdbf093b4497b5dd69f7b84fdf219c2383d1b7b2c"
+      },
+      "transaction": {
+        "server_payload_segments": 15,
+        "report_sha256": "fe6728da61ae86ff78dcf36a17f6bd4bd139115e94cfb5909d2d7f48ad012a60"
+      }
+    },
+    "verified-pg18-3": {
+      "copy": {
+        "server_payload_segments": 4,
+        "report_sha256": "383bea30457a2e5adb0d2c6d3fa7be4fbc6555e3721922de29c39f3138f3a199"
+      },
+      "denied": {
+        "server_payload_segments": 3,
+        "report_sha256": "1a0b570f69aa05718051af485b96389cebcc9aa9da9484220b729d2b122f2457"
+      },
+      "overflow": {
+        "server_payload_segments": 4,
+        "report_sha256": "4a6de9616ef3a30cc75b257cde38baf4aa2016dc7b987f3023087b8eaab9aad1"
+      },
+      "transaction": {
+        "server_payload_segments": 16,
+        "report_sha256": "9b923b1f293c820e8be0a43be4ed5b09f5d5ea720cf687f0bcb790d93a54e166"
+      }
+    }
+  },
+  "redis_regression_sha256": {
+    "depth": "1bb85dc578f6d6143a8473052fa339f002d9c8b2eec4017d444bb509134bf59c",
+    "overflow": "e2f2621581376c3e65d57ae1717eecdb6aba3f74db792256652a78fb0508764a",
+    "pipeline": "765a1731284b6ea96dc242c80232b073dbae30e65604aea842c00d0888978151",
+    "preexisting": "0be4cd5f37a3a15f570138624f6c41d52f9f67b78c0985ee2712d2cfb7a01937",
+    "transaction": "4c601cc8cb9ddf18b8d474961681bff2fcdaf760c529383dcbfe10aee9482c14",
+    "watch": "0155d21041b52f665b34017a0374e1e06ac073fa5ce65ef8589324863987db83"
+  }
+}

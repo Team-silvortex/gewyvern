@@ -1,0 +1,341 @@
+{
+  "schema_version": 1,
+  "release_artifact": false,
+  "base_revision": "ad3ec2c77c5f79b5c29a4350983ee9ded59a27b3",
+  "raw_campaign": "mqtt-frames-1795791813511",
+  "host": "Linux 7.0.0-44-generic x86_64 GNU/Linux",
+  "product": "gewyvern 2.7.0",
+  "image": "sha256:ceaa1d541610ed761c1399787c4108d4cfa6eec6a28bdefe4d169c9d675d18ee eclipse-mosquitto@sha256:75d6662dee52c947dc9dd9c29f1d8d7ffef78ddaf38001caa09755681e8bbc98",
+  "broker": "mosquitto version 2.1.2",
+  "binary_sha256": {
+    "gewyvern": "87dd0e7cfc385f16339a7d4b35205bb5ff3da7a30079ca50a216d43be175394a",
+    "test": "cc0459b8ceab9aa4f1d27c84015bfb1bc7e549fda1cc8259af64a025c3ea40d1"
+  },
+  "source_sha256": {
+    "ebpf/production/mqtt.bpf.c": "d64b0e0f5f1a17ed0fb3cdb402246088f8f04011d2af1a96cd3ca90096c58141",
+    "ebpf/production/scoped_stream.inc.c": "e9acea3e076156d8332dcda30c13fb0b8181617954275b80cc6222a4c0a6e7f0",
+    "src/live_capture.rs": "9a58b3d427be17a6d7d7d2e3bdb04e57ae94f154f4d991fcf2ca03b1fbc4de43",
+    "src/live_capture/linux.rs": "6f95c45c7c87d6b40434f849ca0d4c19bc5cc42f8cb0195038329382f34d05f0",
+    "src/live_capture/linux/mqtt.rs": "2406e370d4f253ac21ecbaf4928c2441e4e976127d709b6020d327a12aad60c8",
+    "src/live_capture/linux/tcp_observer.rs": "bc955969c5f7d8ead040e3544ab079d1c0e20c1c17fb699a2bd9f859ec59613b",
+    "src/main.rs": "32392d5b7bba321beede070a9fb4d76f8e231cf6da20557522e7e77d037ba4a5",
+    "src/main/http_status_cli.rs": "018f73772f345dc5826a37ddca366a877ca23a6026e9f74da0308cad383a32d6",
+    "tests/production_capture_linux_tdd.rs": "2eaa0ea67580462e1a71d028c0da4a1177b26ffab0276eeeae722cfff9aa9dde",
+    "tests/production_capture_linux_tdd/mqtt.rs": "72a398a17143e1c08271c42945945e448f8e0c790a88768f03606adceae63303",
+    "tests/production_capture_linux_tdd/mqtt_wire.rs": "c7f7cf225bf3b00c1080be6e982d1280891fe474853e03d63faba5328f7a7f4e",
+    "tests/production_capture_linux_tdd/mqtt_boundaries.rs": "be33aeeab14c1be16627a09ab7b9a15e8f579d33e7272bcffc942744d43efe41",
+    "tests/production_capture_linux_tdd/private_peer.rs": "a3c79cc112eedbda0315cf3157b39a2e0b56fede906423504f05fa42f4b31e03",
+    "tests/production_capture_linux_tdd/http_status.rs": "dc16f43a593216922853b8d3b4d7f88967cb7f5343d4f68384074f4460cb2d4e"
+  },
+  "scope": "Three fresh offline brokers. Five real and seven controlled cases per trial. Pilot excluded. The test asserts CLI exit codes, ordered events against the independent client, and the absence of the outside-cgroup neighbor. All three owned trial containers and cgroups were absent after exit.",
+  "resume_events_by_client_role": {
+    "subscribe_and_disconnect": [
+      {
+        "return_code": 0,
+        "session_present": false,
+        "type": "connack"
+      },
+      {
+        "codes": [
+          2,
+          1
+        ],
+        "packet_id": 4660,
+        "type": "suback"
+      }
+    ],
+    "first_resume": [
+      {
+        "return_code": 0,
+        "session_present": true,
+        "type": "connack"
+      },
+      {
+        "dup": false,
+        "packet_id": 1,
+        "payload_bytes": 98304,
+        "qos": 2,
+        "retain": false,
+        "type": "publish"
+      }
+    ],
+    "second_resume": [
+      {
+        "return_code": 0,
+        "session_present": true,
+        "type": "connack"
+      },
+      {
+        "dup": true,
+        "packet_id": 1,
+        "payload_bytes": 98304,
+        "qos": 2,
+        "retain": false,
+        "type": "publish"
+      },
+      {
+        "packet_id": 1,
+        "type": "pubrel"
+      },
+      {
+        "dup": false,
+        "packet_id": 2,
+        "payload_bytes": 4,
+        "qos": 1,
+        "retain": false,
+        "type": "publish"
+      },
+      {
+        "dup": false,
+        "packet_id": null,
+        "payload_bytes": 0,
+        "qos": 0,
+        "retain": false,
+        "type": "publish"
+      },
+      {
+        "packet_id": 9029,
+        "type": "unsuback"
+      },
+      {
+        "type": "pingresp"
+      }
+    ],
+    "publisher": [
+      {
+        "return_code": 0,
+        "session_present": false,
+        "type": "connack"
+      },
+      {
+        "packet_id": 57635,
+        "type": "puback"
+      },
+      {
+        "packet_id": 48879,
+        "type": "pubrec"
+      },
+      {
+        "packet_id": 48879,
+        "type": "pubcomp"
+      },
+      {
+        "packet_id": 64206,
+        "type": "puback"
+      }
+    ],
+    "clean_reset": [
+      {
+        "return_code": 0,
+        "session_present": false,
+        "type": "connack"
+      }
+    ]
+  },
+  "scenarios": {
+    "control-flags": {
+      "peer": "controlled_tcp_peer",
+      "exit_code_checked_by_test": 3,
+      "unanchored_payload_packets": 0,
+      "connections": [
+        [
+          "unsupported_type",
+          0
+        ]
+      ]
+    },
+    "control-length": {
+      "peer": "controlled_tcp_peer",
+      "exit_code_checked_by_test": 3,
+      "unanchored_payload_packets": 0,
+      "connections": [
+        [
+          "malformed_frame",
+          0
+        ]
+      ]
+    },
+    "control-session": {
+      "peer": "controlled_tcp_peer",
+      "exit_code_checked_by_test": 3,
+      "unanchored_payload_packets": 0,
+      "connections": [
+        [
+          "malformed_frame",
+          0
+        ]
+      ]
+    },
+    "control-split": {
+      "peer": "controlled_tcp_peer",
+      "exit_code_checked_by_test": 0,
+      "unanchored_payload_packets": 0,
+      "connections": [
+        [
+          "framed",
+          3
+        ]
+      ]
+    },
+    "control-too-large": {
+      "peer": "controlled_tcp_peer",
+      "exit_code_checked_by_test": 3,
+      "unanchored_payload_packets": 0,
+      "connections": [
+        [
+          "limit_reached",
+          0
+        ]
+      ]
+    },
+    "control-truncated": {
+      "peer": "controlled_tcp_peer",
+      "exit_code_checked_by_test": 3,
+      "unanchored_payload_packets": 0,
+      "connections": [
+        [
+          "partial_frame",
+          0
+        ]
+      ]
+    },
+    "control-zero-id": {
+      "peer": "controlled_tcp_peer",
+      "exit_code_checked_by_test": 3,
+      "unanchored_payload_packets": 0,
+      "connections": [
+        [
+          "malformed_frame",
+          0
+        ]
+      ]
+    },
+    "denied": {
+      "peer": "mosquitto",
+      "exit_code_checked_by_test": 0,
+      "unanchored_payload_packets": 0,
+      "connections": [
+        [
+          "framed",
+          1
+        ]
+      ]
+    },
+    "limit32": {
+      "peer": "mosquitto",
+      "exit_code_checked_by_test": 0,
+      "unanchored_payload_packets": 0,
+      "connections": [
+        [
+          "framed",
+          32
+        ]
+      ]
+    },
+    "overflow33": {
+      "peer": "mosquitto",
+      "exit_code_checked_by_test": 3,
+      "unanchored_payload_packets": 0,
+      "connections": [
+        [
+          "limit_reached",
+          0
+        ]
+      ]
+    },
+    "preexisting": {
+      "peer": "mosquitto",
+      "exit_code_checked_by_test": 3,
+      "unanchored_payload_packets": 1,
+      "connections": []
+    },
+    "resume": {
+      "peer": "mosquitto",
+      "exit_code_checked_by_test": 0,
+      "unanchored_payload_packets": 0,
+      "connections": [
+        [
+          "framed",
+          1
+        ],
+        [
+          "framed",
+          2
+        ],
+        [
+          "framed",
+          2
+        ],
+        [
+          "framed",
+          5
+        ],
+        [
+          "framed",
+          7
+        ]
+      ]
+    }
+  },
+  "trials": [
+    {
+      "trial": 1,
+      "resume_client_sha256": "0ff6d207e1b97395ef6648244b5dbd92526ccb6ee471620a51aae3bbc1aea59e",
+      "report_sha256": {
+        "control-flags": "866ccd4b59e6e680eea1cc7e9c46f0b7e7ffba3eb315a13311067b5e5e0ac2af",
+        "control-length": "01d80e22bd3a57315e57f0d99ca0c217e555306166266cc6a14fbadda9993508",
+        "control-session": "638b367d4ca38bca347e5dfa977423db0f08e5565d9cf85f6d72d1206e9bd7ce",
+        "control-split": "68354853ea061aecbf0ca3754cd35bfefcf262969e3a79ad189fb276ee344cca",
+        "control-too-large": "514ec1072dc7983bfc7227f67fafe449eac160953d89f2958b20bd070d5cb48b",
+        "control-truncated": "1487ce1ab9f58ace9793642dc6a7d788a0aabc70941979758a6dee02ef618b97",
+        "control-zero-id": "f2b64fe260db199259d508c341cacec0f31fefc21ef73b7098758b04e78b8de7",
+        "denied": "888688461df74963824ea8ff6a0fe2801328ef582c50622d5ab0adab4d1fa805",
+        "limit32": "e1f43309f9b076ba12f147143f8b5a22118eb94c43bfb18274367afbb90f5a63",
+        "overflow33": "169534e877efa001318896409da6d5bf6131f8314dd14aeb3948f4369eeab587",
+        "preexisting": "ab3c840e1ee03ef18b84511a025d6326d28733e1bb8e64d8355e76674328d881",
+        "resume": "ee4e18486cb5b11451dafeac8f983824295eefacb0e86645e674a95fa45b2f8e"
+      }
+    },
+    {
+      "trial": 2,
+      "resume_client_sha256": "7ee9b7d7f2e161ce42f890953bd0e224aff36597f459c15cd24fd2e18d760fde",
+      "report_sha256": {
+        "control-flags": "315dbd1b9cfb7f9a6da6cdcad68ba8ab90b6f2d1695f4c2701e3c49005722c62",
+        "control-length": "1fd830a6e4d3f46b5c37a15d40057d1d62f0014839d23dc18aaacbe05620024e",
+        "control-session": "a7d951172b28cfc39d7f5c1040c1373da6ae46b4eaa022577d27e2e6a95b7f91",
+        "control-split": "8ca83208198066ffab9d58adad413722c703e9364f936b774669210136dcd3ca",
+        "control-too-large": "d925729b32bb8282b765b5344fdb774042e874d33ab78a47cf561d1eeb041a32",
+        "control-truncated": "7f25f4af3ba7d74785a01f5c9c42f0840b8f5fee31e2544ebe6352bd51e7e6b2",
+        "control-zero-id": "6c8b784381b7c6a74d3abb353ba2de816cdfd1bd6a76681f59afcd7227016522",
+        "denied": "9c69b533a6aab4f443574a2602f537060824e8926369a477d6affb0d4d010474",
+        "limit32": "98735a3eba35f86ca6161ddad191846a3f5d4a139b912376df744e2c6a1cf594",
+        "overflow33": "5398d0111fcc9c68afcb859baadd81231812f34df8346e12fc77cba244df0eeb",
+        "preexisting": "835190dae3489daea78413a691380d257f0afda8d4f15f914474bd6f8735f416",
+        "resume": "40b9f0341d18dfcca93c0324ccad4bff78af685900fbae94f5fe41a812342cbf"
+      }
+    },
+    {
+      "trial": 3,
+      "resume_client_sha256": "a8dbded5ac7321fff7a796d83726f2cbc6fec16e9bfe6842c365c5c539900dc0",
+      "report_sha256": {
+        "control-flags": "8d55ffc360d44c87bbdf62da7a1c1d66dcdf7ec94527cc4e17487960eafae17f",
+        "control-length": "88336369083a14704ef2307a16c90c4d27e954cf16bf89b258a1ce505ce794cf",
+        "control-session": "d89923d55ef34099d6e21b882aa3286e565c7274ff13deb4c1eff03a65ee038b",
+        "control-split": "d29010a67f2e692da016a5373f0947854175bd65e95c17a50fd261398e091ef1",
+        "control-too-large": "e9f01a80660f9ae97de389268a924d3f100524efe0d32b2c9b9c833ed6b40b42",
+        "control-truncated": "ee4e3ac98c5b00c5b674b9dd18a731cba12a413e4cf0ee0f6d91e95e9cbea4da",
+        "control-zero-id": "3f5cf70a2a948a63f86028b68447ae362ca849fa8bbdabbf24bb3c16c3d0078f",
+        "denied": "e2bc576aebbce951d1d8fc93db7357d9a86da0fc2e991f08fbc72215d808fabd",
+        "limit32": "3b117467cfe1fcd196168735b71ebc40380260efa930690f2d3e1f7b25ca4b74",
+        "overflow33": "a5e625b9b409d5bfa90d739477af8fb8a2505d893558e9988d05ebc12c87412e",
+        "preexisting": "8a3b9d95430177d491184b7a731f40e8133c695acfed03923453b16389b53f9f",
+        "resume": "0a4d937f00d9bbdfc1c5cd31d23d8056ba5039b09d29a0a83d63e9711139038f"
+      }
+    }
+  ],
+  "connection_tuple_columns": [
+    "outcome",
+    "event_count"
+  ],
+  "other_capture_health_counters_all_zero": true
+}

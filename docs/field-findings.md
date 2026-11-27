@@ -1,5 +1,93 @@
 # Field Findings
 
+## MQTT Session Resumption Reuses The Inflight Packet Identifier
+
+Three fresh Mosquitto 2.1.2 instances queued a 98,304-byte QoS 2 publication
+while a persistent subscriber was offline. On the first reconnect each broker
+set Session Present and delivered packet 1 with DUP clear. The client dropped
+the connection before PUBREC. On the second reconnect the broker again set
+Session Present, retransmitted packet 1 with DUP set, and followed the client's
+PUBREC with PUBREL. The client verified both payloads byte for byte. The
+publisher saw its own PUBREC/PUBCOMP for a different identifier (48879).
+A final clean connection reported no previous session.
+
+The [36 reports](fixtures/gewyvern_mqtt_cli_linux_x86_64_20261127.json)
+separate 15 real-broker scenarios from 21 controlled TCP peers. Binary
+payloads containing control-like bytes produced no spurious acknowledgements.
+A refused connection remained a complete observation (CONNACK code 2);
+a truncated frame or event overflow withheld all events on that socket.
+These are broker frames across client reconnects, not evidence of durable
+storage across broker restarts or exactly-once application processing.
+
+## MySQL Error Numbers Do Not Identify The Login Phase
+
+In three private MySQL 8.0.46 runs, a bad password yielded `1045/28000`
+during authentication. A successful connection then explicitly produced
+the **same** error pair via SQL SIGNAL: the formal CLI kept it in the command
+phase. A syntax error was `1064/42000`; an unknown column named `28000`
+was errno 1054 with SQLSTATE bucket `other`, not a login denial.
+The client subsequently read `after` and received a successful ping on
+the same socket.
+
+The [33 reports](fixtures/gewyvern_mysql_cli_linux_x86_64_20261127.json)
+separate 18 real-server observations from 15 controlled peers. NULL, empty,
+9-byte binary, 251-byte and 99,000-byte values retained their true lengths
+without capturing their contents. The long value repeated an ERR-like binary
+prefix. Two-column results and an event overflow were withheld. An incomplete
+result missing only its final EOF still did not publish earlier events.
+No TLS, arbitrary authentication dialogue or general result-set support is
+implied by this single-column, classic-EOF qualification.
+
+## Memcached Quiet Misses Are Not Responses
+
+On Linux 7.0.0-44, three independent Memcached 1.6.45 instances each received
+a pipeline of 18 selected requests. The client verified 17 ordered responses:
+the missing GETQ had no reply, while GETQ of an empty value returned a hit.
+A 96 KiB binary value filled with response-like headers produced one hit.
+ADD of an existing key, REPLACE of an absent key, APPEND not stored, oversized
+SET and a later successful GET retained their distinct statuses on the same
+socket. Each complete mixed run had zero capture-health counters.
+
+The [field record](fixtures/gewyvern_memcached_cli_linux_x86_64_20261127.json)
+separates 15 real-server scenarios from 12 controlled peers. Exactly 32
+NOOP responses were retained; the 33rd invalidated the socket report. VERSION
+and a pre-existing connection did not produce guessed events. A separately
+acknowledged split GET completed correctly, but a truncated header, truncated
+body or missing success flags withheld even a preceding complete NOOP.
+
+## PostgreSQL Readiness Separates Login From Failed Transactions
+
+Three formal CLI trials each against PostgreSQL 16.15 and 18.6 produced the
+same ordered backend events. A bad password generated one `28P01` before the
+first readiness. The selected authenticated session returned a 96 KiB row of
+SQLSTATE-like text, then reported division by zero (`22012`) and a query in a
+failed transaction (`25P02`). Readiness stayed `E` after both errors, then
+returned to `I` on rollback and the client read 45. A conversion error with
+the literal text `28P01` remained in the `other` bucket (psql: `22P02`).
+
+The [24 PostgreSQL reports](fixtures/gewyvern_postgres_cli_linux_x86_64_20261127.json)
+also verify same-port neighbor exclusion, withholding incomplete evidence on
+event overflow and unsupported COPY, and six real Redis regression scenarios
+after factoring out the common TCP admission and sequence checks. These are
+backend observations on loopback, not reconstructions of the client's SQL.
+
+## Redis Transaction Replies Stay Framed Across Segments
+
+The original CLI withheld a whole socket when EXEC contained an MGET array.
+The [transaction qualification](fixtures/gewyvern_redis_transactions_linux_x86_64_20261127.json)
+tested the two-level parser three times on Redis 8.0.5. Each mixed EXEC
+returned five direct elements with exactly two error frames (one nested,
+one direct). A 96 KiB binary value crossed segments without creating extra
+errors. The following MGET had one element and zero errors, and the final
+PONG stayed aligned.
+
+A second client invalidated WATCH **after Redis acknowledged it**. The
+observer distinguished the resulting null array, a successful empty EXEC,
+and the top-level queue error and EXECABORT that followed. The second client's
+replies were not included. Three-level nesting still withheld the socket's
+replies with exit 3. This is evidence about RESP2 frames on loopback, not a
+command trace or a general verdict about whether transactions committed.
+
 ## Redis Errors Are Frames, Not Text Matches
 
 On Linux 7.0.0-44 with Redis 8.0.5, three runs of the
@@ -9,7 +97,7 @@ Only the wrong-type and wrong-arity replies were errors. A 17-byte value
 starting with `-ERR`, a binary value containing a fake error line, and a
 96 KiB binary echo were bulk strings. The following PONG still decoded.
 
-The [twelve reports](fixtures/gewyvern_redis_resp_cli_linux_x86_64_20261127.json)
+The [twelve baseline reports](fixtures/gewyvern_redis_resp_cli_linux_x86_64_20261127.json)
 also cover overflow, a nested array returned by EXEC, and a pre-attachment
 socket. These cases exited 3 without inventing a reply. A separate client's
 NOAUTH response on the same Redis port was excluded in every scenario.

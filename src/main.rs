@@ -124,6 +124,18 @@ fn run_main(args: Vec<String>, locale: UiLocale) -> Result<i32, MachineError> {
     if args.first().is_some_and(|arg| arg == "capture-redis-resp") {
         return http_status_cli::run(http_status_cli::Mode::Redis, &args[1..]);
     }
+    if args.first().is_some_and(|arg| arg == "capture-postgres") {
+        return http_status_cli::run(http_status_cli::Mode::Postgres, &args[1..]);
+    }
+    if args.first().is_some_and(|arg| arg == "capture-memcached") {
+        return http_status_cli::run(http_status_cli::Mode::Memcached, &args[1..]);
+    }
+    if args.first().is_some_and(|arg| arg == "capture-mysql") {
+        return http_status_cli::run(http_status_cli::Mode::Mysql, &args[1..]);
+    }
+    if args.first().is_some_and(|arg| arg == "capture-mqtt") {
+        return http_status_cli::run(http_status_cli::Mode::Mqtt, &args[1..]);
+    }
     if args.first().map(String::as_str) == Some("gewyvern-install-v1") {
         if args.len() != 1 {
             return Err(invalid_native_command("gewyvern-install-v1"));
@@ -163,6 +175,10 @@ fn run_main(args: Vec<String>, locale: UiLocale) -> Result<i32, MachineError> {
         println!("\n{}", capture_cli::HELP);
         println!("\n{}", http_status_cli::HELP);
         println!("\n{}", http_status_cli::REDIS_HELP);
+        println!("\n{}", http_status_cli::PG_HELP);
+        println!("\n{}", http_status_cli::MC_HELP);
+        println!("\n{}", http_status_cli::MYSQL_HELP);
+        println!("\n{}", http_status_cli::MQTT_HELP);
         return Ok(0);
     }
     let cli = match bootstrap_cli(args)? {

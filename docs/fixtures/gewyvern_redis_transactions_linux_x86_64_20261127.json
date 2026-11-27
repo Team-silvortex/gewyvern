@@ -1,0 +1,294 @@
+{
+  "schema_version": 1,
+  "release_artifact": false,
+  "base_revision": "ad3ec2c77c5f79b5c29a4350983ee9ded59a27b3",
+  "raw_campaign": "redis-tx-1795788899662",
+  "kernel": "Linux 7.0.0-44-generic x86_64 GNU/Linux",
+  "redis": "Redis server v=8.0.5 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=d47fc40702b1fad8",
+  "product": "gewyvern 2.7.0",
+  "sha256": {
+    "product": "5ff00d96fba65a723ab620d2fae1684189e4b97a0ca7cc7c8bbe402edbf0f014",
+    "test_binary": "efffb17839988c13e65b3dbc493b4788399155adbaa49b045ca11f848f17af59",
+    "redis": "0f3f5d696b7dabd9af484c2d8844dbb0c9bc7722ddf794f63b911a9795509293",
+    "ebpf/production/redis_resp.bpf.c": "42d640ff83052f29974cf2d6a7eb7c43f7762be1e9d9f8ee7e591bcc296d4af3",
+    "src/live_capture/linux/redis_resp.rs": "0660b5583892433370c94ab3e665c321fd2be1be5dae7d0a09b410b8cc694576",
+    "src/main/http_status_cli.rs": "4412439ea01e15668f873a4be1a5e380d4252f3e74b7e1736abae96e4ff494ef",
+    "tests/production_capture_linux_tdd/redis_resp.rs": "b66dbeb5ebbaf28adc0044962759fda02f796c49e6b882e72b4eddaa53d01196",
+    "tests/production_capture_linux_tdd/redis_transactions.rs": "864255b941d00a0ae5073621a0b07a7cc1c23ab4c257b3fc44c06954f5eaab01"
+  },
+  "scope": "Formal CLI; independent byte-for-byte reply checks against a disposable loopback Redis server. The second WATCH writer is outside the client's cgroup. Raw reports retained on lab host.",
+  "scenarios": {
+    "depth": {
+      "exit_code_verified_by_test": 3,
+      "connections": 1,
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "outcome": "array_depth_exceeded",
+      "replies": []
+    },
+    "overflow": {
+      "exit_code_verified_by_test": 3,
+      "connections": 1,
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "outcome": "limit_reached",
+      "replies": []
+    },
+    "pipeline": {
+      "exit_code_verified_by_test": 0,
+      "connections": 1,
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "outcome": "framed",
+      "replies": [
+        {
+          "type": "simple_string"
+        },
+        {
+          "type": "simple_string"
+        },
+        {
+          "bytes": 17,
+          "type": "bulk_string"
+        },
+        {
+          "type": "simple_string"
+        },
+        {
+          "bytes": 21,
+          "type": "bulk_string"
+        },
+        {
+          "type": "null_bulk"
+        },
+        {
+          "bytes": 0,
+          "type": "bulk_string"
+        },
+        {
+          "type": "error"
+        },
+        {
+          "type": "error"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "elements": 3,
+          "error_frames": 0,
+          "type": "array"
+        },
+        {
+          "bytes": 98304,
+          "type": "bulk_string"
+        },
+        {
+          "type": "simple_string"
+        }
+      ]
+    },
+    "preexisting": {
+      "exit_code_verified_by_test": 3,
+      "connections": 0,
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 1
+      },
+      "outcome": null,
+      "replies": []
+    },
+    "transaction": {
+      "exit_code_verified_by_test": 0,
+      "connections": 1,
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "outcome": "framed",
+      "replies": [
+        {
+          "type": "simple_string"
+        },
+        {
+          "type": "simple_string"
+        },
+        {
+          "type": "simple_string"
+        },
+        {
+          "type": "simple_string"
+        },
+        {
+          "type": "simple_string"
+        },
+        {
+          "type": "simple_string"
+        },
+        {
+          "type": "simple_string"
+        },
+        {
+          "type": "simple_string"
+        },
+        {
+          "elements": 5,
+          "error_frames": 2,
+          "type": "array"
+        },
+        {
+          "elements": 1,
+          "error_frames": 0,
+          "type": "array"
+        },
+        {
+          "type": "simple_string"
+        }
+      ]
+    },
+    "watch": {
+      "exit_code_verified_by_test": 0,
+      "connections": 1,
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "outcome": "framed",
+      "replies": [
+        {
+          "type": "simple_string"
+        },
+        {
+          "type": "simple_string"
+        },
+        {
+          "type": "simple_string"
+        },
+        {
+          "type": "simple_string"
+        },
+        {
+          "type": "null_array"
+        },
+        {
+          "type": "simple_string"
+        },
+        {
+          "elements": 0,
+          "error_frames": 0,
+          "type": "array"
+        },
+        {
+          "type": "simple_string"
+        },
+        {
+          "type": "error"
+        },
+        {
+          "type": "error"
+        },
+        {
+          "type": "simple_string"
+        }
+      ]
+    }
+  },
+  "trials": {
+    "verified-1": {
+      "depth": {
+        "report_sha256": "7466128836d757740cb096bb962f4557ac378a61c8aa96872b8442f5e37b77f3",
+        "server_payload_segments": 1
+      },
+      "overflow": {
+        "report_sha256": "2b77052f9d80b1d3cd8a36449f2e3d6b66a9f3a7d004dbabdcdbde4846076730",
+        "server_payload_segments": 1
+      },
+      "pipeline": {
+        "report_sha256": "1e2a650aff11a495205c1bf0e56df9d82dcbe5edd108210c0f3f02444c9400fc",
+        "server_payload_segments": 5
+      },
+      "preexisting": {
+        "report_sha256": "9e948c7b0447cc67abfebd2cb91865f8e1c94f52ccf8b7607e3210ab61a8acbd",
+        "server_payload_segments": null
+      },
+      "transaction": {
+        "report_sha256": "6423bf854aef499528473f814afd756231374684aadf2dc104be46b43d6a0d80",
+        "server_payload_segments": 5
+      },
+      "watch": {
+        "report_sha256": "9779b4f8a151576e6a542f4ee1c0405869241bc40856097fe23a89a8d554aa17",
+        "server_payload_segments": 2
+      }
+    },
+    "verified-2": {
+      "depth": {
+        "report_sha256": "a73fc17caa029bcc74ca12c362c9092f8ab2745ef990bb9ac540d79f5e06c040",
+        "server_payload_segments": 1
+      },
+      "overflow": {
+        "report_sha256": "4fbf6e037711ec82da0d1ffa4371eda6a553d1230be6aa9ab599bf396be3c437",
+        "server_payload_segments": 1
+      },
+      "pipeline": {
+        "report_sha256": "1d0190e67753b5ddce8a75c06bdec07464d5b778902c3cebd758c6c23ba461d9",
+        "server_payload_segments": 5
+      },
+      "preexisting": {
+        "report_sha256": "d8f0ef85290186b87db797a6c2a6d19fcf1a20fa50dae7937fe827555f5486f9",
+        "server_payload_segments": null
+      },
+      "transaction": {
+        "report_sha256": "4eb744f309a527924fedf7aa6a0017beb0fdba9188bd89dcfbb2a88e9de430e3",
+        "server_payload_segments": 5
+      },
+      "watch": {
+        "report_sha256": "eaa00951c3b6c464f650f97fc1f68d4e7bd080daeb65adaef03d3b4b4d634ac9",
+        "server_payload_segments": 2
+      }
+    },
+    "verified-3": {
+      "depth": {
+        "report_sha256": "8d0ae310a3aa528eb29863ced95a8f92dd983c5c5155804579dc9e5b50933139",
+        "server_payload_segments": 1
+      },
+      "overflow": {
+        "report_sha256": "1b88567698721d2b037a3109bfd2f7585716f397918a7017c37048c03d1c558b",
+        "server_payload_segments": 1
+      },
+      "pipeline": {
+        "report_sha256": "c8d9de0af6d00e8352ced960b1f08e1ac557f3f601336b1a2466ccb4fd184f04",
+        "server_payload_segments": 5
+      },
+      "preexisting": {
+        "report_sha256": "670ff5a7367b4a6f6a337fa1348ed8d30926060231f2d53e68e8035c47ceaa00",
+        "server_payload_segments": null
+      },
+      "transaction": {
+        "report_sha256": "2a982a1ebc189810a0f9cc427a6c69dd582965e61cdcdae0e5f6b12e754d27a9",
+        "server_payload_segments": 5
+      },
+      "watch": {
+        "report_sha256": "0e7aee6ac04ac41062824219bb943640c2a63a18b041b44155c13f0382a9bca5",
+        "server_payload_segments": 2
+      }
+    }
+  }
+}

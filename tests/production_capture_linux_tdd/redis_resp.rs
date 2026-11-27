@@ -1,6 +1,8 @@
 use super::http_status::{start_observer, until};
 use super::*;
 use std::net::Ipv4Addr;
+#[path = "redis_transactions.rs"]
+mod tx;
 
 fn bulk(body: &[u8]) -> Vec<u8> {
     let mut v = format!("${}\r\n", body.len()).into_bytes();
@@ -86,26 +88,16 @@ fn client() {
                 expected.extend(b"+PONG\r\n");
             }
         }
-        "nested" => {
-            for args in [
-                &[b"MULTI".as_slice()][..],
-                &[b"MGET", b"missing"],
-                &[b"EXEC"],
-            ] {
-                req.extend(command(args));
-            }
-            expected.extend(b"+OK\r\n+QUEUED\r\n*1\r\n*1\r\n$-1\r\n");
-        }
+        "transaction" => tx::mixed(&mut req, &mut expected),
+        "watch" => tx::watch(&mut sock, &dir, &mut req, &mut expected),
+        "depth" => tx::too_deep(&mut req, &mut expected),
         "preexisting" => {
             req = command(&[b"PING"]);
             expected = b"-NOAUTH Authentication required.\r\n".to_vec();
         }
         _ => panic!("unknown scenario"),
     }
-    sock.write_all(&req).unwrap();
-    let mut got = vec![0; expected.len()];
-    sock.read_exact(&mut got).unwrap();
-    assert!(got == expected, "Redis wire replies differ");
+    tx::exchange(&mut sock, &req, &expected);
 }
 
 #[test]
@@ -147,7 +139,14 @@ fn production_cli_redis_resp() {
         std::process::id()
     )));
     fs::create_dir(&scope.0).unwrap();
-    for case in ["pipeline", "overflow", "nested", "preexisting"] {
+    for case in [
+        "pipeline",
+        "overflow",
+        "transaction",
+        "watch",
+        "depth",
+        "preexisting",
+    ] {
         let dir = out.join(case);
         fs::create_dir(&dir).unwrap();
         let mut worker = Process(
@@ -174,17 +173,19 @@ fn production_cli_redis_resp() {
         outside.read_exact(&mut got).unwrap();
         assert_eq!(got, refusal);
         fs::write(dir.join("go"), []).unwrap();
+        if case == "watch" {
+            until(|| dir.join("watch-active").is_file());
+            tx::invalidate_watch(&mut outside, token);
+            fs::write(dir.join("watch-invalidated"), []).unwrap();
+        }
         assert!(wait(&mut worker, 10).success());
         signal(&capture, libc::SIGTERM);
         let status = wait(&mut capture, 10);
         detached(&scope);
         let r: Value = serde_json::from_slice(&fs::read(dir.join("report.json")).unwrap()).unwrap();
-        assert_eq!(
-            status.code(),
-            Some(if case == "pipeline" { 0 } else { 3 }),
-            "{r}"
-        );
-        assert_eq!(r["incomplete"], case != "pipeline");
+        let complete = matches!(case, "pipeline" | "transaction" | "watch");
+        assert_eq!(status.code(), Some(if complete { 0 } else { 3 }), "{r}");
+        assert_eq!(r["incomplete"], !complete);
         if case == "preexisting" {
             assert_eq!(r["connections"], json!([]));
             assert_eq!(
@@ -207,17 +208,19 @@ fn production_cli_redis_resp() {
             let simple = json!({"type":"simple_string"});
             let error = json!({"type":"error"});
             let bulk = |n| json!({"type":"bulk_string","bytes":n});
-            let expected = json!([simple,simple,bulk(DECOY.len()),simple,bulk(BINARY.len()),{"type":"null_bulk"},bulk(0),error,error,{"type":"integer"},{"type":"array","elements":3},bulk(LARGE),simple]);
+            let expected = json!([simple,simple,bulk(DECOY.len()),simple,bulk(BINARY.len()),{"type":"null_bulk"},bulk(0),error,error,{"type":"integer"},{"type":"array","elements":3,"error_frames":0},bulk(LARGE),simple]);
             assert_eq!(row["replies"], expected);
             assert!(row["max_replies_per_segment"].as_u64().unwrap() > 1);
             assert!(row["server_payload_segments"].as_u64().unwrap() > 1);
+        } else if complete {
+            tx::check(case, row);
         } else {
             assert_eq!(
                 row["outcome"],
                 if case == "overflow" {
                     "limit_reached"
                 } else {
-                    "unsupported_type"
+                    "array_depth_exceeded"
                 }
             );
             assert_eq!(row["replies"], json!([]));

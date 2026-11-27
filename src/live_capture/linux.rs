@@ -19,10 +19,18 @@ use crate::packet_capture::{CapturedUdpDatagram, PacketObservation};
 
 mod api;
 mod http_status;
+mod memcached;
+mod mqtt;
+mod mysql;
+mod postgres;
 mod redis_resp;
 mod tcp_observer;
 use api::Api;
 pub use http_status::observe_http_status;
+pub use memcached::observe_memcached;
+pub use mqtt::observe_mqtt;
+pub use mysql::observe_mysql;
+pub use postgres::observe_postgres;
 pub use redis_resp::observe_redis_resp;
 
 #[repr(C)]
@@ -101,7 +109,11 @@ impl Drop for Scratch {
     }
 }
 
-fn compile_source(code: &str, defines: &[String]) -> Result<(Scratch, PathBuf), CaptureError> {
+fn compile_source(
+    code: &str,
+    defines: &[String],
+    headers: &[(&'static str, &'static str)],
+) -> Result<(Scratch, PathBuf), CaptureError> {
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| CaptureError::new("capture_clock_invalid", e.to_string()))?
@@ -111,6 +123,9 @@ fn compile_source(code: &str, defines: &[String]) -> Result<(Scratch, PathBuf), 
     let scratch = Scratch(path);
     let source = scratch.0.join("capture.c");
     let object = scratch.0.join("capture.o");
+    for &(name, body) in headers {
+        fs::write(scratch.0.join(name), body)?;
+    }
     fs::write(&source, code)?;
     let output = crate::bounded_process::run_command_output(
         Command::new("/usr/bin/clang")
@@ -150,6 +165,7 @@ fn compile(options: &CaptureOptions) -> Result<(Scratch, PathBuf), CaptureError>
                 u8::from(size_of::<usize>() == 8 && Path::new("/sys/kernel/btf/vmlinux").is_file())
             ),
         ],
+        &[],
     )
 }
 

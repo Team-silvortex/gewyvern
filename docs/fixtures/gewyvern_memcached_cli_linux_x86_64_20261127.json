@@ -1,0 +1,422 @@
+{
+  "schema_version": 1,
+  "release_artifact": false,
+  "base_revision": "ad3ec2c77c5f79b5c29a4350983ee9ded59a27b3",
+  "raw_campaign": "memcache-frames-1795790442787",
+  "host": "Linux 7.0.0-44-generic x86_64 GNU/Linux",
+  "product": "gewyvern 2.7.0",
+  "memcached_version": "1.6.45",
+  "image": "sha256:f6f3ee535ae89d4575d0348a2c0bda0447f259f96b195687683c737ce36085d8 memcached@sha256:084fb554292d1447bc2c68b80c2331b98834514f56c866bc21a61be3c2ee376d",
+  "binary_sha256": {
+    "gewyvern": "594d47efbbeb5cd04d38e1049e4339711a07abb72696e287ad8a6a0fbcff7020",
+    "test": "0776ab0ab22dab5512cc5c7905506852e2e09fa914764c4990525b063a6c60b6"
+  },
+  "source_sha256": {
+    "ebpf/production/memcached.bpf.c": "870d64fbea6a61b10e5f8254cf8f4f067e23eb890867ce22b380b76a94139174",
+    "ebpf/production/scoped_stream.inc.c": "e9acea3e076156d8332dcda30c13fb0b8181617954275b80cc6222a4c0a6e7f0",
+    "src/live_capture.rs": "5a3f7ee748c8c0b14757202ba1023a057426105cbbb95952e05d7c8e6f48c31e",
+    "src/live_capture/linux.rs": "be7738afc29e855d7835a0b71386a3257649c3b5352953556a4c29bc7e875372",
+    "src/live_capture/linux/memcached.rs": "f03ea5582e16af87ddd1536d67f2cc5990c51e18224e8633f5d2059f7ce71c0d",
+    "src/live_capture/linux/postgres.rs": "d71500df2e5943069d2169a2eda375c7737c54e0f1db135f52e46cd8ebd079f7",
+    "src/live_capture/linux/tcp_observer.rs": "bc955969c5f7d8ead040e3544ab079d1c0e20c1c17fb699a2bd9f859ec59613b",
+    "src/main.rs": "c34999917cad40fe1004c3ad80ce3477a515db795617216498e4bbd4754264f5",
+    "src/main/http_status_cli.rs": "69a0ea0c3b5874e6aa23d6714027387cb7cd89e2ee11a66186aa2d28dc053ec1",
+    "tests/production_capture_linux_tdd.rs": "3501953b76eb7af65db18d395b1f3e955fc00ef31f0c8f4502451df1f8b8c596",
+    "tests/production_capture_linux_tdd/memcached.rs": "b279b430fead4b5e40df563288c986788819863b6fe3fca68b9b284b8302ef4a",
+    "tests/production_capture_linux_tdd/memcached_wire.rs": "dee7a4c8e1c5af4baa5c7ce87385b075033f8c5ff9fec771d485cb6a40d04bec",
+    "tests/production_capture_linux_tdd/memcached_boundaries.rs": "460195d3caf4e14c238542c4a0f1d2186a576f32c4fc40362601554936653af2"
+  },
+  "scope": "Formal CLI in disposable offline network namespace. Five real-server cases and four controlled boundary peers per trial. Client checks opaque IDs, flags and values independently. The preliminary run is excluded.",
+  "scenarios": {
+    "control-body": {
+      "peer": "controlled_tcp_peer",
+      "exit_code_checked_by_test": 3,
+      "connections": 1,
+      "outcome": "partial_frame",
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "event_count": 0,
+      "events": []
+    },
+    "control-flags": {
+      "peer": "controlled_tcp_peer",
+      "exit_code_checked_by_test": 3,
+      "connections": 1,
+      "outcome": "malformed_frame",
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "event_count": 0,
+      "events": []
+    },
+    "control-header": {
+      "peer": "controlled_tcp_peer",
+      "exit_code_checked_by_test": 3,
+      "connections": 1,
+      "outcome": "partial_frame",
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "event_count": 0,
+      "events": []
+    },
+    "control-split": {
+      "peer": "controlled_tcp_peer",
+      "exit_code_checked_by_test": 0,
+      "connections": 1,
+      "outcome": "framed",
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "event_count": 3,
+      "events": [
+        {
+          "operation": "noop",
+          "result": "ok",
+          "status": 0
+        },
+        {
+          "operation": "get",
+          "result": "hit",
+          "status": 0,
+          "value_bytes": 24
+        },
+        {
+          "operation": "noop",
+          "result": "ok",
+          "status": 0
+        }
+      ]
+    },
+    "limit32": {
+      "peer": "memcached",
+      "exit_code_checked_by_test": 0,
+      "connections": 1,
+      "outcome": "framed",
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "event_count": 32,
+      "repeated_event": {
+        "operation": "noop",
+        "result": "ok",
+        "status": 0
+      }
+    },
+    "mixed": {
+      "peer": "memcached",
+      "exit_code_checked_by_test": 0,
+      "connections": 1,
+      "outcome": "framed",
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "event_count": 17,
+      "events": [
+        {
+          "operation": "get",
+          "result": "miss",
+          "status": 1
+        },
+        {
+          "operation": "set",
+          "result": "stored",
+          "status": 0
+        },
+        {
+          "operation": "get",
+          "result": "hit",
+          "status": 0,
+          "value_bytes": 0
+        },
+        {
+          "operation": "set",
+          "result": "stored",
+          "status": 0
+        },
+        {
+          "operation": "add",
+          "result": "key_exists",
+          "status": 2
+        },
+        {
+          "operation": "replace",
+          "result": "not_found",
+          "status": 1
+        },
+        {
+          "operation": "append",
+          "result": "not_stored",
+          "status": 5
+        },
+        {
+          "operation": "set",
+          "result": "too_large",
+          "status": 3
+        },
+        {
+          "operation": "get",
+          "result": "hit",
+          "status": 0,
+          "value_bytes": 98304
+        },
+        {
+          "operation": "getq",
+          "result": "hit",
+          "status": 0,
+          "value_bytes": 0
+        },
+        {
+          "operation": "noop",
+          "result": "ok",
+          "status": 0
+        },
+        {
+          "operation": "prepend",
+          "result": "stored",
+          "status": 0
+        },
+        {
+          "operation": "get",
+          "result": "hit",
+          "status": 0,
+          "value_bytes": 1
+        },
+        {
+          "operation": "delete",
+          "result": "deleted",
+          "status": 0
+        },
+        {
+          "operation": "delete",
+          "result": "not_found",
+          "status": 1
+        },
+        {
+          "operation": "get",
+          "result": "miss",
+          "status": 1
+        },
+        {
+          "operation": "noop",
+          "result": "ok",
+          "status": 0
+        }
+      ]
+    },
+    "overflow33": {
+      "peer": "memcached",
+      "exit_code_checked_by_test": 3,
+      "connections": 1,
+      "outcome": "limit_reached",
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "event_count": 0,
+      "events": []
+    },
+    "preexisting": {
+      "peer": "memcached",
+      "exit_code_checked_by_test": 3,
+      "connections": 0,
+      "outcome": null,
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 1
+      },
+      "event_count": 0,
+      "events": []
+    },
+    "version": {
+      "peer": "memcached",
+      "exit_code_checked_by_test": 3,
+      "connections": 1,
+      "outcome": "unsupported_type",
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "event_count": 0,
+      "events": []
+    }
+  },
+  "runs": {
+    "verified-1": {
+      "control-body": {
+        "report_sha256": "8681248f821de62a4232c150e06647b518d926e635aaa28ff368ce65eac18878",
+        "server_payload_segments": 2,
+        "max_replies_per_segment": 1
+      },
+      "control-flags": {
+        "report_sha256": "b54579f89cfc814e907aed17db60cb0639880c34ff95e9f937b1854489530cbd",
+        "server_payload_segments": 2,
+        "max_replies_per_segment": 1
+      },
+      "control-header": {
+        "report_sha256": "9b862bd659f0f482444ccd9ae997c4de1632c817eca8d965cc9fc49dd32b40d9",
+        "server_payload_segments": 2,
+        "max_replies_per_segment": 1
+      },
+      "control-split": {
+        "report_sha256": "312fecdd91fdd1dd01379798e096bfddb8b0a631ed4a0b0a05adea937a47f0d2",
+        "server_payload_segments": 6,
+        "max_replies_per_segment": 2
+      },
+      "limit32": {
+        "report_sha256": "6e33fc2d2c1f836320eb6719052abfcb44ce048b816dcee20bd8e23ff496709a",
+        "server_payload_segments": 32,
+        "max_replies_per_segment": 1
+      },
+      "mixed": {
+        "report_sha256": "4c8d849d0b1d1e15f44c2f9f513e1e7eec63a89515ab9d88afefdd94a3ce6598",
+        "server_payload_segments": 12,
+        "max_replies_per_segment": 4
+      },
+      "overflow33": {
+        "report_sha256": "89f6e08e03223a37c8325c4e79ebf0dd94c86814df7cee70448a6b7cee207c94",
+        "server_payload_segments": 33,
+        "max_replies_per_segment": 1
+      },
+      "preexisting": {
+        "report_sha256": "4146af363894849fe56e3c20ab178c9d89f2872add2d0a2b80ac99e85b199878",
+        "server_payload_segments": null,
+        "max_replies_per_segment": null
+      },
+      "version": {
+        "report_sha256": "8a1106760bbf18d65765021c1f12deb5e282aa21351d915891cb1a1f1d87c775",
+        "server_payload_segments": 1,
+        "max_replies_per_segment": 0
+      }
+    },
+    "verified-2": {
+      "control-body": {
+        "report_sha256": "7bee33926aa73f1c20ba063effaa11ab7fced84ff422f24c1b99aabdd1d1241d",
+        "server_payload_segments": 2,
+        "max_replies_per_segment": 1
+      },
+      "control-flags": {
+        "report_sha256": "6b751f2f68433f0afd05eeda819e80143287a3ee4b1cf2d9ea8bedef000301f0",
+        "server_payload_segments": 2,
+        "max_replies_per_segment": 1
+      },
+      "control-header": {
+        "report_sha256": "88272c50e5fcd2880b3712c71cd47dffdacda50f2f3a544b8c6aa79e4e31a12b",
+        "server_payload_segments": 2,
+        "max_replies_per_segment": 1
+      },
+      "control-split": {
+        "report_sha256": "7d8f2ac3dd28be3f04d6b82163c8cdf039acb56e6ddf354fd914d6d38a36219b",
+        "server_payload_segments": 6,
+        "max_replies_per_segment": 2
+      },
+      "limit32": {
+        "report_sha256": "48033ca721413d10e7622e76c68217ae9ca0b68fd6bd20c7c0cd02a72b5c11e3",
+        "server_payload_segments": 32,
+        "max_replies_per_segment": 1
+      },
+      "mixed": {
+        "report_sha256": "a0cf9607a1f6ecbfbc55b2897b9baabb496155d9293970715dc1fefeb271f00a",
+        "server_payload_segments": 12,
+        "max_replies_per_segment": 4
+      },
+      "overflow33": {
+        "report_sha256": "17a7cdd3581b58fdb8fef64c9cb93d955847e351a9667a5772ed0de996ab5c28",
+        "server_payload_segments": 33,
+        "max_replies_per_segment": 1
+      },
+      "preexisting": {
+        "report_sha256": "7822b4c2ba573c72721c1f33b8c8caa975e663bd3f35c59bcf14cea412453afc",
+        "server_payload_segments": null,
+        "max_replies_per_segment": null
+      },
+      "version": {
+        "report_sha256": "af766b98f6cd7f1874101c0e7d3a16eecedc5cc579eedd8996549d6a7965e8f9",
+        "server_payload_segments": 1,
+        "max_replies_per_segment": 0
+      }
+    },
+    "verified-3": {
+      "control-body": {
+        "report_sha256": "a67b92a2239c5f5b02b9f56745842c47b80c5b2395d61db72d37449de7f08cb6",
+        "server_payload_segments": 2,
+        "max_replies_per_segment": 1
+      },
+      "control-flags": {
+        "report_sha256": "a7d8230f42b951044fc085547b9ba3d4b298580a55651358640a815c7554e646",
+        "server_payload_segments": 2,
+        "max_replies_per_segment": 1
+      },
+      "control-header": {
+        "report_sha256": "42926b4341d3f299f1cb665e37d4b3d83e71d94f9513ddea5b71b85ba595c589",
+        "server_payload_segments": 2,
+        "max_replies_per_segment": 1
+      },
+      "control-split": {
+        "report_sha256": "e833ee626c05b04bbf2266e46aca6f0bab4dfa8ced767c729920c92567d9d82d",
+        "server_payload_segments": 6,
+        "max_replies_per_segment": 2
+      },
+      "limit32": {
+        "report_sha256": "e75da3b625f4757cd3d437b870bbb826111727cefc0ea4ef5d3d004d431c6209",
+        "server_payload_segments": 32,
+        "max_replies_per_segment": 1
+      },
+      "mixed": {
+        "report_sha256": "ff23efcffdba29236da1183cc350cbd52ad1c7eac70b4a9d974d6852b75f8e14",
+        "server_payload_segments": 10,
+        "max_replies_per_segment": 9
+      },
+      "overflow33": {
+        "report_sha256": "7bb123c01240ad6776b9f099cf79b13c0e6db7919bd2d97884fc47749b614abf",
+        "server_payload_segments": 33,
+        "max_replies_per_segment": 1
+      },
+      "preexisting": {
+        "report_sha256": "5576346b10aa1addff88184cb9dcf2679c350b4d21b8fb792f215bb97d769825",
+        "server_payload_segments": null,
+        "max_replies_per_segment": null
+      },
+      "version": {
+        "report_sha256": "481e438c9e65ffa81aaa49f76ad23cda3a4edc5783e31cefc3c002100ab9ac37",
+        "server_payload_segments": 1,
+        "max_replies_per_segment": 0
+      }
+    }
+  },
+  "postgres_regression_sha256": {
+    "pg16/copy/report.json": "0883da86a5d8bea78b1d712cbe7a8363dd5ca43e19f7b1abd322560ddb4f8655",
+    "pg16/denied/report.json": "d5613a2da9eb405fc70a7807b857b69f133bb8c13e3466d7e2485a7180bb66cc",
+    "pg16/overflow/report.json": "bc39704c8ad429ce831215c75eaa74410e2324731a2bad29b44e340eed32d2d0",
+    "pg16/transaction/report.json": "a51fc7bb04d988eb32de00f6a9000dccf2d89060a49c72cbe091f1c0082d2a45",
+    "pg18/copy/report.json": "75cc85eac94ff28ebf456b098d443e3f2258cc16d47e89fb315890bf7f9b1820",
+    "pg18/denied/report.json": "054bd0ca0c2c3bb1cca31f5f96a0bb420bedc8d011d3898f7f1faaba0d3d4fce",
+    "pg18/overflow/report.json": "c79e43342fbbd3b357bd6d47c098b63edb390b20fb1010bf09f6bc0c8d913152",
+    "pg18/transaction/report.json": "fb0bfd3caaa655da9f98e54317e42bdfca64141e23388051708acf65bf46f541"
+  }
+}

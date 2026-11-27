@@ -1,0 +1,576 @@
+{
+  "schema_version": 1,
+  "release_artifact": false,
+  "base_revision": "ad3ec2c77c5f79b5c29a4350983ee9ded59a27b3",
+  "raw_campaign": "mysql-frames-1795791064220",
+  "host": "Linux 7.0.0-44-generic x86_64 GNU/Linux",
+  "product": "gewyvern 2.7.0",
+  "mysqld": "/usr/sbin/mysqld  Ver 8.0.46 for Linux on x86_64 (MySQL Community Server - GPL)",
+  "image": "sha256:6cd09145362dfe6831b14545de3d5fd6cc75c37cfd6ef8561429c1fc73518b39 mysql@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b",
+  "binary_sha256": {
+    "gewyvern": "da8ea1ca15bc15366dab12b710d49ec472edbb45d05cb0740f2054657332f5ec",
+    "test": "17c02b1c881a78e22b04c0289d8e4062c40ebdc990d5f25c593354a0135beea5"
+  },
+  "source_sha256": {
+    "ebpf/production/mysql.bpf.c": "5f7f01c47a187a9cd972b9700825b4d867063a9034f7ad200af89c247b3d80da",
+    "ebpf/production/scoped_stream.inc.c": "e9acea3e076156d8332dcda30c13fb0b8181617954275b80cc6222a4c0a6e7f0",
+    "src/live_capture.rs": "e4bdeee581f3b3fc76120f73ccbbbc076fd131a3b3174ac069b353c0658973ed",
+    "src/live_capture/linux.rs": "e7f38fe05ccd47c90c27f13540749e0eccc47806875338388f02ccd5f71e1cd7",
+    "src/live_capture/linux/mysql.rs": "a7b6b5df74b294f969efba99dab1743caf06527266372388891989225016ea00",
+    "src/live_capture/linux/tcp_observer.rs": "bc955969c5f7d8ead040e3544ab079d1c0e20c1c17fb699a2bd9f859ec59613b",
+    "src/main.rs": "4c2c7f1ef6e87a5bd9a5e30fbddd1747f2c212da1724b1d1ac2a214c70b4b5af",
+    "src/main/http_status_cli.rs": "e703dfd931d463372c393fcdb068a11cf5b0f3c0df7aa6c0e7fc4103dae221ac",
+    "tests/production_capture_linux_tdd.rs": "48382f560df8cb01718769eaa82ad02650a52c1ec5c53aa8b41741449f881aca",
+    "tests/production_capture_linux_tdd/mysql.rs": "d0951e4f2713373334c2210c2db4d685b2eabd10e68f88fc4d17963990bba915",
+    "tests/production_capture_linux_tdd/mysql_wire.rs": "b8aa44780b3ca22dbe082097f84c9b8157c60cb0259ea1cbf01be36ff0abb227",
+    "tests/production_capture_linux_tdd/mysql_boundaries.rs": "b0dc1a388d68b129a9df03a0e3891686710ad0265d1d3ce5a80a21528e7628c5",
+    "tests/production_capture_linux_tdd/private_peer.rs": "a3c79cc112eedbda0315cf3157b39a2e0b56fede906423504f05fa42f4b31e03"
+  },
+  "scope": "Six real MySQL cases and five controlled TCP peers per trial, with fresh offline MySQL container per trial. The original pilot is not included. The client independently checks sequence numbers, complete row values and ERR fields.",
+  "scenarios": {
+    "columns": {
+      "peer": "mysqld",
+      "exit_code_checked_by_test": 3,
+      "connections": 1,
+      "outcome": "unsupported_type",
+      "event_count": 0,
+      "events": []
+    },
+    "control-marker": {
+      "peer": "controlled_tcp_peer",
+      "exit_code_checked_by_test": 3,
+      "connections": 1,
+      "outcome": "malformed_frame",
+      "event_count": 0,
+      "events": []
+    },
+    "control-no-end": {
+      "peer": "controlled_tcp_peer",
+      "exit_code_checked_by_test": 3,
+      "connections": 1,
+      "outcome": "partial_frame",
+      "event_count": 0,
+      "events": []
+    },
+    "control-row-length": {
+      "peer": "controlled_tcp_peer",
+      "exit_code_checked_by_test": 3,
+      "connections": 1,
+      "outcome": "malformed_frame",
+      "event_count": 0,
+      "events": []
+    },
+    "control-sequence": {
+      "peer": "controlled_tcp_peer",
+      "exit_code_checked_by_test": 3,
+      "connections": 1,
+      "outcome": "sequence_discontinuity",
+      "event_count": 0,
+      "events": []
+    },
+    "control-split": {
+      "peer": "controlled_tcp_peer",
+      "exit_code_checked_by_test": 0,
+      "connections": 1,
+      "outcome": "framed",
+      "event_count": 4,
+      "events": [
+        {
+          "type": "greeting_v10"
+        },
+        {
+          "type": "auth_ok"
+        },
+        {
+          "errno": 1064,
+          "phase": "command",
+          "sqlstate_bucket": "42000",
+          "type": "error"
+        },
+        {
+          "type": "command_ok"
+        }
+      ]
+    },
+    "denied": {
+      "peer": "mysqld",
+      "exit_code_checked_by_test": 0,
+      "connections": 1,
+      "outcome": "framed",
+      "event_count": 2,
+      "events": [
+        {
+          "type": "greeting_v10"
+        },
+        {
+          "errno": 1045,
+          "phase": "authentication",
+          "sqlstate_bucket": "28000",
+          "type": "error"
+        }
+      ]
+    },
+    "limit32": {
+      "peer": "mysqld",
+      "exit_code_checked_by_test": 0,
+      "connections": 1,
+      "outcome": "framed",
+      "event_count": 32,
+      "initial_events": [
+        {
+          "type": "greeting_v10"
+        },
+        {
+          "type": "auth_ok"
+        }
+      ],
+      "repeated_event": {
+        "type": "command_ok"
+      },
+      "repeats": 30
+    },
+    "mixed": {
+      "peer": "mysqld",
+      "exit_code_checked_by_test": 0,
+      "connections": 1,
+      "outcome": "framed",
+      "event_count": 18,
+      "events": [
+        {
+          "type": "greeting_v10"
+        },
+        {
+          "type": "auth_ok"
+        },
+        {
+          "type": "row",
+          "value_bytes": null
+        },
+        {
+          "type": "result_end"
+        },
+        {
+          "type": "row",
+          "value_bytes": 0
+        },
+        {
+          "type": "result_end"
+        },
+        {
+          "type": "row",
+          "value_bytes": 9
+        },
+        {
+          "type": "result_end"
+        },
+        {
+          "type": "row",
+          "value_bytes": 251
+        },
+        {
+          "type": "result_end"
+        },
+        {
+          "type": "row",
+          "value_bytes": 99000
+        },
+        {
+          "type": "result_end"
+        },
+        {
+          "errno": 1064,
+          "phase": "command",
+          "sqlstate_bucket": "42000",
+          "type": "error"
+        },
+        {
+          "errno": 1054,
+          "phase": "command",
+          "sqlstate_bucket": "other",
+          "type": "error"
+        },
+        {
+          "errno": 1045,
+          "phase": "command",
+          "sqlstate_bucket": "28000",
+          "type": "error"
+        },
+        {
+          "type": "row",
+          "value_bytes": 5
+        },
+        {
+          "type": "result_end"
+        },
+        {
+          "type": "command_ok"
+        }
+      ]
+    },
+    "overflow33": {
+      "peer": "mysqld",
+      "exit_code_checked_by_test": 3,
+      "connections": 1,
+      "outcome": "limit_reached",
+      "event_count": 0,
+      "events": []
+    },
+    "preexisting": {
+      "peer": "mysqld",
+      "exit_code_checked_by_test": 3,
+      "connections": 0,
+      "outcome": null,
+      "event_count": 0,
+      "events": []
+    }
+  },
+  "trials": {
+    "verified-1": {
+      "columns": {
+        "report_sha256": "d5e2d6b3c6c76b2c73d80f0595fe568bde60266b3e19df77ff7c6f535e53899d",
+        "server_payload_segments": 3,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "control-marker": {
+        "report_sha256": "cf1afd74d5f27f6a4770d94357a61e92ee4610c7510f8ccb20630a7aa1bc6126",
+        "server_payload_segments": 3,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "control-no-end": {
+        "report_sha256": "9f93aa6c73bcc5fcd405426074125b3462dacacf7046cb242838eb057e9dafb4",
+        "server_payload_segments": 6,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "control-row-length": {
+        "report_sha256": "24daf4bdf8423d6645a19b514d2bcc134c8dacaac52e1cfa91d8eee1ac8730e2",
+        "server_payload_segments": 6,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "control-sequence": {
+        "report_sha256": "9670d807648579165adf4f334dfc33cb3c831389e63482e3f47fd9dd69607b70",
+        "server_payload_segments": 3,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "control-split": {
+        "report_sha256": "cba2489ef8610fd70f7be70656ae58ffa669cfc7291bc152c32f05b4881920b3",
+        "server_payload_segments": 7,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "denied": {
+        "report_sha256": "59daf5047346bce23f5588a58983edb97d9258540971ecd247c0d75f941443d6",
+        "server_payload_segments": 2,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "limit32": {
+        "report_sha256": "665c38f70815f513f895943e86dea7e87959745053a759ac5dd94428a5abb135",
+        "server_payload_segments": 32,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "mixed": {
+        "report_sha256": "9a012bc3c6a3e1367614edc9a0152b32002666917407abea8f99d07cc16bf19f",
+        "server_payload_segments": 15,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "overflow33": {
+        "report_sha256": "3861a6e9e38e69cbbbcd042ab43ffdf53ae7ff16df8501b5d8be8fe06e64cd40",
+        "server_payload_segments": 33,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "preexisting": {
+        "report_sha256": "473c1ccfbdd4963fbccb9f83176011764ea5e5ea98fbd4ed4ea09e77a6d8b272",
+        "server_payload_segments": null,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 2
+        }
+      }
+    },
+    "verified-2": {
+      "columns": {
+        "report_sha256": "f9ad3687aedefb1c10a0f6f6506434e022ab42818908f36d344ffcfbfde35e19",
+        "server_payload_segments": 3,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "control-marker": {
+        "report_sha256": "175d11dc8f2a04eaf490e7babf8e45448fae43f394389ef320adc4aa71c6d2e5",
+        "server_payload_segments": 3,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "control-no-end": {
+        "report_sha256": "4944c38243596a47bba78455abfecd6b2421584e844a7ebde385dc0d33340f27",
+        "server_payload_segments": 6,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "control-row-length": {
+        "report_sha256": "2e762ded34f26eaa0db482b034b26899fd60b096fe8a5b9b1f5c635902d9c6ec",
+        "server_payload_segments": 6,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "control-sequence": {
+        "report_sha256": "9c599828be74f09b4636abbc04d3f345a42536ceba6d11e338d85d707992ac58",
+        "server_payload_segments": 3,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "control-split": {
+        "report_sha256": "ad53df85081c18b98e6125c2d7e48e0afd3c858e5304185ab418b42fe3217bf2",
+        "server_payload_segments": 7,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "denied": {
+        "report_sha256": "625d9f8bff8e0f5daad1ee3c772e09a2f4f6ce92975cce33e47b0de956807b71",
+        "server_payload_segments": 2,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "limit32": {
+        "report_sha256": "c0e7f398c1702fea09292dedaee9b46e012d9502630b068d7bdb7d19330bb625",
+        "server_payload_segments": 32,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "mixed": {
+        "report_sha256": "7a573827fff9caf05a550d521c5e051716640b5f61cfddc225878a1ced9cb35d",
+        "server_payload_segments": 15,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "overflow33": {
+        "report_sha256": "447ce8493c17455541b9be1ebf123614c085a6ff8114e48e2ee3be53086d783f",
+        "server_payload_segments": 33,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "preexisting": {
+        "report_sha256": "4c185c859ea74f3d4d34f8a13f4aa6b2da1c47cbb3a61914d9d8694dbbd9eafe",
+        "server_payload_segments": null,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 2
+        }
+      }
+    },
+    "verified-3": {
+      "columns": {
+        "report_sha256": "8cbb8c7fbfbb20a2ff7123b914441eed07c6328d23b548a07dbcc1616accb88d",
+        "server_payload_segments": 3,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "control-marker": {
+        "report_sha256": "ff4de54b4da4d02202fd46b0f7b27d3f105fb49fe99ee05d0599ed84799d80e8",
+        "server_payload_segments": 3,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "control-no-end": {
+        "report_sha256": "a1cc880e908f7760c4cad2c4b94fd91a479c180057e2d419af84028dc63cf734",
+        "server_payload_segments": 6,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "control-row-length": {
+        "report_sha256": "ef87640be30f590ea1063a2ddd3a450127cf5fadc3346f30d89a9007e7a4a452",
+        "server_payload_segments": 6,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "control-sequence": {
+        "report_sha256": "2712cbdeea770fe91f1316c5d02ee2d08667e3c751cea1021e6397f83c19e2a9",
+        "server_payload_segments": 3,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "control-split": {
+        "report_sha256": "5f2d6d5d6d0b26c47396612a054cfe29d4da58ddf9855f32e16aade785d4f063",
+        "server_payload_segments": 7,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "denied": {
+        "report_sha256": "da8471419b37440cbe7e8602655ede9b7a8b3ccef888f7d84b6feac272537fe9",
+        "server_payload_segments": 2,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "limit32": {
+        "report_sha256": "6ffdd1f320a0749c06fe1d421f46b70d8acf2c554d8764447012b95ddb55a93c",
+        "server_payload_segments": 32,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "mixed": {
+        "report_sha256": "934f8364af324ff300151fa90ee4ad4daf91f36fdca8268ab4c336f78e6f097d",
+        "server_payload_segments": 15,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "overflow33": {
+        "report_sha256": "aa71dd59d62e400293e49cbbf358a9bd284f13daeeca089590636927b55e8326",
+        "server_payload_segments": 33,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 0
+        }
+      },
+      "preexisting": {
+        "report_sha256": "f0952e6fea7184141bc64cf5e71ced751e7fa93abb5baf18f3e116fc24f08747",
+        "server_payload_segments": null,
+        "counters": {
+          "admission_failures": 0,
+          "invalid_packets": 0,
+          "missing_cookie": 0,
+          "unanchored_payload_packets": 2
+        }
+      }
+    }
+  },
+  "memcached_regression_sha256": {
+    "control-body": "6a81238d357be7e21d1ee90400b2511396df2570518a87c5183d62cde3ea7dae",
+    "control-flags": "d9e91384069e6438f44f4864122c2996238943f8f930886128dd0b5c6756ac95",
+    "control-header": "c07d80a30a03724ed6e12399ae5876e9c2ba1182fa2721b0af5046ec59201b29",
+    "control-split": "64518754d1f1a5ed3bc2cf5d015f009cffaaeea4bcbdcce5d0f530180925e770",
+    "limit32": "1ac91fbc3386098112797aea763dc317d0b3ee768e705e3fa7388038291f7f73",
+    "mixed": "44c1145290c6ca645a4e7a224fc2de760a3c35afc2a815ec0e240c0d472ce4ca",
+    "overflow33": "4d4f9909c89df91dd9d3f7aa5cc189852f32d38adbd35b117a4b834e4dc4f415",
+    "preexisting": "257a67b1d6b8d6635310b40ea30445fa99028b150327975e517dad89e4a6f186",
+    "version": "af2b148ff30c4c9af51fb72606d9ac6f7e4070fc7798fb11fd599dceef9edb92"
+  }
+}

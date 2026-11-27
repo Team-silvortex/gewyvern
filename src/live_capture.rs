@@ -13,7 +13,10 @@ mod linux;
 #[cfg(target_os = "linux")]
 pub use linux::Collector;
 #[cfg(target_os = "linux")]
-pub use linux::{observe_http_status, observe_redis_resp};
+pub use linux::{
+    observe_http_status, observe_memcached, observe_mqtt, observe_mysql, observe_postgres,
+    observe_redis_resp,
+};
 
 #[derive(Clone, Debug)]
 pub struct CaptureOptions {

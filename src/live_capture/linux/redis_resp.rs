@@ -19,26 +19,50 @@ struct Flow {
     left: u32,
     array_left: u32,
     array_len: u32,
+    inner_left: u32,
+    array_errors: u32,
     count: u32,
     closed: u32,
     segments: u32,
     max_batch: u32,
     items: [u32; 32],
 }
-const _: () = assert!(size_of::<Flow>() == 208);
+const _: () = assert!(size_of::<Flow>() == 216);
+
+fn reply(item: u32) -> Option<Value> {
+    let size = item >> 4;
+    Some(match item & 15 {
+        1 if size == 0 => json!({"type":"simple_string"}),
+        2 if size == 0 => json!({"type":"error"}),
+        3 if size == 0 => json!({"type":"integer"}),
+        4 if size <= 16 * 1024 * 1024 => json!({"type":"bulk_string","bytes":size}),
+        5 if size == 0 => json!({"type":"null_bulk"}),
+        6 => {
+            let elements = size & 255;
+            let errors = size >> 8;
+            if elements > 128 || errors > elements * 128 {
+                return None;
+            }
+            json!({"type":"array","elements":elements,"error_frames":errors})
+        }
+        7 if size == 0 => json!({"type":"null_array"}),
+        _ => return None,
+    })
+}
 
 fn render(cookie: u64, row: Flow) -> (Value, bool) {
     let mut outcome = if row.raced != 0 || row.busy != 0 {
         "conflicting"
     } else {
         match row.fault {
-            0 if row.state != 0 || row.array_left != 0 => "partial_frame",
+            0 if row.state != 0 || row.array_left != 0 || row.inner_left != 0 => "partial_frame",
             0 => "framed",
             1 => "sequence_discontinuity",
             2 => "malformed_frame",
             3 => "unsupported_type",
             4 => "limit_reached",
             5 => "segment_budget_exhausted",
+            7 => "array_depth_exceeded",
             _ => "read_failure",
         }
     };
@@ -47,21 +71,13 @@ fn render(cookie: u64, row: Flow) -> (Value, bool) {
     }
     let mut replies = Vec::new();
     if outcome == "framed" {
-        for item in row.items.iter().take(row.count as usize) {
-            replies.push(match item & 15 {
-                1 => json!({"type":"simple_string"}),
-                2 => json!({"type":"error"}),
-                3 => json!({"type":"integer"}),
-                4 => json!({"type":"bulk_string","bytes":item >> 4}),
-                5 => json!({"type":"null_bulk"}),
-                6 => json!({"type":"array","elements":item >> 4}),
-                7 => json!({"type":"null_array"}),
-                _ => {
-                    outcome = "invalid_map_record";
-                    replies.clear();
-                    break;
-                }
-            });
+        for &item in row.items.iter().take(row.count as usize) {
+            let Some(value) = reply(item) else {
+                outcome = "invalid_map_record";
+                replies.clear();
+                break;
+            };
+            replies.push(value);
         }
     }
     (
@@ -82,6 +98,7 @@ pub fn observe_redis_resp(
     let spec = tcp_observer::Spec {
         kind: "redis_resp2_reply_frames",
         code: include_str!("../../../ebpf/production/redis_resp.bpf.c"),
+        headers: tcp_observer::STREAM_HEADERS,
         port_define: "REDIS_PORT",
         program: c"redis_resp_in",
         rows: c"flows",
@@ -93,6 +110,24 @@ pub fn observe_redis_resp(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn array_counts_are_independent_and_bounded() {
+        let array = |n, errors| 6u32 | n << 4 | errors << 12;
+        assert_eq!(
+            reply(array(128u32, 16384u32)),
+            Some(json!({"type":"array","elements":128,"error_frames":16384}))
+        );
+        for tag in [
+            array(129, 0),
+            array(0, 1),
+            array(1, 129),
+            0x12,
+            ((16 * 1024 * 1024 + 1) << 4) | 4,
+        ] {
+            assert_eq!(reply(tag), None);
+        }
+    }
 
     #[test]
     fn uncertain_or_invalid_map_rows_never_expose_a_verified_prefix() {
@@ -111,6 +146,10 @@ mod tests {
             },
             Flow {
                 array_left: 1,
+                ..Flow::default()
+            },
+            Flow {
+                inner_left: 1,
                 ..Flow::default()
             },
             Flow {

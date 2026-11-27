@@ -114,8 +114,12 @@ session data.
 - stage: stable community release, with the Gewyvern debugger core and
   Rust Leserpent/Leselang control plane shipped as one protocolized system
 - protocol analysis: TCP and UDP from supplied facts; live UDP capture plus
-  [HTTP/1.1 first status](docs/live-http-status.md) and
-  [Redis RESP2 reply framing](docs/live-redis-resp.md) on Linux IPv4 loopback.
+  [HTTP/1.1 first status](docs/live-http-status.md),
+  [Redis RESP2 reply framing](docs/live-redis-resp.md),
+  [PostgreSQL backend events](docs/live-postgres.md),
+  [Memcached binary replies](docs/live-memcached.md),
+  [MySQL classic replies](docs/live-mysql.md) and
+  [MQTT 3.1.1 broker frames](docs/live-mqtt.md) on Linux IPv4 loopback.
   These TCP commands emit metadata, not arbitrary streams.
 - protocol registry coverage: 70 protocol families and 361 package entries
   under `protocols/`

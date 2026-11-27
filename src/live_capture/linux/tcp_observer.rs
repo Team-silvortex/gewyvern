@@ -45,9 +45,62 @@ unsafe fn lookup<K, V: Default>(api: &Api, fd: c_int, key: &K) -> Result<V, Capt
     Ok(v)
 }
 
+pub(super) const STREAM_HEADERS: &[(&str, &str)] = &[(
+    "scoped_stream.inc.c",
+    include_str!("../../../ebpf/production/scoped_stream.inc.c"),
+)];
+
+pub(super) struct EventStream<'a, T> {
+    pub conflicting: bool,
+    pub partial: bool,
+    pub fault: u32,
+    pub port: u32,
+    pub segments: u32,
+    pub count: u32,
+    pub items: &'a [T],
+}
+impl<T: Copy> EventStream<'_, T> {
+    pub fn render(
+        &self,
+        cookie: u64,
+        decode: impl Fn(T) -> Option<serde_json::Value>,
+    ) -> (serde_json::Value, bool) {
+        use serde_json::json;
+        let mut outcome = match self.fault {
+            _ if self.conflicting => "conflicting",
+            0 if self.partial => "partial_frame",
+            0 => "framed",
+            1 => "sequence_discontinuity",
+            2 => "malformed_frame",
+            3 => "unsupported_type",
+            4 => "limit_reached",
+            5 => "segment_budget_exhausted",
+            _ => "read_failure",
+        };
+        let mut events = Vec::new();
+        if outcome == "framed" {
+            if let Some(decoded) = self
+                .items
+                .get(..self.count as usize)
+                .and_then(|v| v.iter().copied().map(decode).collect::<Option<Vec<_>>>())
+            {
+                events = decoded;
+            } else {
+                outcome = "invalid_map_record";
+            }
+        }
+        (
+            json!({"socket_cookie":cookie.to_string(),"local_port":self.port,"outcome":outcome,
+        "events":events,"server_payload_segments":self.segments}),
+            outcome != "framed",
+        )
+    }
+}
+
 pub(super) struct Spec {
     pub kind: &'static str,
     pub code: &'static str,
+    pub headers: &'static [(&'static str, &'static str)],
     pub port_define: &'static str,
     pub program: &'static std::ffi::CStr,
     pub rows: &'static std::ffi::CStr,
@@ -73,6 +126,7 @@ pub(super) unsafe fn observe<Row: Default>(
     let (scratch, object_path) = compile_source(
         spec.code,
         &["-mcpu=v3".into(), format!("-D{}={port}", spec.port_define)],
+        spec.headers,
     )?;
     let api = Api::new()?;
     let name = CString::new(object_path.as_os_str().as_bytes())

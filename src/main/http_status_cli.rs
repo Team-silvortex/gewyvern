@@ -3,17 +3,29 @@ use std::path::PathBuf;
 
 pub(super) const HELP: &str = "gewyvern capture-http-status --capture-cgroup <absolute-client-cgroup-v2> --capture-tcp-port <port> --capture-seconds <1..300> [--json]\n  Linux IPv4 loopback only. JSON: first HTTP/1.1 response status per new connection, never headers or body. 64 connections maximum; exit 3 means incomplete.";
 
-pub(super) const REDIS_HELP: &str = "gewyvern capture-redis-resp --capture-cgroup <absolute-client-cgroup-v2> --capture-tcp-port <port> --capture-seconds <1..300> [--json]\n  Linux IPv4 loopback only. JSON: ordered RESP2 reply types and lengths on new connections, never commands or values. 64 connections, 32 replies each; exit 3 means incomplete.";
+pub(super) const REDIS_HELP: &str = "gewyvern capture-redis-resp --capture-cgroup <absolute-client-cgroup-v2> --capture-tcp-port <port> --capture-seconds <1..300> [--json]\n  Linux IPv4 loopback only. JSON: ordered RESP2 reply types, lengths and array error counts, never commands or values. 64 connections, 32 replies each, up to two array levels; exit 3 means incomplete.";
 #[derive(Clone, Copy)]
 pub(super) enum Mode {
     Http,
     Redis,
+    Postgres,
+    Memcached,
+    Mysql,
+    Mqtt,
 }
+pub(super) const MQTT_HELP: &str = "gewyvern capture-mqtt --capture-cgroup <absolute-client-cgroup-v2> --capture-tcp-port <port> --capture-seconds <1..300> [--json]\n  Linux IPv4 loopback, plaintext MQTT 3.1.1 broker frames. JSON: session-present, QoS acknowledgements, packet IDs and publish lengths; no topics or payloads. 32 events/socket; exit 3 means incomplete.";
+pub(super) const MYSQL_HELP: &str = "gewyvern capture-mysql --capture-cgroup <absolute-client-cgroup-v2> --capture-tcp-port <port> --capture-seconds <1..300> [--json]\n  Linux IPv4 loopback, plaintext direct-auth classic MySQL: one-column text rows and legacy EOF. Reports error phase, number and SQLSTATE bucket; no SQL or values. 32 events per socket; exit 3 means incomplete.";
+pub(super) const MC_HELP: &str = "gewyvern capture-memcached --capture-cgroup <absolute-client-cgroup-v2> --capture-tcp-port <port> --capture-seconds <1..300> [--json]\n  Linux IPv4 loopback, classic binary replies only. JSON: operation, status and hit length; no keys or values. 64 connections, 32 replies each; exit 3 means incomplete.";
+pub(super) const PG_HELP: &str = "gewyvern capture-postgres --capture-cgroup <absolute-client-cgroup-v2> --capture-tcp-port <port> --capture-seconds <1..300> [--json]\n  Plaintext PostgreSQL v3 simple-query backend frames on Linux IPv4 loopback. JSON: rows, ready states and error buckets; no SQL or values. 64 connections, 32 events each; exit 3 means incomplete.";
 impl Mode {
     fn help(self) -> &'static str {
         match self {
             Self::Http => HELP,
             Self::Redis => REDIS_HELP,
+            Self::Postgres => PG_HELP,
+            Self::Memcached => MC_HELP,
+            Self::Mysql => MYSQL_HELP,
+            Self::Mqtt => MQTT_HELP,
         }
     }
 }
@@ -24,6 +36,10 @@ fn options(mode: Mode, args: &[String]) -> Result<(PathBuf, u16, u32), MachineEr
             match mode {
                 Mode::Http => "http_status_options_invalid",
                 Mode::Redis => "redis_resp_options_invalid",
+                Mode::Postgres => "postgres_options_invalid",
+                Mode::Memcached => "memcached_options_invalid",
+                Mode::Mysql => "mysql_options_invalid",
+                Mode::Mqtt => "mqtt_options_invalid",
             },
             ErrorCategory::Input,
             mode.help(),
@@ -91,12 +107,34 @@ pub(super) fn run(mode: Mode, args: &[String]) -> Result<i32, MachineError> {
             }
             use gewyvern::live_capture::{observe_http_status, observe_redis_resp};
             let (report, incomplete) = match mode {
+                Mode::Mqtt => {
+                    gewyvern::live_capture::observe_mqtt(&opts.0, opts.1, opts.2, &stop, || {
+                        eprintln!("capture-mqtt: ready")
+                    })
+                }
+                Mode::Mysql => {
+                    gewyvern::live_capture::observe_mysql(&opts.0, opts.1, opts.2, &stop, || {
+                        eprintln!("capture-mysql: ready")
+                    })
+                }
+                Mode::Memcached => gewyvern::live_capture::observe_memcached(
+                    &opts.0,
+                    opts.1,
+                    opts.2,
+                    &stop,
+                    || eprintln!("capture-memcached: ready"),
+                ),
                 Mode::Http => observe_http_status(&opts.0, opts.1, opts.2, &stop, || {
                     eprintln!("capture-http-status: ready")
                 }),
                 Mode::Redis => observe_redis_resp(&opts.0, opts.1, opts.2, &stop, || {
                     eprintln!("capture-redis-resp: ready")
                 }),
+                Mode::Postgres => {
+                    gewyvern::live_capture::observe_postgres(&opts.0, opts.1, opts.2, &stop, || {
+                        eprintln!("capture-postgres: ready")
+                    })
+                }
             }
             .map_err(|e| {
                 MachineError::new(e.code, ErrorCategory::Environment, e.detail, true, 1)

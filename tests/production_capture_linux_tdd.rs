@@ -7,8 +7,18 @@ mod boundaries;
 mod http_status;
 #[path = "production_capture_linux_tdd/installed.rs"]
 mod installed;
+#[path = "production_capture_linux_tdd/memcached.rs"]
+mod memcached;
+#[path = "production_capture_linux_tdd/mqtt.rs"]
+mod mqtt;
+#[path = "production_capture_linux_tdd/mysql.rs"]
+mod mysql;
 #[path = "production_capture_linux_tdd/network.rs"]
 mod network;
+#[path = "production_capture_linux_tdd/postgres.rs"]
+mod postgres;
+#[path = "production_capture_linux_tdd/private_peer.rs"]
+mod private_peer;
 #[path = "production_capture_linux_tdd/redis_resp.rs"]
 mod redis_resp;
 use gewyvern::export::ExportBundle;

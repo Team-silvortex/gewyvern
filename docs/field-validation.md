@@ -79,8 +79,37 @@ export or a general live TCP producer.
 30. Run the [Redis RESP2 observer](live-redis-resp.md) against a disposable
 real Redis server. Compare the actual wire replies with the ordered CLI types
 and lengths; require correct bulk/error boundaries, binary and empty/null
-distinctions, scope exclusion, and explicit incomplete reports for limits,
-nested arrays and a connection established before attachment.
+distinctions and scope exclusion. A mixed EXEC must count only actual error
+frames inside its two-level result. Use a separate writer to trigger WATCH
+and distinguish null-array cancellation, an empty EXEC and top-level
+EXECABORT. Require explicit incomplete reports for overflow, three array
+levels and a connection established before attachment.
+
+31. Run the [PostgreSQL backend observer](live-postgres.md) against a private
+SCRAM-authenticated cluster. Require an independent psql denial and simple-query
+oracle, idle/active/failed readiness, rollback recovery, and large row contents
+that resemble errors but emit no error event. Require explicit incompleteness
+for unsupported COPY and event overflow. Run the Redis observer as a regression
+when changing their shared socket tracking.
+
+32. Run the [Memcached binary observer](live-memcached.md) in an offline
+network namespace. Compare positive, negative and quiet replies to the
+client's opaque IDs and byte-exact values; do not count quiet requests as
+responses. Record the real server separately from controlled peers which
+force split headers, partial bodies and inconsistent GET flags.
+
+33. Run the [MySQL classic observer](live-mysql.md) with a private MySQL 8
+instance. Require the same errno/SQLSTATE pair in both login and command
+phases, NULL versus empty, all three supported row-length encodings, and
+recovery on the original socket. Keep real-server runs separate from
+controlled splits, malformed framing and a missing result terminator.
+
+34. Run the [MQTT broker observer](live-mqtt.md) against a private Mosquitto.
+Queue a binary QoS 2 message for a disconnected subscriber; disconnect again
+before PUBREC and check the redelivery's packet identifier, DUP and exact body
+against the independent client. Compare broker acknowledgements on the
+publisher and subscriber sockets separately. Keep controlled frame-boundary
+tests distinct from the real broker.
 
 ### Breadth Acceptance
 

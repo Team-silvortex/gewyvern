@@ -46,6 +46,7 @@ pub fn observe_http_status(
     let spec = tcp_observer::Spec {
         kind: "http11_first_response_status",
         code: include_str!("../../../ebpf/production/http_status.bpf.c"),
+        headers: &[],
         port_define: "HTTP_PORT",
         program: c"http_status_in",
         rows: c"prefixes",
