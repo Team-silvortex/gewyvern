@@ -83,12 +83,12 @@ fn indexed_history_does_not_adopt_an_unindexed_numeric_directory() {
         r#"{"entries":[{"updated_unix_ms":1000,"path":"../../outside"}]}"#,
     )
     .unwrap();
-    let entries = crate::history_view::indexed_history_dirs(&root)
+    let index = crate::history_view::read_committed_index(&root)
         .unwrap()
         .unwrap();
-    assert_eq!(entries, vec![(1000, root.join("1000"))]);
+    assert_eq!(index.entries, vec![(1000, root.join("1000"))]);
     fs::write(root.join("index.json"), b"broken").unwrap();
-    assert!(crate::history_view::indexed_history_dirs(&root).is_err());
+    assert!(crate::history_view::read_committed_index(&root).is_err());
     fs::remove_dir_all(root).unwrap();
 }
 

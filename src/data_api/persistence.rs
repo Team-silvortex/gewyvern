@@ -56,40 +56,60 @@ pub(super) fn persist_latest_snapshot(snapshot: &ApiSnapshot) -> Result<(), Stri
     let _writer =
         silvortex_bounded_io::open_private_lock_file(&lock, std::time::Duration::from_secs(5))
             .map_err(|e| format!("lock {}: {e}", lock.display()))?;
-    persist_snapshot_tree(&latest_root, snapshot, true)?;
-    persist_history_snapshot(&history_root, &latest_root, snapshot)
+    persist_locked_snapshot(&history_root, &latest_root, snapshot)
 }
 
-fn persist_history_snapshot(
+fn persist_locked_snapshot(
     history_root: &Path,
     latest_root: &Path,
     snapshot: &ApiSnapshot,
 ) -> Result<(), String> {
     if snapshot.updated_unix_ms == 0 || snapshot.kind.is_empty() {
+        persist_snapshot_tree(latest_root, snapshot, true)?;
         return write_delta_pair(latest_root, "null", &protocol_catalog_delta_markdown(None));
     }
-    let indexed = crate::history_view::indexed_history_dirs(history_root)?;
-    publication::recover(history_root, indexed.as_deref())?;
-    prune::recover(history_root, indexed.as_deref())?;
+    let indexed = crate::history_view::read_committed_index(history_root)?;
+    let committed = indexed.as_ref().map(|index| index.entries.as_slice());
+    publication::recover(history_root, committed)?;
+    prune::recover(history_root, committed)?;
+    let needs_baseline = indexed.is_none();
+    let committed_limit = indexed
+        .as_ref()
+        .and_then(|index| index.backfill_retention());
     let mut entries = match indexed {
-        Some(entries) => entries,
-        None => {
-            let legacy = history_snapshot_dirs(history_root)?;
-            write_history_index(history_root, &legacy)?;
-            legacy
-        }
+        Some(index) => index.entries,
+        None => history_snapshot_dirs(history_root)?,
     };
     let previous = prune::index_id(&entries);
     let ts = snapshot.updated_unix_ms;
     let dest = history_root.join(ts.to_string());
-    if dest.try_exists().map_err(|e| e.to_string())? {
-        return Err(format!("history timestamp already exists: {ts}"));
+    // A rejected timestamp must not overwrite latest with an uncommitted writer.
+    // Recover first: an interrupted rename may legitimately reclaim this name.
+    match fs::symlink_metadata(&dest) {
+        Ok(_) => return Err(format!("history timestamp already exists: {ts}")),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(format!("inspect history timestamp {ts}: {e}")),
+    }
+    let position = entries.partition_point(|(time, _)| *time > ts);
+    let backfill = position != 0;
+    let retention = if backfill {
+        let limit =
+            committed_limit.ok_or("late history snapshot has no valid committed retention")?;
+        if position >= limit {
+            return Ok(()); // Already outside the head's horizon; do not stage or reconfigure.
+        }
+        limit
+    } else {
+        persist_snapshot_tree(latest_root, snapshot, true)?;
+        history_retention_limit()
+    };
+    if needs_baseline {
+        write_history_index(history_root, &entries, retention, None)?;
     }
     let stage = prepare_history_stage(history_root)?;
     persist_snapshot_tree(&stage, snapshot, false)?;
-    entries.push((ts, dest.clone()));
-    entries.sort_by_key(|row| std::cmp::Reverse(row.0));
-    let retired = entries.split_off(history_retention_limit().min(entries.len()));
+    entries.insert(position, (ts, dest.clone()));
+    let retired = entries.split_off(retention.min(entries.len()));
     let delta = entries
         .iter()
         .find(|(time, _)| *time < ts)
@@ -98,11 +118,13 @@ fn persist_history_snapshot(
     let json = protocol_catalog_delta_json(delta.as_ref());
     let md = protocol_catalog_delta_markdown(delta.as_ref());
     write_delta_pair(&stage, &json, &md)?;
-    write_delta_pair(latest_root, &json, &md)?;
+    if !backfill {
+        write_delta_pair(latest_root, &json, &md)?;
+    }
     publication::record(history_root, &stage, ts)?;
     fs::rename(&stage, &dest).map_err(|e| format!("publish history tree: {e}"))?;
     let prune = prune::record(history_root, previous, &entries, &retired)?;
-    write_history_index(history_root, &entries)?;
+    write_history_index(history_root, &entries, retention, backfill.then_some(ts))?;
     if let Some(plan) = prune {
         plan.finish(history_root, &entries)?;
     }
@@ -335,8 +357,12 @@ fn persist_target_snapshot(
     Ok(())
 }
 
-fn write_history_index(history_root: &Path, entries: &[(u128, PathBuf)]) -> Result<(), String> {
-    let retention = history_retention_limit();
+fn write_history_index(
+    history_root: &Path,
+    entries: &[(u128, PathBuf)],
+    retention: usize,
+    uncommitted_backfill: Option<u128>,
+) -> Result<(), String> {
     let minor_line = current_minor_line();
     let latest_updated_unix_ms = entries.first().map(|(updated_unix_ms, _)| *updated_unix_ms);
     let oldest_updated_unix_ms = entries.last().map(|(updated_unix_ms, _)| *updated_unix_ms);
@@ -360,13 +386,23 @@ fn write_history_index(history_root: &Path, entries: &[(u128, PathBuf)]) -> Resu
     json.push_str(",\"catalog_artifacts\":[\"protocols.json\",\"protocol-clusters.json\",\"protocol-clusters/<cluster>.json\",\"protocols/<protocol>/summary.json\",\"protocols/<protocol>/entries/<entry>/surface.json\"]");
     json.push_str(",\"latest_protocol_catalog_delta\":");
     let delta = latest_protocol_catalog_delta(entries)?;
-    json.push_str(&protocol_catalog_delta_json(delta.as_ref()));
+    let delta_json = protocol_catalog_delta_json(delta.as_ref());
+    json.push_str(&delta_json);
     json.push_str(",\"latest_protocol_catalog_delta_path\":");
-    match latest_updated_unix_ms {
-        Some(value) => append_json_string(
-            &mut json,
-            &format!("history/api/v1/{value}/protocol-delta.json"),
-        ),
+    let delta_path = if let Some(ts) = uncommitted_backfill {
+        // The head's own publication-time delta is immutable. Put the current
+        // index pair's delta in the incoming generation before switching the index.
+        let filename = "index-head-delta.json";
+        write_text_file(
+            &history_root.join(ts.to_string()).join(filename),
+            &delta_json,
+        )?;
+        Some(format!("history/api/v1/{ts}/{filename}"))
+    } else {
+        latest_updated_unix_ms.map(|ts| format!("history/api/v1/{ts}/protocol-delta.json"))
+    };
+    match delta_path {
+        Some(path) => append_json_string(&mut json, &path),
         None => json.push_str("null"),
     }
     json.push_str(",\"lines\":[{\"line\":");
@@ -584,6 +620,80 @@ mod tests {
                 .expect("system clock must follow the epoch")
                 .as_nanos()
         ))
+    }
+
+    #[test]
+    fn backfill_keeps_index_delta_readable_after_its_previous_owner_is_evicted() {
+        use serde_json::{Value, json};
+        let root = temp_root("backfill");
+        let history = root.join("history/api/v1");
+        let latest = root.join("latest");
+        let path = history.join("index.json");
+        let mut rows = Vec::new();
+        for ts in [300, 200, 100] {
+            fs::create_dir_all(history.join(ts.to_string())).unwrap();
+            rows.push(json!({"updated_unix_ms":ts}));
+        }
+        let submit = |ts| {
+            super::persist_locked_snapshot(
+                &history,
+                &latest,
+                &super::ApiSnapshot {
+                    kind: "single".into(),
+                    updated_unix_ms: ts,
+                    ..Default::default()
+                },
+            )
+        };
+        for invalid in [Value::Null, json!(2), json!(1025)] {
+            let unchanged = json!({"history_retention":invalid,"entries":rows}).to_string();
+            fs::write(&path, &unchanged).unwrap();
+            assert!(
+                submit(150)
+                    .unwrap_err()
+                    .contains("no valid committed retention")
+            );
+            assert_eq!(fs::read_to_string(&path).unwrap(), unchanged);
+        }
+        fs::write(
+            &path,
+            json!({"history_retention":3,"entries":rows}).to_string(),
+        )
+        .unwrap();
+        for (ts, pair, times, evicted) in [
+            (150, 200, [300, 200, 150], 100),
+            (250, 250, [300, 250, 200], 150),
+        ] {
+            submit(ts).unwrap();
+            let bytes = fs::read(&path).unwrap();
+            let index: Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(
+                index["entries"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|r| r["updated_unix_ms"].as_u64().unwrap())
+                    .collect::<Vec<_>>(),
+                times
+            );
+            let delta = &index["latest_protocol_catalog_delta"];
+            assert_eq!(delta["current_updated_unix_ms"], 300);
+            assert_eq!(delta["previous_updated_unix_ms"], pair);
+            let target = root.join(
+                index["latest_protocol_catalog_delta_path"]
+                    .as_str()
+                    .unwrap(),
+            );
+            assert_eq!(
+                serde_json::from_slice::<Value>(&fs::read(target).unwrap()).unwrap(),
+                *delta
+            );
+            assert!(!history.join(evicted.to_string()).exists());
+            submit(90).unwrap();
+            assert_eq!(fs::read(&path).unwrap(), bytes);
+            assert!(!history.join("90").exists() && !latest.exists());
+        }
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

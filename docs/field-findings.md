@@ -1,5 +1,111 @@
 # Field Findings
 
+## A Second Crash During Late-Terminal Recovery
+
+Six fresh Linux 7.0.0-44 x86_64 trials repeated the index-switch cuts below,
+then killed the replacement collector during recovery. A third process used
+the same cgroup, API socket and output paths, consumed real UDP traffic and
+stopped cleanly. The second kill was gated on a filesystem operation, not a timer.
+
+| Second kill | Disk immediately after the kill and while the third run was collecting |
+| --- | --- |
+| Uncommitted late archive moved back to staging; old eviction plan not yet discarded | Four indexed numeric archives plus one staging tree. All 70 protocol summaries in the still-indexed oldest archive survived. The old index and its original delta remained readable. |
+| Committed eviction in progress, with the victim's identity file still present | Four indexed archives plus one partially deleted numeric directory. In all three trials 69 of its 70 protocol summaries remained. The index still pointed to the late archive's head-delta file. |
+
+Neither crash changed the latest tree or any then-indexed archive. The middle
+collector's own terminal capture was readable but never appeared in history.
+Only the third process's terminal commit advanced latest. In all six cases
+there were then four indexed directories, a readable new head delta and no
+staging tree, unindexed archive or pending journal. No runtime fix was needed.
+This is same-host process-crash evidence, not power-loss qualification.
+
+To reproduce, set `GEWY_REPLAY_RECLAIM_OUT` or `GEWY_REPLAY_PRUNE_OUT` to a
+new absolute directory and run the corresponding ignored
+`production_capture_backfill_reclaim_replay_killed` or
+`production_capture_backfill_prune_replay_killed` case with root, BPF,
+cgroup v2 and fanotify. The [six Linux summaries](fixtures/gewyvern_product_udp_backfill_replay_linux_x86_64_20261127.json)
+bind the measurements to the executed binaries. A separate filesystem unit
+test models the earlier interval after the reclaim rename but **before**
+the intent unlink; that narrower interval was not the live kill point.
+
+## Interrupted Late Terminal On Either Side Of The Index Switch
+
+On Linux 7.0.0-44 x86_64, two real UDP collectors finished in reverse
+timestamp order on the same shelf. The committed head kept four entries;
+the delayed collector requested one. With fanotify holding an actual file
+open, we killed only the delayed process and restarted it on its original
+paths, cgroup and sockets. Each cut ran three times on fresh shelves.
+
+| SIGKILL boundary | Committed view while down and after restart | At the next clean terminal publication |
+| --- | --- | --- |
+| Late archive's head-delta file renamed, old index still active | Old index bytes unchanged; pointer still reads the head's original delta. | Uncommitted late archive gone; fresh run, original head and two newest seeds retained. |
+| New index active, first victim not yet deleted | Late run listed second; pointer reads its new head/late delta. | Late archive and its sidecar survive unchanged; fresh run, original head, late run and newest seed retained. |
+
+All six runs had four indexed entries and five numeric directories in the
+interrupted state. Starting the replacement and consuming real traffic did
+not itself replay eviction. Its next terminal publication left exactly four
+indexed directories, no staging tree or journals, and a readable fresh/head
+delta. Until that publication the latest tree was byte-for-byte unchanged;
+the original head archive stayed unchanged throughout. No product fix was
+needed. This tests process death, not lost filesystem writes or power failure.
+
+To reproduce, run the ignored `production_capture_backfill_before_index_restart`
+and `production_capture_backfill_after_index_restart` Linux tests under the
+same prerequisites as below; set `GEWY_BACKFILL_PRE_OUT` and
+`GEWY_BACKFILL_POST_OUT` to fresh absolute paths. The [six measured
+summaries](fixtures/gewyvern_product_udp_backfill_interruption_linux_x86_64_20261127.json)
+record run IDs, archive order, index and delta hashes, and binary fingerprints.
+
+## Two Collectors Commit In Reverse Timestamp Order
+
+Two real Linux UDP collectors shared an isolated API shelf but used different
+cgroups, ports, APIs and capture outputs. With three seed runs already present,
+the test held the older terminal at the opening of the writer lock, **after**
+reading its stopped status and timestamp over its own HTTP API. The newer run
+committed first; only then did the older process resume. No clock was changed.
+
+| Older writer limit / head limit | Before fix | After fix (three trials each) |
+| --- | --- | --- |
+| 1 / 4 | Latest went backwards; only the newer archive remained. | Latest stays newer; the index and disk hold newer, older, then the two newest seeds. |
+| 4 / 1 | Latest went backwards; the index grew to two entries. | Latest stays newer; the index is byte-for-byte unchanged and only the newer archive remains. |
+
+In all six fixed runs, both processes exited successfully, both cgroups
+detached, and the newer run's latest tree and archive retained their original
+SHA-256s. The older collector's own terminal export remained readable even
+when it fell outside retention. See the [Linux run summaries](fixtures/gewyvern_product_udp_terminal_order_linux_x86_64_20261127.json).
+
+To repeat, build the `production_capture_linux_tdd` test binary with all
+features and run its ignored `production_capture_late_terminal_fits` and
+`production_capture_late_terminal_outside_limit` cases on a privileged Linux
+host with BPF, cgroup v2 and fanotify. Set `GEWY_ORDER_KEEP_OUT` or
+`GEWY_ORDER_FULL_OUT`, respectively, to a new absolute directory. These are
+same-host cooperative writers, not a shared-storage or cross-host guarantee.
+
+## Two Writers, One History Timestamp
+
+On Linux 7.0.0-44 x86_64, two unprivileged processes published distinct
+snapshots through the production persistence function. Both proposed the same
+millisecond; one requested retention one and the other four. Before the fix,
+the loser got `history timestamp already exists` but its summary was visible in
+`latest`. The index and the numeric archive still belonged to the winner.
+
+The writer now recovers pending work and checks the destination under the shelf
+lock **before** replacing latest files. In six fresh Linux runs (three wins per
+writer), the winner's metadata, export, summary and protocol delta matched its
+archive; the loser's policy did not alter the index. A third, later publication
+then succeeded. A lock timeout is a separate refusal, not evidence of a
+timestamp collision.
+
+Reproduce without root, traffic or eBPF:
+
+```sh
+cargo test --locked -p gewyvern --bin gewyvern same_millisecond_writers_leave_only_the_winner_visible -- --nocapture
+```
+
+The inputs are synthetic snapshots, not two live UDP runs. This does not make
+latest and history a single crash-atomic transaction, define ordering across
+clocks, or authorize sharing state/output paths between deployed collectors.
+
 ## `2026-11-27` Reconfigured History Reported A Limit Not Yet Committed
 
 After an interrupted shrink from five to two, the CLI text view immediately

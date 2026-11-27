@@ -354,6 +354,123 @@ fn read_only_cli_outputs_preserve_last_window_and_restart_in_place() {
 }
 
 #[test]
+fn reverse_order_terminals_follow_the_head_not_the_last_writer() {
+    let proof: Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_product_udp_terminal_order_linux_x86_64_20261127.json",
+    ))
+    .unwrap();
+    let mut cases = BTreeMap::new();
+    let mut ids = BTreeSet::new();
+    for row in proof["runs"].as_array().unwrap() {
+        let s = &row["summary"];
+        assert_eq!(
+            row["summary_sha256"],
+            hash(&serde_json::to_vec_pretty(s).unwrap())
+        );
+        let fixed = row["fixed"].as_bool().unwrap();
+        let head_cap = s["head_limit"].as_u64().unwrap();
+        *cases.entry((fixed, head_cap)).or_insert(0) += 1;
+        assert!(s["early_ms"].as_u64().unwrap() < s["head_ms"].as_u64().unwrap());
+        let seeds = s["seed_ids"].as_array().unwrap();
+        assert_eq!(seeds.len(), 3);
+        for id in seeds.iter().chain([&s["early_run"], &s["head_run"]]) {
+            assert!(ids.insert(id.as_str().unwrap()));
+        }
+        assert_eq!(s["head_tree_after"], s["head_tree_before"]);
+        assert_eq!(s["latest_tree_after"] == s["latest_tree_before"], fixed);
+        assert_eq!(
+            s["latest_after"],
+            s[if fixed { "head_run" } else { "early_run" }]
+        );
+        assert_eq!(s["early_limit"], if head_cap == 4 { 1 } else { 4 });
+        assert_eq!(
+            s["index_limit"],
+            s[if fixed { "head_limit" } else { "early_limit" }]
+        );
+        let expected = match (fixed, head_cap) {
+            (true, 4) => json!([s["head_run"], s["early_run"], seeds[2], seeds[1]]),
+            (false, 1) => json!([s["head_run"], s["early_run"]]),
+            _ => json!([s["head_run"]]),
+        };
+        assert_eq!(s["index_runs"], expected);
+        assert_eq!(s["physical_archives"], expected.as_array().unwrap().len());
+    }
+    assert_eq!(
+        cases,
+        BTreeMap::from([
+            ((false, 1), 1),
+            ((false, 4), 1),
+            ((true, 1), 3),
+            ((true, 4), 3)
+        ])
+    );
+}
+
+#[test]
+fn interrupted_backfill_keeps_the_committed_view_until_a_new_terminal() {
+    let proof: Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/gewyvern_product_udp_backfill_interruption_linux_x86_64_20261127.json",
+    ))
+    .unwrap();
+    let mut cases = BTreeMap::new();
+    let mut ids = BTreeSet::new();
+    for row in proof["runs"].as_array().unwrap() {
+        let s = &row["summary"];
+        assert_eq!(
+            row["summary_sha256"],
+            hash(&serde_json::to_vec_pretty(s).unwrap())
+        );
+        let cut = s["cut"].as_str().unwrap();
+        *cases.entry(cut).or_insert(0) += 1;
+        let (before, gap, final_view) = (&s["before"], &s["crash"], &s["recovered"]);
+        let seeds = before["runs"].as_array().unwrap();
+        assert_eq!(seeds.len(), 4);
+        let fresh = &final_view["runs"][0];
+        let late = &s["late_run"];
+        for id in seeds.iter().chain([fresh, late]) {
+            assert!(ids.insert(id.as_str().unwrap()));
+        }
+        assert_eq!(s["running"], *gap);
+        assert_eq!(gap["latest_tree"], before["latest_tree"]);
+        assert_eq!(s["crash_dirs"], 5);
+        assert_eq!(s["final_dirs"], 4);
+        assert_eq!(s["residue"], json!([]));
+        let before_rows = &before["times"];
+        let late_ms = s["late_ms"].as_u64().unwrap();
+        assert!(
+            before_rows[0].as_u64().unwrap() > late_ms
+                && late_ms > before_rows[1].as_u64().unwrap()
+        );
+        if cut == "before" {
+            assert_eq!(gap, before);
+        } else {
+            assert_eq!(cut, "after");
+            assert_eq!(gap["runs"], json!([seeds[0], late, seeds[1], seeds[2]]));
+            assert_eq!(
+                gap["times"],
+                json!([before_rows[0], late_ms, before_rows[1], before_rows[2]])
+            );
+            assert_eq!(
+                gap["delta_path"],
+                format!("history/api/v1/{late_ms}/index-head-delta.json")
+            );
+            assert_eq!(gap["delta_sha256"], s["late_delta_sha256"]);
+        }
+        assert_eq!(
+            final_view["runs"],
+            json!([fresh, gap["runs"][0], gap["runs"][1], gap["runs"][2]])
+        );
+        let t = final_view["times"][0].as_u64().unwrap();
+        assert!(t > before_rows[0].as_u64().unwrap());
+        assert_eq!(
+            final_view["delta_path"],
+            format!("history/api/v1/{t}/protocol-delta.json")
+        );
+    }
+    assert_eq!(cases, BTreeMap::from([("before", 3), ("after", 3)]));
+}
+
+#[test]
 fn shrink_replay_keeps_the_committed_pair_until_the_new_policy_commits() {
     let proof: Value = serde_json::from_str(&read_repo_file(
         "docs/fixtures/gewyvern_product_udp_history_shrink_linux_x86_64_20261127.json",

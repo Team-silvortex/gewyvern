@@ -100,17 +100,20 @@ fn render_history_index_text(history_root: &Path) -> Result<String, String> {
     Ok(text)
 }
 
-/// Do not trust path strings from disk or include an unindexed numeric directory.
-pub(crate) fn indexed_history_dirs(root: &Path) -> Result<Option<Vec<(u128, PathBuf)>>, String> {
-    Ok(read_committed_index(root)?.map(|index| index.entries))
-}
-
-struct CommittedIndex {
-    entries: Vec<(u128, PathBuf)>,
+pub(crate) struct CommittedIndex {
+    pub(crate) entries: Vec<(u128, PathBuf)>,
     retention: Option<usize>,
 }
 
-fn read_committed_index(root: &Path) -> Result<Option<CommittedIndex>, String> {
+impl CommittedIndex {
+    pub(crate) fn backfill_retention(&self) -> Option<usize> {
+        self.retention
+            .filter(|cap| (self.entries.len().max(1)..=MAX_HISTORY_RETENTION_LIMIT).contains(cap))
+    }
+}
+
+/// Do not trust path strings from disk or include an unindexed numeric directory.
+pub(crate) fn read_committed_index(root: &Path) -> Result<Option<CommittedIndex>, String> {
     if fs::symlink_metadata(root).is_ok_and(|m| !m.is_dir()) {
         return Err(format!(
             "history root must be a real directory: {}",

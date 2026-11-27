@@ -43,6 +43,7 @@ impl Addresses {
         }
     }
 
+    #[cfg(target_os = "linux")]
     pub fn l3_proto(self) -> u16 {
         match self {
             Self::V4(..) => 0x0800,

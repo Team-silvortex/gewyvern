@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::Path;
 
+#[path = "native_validation_harness_tdd/backfill_replay.rs"]
+mod backfill_replay;
 #[path = "native_validation_harness_tdd/udp_errors.rs"]
 mod udp_errors;
 #[path = "native_validation_harness_tdd/udp_normalization.rs"]

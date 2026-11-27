@@ -208,8 +208,14 @@ previously buried in wider cells are now independently judged:
   separately covers partial eviction and repeated interruption of the same
   cleanup. A [multi-directory shrink and restart](production-udp-offload-service.md#changing-retention-between-evictions)
   verifies that the old plan drains before a higher or lower limit is committed.
-  Concurrent publishers, power loss and independent kernels remain separate
-  gates. Maturity remains stabilizing.
+  A [two-collector check](field-findings.md#two-collectors-commit-in-reverse-timestamp-order)
+  covers reverse-order terminal commits with conflicting limits on one host.
+  [Three process kills on each side of the backfill index switch](field-findings.md#interrupted-late-terminal-on-either-side-of-the-index-switch)
+  preserve the committed head and readable delta; the next terminal restores
+  the physical retention bound. [Six double-crash trials](field-findings.md#a-second-crash-during-late-terminal-recovery)
+  also interrupt the recovery writer before old-plan discard or during victim
+  deletion. Power loss and independent kernels remain separate gates. Maturity
+  remains stabilizing.
 - **Leselang native foundation:** the independent MIT repository, exact Git pin,
   resolved-source checks and retained product compatibility tests close the
   repository handoff. They do not change the separate embedding judgment.

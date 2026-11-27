@@ -1215,7 +1215,9 @@
           "interrupted-history-tree-hidden-from-text-and-json-until-index-commit",
           "bounded-inflight-history-rename-at-full-retention",
           "index-bound-resumable-eviction-after-history-commit",
-          "multi-directory-prune-recovery-across-retention-changes"
+          "multi-directory-prune-recovery-across-retention-changes",
+          "retained-backfill-index-switch-crash-and-restart",
+          "interrupted-backfill-reclaim-and-partial-eviction-replay"
         ]
       },
       "depends_on": ["gewyvern-core/linux-ebpf/linux-attach"],
@@ -1242,10 +1244,17 @@
         { "kind": "test", "path": "tests/production_capture_linux_tdd/network/offload/prune_interruption.rs", "state": "present" },
         { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_history_prune_linux_x86_64_20261127.json", "state": "present" },
         { "kind": "test", "path": "tests/production_capture_linux_tdd/network/offload/shrink_interruption.rs", "state": "present" },
+        { "kind": "test", "path": "src/main/tests/api_persistence_race.rs", "state": "present" },
+        { "kind": "test", "path": "tests/production_capture_linux_tdd/network/offload/terminal_order.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_terminal_order_linux_x86_64_20261127.json", "state": "present" },
+        { "kind": "test", "path": "tests/production_capture_linux_tdd/network/offload/backfill_interruption.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_backfill_interruption_linux_x86_64_20261127.json", "state": "present" },
+        { "kind": "test", "path": "tests/production_capture_linux_tdd/network/offload/backfill_replay.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_backfill_replay_linux_x86_64_20261127.json", "state": "present" },
         { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_history_shrink_linux_x86_64_20261127.json", "state": "present" },
         { "kind": "documentation", "path": "docs/production-udp-offload-service.md", "state": "present" }
       ],
-      "next_gate": "Linux process-crash recovery covers a multi-directory shrink interrupted between evictions, followed by both raised and lowered retention. Next verify two differently configured collectors publishing concurrently to one shelf. Power loss and cross-kernel qualification remain open."
+      "next_gate": "Same-host Linux double-crash recovery covers reclaim of an uncommitted backfill and partial eviction of a committed victim. Next check whether cleanup converges when subsequent late terminals fall outside the retention horizon. Shared storage, power loss and cross-kernel qualification remain open."
     },
     {
       "id": "leselang/release-assurance/pinned-native-foundation",

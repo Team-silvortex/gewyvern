@@ -1,0 +1,550 @@
+{
+  "schema_version": 1,
+  "release_artifact": false,
+  "host": "Linux 7.0.0-44-generic x86_64",
+  "product_version": "2.7.0",
+  "scope": "Two same-host loopback UDP collectors. Each trial kills a late writer, kills the replacement during recovery and restarts again on the original paths. Process crashes only.",
+  "raw_campaign": "backfill-replay-1795785459387",
+  "encoding": "Identical observations omitted: running = crash; interrupted_replay.second_crash.view = crash; interrupted_replay.second_running = interrupted_replay.second_crash. The offline test restores these fields and checks the original Linux summary hash.",
+  "product_binary_sha256": "e5d273fc28695f4df7b3dc4cc5e8d9556d52532dcc0a9ba1d20e573cced82776",
+  "test_binary_sha256": "45807cce7cbf512c599b7f75bc4ce5a093204f6a54230bd1f34b9c21f7d6b793",
+  "source_sha256": {
+    "tests/production_capture_linux_tdd/network/offload/terminal_order.rs": "3fdb5575ed4922b995f75ca925a060a1583d7200c2e070dcfa7698e18fd02687",
+    "tests/production_capture_linux_tdd/network/offload/backfill_interruption.rs": "e5c2106535dc53203802feca4b3f4893f64d743fb40d70f4779fd9269c806c58",
+    "tests/production_capture_linux_tdd/network/offload/backfill_replay.rs": "2b411a61cb803fc0b853c8368ad081fd95c80856a858238dcfd7e186b993f288",
+    "tests/production_capture_linux_tdd/network/offload/shrink_interruption.rs": "943ffbf6aea70b071aedb842a2c939a5a4d4cf9b810d5f72a97f73796b467f35",
+    "src/data_api/persistence.rs": "e73cf5d1e2d277f051e882614e9dda0340265ff7aa283f39bd78bcae38e3f848",
+    "src/data_api/persistence/prune.rs": "6d1ede6f8b4ee09052e32eec41e6d9db09f3c9aba06cda9ebf36a74eb3391f97",
+    "src/data_api/persistence/publication.rs": "3a7f3fca4477e6bc0ecdd763564e027fc7e68d1db404a9c145be783ec95b6da5"
+  },
+  "runs": [
+    {
+      "summary_file": "reclaim-1/summary.json",
+      "summary_sha256": "8a095decaaa943b2939ad7810bb0c7cc2c77c79dd66e7a83b8041d037dfda930",
+      "summary": {
+        "before": {
+          "delta_path": "history/api/v1/1795785602838/protocol-delta.json",
+          "delta_sha256": "54970eed7d9c1035e2834cb15e3f48c6b862210a548891e50b1ae1fc95af094a",
+          "index_sha256": "bc2296536bba01b725e31d60dffbcdaaef96ad33ac1c533339e5b835479f5725",
+          "latest_tree": "1aa4a230e9c8c3ea7c5d268fbeb19cc86f82f5ccee6d46f70a5076166454b719",
+          "runs": [
+            "1058361-30441680847986",
+            "1058297-30440291616563",
+            "1058253-30438895463716",
+            "1058221-30437486681961"
+          ],
+          "times": [
+            1795785602838,
+            1795785600971,
+            1795785599572,
+            1795785598159
+          ]
+        },
+        "crash": {
+          "delta_path": "history/api/v1/1795785602838/protocol-delta.json",
+          "delta_sha256": "54970eed7d9c1035e2834cb15e3f48c6b862210a548891e50b1ae1fc95af094a",
+          "index_sha256": "bc2296536bba01b725e31d60dffbcdaaef96ad33ac1c533339e5b835479f5725",
+          "latest_tree": "1aa4a230e9c8c3ea7c5d268fbeb19cc86f82f5ccee6d46f70a5076166454b719",
+          "runs": [
+            "1058361-30441680847986",
+            "1058297-30440291616563",
+            "1058253-30438895463716",
+            "1058221-30437486681961"
+          ],
+          "times": [
+            1795785602838,
+            1795785600971,
+            1795785599572,
+            1795785598159
+          ]
+        },
+        "crash_dirs": 5,
+        "cut": "before",
+        "final_dirs": 4,
+        "head_archive_sha256": "30776d0a18f03435d4bdf3d88eab4ec08e47f1c5ee50d5f43a044c378e1a7fdc",
+        "interrupted_replay": {
+          "killed_run": "1058511-30444252467863",
+          "second_crash": {
+            "anchor_sha256": "fc37d09a332e52eb48c464aae4bcf4932b20a55ed62644906d9c095d34509768",
+            "indexed_tree_sha256": [
+              "30776d0a18f03435d4bdf3d88eab4ec08e47f1c5ee50d5f43a044c378e1a7fdc",
+              "7c1ea9a89558a1b82b4fbf24ead32deb939c512c9f257477ecc887fa2885942e",
+              "14b71733ff9bbdbcc2ca11bdc79fff35355b2d6dad0ca7e00da771a2f07d02d2",
+              "70fed81eaf5e90f9f925d4153ad17f5d11f29aacda27bd5ec24273d827da94d8"
+            ],
+            "late_numeric": false,
+            "numeric_dirs": 4,
+            "plan_sha256": "d1f65ce0ad8ba7a6ccb2a1fb5d631bc51995f85454e33b00509d3a91f32733f8",
+            "stage_present": true,
+            "victim_summaries_left": 70,
+            "victim_summaries_total": 70
+          },
+          "signal": 9
+        },
+        "late_delta_sha256": "623f65c04976900d44004aca1c297d4e9b5ae27c2e8936802933bbf861c062bf",
+        "late_ms": 1795785602742,
+        "late_run": "1058370-30442071946721",
+        "late_tree_sha256": "f9dcc2ed80d30900b91beca0e02983871dcac511bc99ed9129faddb27b6dfff3",
+        "recovered": {
+          "delta_path": "history/api/v1/1795785605665/protocol-delta.json",
+          "delta_sha256": "d7676a8d10d514dba53c1e3347f522282d76cb5990d305599a5402aa87d2bc8b",
+          "index_sha256": "9ba81a326a66f0347fdf773ecc2667576d27e94cf1403190d2aed16684f992ce",
+          "latest_tree": "5d4d1dd045b1036ef77b4ad1a1f76058f684a1b389dc253a5929b321f9c531d6",
+          "runs": [
+            "1058519-30444900041534",
+            "1058361-30441680847986",
+            "1058297-30440291616563",
+            "1058253-30438895463716"
+          ],
+          "times": [
+            1795785605665,
+            1795785602838,
+            1795785600971,
+            1795785599572
+          ]
+        },
+        "residue": []
+      }
+    },
+    {
+      "summary_file": "reclaim-2/summary.json",
+      "summary_sha256": "95f68b5c29f33ec70b39cafba0b45b42866c480523a04d32f452ab83d787b437",
+      "summary": {
+        "before": {
+          "delta_path": "history/api/v1/1795785621729/protocol-delta.json",
+          "delta_sha256": "4077a656b656f5a659121bbce6495247eb319afd1f489289d6f5a624c49c76be",
+          "index_sha256": "41d26bf0097d2f30c5b4bbcb56231b7af4a9a0c4a924eb1fd8b3de78faaaaadf",
+          "latest_tree": "5e931861a142b02afa94b406fb4f1028f8d2d2a29e362e3eda59573e925a5ddd",
+          "runs": [
+            "1059064-30460575863680",
+            "1059019-30458774176534",
+            "1058965-30457383458257",
+            "1058936-30456001623291"
+          ],
+          "times": [
+            1795785621729,
+            1795785619449,
+            1795785618054,
+            1795785616663
+          ]
+        },
+        "crash": {
+          "delta_path": "history/api/v1/1795785621729/protocol-delta.json",
+          "delta_sha256": "4077a656b656f5a659121bbce6495247eb319afd1f489289d6f5a624c49c76be",
+          "index_sha256": "41d26bf0097d2f30c5b4bbcb56231b7af4a9a0c4a924eb1fd8b3de78faaaaadf",
+          "latest_tree": "5e931861a142b02afa94b406fb4f1028f8d2d2a29e362e3eda59573e925a5ddd",
+          "runs": [
+            "1059064-30460575863680",
+            "1059019-30458774176534",
+            "1058965-30457383458257",
+            "1058936-30456001623291"
+          ],
+          "times": [
+            1795785621729,
+            1795785619449,
+            1795785618054,
+            1795785616663
+          ]
+        },
+        "crash_dirs": 5,
+        "cut": "before",
+        "final_dirs": 4,
+        "head_archive_sha256": "9f13b903110fd87005a71e17fb5373a937bac307f4a3cae5ac24afbe4cefb7ff",
+        "interrupted_replay": {
+          "killed_run": "1059141-30463096424446",
+          "second_crash": {
+            "anchor_sha256": "54cc07027ac29cac3fe5ad7369d786d61a009c4811b7a30e6148f283d3544b73",
+            "indexed_tree_sha256": [
+              "9f13b903110fd87005a71e17fb5373a937bac307f4a3cae5ac24afbe4cefb7ff",
+              "3d766fb7f9655e8d5300df905f79e1211565e4c992d291c94d3aac1d56544f72",
+              "c954ad6c349164d9d977afdcaaa9ae589fbc461bae914bfc109e8278178fa89e",
+              "911174fd371911f28fc43b82741920bd3fe0fa2b27eabbd6b8bcd9a97b218207"
+            ],
+            "late_numeric": false,
+            "numeric_dirs": 4,
+            "plan_sha256": "7f90ed61186cb962e0f4aaa8af308a9bdb4b51ab0327064c6f56cbbe1bdff3bd",
+            "stage_present": true,
+            "victim_summaries_left": 70,
+            "victim_summaries_total": 70
+          },
+          "signal": 9
+        },
+        "late_delta_sha256": "2bf6404324d820e1423cfbca50f0f4dd98d1ccae7497d15f6fdbd699f21b2d69",
+        "late_ms": 1795785621627,
+        "late_run": "1059111-30460963161387",
+        "late_tree_sha256": "d2a441a1ef7c15609c650816de846299b4c50de502b599ec740cfa3807f9d1f0",
+        "recovered": {
+          "delta_path": "history/api/v1/1795785624523/protocol-delta.json",
+          "delta_sha256": "f01a81b40a67bca70ba977f77ca0bd360f6e95a3f2abd32e78810f639da9a510",
+          "index_sha256": "7d58b7d89b20bd71d3bae0bf05e1a0320c2e2bde4d9e66b2adf73d19e6e31352",
+          "latest_tree": "3660a6cdc9baaada93aa81050857bcfcbe3bed7be504b0b8ba604dc87dc6b887",
+          "runs": [
+            "1059223-30463753056715",
+            "1059064-30460575863680",
+            "1059019-30458774176534",
+            "1058965-30457383458257"
+          ],
+          "times": [
+            1795785624523,
+            1795785621729,
+            1795785619449,
+            1795785618054
+          ]
+        },
+        "residue": []
+      }
+    },
+    {
+      "summary_file": "reclaim-3/summary.json",
+      "summary_sha256": "96de5ef9ec13196175e020b4144e7b6b0c1f6351300a76f073ebf073707e82cd",
+      "summary": {
+        "before": {
+          "delta_path": "history/api/v1/1795785641229/protocol-delta.json",
+          "delta_sha256": "89a411b22559df927ba00fdfd74374cd5fbf23f17f929f89149b7835b0995a58",
+          "index_sha256": "5d43edc9aaa85b677b850619bdfc2c18ae577d81a27738f1ccc33132940e1ed6",
+          "latest_tree": "d17e1728c0d2960aac6c6ca18e52e92752e19f231fc7af6a19cca21335734acf",
+          "runs": [
+            "1059823-30480072152479",
+            "1059754-30478474964431",
+            "1059744-30476876840228",
+            "1059680-30475030785864"
+          ],
+          "times": [
+            1795785641229,
+            1795785639146,
+            1795785637549,
+            1795785635732
+          ]
+        },
+        "crash": {
+          "delta_path": "history/api/v1/1795785641229/protocol-delta.json",
+          "delta_sha256": "89a411b22559df927ba00fdfd74374cd5fbf23f17f929f89149b7835b0995a58",
+          "index_sha256": "5d43edc9aaa85b677b850619bdfc2c18ae577d81a27738f1ccc33132940e1ed6",
+          "latest_tree": "d17e1728c0d2960aac6c6ca18e52e92752e19f231fc7af6a19cca21335734acf",
+          "runs": [
+            "1059823-30480072152479",
+            "1059754-30478474964431",
+            "1059744-30476876840228",
+            "1059680-30475030785864"
+          ],
+          "times": [
+            1795785641229,
+            1795785639146,
+            1795785637549,
+            1795785635732
+          ]
+        },
+        "crash_dirs": 5,
+        "cut": "before",
+        "final_dirs": 4,
+        "head_archive_sha256": "bae83b330dc2232c44efef911868069c4ca373b6a9146efed444afd84b595d01",
+        "interrupted_replay": {
+          "killed_run": "1059900-30482836854582",
+          "second_crash": {
+            "anchor_sha256": "16b8f01321dd32f1b5f785939a19907fc68afacf447cdd0fae90d9b9df972d69",
+            "indexed_tree_sha256": [
+              "bae83b330dc2232c44efef911868069c4ca373b6a9146efed444afd84b595d01",
+              "8426ff20d149e21550d61738e93847990033a7870068e25bea404581b97d86ae",
+              "15c9b9a41980dea436cdefd154e75cf9834c9966083931f8a96661926904958c",
+              "7229081f733efc718eee84fced2e208fdaae4a08aa197cfc2e3682fa6aeb397a"
+            ],
+            "late_numeric": false,
+            "numeric_dirs": 4,
+            "plan_sha256": "d7a62b4416fcf866d46c55ab7019fd619ca07d400f03f0f9b5a4b0219a196808",
+            "stage_present": true,
+            "victim_summaries_left": 70,
+            "victim_summaries_total": 70
+          },
+          "signal": 9
+        },
+        "late_delta_sha256": "abd303b8c03e7ee6dfaf89814a031455a2a1c90235ed7dd2f04403795dada262",
+        "late_ms": 1795785641121,
+        "late_run": "1059832-30480463340360",
+        "late_tree_sha256": "cdc1677ec5ebf1a9885591f731536e38b27ac4e625090c94190d6f5d468f69ac",
+        "recovered": {
+          "delta_path": "history/api/v1/1795785644327/protocol-delta.json",
+          "delta_sha256": "f860ce212bf7a5ca48975a94bbe1cf56a3f9356f0a247e8c377f163174a7e4fa",
+          "index_sha256": "849828d8293538dd247e920cc3433a4873b599d3aa194d78ceba3fc1bf786a0f",
+          "latest_tree": "e3551d3e08e6bd8153b41c7bb91eebfc572bb68577a8e3ba989b5abd0e53b750",
+          "runs": [
+            "1059982-30483561368544",
+            "1059823-30480072152479",
+            "1059754-30478474964431",
+            "1059744-30476876840228"
+          ],
+          "times": [
+            1795785644327,
+            1795785641229,
+            1795785639146,
+            1795785637549
+          ]
+        },
+        "residue": []
+      }
+    },
+    {
+      "summary_file": "prune-1/summary.json",
+      "summary_sha256": "4378953def33aa5c74fb9aabcb50d1e8d228d914302bbef7f1ee7fb87c7b119f",
+      "summary": {
+        "before": {
+          "delta_path": "history/api/v1/1795785612286/protocol-delta.json",
+          "delta_sha256": "33d79b2d5de3bd79f1d99d41ebb467507e56247080861886a16d08ef990bf0c3",
+          "index_sha256": "5c9dacd87733c8a7890f8e561fa8008865a0f99f7adb5535aca3185b13cf7041",
+          "latest_tree": "8dc6c89bc7687aa0e87fda10fb846ab09f47c2cdfd734fc62116ed89008cbe32",
+          "runs": [
+            "1058727-30451135091472",
+            "1058680-30449739510527",
+            "1058610-30447926091996",
+            "1058594-30446548650225"
+          ],
+          "times": [
+            1795785612286,
+            1795785610414,
+            1795785608624,
+            1795785607210
+          ]
+        },
+        "crash": {
+          "delta_path": "history/api/v1/1795785612178/index-head-delta.json",
+          "delta_sha256": "15e17a4ab05286645fff386865a69216c0a04e3ccea286deb5d52d7868c0b3bd",
+          "index_sha256": "3aa7bd46f05d41fe7c4492cd302b44103ba35e684c51392f402c2fee96847316",
+          "latest_tree": "8dc6c89bc7687aa0e87fda10fb846ab09f47c2cdfd734fc62116ed89008cbe32",
+          "runs": [
+            "1058727-30451135091472",
+            "1058755-30451516413744",
+            "1058680-30449739510527",
+            "1058610-30447926091996"
+          ],
+          "times": [
+            1795785612286,
+            1795785612178,
+            1795785610414,
+            1795785608624
+          ]
+        },
+        "crash_dirs": 5,
+        "cut": "after",
+        "final_dirs": 4,
+        "head_archive_sha256": "1bebf85b6a40ddd64d78ee5ebd87ac82abf25e3ef1f4007a3ceafed7b5abc944",
+        "interrupted_replay": {
+          "killed_run": "1058838-30453693066454",
+          "second_crash": {
+            "anchor_sha256": "fef772890c90f44ad0a55d38eeaa73b5121371e04a5e9f5f2daca62c0fb3a82a",
+            "indexed_tree_sha256": [
+              "1bebf85b6a40ddd64d78ee5ebd87ac82abf25e3ef1f4007a3ceafed7b5abc944",
+              "7805962c255c4c6f261494c00f515af60c9e3e299c4a8fccbcac018a185c997f",
+              "b2c7531a8f05afdb8b05055ef0a0d752e9e0d06cd2bc51d878a6c6b467d2b051",
+              "4077bc1124bb418d70553896a879bd5bd71b87c2e9fd4161a8b45bf096832b38"
+            ],
+            "late_numeric": true,
+            "numeric_dirs": 5,
+            "plan_sha256": "3d440f7a45a2876f5006bc2961abfea4b1ef30ee99c76cda33890087de04cc13",
+            "stage_present": false,
+            "victim_summaries_left": 69,
+            "victim_summaries_total": 70
+          },
+          "signal": 9
+        },
+        "late_delta_sha256": "15e17a4ab05286645fff386865a69216c0a04e3ccea286deb5d52d7868c0b3bd",
+        "late_ms": 1795785612178,
+        "late_run": "1058755-30451516413744",
+        "late_tree_sha256": "7805962c255c4c6f261494c00f515af60c9e3e299c4a8fccbcac018a185c997f",
+        "recovered": {
+          "delta_path": "history/api/v1/1795785615132/protocol-delta.json",
+          "delta_sha256": "608f6a759583345ca1adfb595a1b06a0e91f266b05e210c0dae7cb0dfbb40e3e",
+          "index_sha256": "4a9d4d63180bc07a09c02b897e2b7810e9569546951a3714cb80ec223a6e72a3",
+          "latest_tree": "9eccef73d0d73d2818a876b0b54c3f74fde093aa07865040805cccfdeb74d829",
+          "runs": [
+            "1058882-30454353690799",
+            "1058727-30451135091472",
+            "1058755-30451516413744",
+            "1058680-30449739510527"
+          ],
+          "times": [
+            1795785615132,
+            1795785612286,
+            1795785612178,
+            1795785610414
+          ]
+        },
+        "residue": []
+      }
+    },
+    {
+      "summary_file": "prune-2/summary.json",
+      "summary_sha256": "625fc4bbe3bfa4cbba73de354a7e8ea35dc33845318ea76d6a28faa37346d450",
+      "summary": {
+        "before": {
+          "delta_path": "history/api/v1/1795785631332/protocol-delta.json",
+          "delta_sha256": "02580c5ab2ca1ca927a30b3158e0316359f06f6ee122630a5d8c2aa5fd1b64ff",
+          "index_sha256": "98c6ed9cf3f1a245ab07188067c9d3cea597a1a11c48979a63e33a21aaf7e5a3",
+          "latest_tree": "f7a57d4b4d32bddab1df3cbdfc783779334a6dac11ec47e129cfc991803287b3",
+          "runs": [
+            "1059421-30470171663847",
+            "1059377-30468774670337",
+            "1059340-30466826124855",
+            "1059276-30465440586909"
+          ],
+          "times": [
+            1795785631332,
+            1795785629452,
+            1795785627507,
+            1795785626109
+          ]
+        },
+        "crash": {
+          "delta_path": "history/api/v1/1795785631234/index-head-delta.json",
+          "delta_sha256": "2e156f64678aafd05d9162fd98f5c67aa25858ed724edcff205f04d1eb336641",
+          "index_sha256": "203503a441f05cc5d22dbab2fa57973cc948e5b218116a109a85c38b418c4fe5",
+          "latest_tree": "f7a57d4b4d32bddab1df3cbdfc783779334a6dac11ec47e129cfc991803287b3",
+          "runs": [
+            "1059421-30470171663847",
+            "1059430-30470562211950",
+            "1059377-30468774670337",
+            "1059340-30466826124855"
+          ],
+          "times": [
+            1795785631332,
+            1795785631234,
+            1795785629452,
+            1795785627507
+          ]
+        },
+        "crash_dirs": 5,
+        "cut": "after",
+        "final_dirs": 4,
+        "head_archive_sha256": "2e5604a0a31b712d998e13b5d71fa36892e52e85551c34208c43f3e63a9f6195",
+        "interrupted_replay": {
+          "killed_run": "1059497-30472697613830",
+          "second_crash": {
+            "anchor_sha256": "0484e52f6fbc9a265931cd3aa8aa44efa07dcbcdfe96debc529632abf0611ae8",
+            "indexed_tree_sha256": [
+              "2e5604a0a31b712d998e13b5d71fa36892e52e85551c34208c43f3e63a9f6195",
+              "df37e35928134baeb21beb84942a7e534789c576d19195f6c70e44fed111ca95",
+              "285f06b9605467072995a8bf1527fea13ea76de140431246c7f991461f019698",
+              "f8863ee47c1944f53f569b16f81e7f1e0303436b57f1e8a47cd01f1857301553"
+            ],
+            "late_numeric": true,
+            "numeric_dirs": 5,
+            "plan_sha256": "696da50524bdc789646ccdd6f456be28fbb36ac8452f663c11367436f0f15683",
+            "stage_present": false,
+            "victim_summaries_left": 69,
+            "victim_summaries_total": 70
+          },
+          "signal": 9
+        },
+        "late_delta_sha256": "2e156f64678aafd05d9162fd98f5c67aa25858ed724edcff205f04d1eb336641",
+        "late_ms": 1795785631234,
+        "late_run": "1059430-30470562211950",
+        "late_tree_sha256": "df37e35928134baeb21beb84942a7e534789c576d19195f6c70e44fed111ca95",
+        "recovered": {
+          "delta_path": "history/api/v1/1795785634118/protocol-delta.json",
+          "delta_sha256": "4ccab808c7e3911792d05cc230471aa8ec7e95ec482e29e195aed40df0b6d4c6",
+          "index_sha256": "b290aa46fb63e4f8cd4eaf50814b730100c0d964987610c051ddab0467a2814a",
+          "latest_tree": "bc76c62b5be6e152129cea28acd785a1e3039f6f199950ecec03274ac34ffcf2",
+          "runs": [
+            "1059599-30473349737842",
+            "1059421-30470171663847",
+            "1059430-30470562211950",
+            "1059377-30468774670337"
+          ],
+          "times": [
+            1795785634118,
+            1795785631332,
+            1795785631234,
+            1795785629452
+          ]
+        },
+        "residue": []
+      }
+    },
+    {
+      "summary_file": "prune-3/summary.json",
+      "summary_sha256": "9e80f15224527caa0e2005240d697ec9b4e24c8a73afa7b0f5df4191dbf9d0a8",
+      "summary": {
+        "before": {
+          "delta_path": "history/api/v1/1795785651295/protocol-delta.json",
+          "delta_sha256": "6e9a2064e0457b73de97f7ab5cbd32fb26da79dfc289e7526f36d207e351260a",
+          "index_sha256": "f2f91fe97fd3579a58e71f61981766e0013516331d845699a6d9233f6359040a",
+          "latest_tree": "52b37e5dea9ee1684293da6fb145f45037b3b294c7a58db5799161be628b8b39",
+          "runs": [
+            "1060208-30490137298930",
+            "1060139-30488745601512",
+            "1060111-30487347531459",
+            "1060042-30485484975449"
+          ],
+          "times": [
+            1795785651295,
+            1795785649418,
+            1795785648011,
+            1795785646181
+          ]
+        },
+        "crash": {
+          "delta_path": "history/api/v1/1795785651183/index-head-delta.json",
+          "delta_sha256": "e400ebce10db2ba510ba5578f343c967374b6c928169989ab52e0a0ad47c89a4",
+          "index_sha256": "5b2666710c92044896548c7a4f916983e02ccb7e2e82204b4f658890d8ceeaa2",
+          "latest_tree": "52b37e5dea9ee1684293da6fb145f45037b3b294c7a58db5799161be628b8b39",
+          "runs": [
+            "1060208-30490137298930",
+            "1060217-30490524911740",
+            "1060139-30488745601512",
+            "1060111-30487347531459"
+          ],
+          "times": [
+            1795785651295,
+            1795785651183,
+            1795785649418,
+            1795785648011
+          ]
+        },
+        "crash_dirs": 5,
+        "cut": "after",
+        "final_dirs": 4,
+        "head_archive_sha256": "fe68ad04eadb20314f6c1be68fce4753f9e407aa094fca3563e58b4eb204c869",
+        "interrupted_replay": {
+          "killed_run": "1060284-30492679579991",
+          "second_crash": {
+            "anchor_sha256": "d4da2248eb55d9d83768bc9941be539972aceb7f1440217cd4469b0936515aac",
+            "indexed_tree_sha256": [
+              "fe68ad04eadb20314f6c1be68fce4753f9e407aa094fca3563e58b4eb204c869",
+              "613477615b579215e3bfb018979a70b27f6c8ce6362f4d3af8021d81df45e639",
+              "bcb77c1ef5b608b22dbae4a92d509693900c8749fff90e83bd2fc6fbb0ca795b",
+              "749017743aa384ba38f3b5f0b16fe59635378cf20a8c1d92aa20cfa453e0c957"
+            ],
+            "late_numeric": true,
+            "numeric_dirs": 5,
+            "plan_sha256": "da54bcbc23746033207bb7b669da489fc22fcc3551b7c9ed1515e8923ef2f800",
+            "stage_present": false,
+            "victim_summaries_left": 69,
+            "victim_summaries_total": 70
+          },
+          "signal": 9
+        },
+        "late_delta_sha256": "e400ebce10db2ba510ba5578f343c967374b6c928169989ab52e0a0ad47c89a4",
+        "late_ms": 1795785651183,
+        "late_run": "1060217-30490524911740",
+        "late_tree_sha256": "613477615b579215e3bfb018979a70b27f6c8ce6362f4d3af8021d81df45e639",
+        "recovered": {
+          "delta_path": "history/api/v1/1795785654111/protocol-delta.json",
+          "delta_sha256": "e40a9688cc24234a4176f6a9887c11ab63270231f89d4a4039163117541198dd",
+          "index_sha256": "127713f5c202621b1c5379f88b7800847abda6dd48a099433b0bd753484a1c56",
+          "latest_tree": "0e29c6f439332d007c38068a6a937d4880cf30008e88e4917d6339ef383edeca",
+          "runs": [
+            "1060363-30493340927067",
+            "1060208-30490137298930",
+            "1060217-30490524911740",
+            "1060139-30488745601512"
+          ],
+          "times": [
+            1795785654111,
+            1795785651295,
+            1795785651183,
+            1795785649418
+          ]
+        },
+        "residue": []
+      }
+    }
+  ]
+}

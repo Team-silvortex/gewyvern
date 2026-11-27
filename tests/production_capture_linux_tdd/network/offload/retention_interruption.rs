@@ -8,6 +8,8 @@ use std::os::unix::ffi::OsStrExt;
 mod prune_interruption;
 #[path = "shrink_interruption.rs"]
 mod shrink_interruption;
+#[path = "terminal_order.rs"]
+mod terminal_order;
 
 fn kill_on_event(
     active: &mut Process,

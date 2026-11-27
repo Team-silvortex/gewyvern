@@ -122,6 +122,34 @@ mod tests {
     }
 
     #[test]
+    fn replay_after_reclaim_rename_before_intent_unlink_preserves_the_stage() {
+        let (root, stage) = pending("reclaim-retry");
+        let dest = root.join("42");
+        let kept = root.join("43");
+        let committed = [(43, kept.clone())];
+        fs::create_dir(&kept).unwrap();
+        fs::write(kept.join("protocol-delta.json"), b"kept").unwrap();
+        fs::write(stage.join("index-head-delta.json"), b"late").unwrap();
+        fs::rename(&stage, &dest).unwrap();
+        // Model the completed reclaim rename, without running the following unlink.
+        fs::rename(&dest, &stage).unwrap();
+        assert!(root.join(INTENT).is_file());
+        for _ in 0..2 {
+            recover(&root, Some(&committed)).unwrap();
+            assert!(!root.join(INTENT).exists() && !dest.exists());
+            assert_eq!(
+                fs::read(stage.join("index-head-delta.json")).unwrap(),
+                b"late"
+            );
+            assert_eq!(fs::read(kept.join("protocol-delta.json")).unwrap(), b"kept");
+        }
+        super::super::prepare_history_stage(&root).unwrap();
+        assert!(!stage.join("index-head-delta.json").exists());
+        assert!(kept.join("protocol-delta.json").is_file());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn pre_rename_and_post_commit_receipts_never_remove_committed_entries() {
         let (root, stage) = pending("indexed");
         recover(&root, Some(&[])).unwrap();

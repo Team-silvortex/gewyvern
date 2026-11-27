@@ -1,9 +1,18 @@
 use super::*;
 use std::mem::{size_of, size_of_val};
 
-// Hold only this test writer's open of a single regular file until the observer
-// returns. Closing the group releases an outstanding permission event.
-fn at_writer_open(active: &Process, file: &Path, mut observe: impl FnMut() -> bool) {
+pub(super) fn at_writer_open(active: &Process, file: &Path, mut observe: impl FnMut() -> bool) {
+    on_open(active, file, 0, libc::SIGTERM, |_| observe());
+}
+
+// Dropping the group releases the held open; no sleeps or product failpoints.
+pub(super) fn on_open(
+    active: &Process,
+    file: &Path,
+    modifiers: u64,
+    start_signal: i32,
+    mut observe: impl FnMut(&fs::File) -> bool,
+) {
     let path = CString::new(file.as_os_str().as_bytes()).unwrap();
     let raw = unsafe {
         libc::fanotify_init(
@@ -21,13 +30,13 @@ fn at_writer_open(active: &Process, file: &Path, mut observe: impl FnMut() -> bo
         libc::fanotify_mark(
             raw,
             libc::FAN_MARK_ADD,
-            libc::FAN_OPEN_PERM,
+            libc::FAN_OPEN_PERM | modifiers,
             libc::AT_FDCWD,
             path.as_ptr(),
         )
     };
     assert_eq!(rc, 0, "fanotify_mark: {}", std::io::Error::last_os_error());
-    signal(active, libc::SIGTERM);
+    signal(active, start_signal);
     let deadline = Instant::now() + Duration::from_secs(10);
     while Instant::now() < deadline {
         let mut poll = libc::pollfd {
@@ -40,7 +49,7 @@ fn at_writer_open(active: &Process, file: &Path, mut observe: impl FnMut() -> bo
         if ready == 0 {
             continue;
         }
-        // This group marks a single regular file and does not request any info records.
+        // No variable-length information records were requested.
         let mut bytes = [0; size_of::<libc::fanotify_event_metadata>()];
         gate.read_exact(&mut bytes).unwrap();
         let event = unsafe {
@@ -50,10 +59,10 @@ fn at_writer_open(active: &Process, file: &Path, mut observe: impl FnMut() -> bo
                 .read_unaligned()
         };
         assert_eq!(event.event_len as usize, bytes.len());
-        assert_eq!(event.mask, libc::FAN_OPEN_PERM);
+        assert_ne!(event.mask & libc::FAN_OPEN_PERM, 0);
         assert!(event.fd >= 0);
-        let _file = unsafe { fs::File::from_raw_fd(event.fd) };
-        if event.pid == active.0.id() as i32 && observe() {
+        let file = unsafe { fs::File::from_raw_fd(event.fd) };
+        if event.pid == active.0.id() as i32 && observe(&file) {
             return;
         }
         let reply = libc::fanotify_response {

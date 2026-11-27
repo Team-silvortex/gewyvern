@@ -146,6 +146,30 @@ setting differs, the text view labels it separately. Raising that setting does
 not restore already evicted snapshots. See the [crash and reconfiguration
 example](../production-udp-offload-service.md#changing-retention-between-evictions).
 
+When two nonempty publications arrive out of timestamp order, only a newer
+`updated_unix_ms` may replace `latest` and change the shelf's retention. A
+distinct older timestamp can fill a retained position under the **committed**
+limit, evicting the oldest entry if necessary. Outside that limit it does not
+rewrite the index or create a directory. An existing timestamp is still a
+conflict. If a legacy shelf has no valid recorded limit, a late write refuses
+rather than guessing its policy. These rules do not change per-run capture
+status or exports.
+
+Each archive keeps its original publication-time protocol delta. For the delta
+between the *currently indexed* two newest entries, use the inline
+`latest_protocol_catalog_delta` or follow its `latest_protocol_catalog_delta_path`
+in the same index. After backfill that file can be in the incoming archive,
+not the head's directory. See the [two-collector example](../field-findings.md#two-collectors-commit-in-reverse-timestamp-order).
+
+After a process interruption, use the committed index, not the number of
+numeric directories, to determine whether the late run was published.
+Starting a new capture does not itself reclaim the extra directory. The
+[same-path restart example](../field-findings.md#interrupted-late-terminal-on-either-side-of-the-index-switch)
+shows what survives on each side of the switch and when cleanup takes place.
+If recovery itself stops, a reserved staging tree or a partially deleted
+numeric directory can remain. Neither is a new history entry. Leave it in
+place for the next writer; see [the second-crash example](../field-findings.md#a-second-crash-during-late-terminal-recovery).
+
 The packaged Linux tree remains:
 
 - `/usr/share/gewyvern/dsl`

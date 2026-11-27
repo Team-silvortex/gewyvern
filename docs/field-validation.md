@@ -19,8 +19,12 @@ stack; its development-only integration tests are a separate concern.
 
 For the current operating scope, see the [release notes](history/v2.7.x.md).
 The [history recovery results](production-udp-offload-service.md#changing-retention-between-evictions)
-cover a single writer interrupted during eviction. Concurrent writers on one
-shelf, power loss and independent-host qualification remain open.
+cover a single writer interrupted during eviction. [Two real collectors](field-findings.md#two-collectors-commit-in-reverse-timestamp-order)
+also cover a late terminal under a different retention policy. [Six same-host
+interruptions](field-findings.md#interrupted-late-terminal-on-either-side-of-the-index-switch)
+cover both sides of that index switch. [Six double-crash trials](field-findings.md#a-second-crash-during-late-terminal-recovery)
+separately cover interruption of reclamation and partial eviction during
+recovery. Power loss and independent-host qualification remain open.
 
 Use the following layers to repeat or extend a campaign. A harness check is
 not evidence for the formal CLI unless that check actually runs the product.

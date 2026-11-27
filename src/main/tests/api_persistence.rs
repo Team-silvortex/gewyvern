@@ -6,6 +6,9 @@ use std::thread;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[path = "api_persistence_race.rs"]
+mod race;
+
 struct EnvGuard {
     key: &'static str,
     previous: Option<String>,

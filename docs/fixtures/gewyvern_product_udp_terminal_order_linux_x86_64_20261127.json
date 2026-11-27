@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "release_artifact": false,
+  "host": "Linux 7.0.0-44-generic x86_64",
+  "product_version": "2.7.0",
+  "gate": "FAN_OPEN_PERM before the shelf lock, sample the stopped run via its own HTTP API, SIGSTOP until the peer commits, then SIGCONT.",
+  "excluded": "Two setup probes refused a non-test cgroup name before generating traffic; not counted.",
+  "fixed_product_sha256": "e5d273fc28695f4df7b3dc4cc5e8d9556d52532dcc0a9ba1d20e573cced82776",
+  "fixed_test_sha256": "21f0f6ea21eb022f1cfa233a03d3fb6e6f6d185423f4c928b70fca72ecd9886e",
+  "runs": [
+    {
+      "fixed": false,
+      "summary_file": "red-keep/summary.json",
+      "summary_sha256": "ef8ee48217966c782b5aaffe81689cf48d6123d2c13805d2086f0d630130b559",
+      "summary": {
+        "early_limit": 1,
+        "early_ms": 1795784107456,
+        "early_run": "1001933-28946751593364",
+        "head_limit": 4,
+        "head_ms": 1795784107631,
+        "head_run": "1001924-28946357550773",
+        "head_tree_after": "e09a6162701198f6f95a766e134e30ff3b41841cdcfbdc7ccd16861751bdf785",
+        "head_tree_before": "e09a6162701198f6f95a766e134e30ff3b41841cdcfbdc7ccd16861751bdf785",
+        "index_limit": 1,
+        "index_runs": [
+          "1001924-28946357550773"
+        ],
+        "latest_after": "1001933-28946751593364",
+        "latest_tree_after": "76ea56db98ed01b28b06f8f5a05e2c85411d2d3068677840917aa0adb2c698b8",
+        "latest_tree_before": "7b3414619ee0d6ede2412777ebab24655bae96e3fd31ea9c9c732ead5206bab1",
+        "physical_archives": 1,
+        "seed_ids": [
+          "1001750-28941728749045",
+          "1001791-28943114150745",
+          "1001917-28944966275069"
+        ]
+      }
+    },
+    {
+      "fixed": false,
+      "summary_file": "red-full/summary.json",
+      "summary_sha256": "a2890b080f3cf7eb5fc3f3609a28d9e9dd324ad3892e28d98aa94a1acaa463f0",
+      "summary": {
+        "early_limit": 4,
+        "early_ms": 1795784114808,
+        "early_run": "1002249-28954136628689",
+        "head_limit": 1,
+        "head_ms": 1795784114904,
+        "head_run": "1002219-28953715226803",
+        "head_tree_after": "924345dcf34b7853c4c06e47837fabf3349ede47638f3369c77ce7e13ea4a803",
+        "head_tree_before": "924345dcf34b7853c4c06e47837fabf3349ede47638f3369c77ce7e13ea4a803",
+        "index_limit": 4,
+        "index_runs": [
+          "1002219-28953715226803",
+          "1002249-28954136628689"
+        ],
+        "latest_after": "1002249-28954136628689",
+        "latest_tree_after": "0c8e8da68ecc089aa1eb18ede861095e13e250b93718940d840c82e61a1a4d28",
+        "latest_tree_before": "47270b05dd4db1d5ea393c4707ac353ffd16a3433672c7f6b4f01a13267ecab8",
+        "physical_archives": 2,
+        "seed_ids": [
+          "1002119-28949530423299",
+          "1002127-28950919407897",
+          "1002135-28952308618039"
+        ]
+      }
+    },
+    {
+      "fixed": true,
+      "summary_file": "fixed-keep-1/summary.json",
+      "summary_sha256": "a901f1af75471490fc8f42ed47c4d52babf916d7185c351ed451fdd46a4156ac",
+      "summary": {
+        "early_limit": 1,
+        "early_ms": 1795784210536,
+        "early_run": "1005641-29049871504317",
+        "head_limit": 4,
+        "head_ms": 1795784210644,
+        "head_run": "1005612-29049483801094",
+        "head_tree_after": "9397c97b5e26cef5d419b6ba33b6ada8396a8b112bc006812efccd271fc632a1",
+        "head_tree_before": "9397c97b5e26cef5d419b6ba33b6ada8396a8b112bc006812efccd271fc632a1",
+        "index_limit": 4,
+        "index_runs": [
+          "1005612-29049483801094",
+          "1005641-29049871504317",
+          "1005478-29048090938709",
+          "1005463-29046226065308"
+        ],
+        "latest_after": "1005612-29049483801094",
+        "latest_tree_after": "83eebfe9616c273bacb366482a5e64cb6b079dd9718d25f2ac8910269881cd04",
+        "latest_tree_before": "83eebfe9616c273bacb366482a5e64cb6b079dd9718d25f2ac8910269881cd04",
+        "physical_archives": 4,
+        "seed_ids": [
+          "1005419-29044846008626",
+          "1005463-29046226065308",
+          "1005478-29048090938709"
+        ]
+      }
+    },
+    {
+      "fixed": true,
+      "summary_file": "fixed-keep-2/summary.json",
+      "summary_sha256": "f642d1fc5aac419514a1636746fa9ff9909f55385ebc6498539a800f5845509b",
+      "summary": {
+        "early_limit": 1,
+        "early_ms": 1795784224148,
+        "early_run": "1006111-29063485086567",
+        "head_limit": 4,
+        "head_ms": 1795784224254,
+        "head_run": "1006084-29063095512603",
+        "head_tree_after": "d9fef8fe9103ffe3b967cef5404e753fed04bc321b208e785c54cbb8d93f7dd2",
+        "head_tree_before": "d9fef8fe9103ffe3b967cef5404e753fed04bc321b208e785c54cbb8d93f7dd2",
+        "index_limit": 4,
+        "index_runs": [
+          "1006084-29063095512603",
+          "1006111-29063485086567",
+          "1006073-29061656649886",
+          "1006037-29060265481307"
+        ],
+        "latest_after": "1006084-29063095512603",
+        "latest_tree_after": "1e4cc833b7bbd0501a8dfaf53b4d1b15d65a062851aad33f956594e1e24dd1c6",
+        "latest_tree_before": "1e4cc833b7bbd0501a8dfaf53b4d1b15d65a062851aad33f956594e1e24dd1c6",
+        "physical_archives": 4,
+        "seed_ids": [
+          "1005952-29058864743983",
+          "1006037-29060265481307",
+          "1006073-29061656649886"
+        ]
+      }
+    },
+    {
+      "fixed": true,
+      "summary_file": "fixed-keep-3/summary.json",
+      "summary_sha256": "256c6aa54d18a74d50b04aa2be48e7942eb157d0485575eb0c5e284082972f01",
+      "summary": {
+        "early_limit": 1,
+        "early_ms": 1795784239084,
+        "early_run": "1006738-29078402401140",
+        "head_limit": 4,
+        "head_ms": 1795784239251,
+        "head_run": "1006639-29078009838981",
+        "head_tree_after": "29dce5c9e43aabffa5ecd1df970d4777806424bf61a68403546af5e90ccb40c4",
+        "head_tree_before": "29dce5c9e43aabffa5ecd1df970d4777806424bf61a68403546af5e90ccb40c4",
+        "index_limit": 4,
+        "index_runs": [
+          "1006639-29078009838981",
+          "1006738-29078402401140",
+          "1006607-29076617454546",
+          "1006581-29075229142170"
+        ],
+        "latest_after": "1006639-29078009838981",
+        "latest_tree_after": "70ac9d411cec669bd274f2e8a2a0456f3653482f9a11ef5a1e5c6dc8efd6e016",
+        "latest_tree_before": "70ac9d411cec669bd274f2e8a2a0456f3653482f9a11ef5a1e5c6dc8efd6e016",
+        "physical_archives": 4,
+        "seed_ids": [
+          "1006479-29073323079066",
+          "1006581-29075229142170",
+          "1006607-29076617454546"
+        ]
+      }
+    },
+    {
+      "fixed": true,
+      "summary_file": "fixed-full-1/summary.json",
+      "summary_sha256": "07c3669150ea8794e7edaafe7247772c1397ad4ab657c289b3766b7b1a493c60",
+      "summary": {
+        "early_limit": 4,
+        "early_ms": 1795784217375,
+        "early_run": "1005840-29056701112265",
+        "head_limit": 1,
+        "head_ms": 1795784217472,
+        "head_run": "1005804-29056311641669",
+        "head_tree_after": "1d8a7e524b3aa663b4328b384b2f100398d181337c1d49d23d9a9b536c297dfa",
+        "head_tree_before": "1d8a7e524b3aa663b4328b384b2f100398d181337c1d49d23d9a9b536c297dfa",
+        "index_limit": 1,
+        "index_runs": [
+          "1005804-29056311641669"
+        ],
+        "latest_after": "1005804-29056311641669",
+        "latest_tree_after": "542b8b4f8b5934f88018847fb4320c27ffb99bbb3b9ce564a12e40a6665418dd",
+        "latest_tree_before": "542b8b4f8b5934f88018847fb4320c27ffb99bbb3b9ce564a12e40a6665418dd",
+        "physical_archives": 1,
+        "seed_ids": [
+          "1005679-29052139710030",
+          "1005707-29053533341613",
+          "1005770-29054925528811"
+        ]
+      }
+    },
+    {
+      "fixed": true,
+      "summary_file": "fixed-full-2/summary.json",
+      "summary_sha256": "f9c3e6e702c8f7bb103106b7b27afba698cac92b1edce02f104fe8226e766379",
+      "summary": {
+        "early_limit": 4,
+        "early_ms": 1795784232216,
+        "early_run": "1006457-29071551132851",
+        "head_limit": 1,
+        "head_ms": 1795784232325,
+        "head_run": "1006447-29071174315132",
+        "head_tree_after": "d3c40e6ff4adea757cc68379fe2fdc061e37a0391c047300423b9d92ac6d1de6",
+        "head_tree_before": "d3c40e6ff4adea757cc68379fe2fdc061e37a0391c047300423b9d92ac6d1de6",
+        "index_limit": 1,
+        "index_runs": [
+          "1006447-29071174315132"
+        ],
+        "latest_after": "1006447-29071174315132",
+        "latest_tree_after": "109dd3374ece9c1027175911d073e852d69c257ac8996b0866093d55be1b4964",
+        "latest_tree_before": "109dd3374ece9c1027175911d073e852d69c257ac8996b0866093d55be1b4964",
+        "physical_archives": 1,
+        "seed_ids": [
+          "1006209-29065853630646",
+          "1006267-29067797407818",
+          "1006401-29069528732010"
+        ]
+      }
+    },
+    {
+      "fixed": true,
+      "summary_file": "fixed-full-3/summary.json",
+      "summary_sha256": "045b0f50121b51303b9d924e05375da4ef9af56f685a68639d45cd9454322e2f",
+      "summary": {
+        "early_limit": 4,
+        "early_ms": 1795784255367,
+        "early_run": "1007235-29094705092912",
+        "head_limit": 1,
+        "head_ms": 1795784255477,
+        "head_run": "1007226-29094319359429",
+        "head_tree_after": "3b5c74782dbfedd6924a3eb4181b79369e98dd9b85fef04e3c6c1f5d13035eb2",
+        "head_tree_before": "3b5c74782dbfedd6924a3eb4181b79369e98dd9b85fef04e3c6c1f5d13035eb2",
+        "index_limit": 1,
+        "index_runs": [
+          "1007226-29094319359429"
+        ],
+        "latest_after": "1007226-29094319359429",
+        "latest_tree_after": "18684015c5f5fac75ee2a6a683f9d948b40dfe46bad886f70c8147df5ce8066b",
+        "latest_tree_before": "18684015c5f5fac75ee2a6a683f9d948b40dfe46bad886f70c8147df5ce8066b",
+        "physical_archives": 1,
+        "seed_ids": [
+          "1007108-29089674588923",
+          "1007155-29091066372665",
+          "1007162-29092457859419"
+        ]
+      }
+    }
+  ]
+}
