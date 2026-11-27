@@ -3,10 +3,14 @@
 #![cfg(target_os = "linux")]
 #[path = "production_capture_linux_tdd/boundaries.rs"]
 mod boundaries;
+#[path = "production_capture_linux_tdd/http_status.rs"]
+mod http_status;
 #[path = "production_capture_linux_tdd/installed.rs"]
 mod installed;
 #[path = "production_capture_linux_tdd/network.rs"]
 mod network;
+#[path = "production_capture_linux_tdd/redis_resp.rs"]
+mod redis_resp;
 use gewyvern::export::ExportBundle;
 use gewyvern::ledger::FactKind;
 use gewyvern::live_capture::{CaptureSnapshot, CaptureState};

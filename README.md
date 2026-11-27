@@ -113,8 +113,10 @@ session data.
 - project version: `2.7.x`
 - stage: stable community release, with the Gewyvern debugger core and
   Rust Leserpent/Leselang control plane shipped as one protocolized system
-- protocol analysis: TCP and UDP from supplied facts; the built-in live
-  collector observes direct UDP, not arbitrary TCP streams
+- protocol analysis: TCP and UDP from supplied facts; live UDP capture plus
+  [HTTP/1.1 first status](docs/live-http-status.md) and
+  [Redis RESP2 reply framing](docs/live-redis-resp.md) on Linux IPv4 loopback.
+  These TCP commands emit metadata, not arbitrary streams.
 - protocol registry coverage: 70 protocol families and 361 package entries
   under `protocols/`
 - input modes: demo facts, Unix/TCP fact sockets, and opt-in

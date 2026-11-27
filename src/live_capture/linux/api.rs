@@ -13,6 +13,7 @@ pub(super) struct Api {
     pub program_fd: unsafe extern "C" fn(*const c_void) -> c_int,
     pub map_fd: unsafe extern "C" fn(*const c_void, *const c_char) -> c_int,
     pub lookup: unsafe extern "C" fn(c_int, *const c_void, *mut c_void) -> c_int,
+    pub next_key: unsafe extern "C" fn(c_int, *const c_void, *mut c_void) -> c_int,
     pub ring_new: unsafe extern "C" fn(c_int, Callback, *mut c_void, *const c_void) -> *mut c_void,
     pub consume: unsafe extern "C" fn(*mut c_void, usize) -> c_int,
     pub ring_free: unsafe extern "C" fn(*mut c_void),
@@ -64,6 +65,10 @@ impl Api {
                 ),
                 lookup: symbol!(
                     "bpf_map_lookup_elem",
+                    unsafe extern "C" fn(c_int, *const c_void, *mut c_void) -> c_int
+                ),
+                next_key: symbol!(
+                    "bpf_map_get_next_key",
                     unsafe extern "C" fn(c_int, *const c_void, *mut c_void) -> c_int
                 ),
                 ring_new: symbol!(

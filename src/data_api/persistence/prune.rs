@@ -183,21 +183,7 @@ impl Retired {
                     dir.display()
                 ));
             }
-            // Keep identity until all payload is gone; a partially pruned tree
-            // is still identifiable after SIGKILL. Never recurse through links.
-            for entry in fs::read_dir(&dir).map_err(|e| e.to_string())? {
-                let entry = entry.map_err(|e| e.to_string())?;
-                if entry.file_name() == anchor {
-                    continue;
-                }
-                if entry.file_type().map_err(|e| e.to_string())?.is_dir() {
-                    fs::remove_dir_all(entry.path())
-                } else {
-                    fs::remove_file(entry.path())
-                }
-                .map_err(|e| format!("prune {}: {e}", entry.path().display()))?;
-            }
-            fs::remove_file(dir.join(anchor)).map_err(|e| format!("remove prune anchor: {e}"))?;
+            super::remove_payload_then_anchor(&dir, anchor)?;
         }
         // Also handles death after the last unlink but before rmdir.
         fs::remove_dir(&dir).map_err(|e| format!("finish pruning {}: {e}", dir.display()))

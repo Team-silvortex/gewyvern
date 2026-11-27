@@ -56,7 +56,7 @@ a target number of protocol packages or an assumption of full packet capture.
 
 | Gate | Demonstration required |
 | --- | --- |
-| Trust the local evidence | The [equal-timestamp regression](docs/field-findings.md#two-writers-one-history-timestamp), [reverse-order finishes](docs/field-findings.md#two-collectors-commit-in-reverse-timestamp-order) and [backfill recovery after two crashes](docs/field-findings.md#a-second-crash-during-late-terminal-recovery) cover distinct cases. Next check cleanup when the next writer is itself outside the retention horizon. |
+| Trust the local evidence | The [equal-timestamp regression](docs/field-findings.md#two-writers-one-history-timestamp), [backfill recovery after two crashes](docs/field-findings.md#a-second-crash-during-late-terminal-recovery) and [expired-only terminals](docs/field-findings.md#only-expired-terminals-arrive-after-recovery) cover distinct cases. Next interrupt the expired writer during staging-tree removal. |
 | Compare two independent sources | Keep private state/output per collector. From one Leserpent session, inspect both run identities, scopes, time windows and loss counters; taking one source offline must show a gap, not a healthy merged result. Qualify this on independent hosts. |
 | Reproduce a conclusion | Start with a DNS incident. Use the same saved evidence from the GUI and a read-only machine client, check it against the workload logs, and recover the same diagnosis or explicit uncertainty without a live model or privileged remote action. |
 
@@ -86,7 +86,7 @@ Etragon must never become a prerequisite for Gewyvern diagnosis or Leserpent con
 - improve performance and UX where the stable core is already proven
 - keep adjacent apps aligned to the same mainline version and stable boundaries
 - distinguish the [tested process-crash cases](docs/production-udp-offload-service.md#changing-retention-between-evictions)
-  from the open gates: recovery with only out-of-horizon late writers,
+  from the open gates: interruption during expired-writer staging-tree removal,
   power-loss durability, and independent Linux hosts/kernels
 
 The final ten-slot `v1.20.0` through `v1.20.9` closure window completed before

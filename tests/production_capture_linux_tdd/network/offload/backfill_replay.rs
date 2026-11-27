@@ -16,8 +16,8 @@ impl Shelf<'_> {
         cut: Cut,
         p: &mut Process,
         id: &str,
-        restart: &mut impl FnMut(&str) -> (Process, String),
-    ) -> (Process, String, Value) {
+        restart: impl FnOnce(&str) -> Option<(Process, String)>,
+    ) -> (Option<(Process, String)>, Value) {
         let h = self.state.join("history/api/v1");
         let plan = h.join(".gewyvern-prune-v1.json");
         let intent = h.join(".gewyvern-inflight-v1.json");
@@ -119,11 +119,14 @@ impl Shelf<'_> {
                 "victim_summaries_total":total,"plan_sha256":hash(&original_plan),"anchor_sha256":hash(&original_anchor)})
         };
         let second_crash = inspect();
-        let (replacement, new_id) = restart(id);
-        assert_ne!(new_id, id);
-        let second_running = inspect();
-        assert_eq!(second_running, second_crash);
-        let proof = json!({"killed_run":id,"signal":sig,"second_crash":second_crash,"second_running":second_running});
-        (replacement, new_id, proof)
+        let mut proof = json!({"killed_run":id,"signal":sig,"second_crash":second_crash});
+        let next = restart(id);
+        if let Some((_, new_id)) = &next {
+            assert_ne!(new_id, id);
+            let second_running = inspect();
+            assert_eq!(second_running, second_crash);
+            proof["second_running"] = second_running;
+        }
+        (next, proof)
     }
 }

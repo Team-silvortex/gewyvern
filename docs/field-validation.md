@@ -24,7 +24,9 @@ also cover a late terminal under a different retention policy. [Six same-host
 interruptions](field-findings.md#interrupted-late-terminal-on-either-side-of-the-index-switch)
 cover both sides of that index switch. [Six double-crash trials](field-findings.md#a-second-crash-during-late-terminal-recovery)
 separately cover interruption of reclamation and partial eviction during
-recovery. Power loss and independent-host qualification remain open.
+recovery. The [expired-writer check](field-findings.md#only-expired-terminals-arrive-after-recovery)
+verifies cleanup without any newer terminal commit. Power loss and
+independent-host qualification remain open.
 
 Use the following layers to repeat or extend a campaign. A harness check is
 not evidence for the formal CLI unless that check actually runs the product.
@@ -67,6 +69,18 @@ not evidence for the formal CLI unless that check actually runs the product.
 
 27. Use `linux-udp-capture --production-dns` and `--production-ipv6-dns` for the [formal CLI against real CoreDNS](production-dns-field.md). Reuse the private target/client fixtures, but let the actual product process own BPF attachment and analyze both DNS packages. Require exact socket/direction/full-bounded-payload multisets, all observed replies, four RCODEs, TC, timeout/reuse, an outside-cgroup neighbor, truthful final loss counters, replay and complete cleanup. Do not substitute validation capture or infer cross-window correlation, full DNS parsing or throughput.
 28. Use `--production-snmp`, `--production-ntp` and `--production-stun` for [formal CLI management UDP checks](production-management-udp-field.md). Require per-package real target traffic, exact bounded bytes, phase provenance including negative outcomes, outside-cgroup neighbor exclusion, final accounting and detach/replay. NTP must retain both unsynchronised and local-reference configurations with host clock control disabled; coturn remains STUN-only. These IPv4 runs do not imply authentication, transaction correlation, clock discipline, NAT traversal or throughput.
+
+29. Run the [HTTP/1.1 status observer](live-http-status.md) against split
+responses and real Caddy on IPv4 loopback. Check an outside-cgroup neighbor,
+a body starting with status-like text, a pre-attach connection and socket
+capacity. This is a formal CLI prefix report, **not** a TCP protocol-package
+export or a general live TCP producer.
+
+30. Run the [Redis RESP2 observer](live-redis-resp.md) against a disposable
+real Redis server. Compare the actual wire replies with the ordered CLI types
+and lengths; require correct bulk/error boundaries, binary and empty/null
+distinctions, scope exclusion, and explicit incomplete reports for limits,
+nested arrays and a connection established before attachment.
 
 ### Breadth Acceptance
 

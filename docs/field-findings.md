@@ -1,5 +1,53 @@
 # Field Findings
 
+## Redis Errors Are Frames, Not Text Matches
+
+On Linux 7.0.0-44 with Redis 8.0.5, three runs of the
+[formal RESP2 CLI](live-redis-resp.md) each observed 13 top-level replies
+in five payload segments. Eleven replies finished in a single segment.
+Only the wrong-type and wrong-arity replies were errors. A 17-byte value
+starting with `-ERR`, a binary value containing a fake error line, and a
+96 KiB binary echo were bulk strings. The following PONG still decoded.
+
+The [twelve reports](fixtures/gewyvern_redis_resp_cli_linux_x86_64_20261127.json)
+also cover overflow, a nested array returned by EXEC, and a pre-attachment
+socket. These cases exited 3 without inventing a reply. A separate client's
+NOAUTH response on the same Redis port was excluded in every scenario.
+This establishes scoped reply framing, not Redis command tracing or RESP3.
+
+## Only Expired Terminals Arrive After Recovery
+
+On Linux 7.0.0-44 x86_64, three real dual-stack UDP collectors were held
+before taking the shelf lock, after their terminal timestamps had been read
+from their HTTP APIs. We then filled the four-entry shelf and interrupted
+both a retained backfill and its recovery writer as described below. Only
+the three waiting writers were released afterwards. Every timestamp was
+older than the oldest indexed entry; their own limits of one, eight and
+four could not change the head's committed limit.
+
+| Interrupted recovery | Before the fix | After the fix |
+| --- | --- | --- |
+| Uncommitted late archive moved back to staging | All three submissions succeeded and discarded the obsolete prune plan, but left the same complete staging tree on disk. | The first submission removed the owned stage and obsolete plan. Neither reappeared. |
+| Committed victim partially deleted | The first submission finished the eviction without losing the indexed delta. | Same result: exactly four indexed archives, no partial victim or pending plan. |
+
+An expired write used to return before the reserved stage was cleared. It now
+clears that slot without creating a new one, keeping its ownership marker
+until the payload has been removed. It does not discover or sweep unrelated
+numeric directories.
+
+The [before/after Linux records](fixtures/gewyvern_product_udp_expired_only_linux_x86_64_20261127.json)
+include both baselines and three fresh fixed trials per branch. After each
+expired submission the index and latest tree hashes stayed unchanged; the
+indexed delta file opened and matched the inline delta and its timestamp
+pair. File identities and modification times for the index, referenced delta,
+latest metadata and latest export also stayed unchanged. Each writer's own
+terminal export was readable. No newer terminal committed during recovery.
+
+To repeat, run the ignored `production_capture_expired_only_reclaim` and
+`production_capture_expired_only_prune` tests on a privileged Linux host
+with BPF, cgroup v2 and fanotify. Set `GEWY_EXPIRED_RECLAIM_OUT` or
+`GEWY_EXPIRED_PRUNE_OUT`, respectively, to a fresh absolute directory.
+
 ## A Second Crash During Late-Terminal Recovery
 
 Six fresh Linux 7.0.0-44 x86_64 trials repeated the index-switch cuts below,

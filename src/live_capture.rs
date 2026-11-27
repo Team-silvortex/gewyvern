@@ -12,6 +12,8 @@ pub use fact_buffer::{
 mod linux;
 #[cfg(target_os = "linux")]
 pub use linux::Collector;
+#[cfg(target_os = "linux")]
+pub use linux::{observe_http_status, observe_redis_resp};
 
 #[derive(Clone, Debug)]
 pub struct CaptureOptions {

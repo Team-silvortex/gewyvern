@@ -1,6 +1,8 @@
 use super::*;
 #[path = "backfill_interruption.rs"]
 mod backfill_interruption;
+#[path = "expired_terminals.rs"]
+mod expired_terminals;
 use backfill_interruption::{Cut, Delayed, Fault};
 
 fn api(addr: std::net::SocketAddr, path: &str) -> Value {
@@ -80,11 +82,65 @@ fn production_capture_backfill_prune_replay_killed() {
     );
 }
 
+#[test]
+#[ignore = "Linux root/BPF/fanotify; GEWY_EXPIRED_RECLAIM_OUT=new-directory"]
+fn production_capture_expired_only_reclaim() {
+    exercise(
+        "GEWY_EXPIRED_RECLAIM_OUT",
+        1,
+        4,
+        Some(Fault::Expired(Cut::Before)),
+    );
+}
+
+#[test]
+#[ignore = "Linux root/BPF/fanotify; GEWY_EXPIRED_PRUNE_OUT=new-directory"]
+fn production_capture_expired_only_prune() {
+    exercise(
+        "GEWY_EXPIRED_PRUNE_OUT",
+        1,
+        4,
+        Some(Fault::Expired(Cut::After)),
+    );
+}
+
+// Freeze a timestamped terminal before it acquires the shared shelf lock.
+fn hold_terminal(p: &Process, history: &Path, addr: std::net::SocketAddr, id: &str) -> u64 {
+    let mut ts = 0;
+    shrink_interruption::at_writer_open(p, &history.join(".gewyvern-writer-v1.lock"), || {
+        let health = api(addr, "/health");
+        assert_eq!(health["capture"]["state"], "stopped");
+        assert_eq!(health["capture"]["run_id"], id);
+        ts = api(addr, "/v1/latest/meta")["updated_unix_ms"]
+            .as_u64()
+            .unwrap();
+        signal(p, libc::SIGSTOP);
+        true
+    });
+    let mut status = 0;
+    let pid = p.0.id() as i32;
+    assert_eq!(
+        unsafe { libc::waitpid(pid, &mut status, libc::WUNTRACED) },
+        pid
+    );
+    assert!(libc::WIFSTOPPED(status) && ts > 0);
+    ts
+}
+
 fn exercise(out: &str, early_cap: usize, head_cap: usize, cut: Option<Fault>) {
     with_shelf(out, |dir, state, head_scope, start| {
         let history = state.join("history/api/v1");
         let latest = state.join("latest/api/v1/latest");
         let root = dir.parent().unwrap();
+        let expired = if matches!(cut, Some(Fault::Expired(_))) {
+            clean_stop(&mut start(4).0, dir, 4, 0); // Create the writer lock before parking.
+            [1, 8, 4]
+                .into_iter()
+                .map(|cap| expired_terminals::Parked::new(state, root, head_scope, cap))
+                .collect()
+        } else {
+            Vec::new()
+        };
         let seeds: Vec<_> = (0..3)
             .map(|_| clean_stop(&mut start(4).0, dir, 4, 0))
             .collect();
@@ -133,30 +189,7 @@ fn exercise(out: &str, early_cap: usize, head_cap: usize, cut: Option<Fault>) {
             .success()
         );
         window(&mut early, &early_dir, &early_id, 8);
-        let mut early_ts = 0;
-        // The API snapshot is already timestamped. Hold open before flock, not
-        // inside the critical section, so the newer collector can really commit.
-        shrink_interruption::at_writer_open(
-            &early,
-            &history.join(".gewyvern-writer-v1.lock"),
-            || {
-                let health = api(addr, "/health");
-                assert_eq!(health["capture"]["state"], "stopped");
-                assert_eq!(health["capture"]["run_id"], early_id);
-                early_ts = api(addr, "/v1/latest/meta")["updated_unix_ms"]
-                    .as_u64()
-                    .unwrap();
-                signal(&early, libc::SIGSTOP);
-                true
-            },
-        );
-        let mut status = 0;
-        let pid = early.0.id() as i32;
-        assert_eq!(
-            unsafe { libc::waitpid(pid, &mut status, libc::WUNTRACED) },
-            pid
-        );
-        assert!(libc::WIFSTOPPED(status));
+        let early_ts = hold_terminal(&early, &history, addr, &early_id);
         let newest = clean_stop(&mut head, dir, 4, 0);
         let before_index = fs::read(history.join("index.json")).unwrap();
         let head_ts = json_file(&latest.join("meta.json"))["updated_unix_ms"]
@@ -176,6 +209,7 @@ fn exercise(out: &str, early_cap: usize, head_cap: usize, cut: Option<Fault>) {
                 early_id: &early_id,
                 head: &newest,
                 seeds: &seeds,
+                expired,
             };
             delayed.interrupt(cut, &mut early, |previous| {
                 detached(&early_scope);

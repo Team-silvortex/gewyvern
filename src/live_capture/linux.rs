@@ -18,7 +18,12 @@ use crate::ledger::{FactEnvelope, FactId, PacketDir, SessionId, UdpOffloadSegmen
 use crate::packet_capture::{CapturedUdpDatagram, PacketObservation};
 
 mod api;
+mod http_status;
+mod redis_resp;
+mod tcp_observer;
 use api::Api;
+pub use http_status::observe_http_status;
+pub use redis_resp::observe_redis_resp;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -96,7 +101,7 @@ impl Drop for Scratch {
     }
 }
 
-fn compile(options: &CaptureOptions) -> Result<(Scratch, PathBuf), CaptureError> {
+fn compile_source(code: &str, defines: &[String]) -> Result<(Scratch, PathBuf), CaptureError> {
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| CaptureError::new("capture_clock_invalid", e.to_string()))?
@@ -104,9 +109,9 @@ fn compile(options: &CaptureOptions) -> Result<(Scratch, PathBuf), CaptureError>
     let path = Path::new("/tmp").join(format!("gewyvern-bpf-{}-{nonce}", std::process::id()));
     fs::DirBuilder::new().mode(0o700).create(&path)?;
     let scratch = Scratch(path);
-    let source = scratch.0.join("udp.c");
-    let object = scratch.0.join("udp.o");
-    fs::write(&source, include_str!("../../ebpf/production/udp.bpf.c"))?;
+    let source = scratch.0.join("capture.c");
+    let object = scratch.0.join("capture.o");
+    fs::write(&source, code)?;
     let output = crate::bounded_process::run_command_output(
         Command::new("/usr/bin/clang")
             .env_clear()
@@ -116,14 +121,7 @@ fn compile(options: &CaptureOptions) -> Result<(Scratch, PathBuf), CaptureError>
                 "-I/usr/include/{}-linux-gnu",
                 std::env::consts::ARCH
             ))
-            .arg(format!("-DUDP_PORT={}", options.udp_port))
-            .arg(format!("-DRING_BYTES={}", options.ring_bytes))
-            // Without kernel BTF retain ordinary capture and explicit offload
-            // rejection. Weak kfuncs provide the same fallback on older BTF hosts.
-            .arg(format!(
-                "-DOFFLOAD_CORE={}",
-                u8::from(size_of::<usize>() == 8 && Path::new("/sys/kernel/btf/vmlinux").is_file())
-            ))
+            .args(defines)
             .arg("-c")
             .arg(source)
             .arg("-o")
@@ -139,6 +137,20 @@ fn compile(options: &CaptureOptions) -> Result<(Scratch, PathBuf), CaptureError>
         ));
     }
     Ok((scratch, object))
+}
+
+fn compile(options: &CaptureOptions) -> Result<(Scratch, PathBuf), CaptureError> {
+    compile_source(
+        include_str!("../../ebpf/production/udp.bpf.c"),
+        &[
+            format!("-DUDP_PORT={}", options.udp_port),
+            format!("-DRING_BYTES={}", options.ring_bytes),
+            format!(
+                "-DOFFLOAD_CORE={}",
+                u8::from(size_of::<usize>() == 8 && Path::new("/sys/kernel/btf/vmlinux").is_file())
+            ),
+        ],
+    )
 }
 
 fn open_scope(path: &Path) -> Result<(File, PathBuf), CaptureError> {
@@ -162,6 +174,12 @@ fn open_scope(path: &Path) -> Result<(File, PathBuf), CaptureError> {
     }
     if stat.f_type != 0x63677270 {
         return Err(CaptureError::new("capture_scope_invalid", "not cgroup v2"));
+    }
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
+        return Err(CaptureError::new(
+            "capture_scope_busy",
+            "another collector owns this cgroup",
+        ));
     }
     Ok((file, canonical))
 }
@@ -223,13 +241,6 @@ impl Collector {
     pub fn start(options: CaptureOptions) -> Result<Self, CaptureError> {
         options.validate()?;
         let (scope, scope_path) = open_scope(&options.cgroup)?;
-        // Keep an exclusive flock on the cgroup inode for the entire lifecycle.
-        if unsafe { libc::flock(scope.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
-            return Err(CaptureError::new(
-                "capture_scope_busy",
-                "another collector owns this cgroup",
-            ));
-        }
         let (scratch, object_path) = compile(&options)?;
         let api = Api::new()?;
         let anchor = (clock()?, SystemTime::now());

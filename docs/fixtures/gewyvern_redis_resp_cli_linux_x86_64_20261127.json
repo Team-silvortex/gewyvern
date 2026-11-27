@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "release_artifact": false,
+  "host": "Linux 7.0.0-44-generic x86_64 GNU/Linux",
+  "product_version": "2.7.0",
+  "redis_version": "Redis server v=8.0.5 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=d47fc40702b1fad8",
+  "raw_campaign": "redis-resp-1795787774882",
+  "scope": "Formal CLI against a disposable IPv4 loopback Redis server; independent byte-for-byte client checks, not protocol-package export/replay.",
+  "product_binary_sha256": "4da8ad2a2ccea207f10a98cf60e240c483164a149156da6feba1ca9bf2b936f5",
+  "test_binary_sha256": "94931788457e6c788073a9830ad8e5759578e184c6ad7348100810ea37973892",
+  "redis_binary_sha256": "0f3f5d696b7dabd9af484c2d8844dbb0c9bc7722ddf794f63b911a9795509293",
+  "source_sha256": {
+    "ebpf/production/redis_resp.bpf.c": "78e8bdaad3cc34fc8ba56a069c8b742a59e32fa1ccca2c6dc6487abaa26d996e",
+    "src/live_capture/linux/redis_resp.rs": "196e320ea856c465ace7dc7265b51384ae8da64f7e4b997bb898777e049adb8b",
+    "src/live_capture/linux/tcp_observer.rs": "7b965ae83cbcb6ed803b357b730642305049f85d2f532f97f5a290802bcc2d5a",
+    "src/main/http_status_cli.rs": "4831099ba3a040ac1fc1df6186c3241c992badc5b0415294206414890ce38468",
+    "tests/production_capture_linux_tdd/redis_resp.rs": "829091d86a1ad3d9ec2f7f0f37eb0c6c5f167ec0f2b7caf04685ca7c56197513"
+  },
+  "pipeline_replies": [
+    {
+      "type": "simple_string"
+    },
+    {
+      "type": "simple_string"
+    },
+    {
+      "bytes": 17,
+      "type": "bulk_string"
+    },
+    {
+      "type": "simple_string"
+    },
+    {
+      "bytes": 21,
+      "type": "bulk_string"
+    },
+    {
+      "type": "null_bulk"
+    },
+    {
+      "bytes": 0,
+      "type": "bulk_string"
+    },
+    {
+      "type": "error"
+    },
+    {
+      "type": "error"
+    },
+    {
+      "type": "integer"
+    },
+    {
+      "elements": 3,
+      "type": "array"
+    },
+    {
+      "bytes": 98304,
+      "type": "bulk_string"
+    },
+    {
+      "type": "simple_string"
+    }
+  ],
+  "runs": [
+    {
+      "directory": "verified-1/nested",
+      "report_sha256": "5addc9f352888b32741df83eb6bdfa081020b2e34310acf81a814173aaa5a0f5",
+      "incomplete": true,
+      "connections": 1,
+      "outcome": "unsupported_type",
+      "reply_count": 0,
+      "server_payload_segments": 1,
+      "max_replies_per_segment": 3,
+      "unanchored_payload_packets": 0
+    },
+    {
+      "directory": "verified-1/overflow",
+      "report_sha256": "6eac795fda1720e7384b3864db9911821396aa33d44a3c25cb6af9dff18443d7",
+      "incomplete": true,
+      "connections": 1,
+      "outcome": "limit_reached",
+      "reply_count": 0,
+      "server_payload_segments": 1,
+      "max_replies_per_segment": 32,
+      "unanchored_payload_packets": 0
+    },
+    {
+      "directory": "verified-1/pipeline",
+      "report_sha256": "c9358ce141d44975c1596cc393b3c9c4c7e8c149e4dd8d89523debdadead4529",
+      "incomplete": false,
+      "connections": 1,
+      "outcome": "framed",
+      "reply_count": 13,
+      "server_payload_segments": 5,
+      "max_replies_per_segment": 11,
+      "unanchored_payload_packets": 0
+    },
+    {
+      "directory": "verified-1/preexisting",
+      "report_sha256": "012cb298eadea0971d461861ddfe5f194bbef291abfc810a98153ac217801b06",
+      "incomplete": true,
+      "connections": 0,
+      "outcome": null,
+      "reply_count": 0,
+      "server_payload_segments": 0,
+      "max_replies_per_segment": 0,
+      "unanchored_payload_packets": 1
+    },
+    {
+      "directory": "verified-2/nested",
+      "report_sha256": "23844bff0354cfaeb16e792bccce35ff293e9bf62a57b98bc55375f01252e31d",
+      "incomplete": true,
+      "connections": 1,
+      "outcome": "unsupported_type",
+      "reply_count": 0,
+      "server_payload_segments": 1,
+      "max_replies_per_segment": 3,
+      "unanchored_payload_packets": 0
+    },
+    {
+      "directory": "verified-2/overflow",
+      "report_sha256": "6f48b9f0ffb98833637ebc6012c948d16aa1e4ce6d57fdf72b1bd3b92c418a6c",
+      "incomplete": true,
+      "connections": 1,
+      "outcome": "limit_reached",
+      "reply_count": 0,
+      "server_payload_segments": 1,
+      "max_replies_per_segment": 32,
+      "unanchored_payload_packets": 0
+    },
+    {
+      "directory": "verified-2/pipeline",
+      "report_sha256": "10f289f4b3c716e9e318211ed41f40cdf3b059cbf62a561c591e74f9be870c5b",
+      "incomplete": false,
+      "connections": 1,
+      "outcome": "framed",
+      "reply_count": 13,
+      "server_payload_segments": 5,
+      "max_replies_per_segment": 11,
+      "unanchored_payload_packets": 0
+    },
+    {
+      "directory": "verified-2/preexisting",
+      "report_sha256": "2d0ba8c980b7ad6740204d25027afe5ca8f505dd1db401b4091c849df77a670c",
+      "incomplete": true,
+      "connections": 0,
+      "outcome": null,
+      "reply_count": 0,
+      "server_payload_segments": 0,
+      "max_replies_per_segment": 0,
+      "unanchored_payload_packets": 1
+    },
+    {
+      "directory": "verified-3/nested",
+      "report_sha256": "7bd6a11c8c0f41d59624ef02d9c86f95f47f65626b1a31e28182b490597cf6b2",
+      "incomplete": true,
+      "connections": 1,
+      "outcome": "unsupported_type",
+      "reply_count": 0,
+      "server_payload_segments": 1,
+      "max_replies_per_segment": 3,
+      "unanchored_payload_packets": 0
+    },
+    {
+      "directory": "verified-3/overflow",
+      "report_sha256": "086b9f28a4fe25260ca05de37cc86e62c8c05cafa5f4b7412205b6df7608d595",
+      "incomplete": true,
+      "connections": 1,
+      "outcome": "limit_reached",
+      "reply_count": 0,
+      "server_payload_segments": 1,
+      "max_replies_per_segment": 32,
+      "unanchored_payload_packets": 0
+    },
+    {
+      "directory": "verified-3/pipeline",
+      "report_sha256": "3b760daa53b72d30fc9b00cb8257665310af1a7986b1062c06864155d4494ede",
+      "incomplete": false,
+      "connections": 1,
+      "outcome": "framed",
+      "reply_count": 13,
+      "server_payload_segments": 5,
+      "max_replies_per_segment": 11,
+      "unanchored_payload_packets": 0
+    },
+    {
+      "directory": "verified-3/preexisting",
+      "report_sha256": "e3c45526bcadcc0007a00e43b05569d3f887a4d7c7a8aacbd6d9e5517f06411e",
+      "incomplete": true,
+      "connections": 0,
+      "outcome": null,
+      "reply_count": 0,
+      "server_payload_segments": 0,
+      "max_replies_per_segment": 0,
+      "unanchored_payload_packets": 1
+    }
+  ]
+}

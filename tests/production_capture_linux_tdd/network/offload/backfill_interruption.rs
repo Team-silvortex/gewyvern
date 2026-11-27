@@ -11,6 +11,7 @@ pub(super) enum Cut {
 pub(super) enum Fault {
     Index(Cut),
     Replay(Cut),
+    Expired(Cut),
 }
 
 pub(super) struct Delayed<'a> {
@@ -20,11 +21,12 @@ pub(super) struct Delayed<'a> {
     pub early_id: &'a str,
     pub head: &'a CaptureSnapshot,
     pub seeds: &'a [CaptureSnapshot],
+    pub expired: Vec<expired_terminals::Parked>,
 }
 
 // Verify the published pointers by opening their actual payloads, not by
 // reconstructing a delta from a directory scan (which can include an orphan).
-fn view(state: &Path, wanted: &[&CaptureSnapshot], sidecar: Option<u64>) -> Value {
+pub(super) fn view(state: &Path, wanted: &[&CaptureSnapshot], sidecar: Option<u64>) -> Value {
     let bytes = fs::read(state.join("history/api/v1/index.json")).unwrap();
     let index: Value = serde_json::from_slice(&bytes).unwrap();
     let entries = index["entries"].as_array().unwrap();
@@ -70,13 +72,13 @@ fn view(state: &Path, wanted: &[&CaptureSnapshot], sidecar: Option<u64>) -> Valu
 
 impl Delayed<'_> {
     pub(super) fn interrupt(
-        &self,
+        self,
         fault: Fault,
         p: &mut Process,
         mut restart: impl FnMut(&str) -> (Process, String),
     ) {
         let cut = match fault {
-            Fault::Index(c) | Fault::Replay(c) => c,
+            Fault::Index(c) | Fault::Replay(c) | Fault::Expired(c) => c,
         };
         let Self {
             state,
@@ -85,7 +87,8 @@ impl Delayed<'_> {
             early_id,
             head,
             seeds,
-        } = *self;
+            expired,
+        } = self;
         let h = state.join("history/api/v1");
         let index = h.join("index.json");
         let seed_view = [head, &seeds[2], &seeds[1], &seeds[0]];
@@ -179,7 +182,7 @@ impl Delayed<'_> {
         assert!(seed_view.iter().all(|s| s.run_id != fresh_id));
         let running = check_gap();
         assert_eq!(running, gap);
-        let replay = if let Fault::Replay(_) = fault {
+        let replay = if !matches!(fault, Fault::Index(_)) {
             let committed = if post { &new_view } else { &seed_view };
             let shelf = backfill_replay::Shelf {
                 state,
@@ -190,8 +193,19 @@ impl Delayed<'_> {
                 victim: &victim,
                 candidate_hash: &candidate_hash,
             };
-            let (replacement, id, proof) =
-                shelf.kill_and_restart(cut, &mut fresh, &fresh_id, &mut restart);
+            let (next, proof) = shelf.kill_and_restart(cut, &mut fresh, &fresh_id, |id| {
+                (!matches!(fault, Fault::Expired(_))).then(|| restart(id))
+            });
+            let Some((replacement, id)) = next else {
+                return expired_terminals::drain(
+                    expired,
+                    state,
+                    committed,
+                    post.then_some(early_ts),
+                    &proof,
+                    dir.parent().unwrap(),
+                );
+            };
             assert!(id != early_id && seed_view.iter().all(|s| s.run_id != id));
             fresh = replacement;
             fresh_id = id;

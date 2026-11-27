@@ -214,7 +214,9 @@ previously buried in wider cells are now independently judged:
   preserve the committed head and readable delta; the next terminal restores
   the physical retention bound. [Six double-crash trials](field-findings.md#a-second-crash-during-late-terminal-recovery)
   also interrupt the recovery writer before old-plan discard or during victim
-  deletion. Power loss and independent kernels remain separate gates. Maturity
+  deletion. [Expired-only submissions](field-findings.md#only-expired-terminals-arrive-after-recovery)
+  now drain both kinds of debt without replacing the published view.
+  Power loss and independent kernels remain separate gates. Maturity
   remains stabilizing.
 - **Leselang native foundation:** the independent MIT repository, exact Git pin,
   resolved-source checks and retained product compatibility tests close the

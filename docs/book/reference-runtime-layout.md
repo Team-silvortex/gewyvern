@@ -169,6 +169,10 @@ shows what survives on each side of the switch and when cleanup takes place.
 If recovery itself stops, a reserved staging tree or a partially deleted
 numeric directory can remain. Neither is a new history entry. Leave it in
 place for the next writer; see [the second-crash example](../field-findings.md#a-second-crash-during-late-terminal-recovery).
+Even a terminal older than the entire retained history finishes pending
+cleanup. It does not create a replacement stage, change the limit, or rewrite
+latest or the index. A nonempty staging directory without a valid ownership
+marker is refused, not recursively deleted. See the [expired-writer example](../field-findings.md#only-expired-terminals-arrive-after-recovery).
 
 The packaged Linux tree remains:
 

@@ -1059,6 +1059,17 @@
         { "kind": "documentation", "path": "docs/installed-udp-service.md", "state": "present" },
         { "kind": "source", "path": "src/export/capture_codec.rs", "state": "present" },
         { "kind": "source", "path": "ebpf/production/udp.bpf.c", "state": "present" },
+        { "kind": "source", "path": "ebpf/production/http_status.bpf.c", "state": "present" },
+        { "kind": "source", "path": "src/live_capture/linux/http_status.rs", "state": "present" },
+        { "kind": "test", "path": "tests/production_capture_linux_tdd/http_status_caddy.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_http_status_cli_linux_x86_64_20261127.json", "state": "present" },
+        { "kind": "documentation", "path": "docs/live-http-status.md", "state": "present" },
+        { "kind": "source", "path": "src/live_capture/linux/tcp_observer.rs", "state": "present" },
+        { "kind": "source", "path": "ebpf/production/redis_resp.bpf.c", "state": "present" },
+        { "kind": "source", "path": "src/live_capture/linux/redis_resp.rs", "state": "present" },
+        { "kind": "test", "path": "tests/production_capture_linux_tdd/redis_resp.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_redis_resp_cli_linux_x86_64_20261127.json", "state": "present" },
+        { "kind": "documentation", "path": "docs/live-redis-resp.md", "state": "present" },
         { "kind": "test", "path": "tests/production_capture_linux_tdd.rs", "state": "present" },
         { "kind": "test", "path": "docs/fixtures/gewyvern_production_udp_linux_x86_64_20261113.json", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/linux_tcp_capture/linux/udp_dns/production.rs", "state": "present" },
@@ -1217,7 +1228,8 @@
           "index-bound-resumable-eviction-after-history-commit",
           "multi-directory-prune-recovery-across-retention-changes",
           "retained-backfill-index-switch-crash-and-restart",
-          "interrupted-backfill-reclaim-and-partial-eviction-replay"
+          "interrupted-backfill-reclaim-and-partial-eviction-replay",
+          "expired-only-recovery-without-republication"
         ]
       },
       "depends_on": ["gewyvern-core/linux-ebpf/linux-attach"],
@@ -1251,10 +1263,12 @@
         { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_backfill_interruption_linux_x86_64_20261127.json", "state": "present" },
         { "kind": "test", "path": "tests/production_capture_linux_tdd/network/offload/backfill_replay.rs", "state": "present" },
         { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_backfill_replay_linux_x86_64_20261127.json", "state": "present" },
+        { "kind": "test", "path": "tests/production_capture_linux_tdd/network/offload/expired_terminals.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_expired_only_linux_x86_64_20261127.json", "state": "present" },
         { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_history_shrink_linux_x86_64_20261127.json", "state": "present" },
         { "kind": "documentation", "path": "docs/production-udp-offload-service.md", "state": "present" }
       ],
-      "next_gate": "Same-host Linux double-crash recovery covers reclaim of an uncommitted backfill and partial eviction of a committed victim. Next check whether cleanup converges when subsequent late terminals fall outside the retention horizon. Shared storage, power loss and cross-kernel qualification remain open."
+      "next_gate": "Same-host expired-only terminals finish staging cleanup and partial eviction without replacing the committed view. Next interrupt an expired writer while it deletes staging payload and retry. Shared storage, power loss and cross-kernel qualification remain open."
     },
     {
       "id": "leselang/release-assurance/pinned-native-foundation",

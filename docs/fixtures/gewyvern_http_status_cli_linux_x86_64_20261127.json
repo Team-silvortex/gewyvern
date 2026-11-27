@@ -1,0 +1,204 @@
+{
+  "schema_version": 1,
+  "release_artifact": false,
+  "host": "Linux 7.0.0-44-generic x86_64",
+  "product_version": "2.7.0",
+  "raw_campaign": "http-status-1795786871438",
+  "caddy_version": "2.6.2",
+  "scope": "Formal CLI, IPv4 loopback client ingress, first HTTP/1.1 response prefix only. Raw JSON and native client port records retained on test host; no DSL export/replay.",
+  "test_binary_sha256": "e6313baf707e42077018a72909b06ece92c5a94f17c26b850fb1bb9b31c7b893",
+  "product_binary_sha256": "76f23e729ce6942f308f1dcb6a69289599db75cfa2d4a4fd5079c0d4af816a69",
+  "caddy_binary_sha256": "9b174642a7043d4fb5b62188716c41d23785411e413cde8c6be2fd1fff108956",
+  "source_sha256": {
+    "ebpf/production/http_status.bpf.c": "e16d0e0fdc792d1e3e4cbe261f3e13638e569e618d855a7dc11647e56f1e260a",
+    "src/live_capture/linux/http_status.rs": "332d8ee9daa47411ef3de1abce05ebbb29e3156d8af909f5d29b422b634dc486",
+    "src/main/http_status_cli.rs": "dea39dfe68e6c877cb339ed30bc459967bf23bf6c0957b59a1554f6299fb919f",
+    "tests/production_capture_linux_tdd/http_status.rs": "0e9620f8c7d9efa860a5edf831a10b997f27581866f67d7cb84e4de704f4191b",
+    "tests/production_capture_linux_tdd/http_status_caddy.rs": "bdd828f142b2223f488546a2d279f2960ddf9e9e226cebdba30a460c69334f9f"
+  },
+  "runs": [
+    {
+      "directory": "final-split-1",
+      "report_sha256": "85b855ec9c8cde2d7e2fcee027a00462962e11b066dd8a4bc8a520c8095552e0",
+      "client_ports_sha256": "effee2de230ca536b073014b70d27c70b2861d2156638d4bae929aa92c624ea1",
+      "client_connections": 3,
+      "admitted": 3,
+      "incomplete": false,
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "observed_status_counts": {
+        "200": 1,
+        "403": 1,
+        "not_http11": 1
+      },
+      "segments_in_client_order": [
+        2,
+        1,
+        1
+      ],
+      "matches_expected_client_ports": true
+    },
+    {
+      "directory": "final-caddy-1/complete",
+      "report_sha256": "46e5c9f890400096699d136f4ecf4600bf522ed76e9898d28a6e865bdef25eeb",
+      "client_ports_sha256": "18771b99082abd87e7f8c380e962fada192af2337d326fd6f4b583bf8f3d90b3",
+      "client_connections": 2,
+      "admitted": 2,
+      "incomplete": false,
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "observed_status_counts": {
+        "201": 2
+      },
+      "matches_expected_client_ports": true
+    },
+    {
+      "directory": "final-caddy-1/bounded",
+      "report_sha256": "84d01fcd9242190ece93a8da8aabf30eccd425e505b9cee0918e38d206df8479",
+      "client_ports_sha256": "8fe56aa64df23342ca64ce0b0458481d0fd6631ea91f8c02608ed5cd16f9be55",
+      "client_connections": 66,
+      "admitted": 64,
+      "incomplete": true,
+      "counters": {
+        "admission_failures": 1,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 2
+      },
+      "observed_status_counts": {
+        "201": 64
+      },
+      "matches_expected_client_ports": true
+    },
+    {
+      "directory": "final-split-2",
+      "report_sha256": "3ce73cd6973fc33efcd5be1fb80d2a849083bd6f70ecc638dc2e209aad56c32f",
+      "client_ports_sha256": "9b62912241a35d0e25d5cadab050a15e089d846b2f915e52847d2af7897cd396",
+      "client_connections": 3,
+      "admitted": 3,
+      "incomplete": false,
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "observed_status_counts": {
+        "200": 1,
+        "403": 1,
+        "not_http11": 1
+      },
+      "segments_in_client_order": [
+        2,
+        1,
+        1
+      ],
+      "matches_expected_client_ports": true
+    },
+    {
+      "directory": "final-caddy-2/complete",
+      "report_sha256": "07b2eb2852aac471cc8c2d8f370c35c10d421edfaeb8dbd743b46107c7e11d98",
+      "client_ports_sha256": "52c94a9488ab257ea4b3ac11ee081d9deedde35e71fc5a97f9db20cb1afafd58",
+      "client_connections": 2,
+      "admitted": 2,
+      "incomplete": false,
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "observed_status_counts": {
+        "201": 2
+      },
+      "matches_expected_client_ports": true
+    },
+    {
+      "directory": "final-caddy-2/bounded",
+      "report_sha256": "66f36db761d8d5faed0f93ea102249b6288cc0643bcb4ab90ce44f49cf6969cc",
+      "client_ports_sha256": "af0375314573150ce2a49bb72999d5202fb6edb03d3413dfc85a5676656416e9",
+      "client_connections": 66,
+      "admitted": 64,
+      "incomplete": true,
+      "counters": {
+        "admission_failures": 1,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 2
+      },
+      "observed_status_counts": {
+        "201": 64
+      },
+      "matches_expected_client_ports": true
+    },
+    {
+      "directory": "final-split-3",
+      "report_sha256": "788d4ef649a3afb42337c07bab7e043140e019efc330ab891b3a9381ed841645",
+      "client_ports_sha256": "11c32ab4374129ef1b0684c003932babd7b65757a31a20e9242da9240b45cbea",
+      "client_connections": 3,
+      "admitted": 3,
+      "incomplete": false,
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "observed_status_counts": {
+        "200": 1,
+        "403": 1,
+        "not_http11": 1
+      },
+      "segments_in_client_order": [
+        2,
+        1,
+        1
+      ],
+      "matches_expected_client_ports": true
+    },
+    {
+      "directory": "final-caddy-3/complete",
+      "report_sha256": "1482723d738ec1253e014f5bb3cc3273b21839c9d20b9b089398332dd19dba37",
+      "client_ports_sha256": "3c12cea0af3096c43236268be0ccf07369df5c4d716199ccffbe1435b6163de3",
+      "client_connections": 2,
+      "admitted": 2,
+      "incomplete": false,
+      "counters": {
+        "admission_failures": 0,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 0
+      },
+      "observed_status_counts": {
+        "201": 2
+      },
+      "matches_expected_client_ports": true
+    },
+    {
+      "directory": "final-caddy-3/bounded",
+      "report_sha256": "d24b070b8e4828d21f8c4be6c72690ae4323526bf74d30adba496d0660414f6b",
+      "client_ports_sha256": "b47da8221ed4762a18b9af5b83bae7d462b182425a62b188ee2ddf1d0923d21e",
+      "client_connections": 66,
+      "admitted": 64,
+      "incomplete": true,
+      "counters": {
+        "admission_failures": 1,
+        "invalid_packets": 0,
+        "missing_cookie": 0,
+        "unanchored_payload_packets": 2
+      },
+      "observed_status_counts": {
+        "201": 64
+      },
+      "matches_expected_client_ports": true
+    }
+  ]
+}

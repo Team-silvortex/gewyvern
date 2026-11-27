@@ -35,6 +35,7 @@ const MAX_HISTORY_DIRECTORY_ENTRIES: usize = 4096;
 const MAX_TARGET_DIRECTORY_ENTRIES: usize = 4096;
 const MAX_PERSISTED_SNAPSHOT_FILE_BYTES: u64 = 64 * 1024 * 1024;
 const HISTORY_STAGE: &str = ".gewyvern-pending-v1";
+const STAGE_OWNER: &str = ".gewyvern-stage-v1";
 
 mod prune;
 mod publication;
@@ -96,7 +97,9 @@ fn persist_locked_snapshot(
         let limit =
             committed_limit.ok_or("late history snapshot has no valid committed retention")?;
         if position >= limit {
-            return Ok(()); // Already outside the head's horizon; do not stage or reconfigure.
+            // Recovery may have moved an orphan here even though this writer
+            // will never stage a new publication. Do not touch committed files.
+            return clear_history_stage(&history_root.join(HISTORY_STAGE));
         }
         limit
     } else {
@@ -140,28 +143,52 @@ fn write_delta_pair(root: &Path, json: &str, markdown: &str) -> Result<(), Strin
 // remove a foreign nonempty directory or follow a symlink.
 fn prepare_history_stage(root: &Path) -> Result<PathBuf, String> {
     let stage = root.join(HISTORY_STAGE);
-    let owner = stage.join(".gewyvern-stage-v1");
-    match fs::symlink_metadata(&stage) {
-        Ok(m) if m.is_dir() => {
-            if !fs::symlink_metadata(&owner).is_ok_and(|m| m.is_file() && m.len() == 0) {
-                fs::remove_dir(&stage)
-                    .map_err(|e| format!("refusing unowned history stage: {e}"))?;
-            } else {
-                fs::remove_dir_all(&stage)
-                    .map_err(|e| format!("clear interrupted history stage: {e}"))?;
-            }
-        }
-        Ok(_) => return Err("history stage must be a real directory".into()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => return Err(format!("inspect history stage: {e}")),
-    }
+    clear_history_stage(&stage)?;
     let mut dir = fs::DirBuilder::new();
     #[cfg(unix)]
     std::os::unix::fs::DirBuilderExt::mode(&mut dir, 0o700);
     dir.create(&stage)
         .map_err(|e| format!("create history stage: {e}"))?;
-    fs::File::create_new(owner).map_err(|e| format!("mark history stage: {e}"))?;
+    fs::File::create_new(stage.join(STAGE_OWNER))
+        .map_err(|e| format!("mark history stage: {e}"))?;
     Ok(stage)
+}
+
+fn clear_history_stage(stage: &Path) -> Result<(), String> {
+    match fs::symlink_metadata(stage) {
+        Ok(m) if m.is_dir() => {
+            if fs::symlink_metadata(stage.join(STAGE_OWNER))
+                .is_ok_and(|m| m.is_file() && m.len() == 0)
+            {
+                remove_payload_then_anchor(stage, STAGE_OWNER)?;
+            }
+            // Without a valid marker only an already empty slot can be removed.
+            fs::remove_dir(stage)
+                .map_err(|e| format!("refusing nonempty or unremovable history stage: {e}"))
+        }
+        Ok(_) => Err("history stage must be a real directory".into()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("inspect history stage: {e}")),
+    }
+}
+
+// Called only after ownership is checked. Keep the marker until last so a
+// second kill cannot turn partially deleted payload into an unidentified tree.
+fn remove_payload_then_anchor(dir: &Path, anchor: &str) -> Result<(), String> {
+    for entry in fs::read_dir(dir).map_err(|e| format!("read {}: {e}", dir.display()))? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        if entry.file_name() == anchor {
+            continue;
+        }
+        if entry.file_type().map_err(|e| e.to_string())?.is_dir() {
+            fs::remove_dir_all(entry.path())
+        } else {
+            fs::remove_file(entry.path())
+        }
+        .map_err(|e| format!("prune {}: {e}", entry.path().display()))?;
+    }
+    fs::remove_file(dir.join(anchor))
+        .map_err(|e| format!("remove {anchor} in {}: {e}", dir.display()))
 }
 
 fn persist_snapshot_tree(
@@ -693,6 +720,59 @@ mod tests {
             assert_eq!(fs::read(&path).unwrap(), bytes);
             assert!(!history.join("90").exists() && !latest.exists());
         }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn expired_terminal_finishes_owned_debt_without_publishing_or_sweeping() {
+        let root = temp_root("expired-stage");
+        let history = root.join("history");
+        let latest = root.join("latest");
+        let kept = history.join("300");
+        fs::create_dir_all(&kept).unwrap();
+        let index = br#"{"history_retention":1,"entries":[{"updated_unix_ms":300}]}"#;
+        fs::write(history.join("index.json"), index).unwrap();
+        fs::write(kept.join("keep"), b"committed").unwrap();
+        let foreign = history.join("100");
+        fs::create_dir(&foreign).unwrap();
+        fs::write(foreign.join("keep"), b"unindexed").unwrap();
+        let submit = || {
+            super::persist_locked_snapshot(
+                &history,
+                &latest,
+                &super::ApiSnapshot {
+                    updated_unix_ms: 200,
+                    kind: "single".into(),
+                    ..Default::default()
+                },
+            )
+        };
+        let stage = super::prepare_history_stage(&history).unwrap();
+        fs::write(stage.join("partial"), b"remaining").unwrap();
+        let marker = stage.join(super::STAGE_OWNER);
+        fs::write(&marker, b"not a valid marker").unwrap();
+        assert!(submit().is_err());
+        assert_eq!(fs::read(stage.join("partial")).unwrap(), b"remaining");
+        #[cfg(unix)]
+        {
+            fs::remove_file(&marker).unwrap();
+            let empty = root.join("foreign-marker");
+            fs::write(&empty, []).unwrap();
+            std::os::unix::fs::symlink(&empty, &marker).unwrap();
+            assert!(submit().is_err());
+            fs::remove_file(&marker).unwrap();
+            std::os::unix::fs::symlink(&foreign, stage.join("link")).unwrap();
+        }
+        fs::write(&marker, []).unwrap();
+        submit().unwrap();
+        assert!(!stage.exists());
+        fs::create_dir(&stage).unwrap(); // Killed after marker unlink, before rmdir.
+        submit().unwrap();
+        submit().unwrap();
+        assert!(!stage.exists() && !latest.exists() && !history.join("200").exists());
+        assert_eq!(fs::read(history.join("index.json")).unwrap(), index);
+        assert_eq!(fs::read(kept.join("keep")).unwrap(), b"committed");
+        assert_eq!(fs::read(foreign.join("keep")).unwrap(), b"unindexed");
         fs::remove_dir_all(root).unwrap();
     }
 

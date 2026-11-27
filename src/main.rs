@@ -22,6 +22,8 @@ mod helpers;
 mod history_catalog_delta;
 #[path = "main/history_view.rs"]
 mod history_view;
+#[path = "main/http_status_cli.rs"]
+mod http_status_cli;
 #[path = "main/output_collection.rs"]
 mod output_collection;
 #[path = "main/preflight.rs"]
@@ -116,6 +118,12 @@ fn main() {
 }
 
 fn run_main(args: Vec<String>, locale: UiLocale) -> Result<i32, MachineError> {
+    if args.first().is_some_and(|arg| arg == "capture-http-status") {
+        return http_status_cli::run(http_status_cli::Mode::Http, &args[1..]);
+    }
+    if args.first().is_some_and(|arg| arg == "capture-redis-resp") {
+        return http_status_cli::run(http_status_cli::Mode::Redis, &args[1..]);
+    }
     if args.first().map(String::as_str) == Some("gewyvern-install-v1") {
         if args.len() != 1 {
             return Err(invalid_native_command("gewyvern-install-v1"));
@@ -153,6 +161,8 @@ fn run_main(args: Vec<String>, locale: UiLocale) -> Result<i32, MachineError> {
     if matches!(args.as_slice(), [flag] if flag == "--help" || flag == "-h") {
         println!("{}", usage());
         println!("\n{}", capture_cli::HELP);
+        println!("\n{}", http_status_cli::HELP);
+        println!("\n{}", http_status_cli::REDIS_HELP);
         return Ok(0);
     }
     let cli = match bootstrap_cli(args)? {
