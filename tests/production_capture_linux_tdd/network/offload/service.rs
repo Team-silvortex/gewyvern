@@ -151,6 +151,11 @@ fn start(scope: &Scope, out: &Path, limit: usize, previous: Option<&str>) -> (Pr
             &limit.to_string(),
         ],
     );
+    let id = wait_for_run(&mut capture, out, previous);
+    (capture, id)
+}
+
+fn wait_for_run(capture: &mut Process, out: &Path, previous: Option<&str>) -> String {
     let deadline = Instant::now() + Duration::from_secs(40);
     loop {
         assert!(
@@ -163,7 +168,7 @@ fn start(scope: &Scope, out: &Path, limit: usize, previous: Option<&str>) -> (Pr
             if previous != Some(status.run_id.as_str()) {
                 assert_eq!(status.state, CaptureState::Running);
                 assert!(!status.final_accounted);
-                return (capture, status.run_id);
+                return status.run_id;
             }
         }
         assert!(Instant::now() < deadline, "fresh run did not become ready");

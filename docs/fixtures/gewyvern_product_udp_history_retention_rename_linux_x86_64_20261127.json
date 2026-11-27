@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "release_artifact": false,
+  "host": "Linux 7.0.0-44-generic x86_64",
+  "fault": "SIGKILL on IN_MOVED_TO for the new numeric archive; unchanged index verified after every kill",
+  "fixed_binary_sha256": "68e8cf73d6e8b5c4dcb376ccba7aaf24f96ebba8611de6ecc2e78c40230064e4",
+  "fixed_test_binary_sha256": "d3fd85137cd33b7d0c8faff6e0881ffe694f75cff21ac269f4a2998bbde1dc09",
+  "source_sha256": {
+    "src/data_api/persistence.rs": "6fbad92543a444519998a710cb28fc6d9b155337de9455c5abffacfc4bae0aaa",
+    "src/data_api/persistence/publication.rs": "9221c106680d5c31e01e077c58da776e24ce7f31fa87fdc545322dc5e57544e0",
+    "tests/production_capture_linux_tdd/network/offload/retention_interruption.rs": "84ff4d05181cca03f86b4ae593fec3d9395c41e382ce0c7d70bcf602af97abc5"
+  },
+  "before_fix": {
+    "summary_file": "before/summary.json",
+    "summary_sha256": "9adeb97a17726b480d76bbfb7618814ef8cb35ac6bbf0369bc9f47bcdf63bdf7",
+    "summary": {
+      "final_index": [
+        "848344-24432315487952",
+        "848081-24426657522624"
+      ],
+      "final_numeric_dirs": 5,
+      "index_sha256": "540a3bfd754abdfe3271e3ded1c0a95884ea5382f212f2d37bab79d3e6b811c2",
+      "newer": "848081-24426657522624",
+      "old_tree_sha256": [
+        "088815eed00bdcb65490171b8672069eb3188d8a4b1d6bb263905fad44716026",
+        "39f75b0f217ed480f70a9a485a54ff9eee33212792c2c9af9711cb30baff2bf5"
+      ],
+      "oldest": "848052-24425270264433",
+      "retention": 2,
+      "rounds": [
+        {
+          "interrupted_run": "848144-24428082564148",
+          "unindexed": 1
+        },
+        {
+          "interrupted_run": "848194-24429502985176",
+          "unindexed": 2
+        },
+        {
+          "interrupted_run": "848204-24430899231486",
+          "unindexed": 3
+        }
+      ]
+    }
+  },
+  "fixed_runs": [
+    {
+      "summary_file": "fixed-1/summary.json",
+      "summary_sha256": "2bffb05655a1d4ac6e75fcdfa4b31ba076435b12e6b415c7a4efef004948af0d",
+      "summary": {
+        "final_index": [
+          "853802-24593362382768",
+          "853511-24587267341638"
+        ],
+        "final_numeric_dirs": 2,
+        "index_sha256": "fba44a75bd765192d1524f6be13d288b80a5b42c0e0468fa06d572a72cfc7c26",
+        "newer": "853511-24587267341638",
+        "old_tree_sha256": [
+          "6e2e42462cfe82b74c100263dc1dd8dedd99436e59c160ade7686ba7fd389361",
+          "a65dd51964d427def0ef28889500f7420a9164c9971c61c2b3f98fd1cbea9951"
+        ],
+        "oldest": "853504-24585884928862",
+        "retention": 2,
+        "rounds": [
+          {
+            "interrupted_run": "853601-24589100704725",
+            "unindexed": 1
+          },
+          {
+            "interrupted_run": "853651-24590492362801",
+            "unindexed": 1
+          },
+          {
+            "interrupted_run": "853682-24591905156897",
+            "unindexed": 1
+          }
+        ]
+      }
+    },
+    {
+      "summary_file": "fixed-2/summary.json",
+      "summary_sha256": "097441e6b0682201109fd1bf2cbedbec6fec1fd0a54a579ee7d3e81a3ec064b9",
+      "summary": {
+        "final_index": [
+          "854085-24602414958823",
+          "853881-24596244735889"
+        ],
+        "final_numeric_dirs": 2,
+        "index_sha256": "330420f60dc252b3b414f9ab4845a1c36ecc3a98590a6f8a9c121811c0a65e3e",
+        "newer": "853881-24596244735889",
+        "old_tree_sha256": [
+          "fcb991df07a124e8b99286963c9b3516e51a975019c8d1cc2cd4d1f51c624464",
+          "9e5af91c4279e5baefc2a51b3f213ac30377c783ab99caac0df77d64e344c005"
+        ],
+        "oldest": "853855-24594847379663",
+        "retention": 2,
+        "rounds": [
+          {
+            "interrupted_run": "853926-24597661848216",
+            "unindexed": 1
+          },
+          {
+            "interrupted_run": "853995-24599081933220",
+            "unindexed": 1
+          },
+          {
+            "interrupted_run": "854052-24600985456830",
+            "unindexed": 1
+          }
+        ]
+      }
+    },
+    {
+      "summary_file": "fixed-3/summary.json",
+      "summary_sha256": "828352886bb5d23d0734b8b3b313d5fd3b7a990a6e2c939c7af8beb30f3b0106",
+      "summary": {
+        "final_index": [
+          "854626-24611637791012",
+          "854273-24605486353753"
+        ],
+        "final_numeric_dirs": 2,
+        "index_sha256": "015f58e830d70a01a3b3c09e85e3ddee0d78df966997cb047d6edf747d4c462a",
+        "newer": "854273-24605486353753",
+        "old_tree_sha256": [
+          "f3625b24379249ee75894ac28444c1b93dd4480e6048b4af32584edd02cb206c",
+          "708a61bc934d6cc98fad36d82d70910ff7041215befd64089dc92e95b3ebe2b0"
+        ],
+        "oldest": "854209-24603943204889",
+        "retention": 2,
+        "rounds": [
+          {
+            "interrupted_run": "854298-24606908630443",
+            "unindexed": 1
+          },
+          {
+            "interrupted_run": "854373-24608329393816",
+            "unindexed": 1
+          },
+          {
+            "interrupted_run": "854597-24609781293736",
+            "unindexed": 1
+          }
+        ]
+      }
+    }
+  ]
+}

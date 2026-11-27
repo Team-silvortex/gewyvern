@@ -4,7 +4,7 @@
   "checkpoint": "v2.5.0-community-release",
   "calibration": {
     "model": "priority-weighted-strength-v1",
-    "as_of": "2026-10-02"
+    "as_of": "2026-11-27"
   },
   "dimensions": {
     "architectures": [
@@ -21,7 +21,7 @@
       {
         "id": "leselang",
         "label": "Leselang Language",
-        "summary": "Independent embeddable control language target with extracted frontend contracts; Leserpent is the first reference host, GUI is one host profile, and an OS shell is a deferred direction."
+        "summary": "The independent MIT native repository supplies pinned language cores to Gewyvern. Leserpent is the reference host; complete host-neutral durable embedding is a separate target and an OS shell is deferred."
       },
       {
         "id": "leserpent-1x",
@@ -196,6 +196,16 @@
         "id": "linux-attach",
         "label": "Linux Attach",
         "summary": "Real Linux eBPF attach and validation paths."
+      },
+      {
+        "id": "udp-publication-recovery",
+        "label": "UDP Publication And Recovery",
+        "summary": "Publication, terminal accounting and same-path restart of the production Linux UDP collector after process or storage failure."
+      },
+      {
+        "id": "pinned-native-foundation",
+        "label": "Pinned Native Foundation",
+        "summary": "Independent native source ownership and reproducible Git-pinned product consumption; not complete VM or registry release acceptance."
       },
       {
         "id": "parser-lowering",
@@ -432,6 +442,22 @@
       "summary": "The Linux-first runtime owns eBPF attachment, collection, and physical-host proof.",
       "source": "docs/architecture-blueprint.md",
       "cells": ["gewyvern-core/linux-ebpf/linux-attach"]
+    },
+    {
+      "id": "proof-gewyvern-udp-publication-recovery",
+      "architecture": "gewyvern-core",
+      "kind": "proof-shelf",
+      "summary": "Judge terminal publication and post-failure recovery separately from successful BPF attachment.",
+      "source": "docs/production-udp-offload-service.md",
+      "cells": ["gewyvern-core/linux-ebpf/udp-publication-recovery"]
+    },
+    {
+      "id": "boundary-leselang-native-repository",
+      "architecture": "leselang",
+      "kind": "ownership-boundary",
+      "summary": "The independent native repository owns the Git-pinned language cores; Gewyvern verifies the consumed identity and retains its product adapters.",
+      "source": "docs/leselang-repository-handoff.md",
+      "cells": ["leselang/release-assurance/pinned-native-foundation"]
     },
     {
       "id": "boundary-gewylang-compiler",
@@ -1164,6 +1190,92 @@
         { "kind": "documentation", "path": "docs/remote-docker.md", "state": "present" }
       ],
       "next_gate": "Preserve owned-resource cleanup, explicit loss accounting and recovery under bounded Linux pressure. Keep installed helpers independent of mutable build workspaces and verify both sudo implementations without broadening command authority. The hour-scale audited soak has identical report-free clean Rust counters across three twenty-minute phases. No-traffic cache controls and a separate fifteen-minute cache-disabled capture support allocator retention, with flat warmed nonfree estimates; they do not certify every C allocation or ordinary-build performance. The formal CLI and --serve explicitly attach a product-owned cgroup IPv4/direct-IPv6 UDP collector, with bounded independent windows, runtime API exports, exact final kernel/user loss reconciliation and unpinned-link detachment/restart checks. The installed TLS service accepts an opt-in immutable capture plan, isolates runtime state, attaches before opening TLS and binds readiness to the selected live scope/port. Real host systemd now executes unchanged generated units and verifies SIGKILL automatic restart, TLS/output/cgroup repair, bounded persistent failure with operator reset, and accounted-loss stop. This uses test-profile installations and temporary /run units, not native activation or boot enablement. LinuxProbeLoader remains only an availability probe. General TCP/extensions capture, cross-batch transaction continuity, Leserpent UI/remote-plan selection, native service activation and reboot/host-crash recovery, least-privilege deployment, precompiled BPF packaging, longer-duration production RSS and independent physical-host/kernel breadth remain open."
+    },
+    {
+      "id": "gewyvern-core/linux-ebpf/udp-publication-recovery",
+      "architecture": "gewyvern-core",
+      "module": "linux-ebpf",
+      "feature": "udp-publication-recovery",
+      "lifecycle": "current",
+      "priority": "active",
+      "maturity": "stabilizing",
+      "completion": 100,
+      "confidence": "high",
+      "independence": "internal",
+      "contract": {
+        "id": "linux-udp-publication-recovery",
+        "version": "1.0.0",
+        "stability": "evolving",
+        "surfaces": [
+          "real-udp-offload-pre-expiry-shutdown-drain-and-restart-proof",
+          "real-udp-offload-pending-crash-in-place-restart-proof",
+          "real-udp-status-write-failure-and-same-path-repair-proof",
+          "real-udp-dual-output-read-only-and-same-path-repair-proof",
+          "real-udp-read-only-api-archive-and-both-outputs-repair-proof",
+          "interrupted-history-tree-hidden-from-text-and-json-until-index-commit",
+          "bounded-inflight-history-rename-at-full-retention",
+          "index-bound-resumable-eviction-after-history-commit",
+          "multi-directory-prune-recovery-across-retention-changes"
+        ]
+      },
+      "depends_on": ["gewyvern-core/linux-ebpf/linux-attach"],
+      "blockers": [],
+      "consumers": ["gewyvern-runtime", "operators"],
+      "evidence": [
+        { "kind": "source", "path": "src/main/capture_runtime.rs", "state": "present" },
+        { "kind": "test", "path": "tests/production_capture_linux_tdd/network/offload/shutdown.rs", "state": "present" },
+        { "kind": "test", "path": "tests/production_capture_linux_tdd/network/offload/status_failure.rs", "state": "present" },
+        { "kind": "test", "path": "tests/production_capture_linux_tdd/network/offload/read_only_outputs.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_offload_shutdown_linux_x86_64_20261127.json", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_offload_pending_crash_linux_x86_64_20261127.json", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_status_repair_linux_x86_64_20261127.json", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_readonly_outputs_linux_x86_64_20261127.json", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_readonly_archive_linux_x86_64_20261127.json", "state": "present" },
+        { "kind": "test", "path": "tests/production_capture_linux_tdd/network/offload/api_archive.rs", "state": "present" },
+        { "kind": "source", "path": "src/data_api/persistence.rs", "state": "present" },
+        { "kind": "test", "path": "tests/production_capture_linux_tdd/network/offload/history_interruption.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_interrupted_history_linux_x86_64_20261127.json", "state": "present" },
+        { "kind": "source", "path": "src/data_api/persistence/publication.rs", "state": "present" },
+        { "kind": "test", "path": "tests/production_capture_linux_tdd/network/offload/retention_interruption.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_history_retention_rename_linux_x86_64_20261127.json", "state": "present" },
+        { "kind": "source", "path": "src/data_api/persistence/prune.rs", "state": "present" },
+        { "kind": "test", "path": "tests/production_capture_linux_tdd/network/offload/prune_interruption.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_history_prune_linux_x86_64_20261127.json", "state": "present" },
+        { "kind": "test", "path": "tests/production_capture_linux_tdd/network/offload/shrink_interruption.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/gewyvern_product_udp_history_shrink_linux_x86_64_20261127.json", "state": "present" },
+        { "kind": "documentation", "path": "docs/production-udp-offload-service.md", "state": "present" }
+      ],
+      "next_gate": "Linux process-crash recovery covers a multi-directory shrink interrupted between evictions, followed by both raised and lowered retention. Next verify two differently configured collectors publishing concurrently to one shelf. Power loss and cross-kernel qualification remain open."
+    },
+    {
+      "id": "leselang/release-assurance/pinned-native-foundation",
+      "architecture": "leselang",
+      "module": "release-assurance",
+      "feature": "pinned-native-foundation",
+      "lifecycle": "current",
+      "priority": "maintenance",
+      "maturity": "mature",
+      "completion": 100,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "leselang-native-repository-handoff",
+        "version": "1.0.0",
+        "stability": "stable",
+        "surfaces": ["single-immutable-native-core-source", "cargo-resolved-inventory-verification", "product-owned-compatibility-adapters"]
+      },
+      "depends_on": [],
+      "blockers": [],
+      "consumers": ["leserpent-hir", "leserpent-vm"],
+      "evidence": [
+        { "kind": "source", "path": "project/leselang-repository.json", "state": "present" },
+        { "kind": "source", "path": "project/status/leselang-source-inventory.json", "state": "present" },
+        { "kind": "test", "path": "tests/leselang_repository_tdd.rs", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/leselang_product_compatibility_cleanup_macos_arm64_20261028.json", "state": "present" },
+        { "kind": "test", "path": "docs/fixtures/leselang_exporter_retirement_macos_arm64_20261104.json", "state": "present" },
+        { "kind": "documentation", "path": "docs/leselang-repository-handoff.md", "state": "present" }
+      ],
+      "next_gate": "For the next upstream pin, verify both lockfiles select one reviewed revision, compare the resolved sources with the inventory, and pass the independent product-HIR consumer. This handoff does not certify a complete VM, durable host-neutral recovery or registry publication."
     },
     {
       "id": "gewylang/language-syntax/standalone-frontend",

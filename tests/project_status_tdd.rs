@@ -9366,7 +9366,7 @@ fn project_status_catalog_is_protocolized_and_valid() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     catalog.validate(&root).expect("catalog must validate");
     assert_eq!(catalog.calibration.model, STATUS_CALIBRATION_MODEL);
-    assert_eq!(catalog.calibration.as_of, "2026-10-02");
+    assert_eq!(catalog.calibration.as_of, "2026-11-27");
     assert!(catalog.dimensions.architectures.len() >= 7);
     assert!(catalog.dimensions.modules.len() >= 24);
     assert!(catalog.dimensions.features.len() >= 26);
@@ -11061,6 +11061,70 @@ fn shared_native_foundations_cut_the_reverse_protocol_dependency() {
         install.depends_on,
         vec!["shared-foundation/identity/validated-identities"]
     );
+}
+
+#[test]
+fn field_recovery_and_repository_handoff_have_separate_scoring_boundaries() {
+    let catalog = StatusCatalog::load(default_catalog_path()).unwrap();
+    let cell = |id: &str| catalog.cells.iter().find(|c| c.id == id).unwrap();
+    let recovery = cell("gewyvern-core/linux-ebpf/udp-publication-recovery");
+    let attach = cell("gewyvern-core/linux-ebpf/linux-attach");
+    assert_eq!(
+        recovery.depends_on.as_slice(),
+        std::slice::from_ref(&attach.id)
+    );
+    assert_eq!(recovery.priority, Priority::Active);
+    assert_eq!(recovery.maturity, Maturity::Stabilizing);
+    assert_eq!(recovery.independence, Independence::Internal);
+    let fixture_runs = [
+        ("offload_shutdown", 6),
+        ("offload_pending_crash", 6),
+        ("status_repair", 8),
+        ("readonly_outputs", 8),
+        ("readonly_archive", 4),
+    ];
+    for (scenario, count) in fixture_runs {
+        let path =
+            format!("docs/fixtures/gewyvern_product_udp_{scenario}_linux_x86_64_20261127.json");
+        assert!(recovery.evidence.iter().any(|e| e.path == path
+            && e.kind == EvidenceKind::Test
+            && e.state == EvidenceState::Present));
+        assert!(!attach.evidence.iter().any(|e| e.path == path));
+        let proof: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(repository_root().join(path)).unwrap()).unwrap();
+        let runs = proof["runs"].as_array().unwrap();
+        assert_eq!(runs.len(), count);
+        for family in [4, 6] {
+            assert_eq!(
+                runs.iter()
+                    .filter(|r| r["summary"]["family"] == family)
+                    .count(),
+                count / 2
+            );
+        }
+    }
+    let handoff = cell("leselang/release-assurance/pinned-native-foundation");
+    let embedding = cell("leselang/language-vm/host-neutral-embedding");
+    assert_eq!(handoff.maturity, Maturity::Mature);
+    assert_eq!(handoff.independence, Independence::ReusableLibrary);
+    assert_eq!(embedding.maturity, Maturity::Developing);
+    let state: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(repository_root().join("project/leselang-repository.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(state["product_dependency_cutover"], true);
+    assert_eq!(state["full_extraction_gate"], false);
+    assert_eq!(state["complete_vm"], false);
+    for key in ["dependency_verification", "cleanup_verification"] {
+        assert!(
+            handoff
+                .evidence
+                .iter()
+                .any(|e| Some(e.path.as_str()) == state[key].as_str()
+                    && e.kind == EvidenceKind::Test
+                    && e.state == EvidenceState::Present)
+        );
+    }
 }
 
 #[test]
@@ -21251,15 +21315,21 @@ fn native_status_cli_exposes_human_and_machine_views() {
         serde_json::from_slice(&summary.stdout).expect("summary must be JSON");
     assert_eq!(payload["schema_version"], STATUS_SCHEMA_VERSION);
     assert_eq!(payload["calibration"]["model"], STATUS_CALIBRATION_MODEL);
-    assert_eq!(payload["calibration"]["as_of"], "2026-10-02");
+    assert_eq!(
+        payload["calibration"]["as_of"],
+        StatusCatalog::load(default_catalog_path())
+            .unwrap()
+            .calibration
+            .as_of
+    );
     assert_eq!(payload["deferred_cell_count"], 2);
     assert!(payload["overall_score"].is_u64());
     assert!(payload["portfolio_score"].is_u64());
-    assert_eq!(payload["coverage"]["requirement_count"], 37);
+    assert_eq!(payload["coverage"]["requirement_count"], 39);
     assert_eq!(payload["coverage"]["architecture_count"], 8);
-    assert_eq!(payload["coverage"]["ownership_boundary_count"], 27);
+    assert_eq!(payload["coverage"]["ownership_boundary_count"], 28);
     assert_eq!(payload["coverage"]["roadmap_gate_count"], 7);
-    assert_eq!(payload["coverage"]["proof_shelf_count"], 3);
+    assert_eq!(payload["coverage"]["proof_shelf_count"], 4);
     assert_eq!(payload["weakest"].as_array().unwrap().len(), 3);
     assert!(payload["lifecycles"].as_array().unwrap().len() >= 3);
     assert!(payload["architectures"].as_array().unwrap().len() >= 6);

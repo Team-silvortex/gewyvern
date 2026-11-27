@@ -69,6 +69,83 @@ fn remove_temp_tree(path: &PathBuf) {
 }
 
 #[test]
+fn failed_capture_checkpoint_leaves_export_readable_without_publishing_api_success() {
+    use gewyvern::machine_error::{ErrorCategory, MachineError};
+
+    let _lock = env_test_lock().lock().unwrap_or_else(|e| e.into_inner());
+    let root = temp_dir("checkpoint");
+    fs::create_dir(&root).unwrap();
+    let _state = EnvGuard::set("GEWY_STATE_HOME", root.join("state").to_string_lossy());
+    let path = root.join("export.json");
+    let cli = Cli::from_args(
+        ["--demo", "tcp", "--json", "--out", path.to_str().unwrap()].map(str::to_owned),
+    )
+    .unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy")).unwrap();
+    let export = annotate_export_trust(run_binding_demo(binding), &cli);
+    let before = Arc::new(ApiSnapshot::default());
+    let state = Arc::new(Mutex::new(before.clone()));
+    let checkpoint = || {
+        let saved =
+            gewyvern::export::ExportBundle::from_json(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(saved.facts, export.facts);
+        Err(MachineError::new(
+            "capture_status_write_failed",
+            ErrorCategory::Environment,
+            "test checkpoint",
+            true,
+            1,
+        ))
+    };
+    let err = crate::serve_runtime::emit_rendered_with_checkpoint(
+        &cli,
+        "scan:http:request",
+        &export,
+        false,
+        Some(&state),
+        Some(&checkpoint),
+        |_| panic!("a refused checkpoint must not attempt API persistence"),
+    )
+    .unwrap_err();
+    assert_eq!(err.code, "capture_status_write_failed");
+    assert!(Arc::ptr_eq(&before, &state.lock().unwrap()));
+    assert!(!root.join("state/history").exists());
+    remove_temp_tree(&root);
+}
+
+#[test]
+fn api_archive_failure_is_reported_independently_of_rendered_output_failure() {
+    let _lock = env_test_lock().lock().unwrap_or_else(|e| e.into_inner());
+    let root = temp_dir("unwritable-archive-and-output");
+    fs::create_dir(&root).unwrap();
+    let state_path = root.join("not-a-directory");
+    fs::write(&state_path, b"original").unwrap();
+    let _state = EnvGuard::set("GEWY_STATE_HOME", state_path.to_string_lossy());
+    let cli = Cli::from_args(
+        ["--demo", "tcp", "--json", "--out", root.to_str().unwrap()].map(str::to_owned),
+    )
+    .unwrap();
+    let binding = compile_file(&dsl_fixture_path("http_request_path.gewy")).unwrap();
+    let export = annotate_export_trust(run_binding_demo(binding), &cli);
+    let state = Arc::new(Mutex::new(Arc::new(ApiSnapshot::default())));
+    let mut diagnostic = None;
+    let err = crate::serve_runtime::emit_rendered_with_checkpoint(
+        &cli,
+        "scan:http:request",
+        &export,
+        false,
+        Some(&state),
+        None,
+        |detail| diagnostic = Some(detail),
+    )
+    .unwrap_err();
+    assert_eq!(err.code, "output_write_failed");
+    assert!(diagnostic.unwrap().contains("not-a-directory"));
+    assert_eq!(fs::read(&state_path).unwrap(), b"original");
+    remove_temp_tree(&root);
+}
+
+#[test]
 fn persisted_latest_snapshot_writes_top_level_and_target_surfaces() {
     let _lock = env_test_lock()
         .lock()

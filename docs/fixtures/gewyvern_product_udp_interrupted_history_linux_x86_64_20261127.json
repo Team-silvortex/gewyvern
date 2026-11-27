@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "release_artifact": false,
+  "host": "Linux 7.0.0-44-generic x86_64",
+  "binary_sha256": "5485dfed9711113be40a1714bd743ab4f4b5634cdef61fcef83f405a6ba6f459",
+  "test_binary_sha256": "617017aaace5aa7ee25162a6d2172ac61d9eda1b913917666fbdf4aa9926f811",
+  "fault": "SIGKILL after history meta.json appeared but before the targets directory existed",
+  "before_fix": {
+    "text_history_count": 2,
+    "json_history_count": 1,
+    "spurious_protocol_removals": true
+  },
+  "runs": [
+    {
+      "summary_file": "verified-1/summary.json",
+      "summary_sha256": "70769e36b0094cf043c0e37931c09ba27c18fb4223fb2bbf404c0331f5591031",
+      "summary": {
+        "history_after_restart": 2,
+        "history_at_kill": 1,
+        "interrupted_run": "831583-23993413361179",
+        "latest_at_kill_retained": 4,
+        "repaired_retained": 4,
+        "repaired_run": "831632-23994304086623",
+        "restart_health_run": "831632-23994304086623",
+        "seed_run": "831571-23992282130526",
+        "signal": 9,
+        "unchanged_index_sha256": "867510acad7184957ae195299d146b975c76e13e9ee91cbe5cae7251da66d393"
+      }
+    },
+    {
+      "summary_file": "verified-2/summary.json",
+      "summary_sha256": "ef5ce7469d3e6ad77a14bfa314c34244e74d3802d8d33f52ede89905efd3c8a7",
+      "summary": {
+        "history_after_restart": 2,
+        "history_at_kill": 1,
+        "interrupted_run": "831691-23996930224270",
+        "latest_at_kill_retained": 4,
+        "repaired_retained": 4,
+        "repaired_run": "831721-23997803968852",
+        "restart_health_run": "831721-23997803968852",
+        "seed_run": "831668-23995739707133",
+        "signal": 9,
+        "unchanged_index_sha256": "3908c8d702acbcceb4c2e556197d3ad6d98f88c783795b290f48bd70f2fb1bfc"
+      }
+    },
+    {
+      "summary_file": "verified-3/summary.json",
+      "summary_sha256": "8fbd61c232045274f83eec4ee26902196a3487980712fe38362571f34db5ac96",
+      "summary": {
+        "history_after_restart": 2,
+        "history_at_kill": 1,
+        "interrupted_run": "831899-24000422304447",
+        "latest_at_kill_retained": 4,
+        "repaired_retained": 4,
+        "repaired_run": "831928-24001311012416",
+        "restart_health_run": "831928-24001311012416",
+        "seed_run": "831802-23999241473189",
+        "signal": 9,
+        "unchanged_index_sha256": "c28788faa61822da172caa20d57eac985a21fbcf6de9e36bd329ae9eec1da85b"
+      }
+    }
+  ]
+}

@@ -427,6 +427,18 @@ pub(crate) fn emit_rendered(
     append: bool,
     api_state: Option<&ApiState>,
 ) -> Result<(), MachineError> {
+    emit_rendered_with_checkpoint(cli, name, export, append, api_state, None, |_| {})
+}
+
+pub(crate) fn emit_rendered_with_checkpoint(
+    cli: &Cli,
+    name: &str,
+    export: &ExportBundle,
+    append: bool,
+    api_state: Option<&ApiState>,
+    checkpoint: Option<&dyn Fn() -> Result<(), MachineError>>,
+    on_persist_error: impl FnOnce(String),
+) -> Result<(), MachineError> {
     let analysis = analysis_snapshot(export);
     let protocol_surface = protocol_surface_for_target(name);
     let summary_text = summary_line_with_analysis(name, export, &analysis);
@@ -460,6 +472,36 @@ pub(crate) fn emit_rendered(
     ) = external_capability_summary(&analysis);
     let external_sidecar_consumption_mode = external_sidecar_consumption_mode(&analysis);
     let external_sidecar_trust_level = external_sidecar_trust_level(&analysis);
+    let write_output = || {
+        let findings;
+        let rendered = if let Some(report_format) = cli.report_format {
+            match report_format {
+                ReportFormat::Json => &report_json_body,
+                ReportFormat::Html => &report_html_body,
+            }
+        } else if cli.findings {
+            if cli.json {
+                &findings_json_body
+            } else {
+                findings = findings_text(name, export);
+                &findings
+            }
+        } else if cli.json {
+            if cli.summary_only {
+                &summary_json_body
+            } else {
+                &export_json_body
+            }
+        } else {
+            &summary_text
+        };
+        write_rendered_output(cli, rendered, append)
+    };
+    if let Some(commit) = checkpoint {
+        // Do not announce or archive a successful capture before both writes succeed.
+        write_output()?;
+        commit()?;
+    }
     if let Some(state) = api_state {
         update_api_snapshot_for_single_with_protocol_surface(
             state,
@@ -506,30 +548,14 @@ pub(crate) fn emit_rendered(
                 &[("error", err.to_string())],
                 "failed to persist latest api snapshot",
             );
+            // The file publication below can fail independently of the API archive.
+            on_persist_error(err);
         }
     }
-    let rendered = if let Some(report_format) = cli.report_format {
-        match report_format {
-            ReportFormat::Json => report_json_body,
-            ReportFormat::Html => report_html_body,
-        }
-    } else if cli.findings {
-        if cli.json {
-            findings_json_body
-        } else {
-            findings_text(name, export)
-        }
-    } else if cli.json {
-        if cli.summary_only {
-            summary_json_body
-        } else {
-            export_json_body
-        }
-    } else {
-        summary_text
-    };
-
-    write_rendered_output(cli, &rendered, append)
+    if checkpoint.is_none() {
+        write_output()?;
+    }
+    Ok(())
 }
 
 fn emit_scan_outputs(

@@ -366,3 +366,273 @@ set to a fresh directory instead of `GEWY_OFFLOAD_PRESSURE_OUT`, and select
 For offline verification, run `cargo test -p gewyvern --all-features --test native_validation_harness_tdd udp_offload_ring_pressure`.
 These single-host private-veth runs on Linux 7.0.0-44-generic verify accounting
 and recovery, not throughput or a production loss rate.
+
+## Graceful Shutdown With An Occupied Ring
+
+The [shutdown fixture](fixtures/gewyvern_product_udp_offload_shutdown_linux_x86_64_20261127.json)
+records three IPv4 and three IPv6 runs on Linux 7.0.0-44-generic. Stop the
+reader after it publishes eight ordinary records with nine members of a
+16-segment group still pending. While the reader is paused, the same native UDP
+peers exchange a new 16-segment request and an ordinary reply, exactly filling
+the client-side ring. Queue SIGTERM before SIGCONT to exercise the final drain.
+
+All six processes exited before the two-second partial-group deadline (119..123 ms
+from the first resume to exit). Each final window contained just the new reply;
+none of the prior eight facts or incomplete segments appeared. The stopped run
+accounted for 42 matched = 8 ring drops + 34 received, and 34 received =
+9 retained + 16 refused for budget + 9 incomplete members rejected. Exit 3
+preserved that loss. With both peers still alive, a new CLI run on the same
+cgroup and sockets captured complete 16- and 4-segment groups and both replies
+(22 retained, no loss, exit 0). No host route was changed.
+
+Reproduce with the ignored native test
+`network::offload::service::expiry::shutdown::production_capture_offload_shutdown_drain_and_restart`.
+Set `GEWY_OFFLOAD_EXPIRY_FAMILY=4` or `6` and `GEWY_OFFLOAD_SHUTDOWN_OUT` to
+a fresh directory. The timing establishes pre-expiry shutdown on this host,
+not a shutdown latency guarantee; SIGKILL cannot promise a final drain.
+
+## Forced Stop With An Occupied Ring
+
+The [crash fixture](fixtures/gewyvern_product_udp_offload_pending_crash_linux_x86_64_20261127.json)
+uses the same partial-group prelude, then kills the paused reader with SIGKILL
+after the peers have completed another 16-segment request and its reply. Unlike
+SIGTERM, this cannot produce a terminal snapshot. In three runs per address
+family the last publication remained byte-identical: 25 matched, 8 ring drops,
+17 received, 8 retained and 9 pending, with `state=running` and
+`final_accounted=false`. These are **last published** counters, not final
+counts and not evidence that the process is still alive.
+
+After verifying that the hooks detached, the peers exchanged another request
+and reply before restart. The CLI reused the same cgroup, status and export
+paths, but readiness required a new run ID and an empty publication. Only the
+next four-segment request and reply appeared: 5 retained, group ID 1, no loss,
+exit 0. Peer payload hashes cover all three exchanges on the original sockets.
+Queued observations were not recovered and downtime traffic was not backfilled.
+
+To reproduce, use the same family setting as the graceful-stop test, set
+`GEWY_OFFLOAD_CRASH_OUT` to a new directory, and select
+`network::offload::service::expiry::shutdown::production_capture_offload_kill_pending_and_restart_in_place`.
+
+## Status Write Failure And Repair
+
+The [Linux results](fixtures/gewyvern_product_udp_status_repair_linux_x86_64_20261127.json)
+cover IPv4 and IPv6, with and without a loopback API, during a running window
+and during SIGTERM. After an ordinary window and an admitted partial group, the
+test replaces only its own status file with a directory, leaving the export
+writable. Before the fix the process exited 1, but its file-only export still
+said running or stopped; with the API enabled, failure cleanup overwrote the
+last reply with an empty window.
+
+All eight repaired cases return `capture_status_write_failed` and exit 1.
+The remaining export is failed, incomplete and reconciled (42 matched, 8 ring
+drops, 34 received = 9 retained + 16 budget drops + 9 rejected partial
+members). Its single reply survives replay. Where enabled, both the persisted
+API latest export and the sole terminal history entry match it. This is a
+publication failure, not an extra packet-drop category.
+
+The test repairs the destination, restores the old running status as a stale
+file and restarts in the same directory on the original sockets. A new run ID
+starts empty, retains only the five post-restart observations and exits 0.
+
+Reproduce with the ignored Linux test
+`network::offload::service::expiry::shutdown::status_failure::production_capture_status_write_failure_and_repair`,
+`GEWY_OFFLOAD_EXPIRY_FAMILY=4|6`, a fresh `GEWY_STATUS_OUT`, and
+`GEWY_STATUS_CASE` set to `running`, `terminal`, `running-api` or `terminal-api`.
+
+## Both Outputs Read-Only
+
+The [eight native Linux runs](fixtures/gewyvern_product_udp_readonly_outputs_linux_x86_64_20261127.json)
+repeat that matrix after a successful running window. In a private mount
+namespace, the test makes the directory containing both CLI files read-only
+and verifies an independent write fails with `EROFS`. Stderr and optional
+API state stay on a writable filesystem.
+
+The process exits 1 and releases its BPF attachments. In both periodic and
+SIGTERM publication, the JSON error on stderr retains the primary
+`output_write_failed`; its message also identifies the final status path and
+`[capture_status_write_failed]`. Before the fix this second failure was silent.
+Both files remain byte-identical to the last running window, not a final count.
+In file-only mode there is no terminal snapshot. With writable API state, the
+persisted latest and single terminal history entry agree: failed, incomplete,
+42 matched = 8 ring drops + 34 received. Those 34 comprise 9 retained records,
+16 userspace drops and 9 decode rejections. These are not extra losses caused by the read-only mount.
+
+Removing the read-only mount alone does not restart the collector or change
+either file. Restarting the same CLI on the same paths and cgroup produces a
+new run ID and an empty window; the original sockets then contribute exactly
+four request segments and one reply. No downtime traffic is backfilled, and
+the new run exits 0. This is same-path restart, not in-process retry or proof
+that API history survives when its own storage is read-only.
+
+Reproduce with the ignored Linux test
+`network::offload::service::expiry::shutdown::status_failure::read_only_outputs::production_capture_read_only_outputs_and_repair`.
+Use a fresh `GEWY_READONLY_OUT`, `GEWY_OFFLOAD_EXPIRY_FAMILY=4|6` and the
+same four `GEWY_STATUS_CASE` values as above. It requires BPF and mount
+privileges; do not remount the host filesystem to reproduce it.
+
+## API State And Both CLI Outputs Read-Only
+
+The [four native runs](fixtures/gewyvern_product_udp_readonly_archive_linux_x86_64_20261127.json)
+seed a real, clean terminal entry, start a different capture and wait for its
+first nonempty running window. Running windows do not replace the persisted API
+latest. Two private bind mounts then make the CLI directory and the entire API
+state directory read-only; independent write probes on each return `EROFS`.
+IPv4 and IPv6 were each exercised at periodic publication and at SIGTERM.
+
+The final JSON on stderr preserves primary `output_write_failed`, exit 1 and
+`retryable=true`. Its message identifies both `[snapshot_persist_failed]`
+(API latest write) and `[capture_status_write_failed]` (CLI status). Before
+the fix the last JSON omitted the API failure. Neither CLI file advances.
+The directory names and file contents of persisted latest and history retain
+the same fingerprint, including the history index: the seed is the only entry,
+not a terminal record for the failed run. There is no durable final accounting
+for that run.
+
+After repair, restarting on the original paths/cgroup creates a third distinct
+run ID. Its first window is empty. The original sockets contribute only four
+new request segments and one reply; exit is 0. The index and on-disk archives
+then list exactly the seed and the repaired run, with latest matching the latter.
+This tests storage that is already read-only, not an interruption partway through
+a writable multi-file archive.
+
+Use the same privileges, family selector and fresh `GEWY_READONLY_OUT` as
+above, set `GEWY_STATUS_CASE=running-api` or `terminal-api`, and select
+`network::offload::service::expiry::shutdown::status_failure::read_only_outputs::production_capture_read_only_api_and_outputs`.
+
+## Interrupted History Publication
+
+The [three native Linux runs](fixtures/gewyvern_product_udp_interrupted_history_linux_x86_64_20261127.json)
+watch the actual history writer after SIGTERM and send SIGKILL once its new
+`meta.json` exists. Each run verifies that the per-target tree is still missing
+at death. The CLI capture and persisted API latest export already contain the
+interrupted run's stopped, reconciled snapshot (four loopback UDP observations,
+IPv4 and IPv6). This does **not** make it a committed history entry or prove
+that every file under latest advanced together.
+
+Before the fix, the text history reader discovered two numeric directories
+and reported removals from a half-written protocol catalog. The JSON reader
+correctly listed one. Writers now serialize publication, build the archive
+and its delta files in an owned nonnumeric slot, rename the complete tree,
+atomically replace the index, and only then prune retired entries. Both
+`--list-history` views use the published index when present; an invalid index
+does not authorize a directory-scan fallback. Legacy shelves without an index
+retain their text directory view.
+
+At SIGKILL both fixed views still list only the seed and the index bytes are
+unchanged. After same-path restart, HTTP `/health` reports the new empty run's
+identity. The next terminal publication reclaims the interrupted staging slot;
+the index then contains exactly the seed and the new four-observation run.
+A new writer does not adopt arbitrary unindexed numeric directories. A kill
+*after* rename but *before* index replacement could leave such a complete
+orphan; the [retention-limit check](#repeated-interruption-at-the-retention-limit)
+below addresses this later window. Power-loss durability is a separate gate.
+
+Reproduce with `GEWY_ARCHIVE_INTERRUPT_OUT` pointing at a new directory and
+the ignored Linux test
+`network::offload::service::expiry::shutdown::status_failure::read_only_outputs::history_interruption::production_capture_interrupted_history_publication`.
+
+## Repeated Interruption At The Retention Limit
+
+The [before/after Linux results](fixtures/gewyvern_product_udp_history_retention_rename_linux_x86_64_20261127.json)
+use two real terminal archives and `GEWY_HISTORY_RETENTION=2`. A test-owned
+inotify watch signals the collector on the move of its completed archive to a
+numeric name. Each kill must leave an unchanged index and both old archive
+trees byte-identical, while the unindexed export has the interrupted run ID
+and four matched and retained UDP observations. Both CLI views still list the
+two original entries.
+
+| Numeric directories | After kill 1 | After kill 2 | After kill 3 | After one clean stop |
+| --- | ---: | ---: | ---: | ---: |
+| Before fix | 3 | 4 | 5 | 5 |
+| After fix (three independent repetitions) | 3 | 3 | 3 | 2 |
+
+Before renaming, the writer records one timestamp and random publication nonce
+in both the staged archive and an atomic intent file. At the next terminal
+publication, under the shelf writer lock, it consults the committed index.
+An indexed generation is kept. Only an unindexed directory matching the
+outstanding intent may move back to the reserved staging slot. The final
+successful index retains the new run and the newer seed; only then is the
+oldest seed evicted. There is no background cleanup: one complete extra
+archive may remain while the writer is down.
+
+This is not a sweep of pre-upgrade or manually copied numeric directories.
+A missing index with a pending intent, a conflicting destination, or a bad
+stamp stops recovery rather than guessing which data to delete. The evidence
+is for SIGKILL **before** index replacement, not power loss or interruption of
+the [later retention prune](#interrupted-prune-after-index-replacement). Reproduce with a fresh `GEWY_RETENTION_INTERRUPT_OUT`
+and the ignored Linux test
+`network::offload::service::expiry::shutdown::status_failure::read_only_outputs::history_interruption::retention_interruption::production_capture_repeated_rename_at_retention_limit`.
+
+## Interrupted Prune After Index Replacement
+
+The [Linux results](fixtures/gewyvern_product_udp_history_prune_linux_x86_64_20261127.json)
+cover the opposite side of the index switch at retention two. An inotify
+watch sends SIGKILL on deletion **inside the evicted archive**. A round only
+counts if the new run and its predecessor are the two indexed, readable
+terminals, the survivor's tree hash is unchanged, and the victim has strictly
+fewer files than before but is not empty.
+
+| Retired directories on disk | Kill 1 | Kill 2 | Kill 3 | After clean rotation |
+| --- | ---: | ---: | ---: | ---: |
+| Before fix | 1 | 2 | 3 | 3 |
+| After fix (three independent repetitions) | 1 | 1 | 1 | 0 |
+
+Before replacing the index, the writer records a bounded prune plan under
+the existing writer lock. Its fingerprints identify the **ordered timestamp
+lists** before and after commit. At the next terminal publication, the old
+list means no eviction occurred; the new list authorizes finishing only the
+specified, unindexed generations. Missing or unrelated indexes do not
+authorize any deletion. Each victim retains its publication stamp (or a
+timestamp-checked, hashed legacy metadata file) until its payload is gone.
+An already absent victim or the final empty directory can be finished safely;
+a nonempty replacement with a different identity is not swept.
+
+One additional campaign interrupted recovery of the **same** partial victim
+twice: 471 to 461 to 29 files. Neither the index bytes nor either committed
+tree hash changed during these retries. The subsequent clean publication left
+two numeric directories, both indexed. There is no background cleanup while
+the writer is stopped, no sweep of orphaned pre-upgrade data, and no proof of
+power-loss durability.
+
+From the same Linux privileged test suite, select
+`production_capture_repeated_committed_prune` with a fresh `GEWY_PRUNE_INTERRUPT_OUT`,
+or `production_capture_prune_recovery_is_interruptible` with a fresh
+`GEWY_PRUNE_RETRY_OUT`, using either suffix as a Cargo test filter with
+`-- --ignored --nocapture`.
+
+## Changing Retention Between Evictions
+
+Five completed runs fill a shelf at retention five. Stopping a sixth at
+retention two commits that run and the newest seed, retiring four directories.
+The Linux test uses a fanotify permission event on the second victim's stamp:
+it allows the pre-commit identification read, but holds the cleanup read after
+the first victim is gone. Only the test collector is killed. At that point the
+three remaining victims must still have their original full-tree SHA-256s.
+
+| Restart limit | While collecting | After the next successful terminal publication |
+| --- | --- | --- |
+| 4 | Two indexed; three old directories still await cleanup | Three indexed directories: restart, interrupted run, newest seed. No retired run returns. |
+| 1 | Same committed index and pending cleanup | One directory: the restart. The two preceding runs are evicted by the new publication. |
+
+The test pauses the restarted writer once more, after the old plan is cleared
+but before the next index switch. Both old index entries must still read back as
+their original terminal snapshots, the index bytes must match, and all four old
+victims must be absent. At completion the numeric directories must exactly match
+the new index; neither a prune journal nor an in-flight receipt may remain.
+
+For an indexed shelf, `--list-history` reports the **committed** retention, as
+`--list-history --json` does. When different, `local configured retention`
+is the setting of the CLI process, not necessarily the daemon's setting. With
+no recorded limit the text view uses the local policy. Starting a collector
+does not by itself run cleanup or change the committed limit.
+
+See the [Linux field evidence](fixtures/gewyvern_product_udp_history_shrink_linux_x86_64_20261127.json).
+To repeat, use a fresh absolute output directory for each run (the test creates
+it), on a privileged Linux host with BPF, cgroup v2 and fanotify permission events:
+
+```sh
+GEWY_SHRINK_RAISE_OUT=/var/tmp/gewy-raise-1 cargo test --locked -p gewyvern --all-features --test production_capture_linux_tdd production_capture_raise_after_partial_batch -- --ignored --nocapture
+GEWY_SHRINK_LOWER_OUT=/var/tmp/gewy-lower-1 cargo test --locked -p gewyvern --all-features --test production_capture_linux_tdd production_capture_lower_after_partial_batch -- --ignored --nocapture
+```
+
+These are process-crash tests on one filesystem and kernel, not power-cut tests.

@@ -1,0 +1,402 @@
+{
+  "schema_version": 1,
+  "host": "Linux 7.0.0-44-generic x86_64",
+  "release_artifact": false,
+  "binary_sha256": "c510428a2ca986636963702eabc6bca25a17533c5493b1b15e3e72dde87dc047",
+  "test_binary_sha256": "4a52fb62b7e1f078b0a0397f36c2abc79b00a5fe17acd0a4ac492b71a5a78bfd",
+  "source_sha256": {
+    "src/main/capture_runtime.rs": "e102e6510d0ae7646bb5fb1a11c40826469f2d85329fd7065461c54e7b346dbd",
+    "src/serve_runtime.rs": "18e82302ff6adb1c22d1ac73b553b872a341199df8b219ea8ddc39477d16ee0f",
+    "tests/production_capture_linux_tdd/network/offload/read_only_outputs.rs": "6de3c1934cd79079841c895abeb7f0a8a62002e66977ac0bee709ebeea9720b0",
+    "tests/production_capture_linux_tdd/network/offload/api_archive.rs": "17ff5f8bee89b5fef3cef5a0d3839c27321564405df86233aadfa009d78ca530"
+  },
+  "diagnostic_path_substitution": "$CASE/ replaces the temporary per-case directory prefix",
+  "before_fix": {
+    "case": "v4-terminal-api",
+    "stderr": {
+      "schema_version": 1,
+      "ok": false,
+      "error": {
+        "code": "output_write_failed",
+        "category": "io",
+        "message": "failed to write output to $CASE/capture/export.json: Read-only file system (os error 30); final capture status at $CASE/capture/status.json was not written [capture_status_write_failed]: capture_status_write_failed: Read-only file system (os error 30)",
+        "retryable": true,
+        "exit_code": 1
+      }
+    }
+  },
+  "runs": [
+    {
+      "summary_file": "v4-running-api/summary.json",
+      "summary_sha256": "4d97c02e9e4329bee51b07b6d560416aeaedfba28b3f7686477cafcbd69afb63",
+      "stderr": {
+        "schema_version": 1,
+        "ok": false,
+        "error": {
+          "code": "output_write_failed",
+          "category": "io",
+          "message": "failed to write output to $CASE/capture/export.json: Read-only file system (os error 30); final API snapshot persistence failed [snapshot_persist_failed]: failed to persist latest snapshot file '$CASE/runtime/state/latest/api/v1/latest/meta.json': Read-only file system (os error 30); final capture status at $CASE/capture/status.json was not written [capture_status_write_failed]: capture_status_write_failed: Read-only file system (os error 30)",
+          "retryable": true,
+          "exit_code": 1
+        }
+      },
+      "summary": {
+        "api_failure": null,
+        "archive": {
+          "history_after_fault": 1,
+          "history_after_repair": 2,
+          "history_before": 1,
+          "persistence_error_reported": true,
+          "seed_run_id": "804935-23255594910537",
+          "tree_sha256_before_and_after": "787331d3d24c8aff48d2839a4f9c993098b0645902aa28e4185870ed19270bfa"
+        },
+        "case": "running-api",
+        "error": "output_write_failed",
+        "exit": 1,
+        "family": 4,
+        "fresh": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-804921-1795778415835950042-client",
+          "decode_rejected": "0",
+          "final_accounted": false,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "0",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "0",
+          "retained": "0",
+          "run_id": "805099-23257852847299",
+          "schema_version": 1,
+          "state": "running",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "repaired": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-804921-1795778415835950042-client",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "5",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "5",
+          "retained": "5",
+          "run_id": "805099-23257852847299",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "stale": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-804921-1795778415835950042-client",
+          "decode_rejected": "0",
+          "final_accounted": false,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "25",
+            "no_cookie": "0",
+            "ring_dropped": "8",
+            "unsupported": "0"
+          },
+          "received": "17",
+          "retained": "8",
+          "run_id": "804987-23256780870397",
+          "schema_version": 1,
+          "state": "running",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "stale_export_sha256": "06948b5ac4695421e3de3d9e18c2a5427a9c68f1025b8c6847da108a5b7ed138",
+        "stale_status_sha256": "ccbf2e87c5e3da659a9ddb0c110e47b4370e97b843c3e6579e4e22ae8860c08b",
+        "status_error": "capture_status_write_failed"
+      }
+    },
+    {
+      "summary_file": "v4-terminal-api/summary.json",
+      "summary_sha256": "3a574d9119a1b123c8f61a1f8648279a7fa374d4930da3a3e17bbf32b656c2ad",
+      "stderr": {
+        "schema_version": 1,
+        "ok": false,
+        "error": {
+          "code": "output_write_failed",
+          "category": "io",
+          "message": "failed to write output to $CASE/capture/export.json: Read-only file system (os error 30); final API snapshot persistence failed [snapshot_persist_failed]: failed to persist latest snapshot file '$CASE/runtime/state/latest/api/v1/latest/meta.json': Read-only file system (os error 30); final capture status at $CASE/capture/status.json was not written [capture_status_write_failed]: capture_status_write_failed: Read-only file system (os error 30)",
+          "retryable": true,
+          "exit_code": 1
+        }
+      },
+      "summary": {
+        "api_failure": null,
+        "archive": {
+          "history_after_fault": 1,
+          "history_after_repair": 2,
+          "history_before": 1,
+          "persistence_error_reported": true,
+          "seed_run_id": "805181-23259311360174",
+          "tree_sha256_before_and_after": "0b89da82a270c6cb543e6eb01993156aba52d428a7fdd8107163b34241c556fe"
+        },
+        "case": "terminal-api",
+        "error": "output_write_failed",
+        "exit": 1,
+        "family": 4,
+        "fresh": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-805167-1795778419551890004-client",
+          "decode_rejected": "0",
+          "final_accounted": false,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "0",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "0",
+          "retained": "0",
+          "run_id": "805235-23261349433847",
+          "schema_version": 1,
+          "state": "running",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "repaired": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-805167-1795778419551890004-client",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "5",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "5",
+          "retained": "5",
+          "run_id": "805235-23261349433847",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "stale": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-805167-1795778419551890004-client",
+          "decode_rejected": "0",
+          "final_accounted": false,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "25",
+            "no_cookie": "0",
+            "ring_dropped": "8",
+            "unsupported": "0"
+          },
+          "received": "17",
+          "retained": "8",
+          "run_id": "805220-23260442490342",
+          "schema_version": 1,
+          "state": "running",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "stale_export_sha256": "1a2009a07c52af30649a244a88c78517a6e8b01af1bc57f65a15950d54503e79",
+        "stale_status_sha256": "5089c7dc52eb8dd398f79d13a5f10893db20760013e18045845d5a6ad3fe1aac",
+        "status_error": "capture_status_write_failed"
+      }
+    },
+    {
+      "summary_file": "v6-running-api/summary.json",
+      "summary_sha256": "47a9b8ad88862f93cdf7d9683b166b26ccf033fe4ab7cd81573e8f87d1d765f8",
+      "stderr": {
+        "schema_version": 1,
+        "ok": false,
+        "error": {
+          "code": "output_write_failed",
+          "category": "io",
+          "message": "failed to write output to $CASE/capture/export.json: Read-only file system (os error 30); final API snapshot persistence failed [snapshot_persist_failed]: failed to persist latest snapshot file '$CASE/runtime/state/latest/api/v1/latest/meta.json': Read-only file system (os error 30); final capture status at $CASE/capture/status.json was not written [capture_status_write_failed]: capture_status_write_failed: Read-only file system (os error 30)",
+          "retryable": true,
+          "exit_code": 1
+        }
+      },
+      "summary": {
+        "api_failure": null,
+        "archive": {
+          "history_after_fault": 1,
+          "history_after_repair": 2,
+          "history_before": 1,
+          "persistence_error_reported": true,
+          "seed_run_id": "805280-23262799902312",
+          "tree_sha256_before_and_after": "390119baf915444c5ff0b5ab6b688a8f5a5f9eac4dd3caa8d02a0e8af278d4c6"
+        },
+        "case": "running-api",
+        "error": "output_write_failed",
+        "exit": 1,
+        "family": 6,
+        "fresh": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-805266-1795778423046126804-client",
+          "decode_rejected": "0",
+          "final_accounted": false,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "0",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "0",
+          "retained": "0",
+          "run_id": "805374-23265004717844",
+          "schema_version": 1,
+          "state": "running",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "repaired": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-805266-1795778423046126804-client",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "5",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "5",
+          "retained": "5",
+          "run_id": "805374-23265004717844",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "stale": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-805266-1795778423046126804-client",
+          "decode_rejected": "0",
+          "final_accounted": false,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "25",
+            "no_cookie": "0",
+            "ring_dropped": "8",
+            "unsupported": "0"
+          },
+          "received": "17",
+          "retained": "8",
+          "run_id": "805341-23263934516852",
+          "schema_version": 1,
+          "state": "running",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "stale_export_sha256": "13bfcea592721c59fb1d2766abd88e0eae58cb35daa4e21997583f74da84e97a",
+        "stale_status_sha256": "7ca35c38c52fbfc679bcd8d531f485f80af8eeed77b03ca9ac3751bf9f486a58",
+        "status_error": "capture_status_write_failed"
+      }
+    },
+    {
+      "summary_file": "v6-terminal-api/summary.json",
+      "summary_sha256": "4037056c3be713797fafc8ede7b7dd471d978a6042fef932fea5c0ca0ac459f3",
+      "stderr": {
+        "schema_version": 1,
+        "ok": false,
+        "error": {
+          "code": "output_write_failed",
+          "category": "io",
+          "message": "failed to write output to $CASE/capture/export.json: Read-only file system (os error 30); final API snapshot persistence failed [snapshot_persist_failed]: failed to persist latest snapshot file '$CASE/runtime/state/latest/api/v1/latest/meta.json': Read-only file system (os error 30); final capture status at $CASE/capture/status.json was not written [capture_status_write_failed]: capture_status_write_failed: Read-only file system (os error 30)",
+          "retryable": true,
+          "exit_code": 1
+        }
+      },
+      "summary": {
+        "api_failure": null,
+        "archive": {
+          "history_after_fault": 1,
+          "history_after_repair": 2,
+          "history_before": 1,
+          "persistence_error_reported": true,
+          "seed_run_id": "805403-23266702682495",
+          "tree_sha256_before_and_after": "4c840b463304cba63a734f4a4cfe7f6fbbec39883571e6c816cdb34ddaa52af0"
+        },
+        "case": "terminal-api",
+        "error": "output_write_failed",
+        "exit": 1,
+        "family": 6,
+        "fresh": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-805389-1795778426948652016-client",
+          "decode_rejected": "0",
+          "final_accounted": false,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "0",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "0",
+          "retained": "0",
+          "run_id": "805597-23268808901666",
+          "schema_version": 1,
+          "state": "running",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "repaired": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-805389-1795778426948652016-client",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "5",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "5",
+          "retained": "5",
+          "run_id": "805597-23268808901666",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "stale": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-805389-1795778426948652016-client",
+          "decode_rejected": "0",
+          "final_accounted": false,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "25",
+            "no_cookie": "0",
+            "ring_dropped": "8",
+            "unsupported": "0"
+          },
+          "received": "17",
+          "retained": "8",
+          "run_id": "805526-23267886357037",
+          "schema_version": 1,
+          "state": "running",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        },
+        "stale_export_sha256": "df1d61387216b9ab218e8dfb5848f60736990531482479406f0b056dae32c1da",
+        "stale_status_sha256": "12c48c8c573853a013148079922922f89f818fa5b7ae040138c920889863858f",
+        "status_error": "capture_status_write_failed"
+      }
+    }
+  ]
+}

@@ -35,6 +35,7 @@ pub(crate) fn run_with_api_factory(
 #[cfg(target_os = "linux")]
 mod linux {
     use super::*;
+    use gewyvern::export::ExportBundle;
     use gewyvern::live_capture::{CaptureError, CaptureSnapshot, CaptureState, Collector};
     use gewyvern::runtime::{RuntimeSession, SessionConfig};
     use std::path::Path;
@@ -77,6 +78,25 @@ mod linux {
                 ))
             },
         )
+    }
+
+    fn report_final_status(
+        mut primary: MachineError,
+        path: &Path,
+        result: Result<(), MachineError>,
+    ) -> MachineError {
+        if let Err(secondary) = result
+            && secondary.code != primary.code
+        {
+            primary.message = format!(
+                "{}; final capture status at {} was not written [{}]: {}",
+                primary.message,
+                path.display(),
+                secondary.code,
+                secondary.message
+            );
+        }
+        primary
     }
 
     pub(super) fn run(
@@ -151,36 +171,54 @@ mod linux {
                 }
                 last.state = CaptureState::Failed;
                 last.incomplete = true;
-                let _ = status(&status_path, &last);
-                return Err(failure);
+                return Err(report_final_status(
+                    failure,
+                    &status_path,
+                    status(&status_path, &last),
+                ));
             }
         };
         let api_state = api.as_ref().map(crate::data_api::ApiService::state);
         let started = Instant::now();
         let mut window = Instant::now();
         let mut batches = 0usize;
-        let publish = |facts: Vec<gewyvern::ledger::FactEnvelope>,
-                       snapshot: &CaptureSnapshot|
-         -> Result<(), MachineError> {
-            let mut session = RuntimeSession::start(config.clone())?;
-            // Kernel timestamps may interleave across CPUs; keep deterministic
-            // timestamp/ID ordering inside this bounded analysis batch.
-            let mut facts = facts;
-            facts.sort_by_key(|fact| (fact.ts, fact.id));
-            for fact in facts {
-                session.ingest(fact);
-            }
-            let mut export = session.into_export_bundle();
-            export.ingest_trust_mode = "unverified-local".into();
+        let prepare =
+            |mut facts: Vec<gewyvern::ledger::FactEnvelope>| -> Result<ExportBundle, MachineError> {
+                let mut session = RuntimeSession::start(config.clone())?;
+                // Kernel timestamps may interleave across CPUs; keep deterministic
+                // timestamp/ID ordering inside this bounded analysis batch.
+                facts.sort_by_key(|fact| (fact.ts, fact.id));
+                for fact in facts {
+                    session.ingest(fact);
+                }
+                let mut export = session.into_export_bundle();
+                export.ingest_trust_mode = "unverified-local".into();
+                Ok(export)
+            };
+        let mut api_persist_error = None;
+        let mut emit = |export: &mut ExportBundle, snapshot: &CaptureSnapshot, checkpoint: bool| {
             export.debug_summary.degraded |= snapshot.incomplete;
             export.capture = Some(snapshot.clone());
-            let name = crate::serve_runtime::single_runtime_target_name(&export);
-            crate::serve_runtime::emit_rendered(cli, &name, &export, false, api_state)?;
-            Ok(())
+            let name = crate::serve_runtime::single_runtime_target_name(export);
+            let commit = || status(&status_path, snapshot);
+            crate::serve_runtime::emit_rendered_with_checkpoint(
+                cli,
+                &name,
+                export,
+                false,
+                api_state,
+                if checkpoint { Some(&commit) } else { None },
+                |err| api_persist_error = Some(err),
+            )
         };
+        let mut unconfirmed = None;
         let result = (|| -> Result<(), MachineError> {
+            let mut publish = |facts, snapshot: &CaptureSnapshot, checkpoint| {
+                let mut export = prepare(facts)?;
+                emit(&mut export, snapshot, checkpoint).inspect_err(|_| unconfirmed = Some(export))
+            };
             if api_state.is_some() {
-                publish(Vec::new(), &last)?;
+                publish(Vec::new(), &last, false)?;
             }
             loop {
                 if stop.load(Ordering::Relaxed)
@@ -203,8 +241,7 @@ mod linux {
                         break;
                     }
                     last = collector.snapshot().map_err(error)?;
-                    publish(collector.take_facts(), &last)?;
-                    status(&status_path, &last)?;
+                    publish(collector.take_facts(), &last, true)?;
                     batches += 1;
                     window = Instant::now();
                 }
@@ -213,23 +250,75 @@ mod linux {
                 }
             }
             last = collector.finish().map_err(error)?;
-            publish(collector.take_facts(), &last)?;
-            status(&status_path, &last)?;
+            publish(collector.take_facts(), &last, true)?;
             Ok(())
         })();
-        if let Err(failure) = result {
-            if let Ok(snapshot) = collector.finish() {
+        if let Err(mut failure) = result {
+            if !last.final_accounted
+                && let Ok(snapshot) = collector.finish()
+            {
                 last = snapshot;
             }
             last.state = CaptureState::Failed;
             last.incomplete = true;
-            if api_state.is_some() {
-                // Refresh the API/persisted snapshot even when its output file failed.
-                let _ = publish(collector.take_facts(), &last);
+            if api_state.is_some() || failure.code == "capture_status_write_failed" {
+                // Keep the unconfirmed window if draining produced no newer facts.
+                // Do not merge two windows or charge publication failure as packet loss.
+                let tail = collector.take_facts();
+                let window = match unconfirmed {
+                    Some(export) if tail.is_empty() => Ok(export),
+                    _ => prepare(tail),
+                };
+                if let Ok(mut export) = window {
+                    let _ = emit(&mut export, &last, false);
+                }
             }
-            let _ = status(&status_path, &last);
-            return Err(failure);
+            if let Some(detail) = api_persist_error {
+                use crate::runtime_events::EVENT_SNAPSHOT_PERSIST_FAILED;
+                failure.message.push_str(&format!(
+                    "; final API snapshot persistence failed [{EVENT_SNAPSHOT_PERSIST_FAILED}]: {detail}"
+                ));
+            }
+            return Err(report_final_status(
+                failure,
+                &status_path,
+                status(&status_path, &last),
+            ));
         }
         Ok(if last.incomplete { 3 } else { 0 })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn final_status_diagnostic_preserves_primary_exit_contract() {
+            let path = Path::new("status.json");
+            let export =
+                MachineError::new("output_write_failed", ErrorCategory::Io, "export", true, 1);
+            let checkpoint = error(CaptureError::new(
+                "capture_status_write_failed",
+                "read-only",
+            ));
+            assert_eq!(report_final_status(export.clone(), path, Ok(())), export);
+            assert_eq!(
+                report_final_status(checkpoint.clone(), path, Err(checkpoint.clone())),
+                checkpoint
+            );
+            let dual = report_final_status(export.clone(), path, Err(checkpoint));
+            assert!(dual.message.starts_with("export;"));
+            assert!(
+                dual.message
+                    .contains("status.json was not written [capture_status_write_failed]")
+            );
+            assert_eq!(
+                MachineError {
+                    message: export.message.clone(),
+                    ..dual
+                },
+                export
+            );
+        }
     }
 }

@@ -1,6 +1,9 @@
 //! A live, incomplete group must expire without more traffic or process exit.
 use super::*;
 
+#[path = "shutdown.rs"]
+mod shutdown;
+
 fn phase_count(phase: usize) -> usize {
     match phase {
         0..=3 => 1,
@@ -182,14 +185,47 @@ fn stage(
     }
 }
 
-#[test]
-#[ignore = "root/BPF/iproute2; GEWY_OFFLOAD_EXPIRY_FAMILY=4|6 and GEWY_OFFLOAD_EXPIRY_OUT=new-directory"]
-fn production_capture_offload_idle_expiry_and_capacity_recovery() {
+struct PartialRun {
+    capture: Process,
+    server: Process,
+    client: Process,
+    scope: Scope,
+    server_scope: Scope,
+    network: Network,
+    out: PathBuf,
+    capture_dir: PathBuf,
+    partial: ExportBundle,
+    resumed: Instant,
+}
+
+const OPTIONS: &[&str] = &[
+    "--serve",
+    "--capture-window-ms",
+    "200",
+    "--capture-max-facts",
+    "24",
+    "--capture-ring-kib",
+    "4",
+];
+
+fn start_partial(output_var: &str) -> PartialRun {
+    start_partial_with_options(output_var, OPTIONS)
+}
+
+fn start_partial_with_options(output_var: &str, options: &[&str]) -> PartialRun {
+    start_partial_using(output_var, |scope, dir| {
+        collector_with_options(scope, PORT, dir, options)
+    })
+}
+
+fn start_partial_using(
+    output_var: &str,
+    spawn: impl FnOnce(&Scope, &Path) -> Process,
+) -> PartialRun {
     assert_eq!(unsafe { libc::geteuid() }, 0);
-    let family = family();
-    let out = PathBuf::from(std::env::var_os("GEWY_OFFLOAD_EXPIRY_OUT").unwrap());
+    let out = PathBuf::from(std::env::var_os(output_var).unwrap());
     fs::create_dir(&out).unwrap();
-    let mut network = Network::new();
+    let network = Network::new();
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -205,20 +241,7 @@ fn production_capture_offload_idle_expiry_and_capacity_recovery() {
     }
     let capture_dir = out.join("capture");
     fs::create_dir(&capture_dir).unwrap();
-    let mut capture = collector_with_options(
-        &scope,
-        PORT,
-        &capture_dir,
-        &[
-            "--serve",
-            "--capture-window-ms",
-            "200",
-            "--capture-max-facts",
-            "24",
-            "--capture-ring-kib",
-            "4",
-        ],
-    );
+    let mut capture = spawn(&scope, &capture_dir);
     ready(&mut capture, &capture_dir);
     let run_id = snapshot(&capture_dir).run_id;
     pause_idle(&mut capture, &capture_dir, &run_id);
@@ -243,6 +266,7 @@ fn production_capture_offload_idle_expiry_and_capacity_recovery() {
         phase(&mut server, &mut client, &out, id);
     }
     thread::sleep(Duration::from_millis(250));
+    let resumed = Instant::now();
     signal(&capture, libc::SIGCONT);
     let partial = stage(
         &mut capture,
@@ -251,8 +275,39 @@ fn production_capture_offload_idle_expiry_and_capacity_recovery() {
         "partial",
         [25, 17, 8, 0, 0],
     );
-    let observed_partial = Instant::now();
     assert_eq!(partial.facts.len(), 8);
+    PartialRun {
+        capture,
+        server,
+        client,
+        scope,
+        server_scope,
+        network,
+        out,
+        capture_dir,
+        partial,
+        resumed,
+    }
+}
+
+#[test]
+#[ignore = "root/BPF/iproute2; GEWY_OFFLOAD_EXPIRY_FAMILY=4|6 and GEWY_OFFLOAD_EXPIRY_OUT=new-directory"]
+fn production_capture_offload_idle_expiry_and_capacity_recovery() {
+    let family = family();
+    let PartialRun {
+        mut capture,
+        mut server,
+        mut client,
+        scope,
+        server_scope,
+        mut network,
+        out,
+        capture_dir,
+        partial,
+        ..
+    } = start_partial("GEWY_OFFLOAD_EXPIRY_OUT");
+    let observed_partial = Instant::now();
+    let run_id = partial.capture.as_ref().unwrap().run_id.clone();
     phase(&mut server, &mut client, &out, 5);
     let blocked = stage(
         &mut capture,

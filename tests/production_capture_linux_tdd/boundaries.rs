@@ -259,36 +259,58 @@ pub(super) fn collector_with_options(
     out: &Path,
     extra: &[&str],
 ) -> Process {
+    collector_with_output_dir(scope, port, out, out, extra)
+}
+
+pub(super) fn collector_with_output_dir(
+    scope: &Scope,
+    port: u16,
+    out: &Path,
+    outputs: &Path,
+    extra: &[&str],
+) -> Process {
     Process(
-        Command::new(env!("CARGO_BIN_EXE_gewyvern"))
-            .env_clear()
-            .env("HOME", out.join("home"))
-            .env("GEWY_CONFIG_HOME", out.join("config"))
-            .env("GEWY_DATA_HOME", out.join("data"))
-            .env("GEWY_STATE_HOME", out.join("state"))
-            .env("GEWY_CACHE_HOME", out.join("cache"))
-            .current_dir(out)
-            .args(["--json", "--capture-cgroup"])
-            .arg(&scope.0)
-            .args([
-                "--capture-udp-port",
-                &port.to_string(),
-                "--capture-seconds",
-                "40",
-                "--capture-max-facts",
-                "4096",
-                "--out",
-            ])
-            .arg(out.join("export.json"))
-            .arg("--capture-status")
-            .arg(out.join("status.json"))
-            .args(extra)
-            .stdin(Stdio::null())
-            .stdout(fs::File::create(out.join("stdout.log")).unwrap())
-            .stderr(fs::File::create(out.join("stderr.log")).unwrap())
+        collector_command(scope, port, out, outputs, extra)
             .spawn()
             .unwrap(),
     )
+}
+
+pub(super) fn collector_command(
+    scope: &Scope,
+    port: u16,
+    out: &Path,
+    outputs: &Path,
+    extra: &[&str],
+) -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_gewyvern"));
+    command
+        .env_clear()
+        .env("HOME", out.join("home"))
+        .env("GEWY_CONFIG_HOME", out.join("config"))
+        .env("GEWY_DATA_HOME", out.join("data"))
+        .env("GEWY_STATE_HOME", out.join("state"))
+        .env("GEWY_CACHE_HOME", out.join("cache"))
+        .current_dir(out)
+        .args(["--json", "--capture-cgroup"])
+        .arg(&scope.0)
+        .args([
+            "--capture-udp-port",
+            &port.to_string(),
+            "--capture-seconds",
+            "40",
+            "--capture-max-facts",
+            "4096",
+            "--out",
+        ])
+        .arg(outputs.join("export.json"))
+        .arg("--capture-status")
+        .arg(outputs.join("status.json"))
+        .args(extra)
+        .stdin(Stdio::null())
+        .stdout(fs::File::create(out.join("stdout.log")).unwrap())
+        .stderr(fs::File::create(out.join("stderr.log")).unwrap());
+    command
 }
 
 pub(super) fn check_packets(bundle: &ExportBundle, expected: &[Packet]) {

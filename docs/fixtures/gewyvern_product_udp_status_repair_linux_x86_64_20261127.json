@@ -1,0 +1,415 @@
+{
+  "schema_version": 1,
+  "host": "Linux 7.0.0-44-generic x86_64",
+  "evidence_directory": "/home/chiharukiryu/.cache/gewyvern/evidence/status-repair-1795776635366",
+  "base_commit": "aba115a2a346808c792b8ee61c84d817651b3408",
+  "binary_sha256": "a3a1b48eb7c79cdac818d731ea0ea99b75d6d520f9b62a2b4003990173d3d08f",
+  "test_binary_sha256": "08d2b6b07b5c06b8ec7ff97854a21e34abba3f6e1d1fedc816d3fac027b217fd",
+  "source_input_sha256": {
+    "src/main/capture_runtime.rs": "d76fc0224a78f5dc23d642fdbf5b4874669f680196997874024f1d96a13a1a70",
+    "src/serve_runtime.rs": "5c1934f5ed0e283a6e1f67fdc3d3fd97ef648ffa2b0f594b23a182613c7923f9",
+    "tests/production_capture_linux_tdd/network/offload/status_failure.rs": "61801b47bbdeaa97ab404fa0740caba45e62f88fd5a9d18671ac49caf3773883"
+  },
+  "runs": [
+    {
+      "summary_file": "v4-running/summary.json",
+      "summary_sha256": "6d349c1b0e74e8a8c0a769051439966caf94cf2ac880b386e2a33b2f4a2b4760",
+      "summary": {
+        "case": "running",
+        "error": "capture_status_write_failed",
+        "failed": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-744923-1795776753919085907-client",
+          "decode_rejected": "9",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "42",
+            "no_cookie": "0",
+            "ring_dropped": "8",
+            "unsupported": "0"
+          },
+          "received": "34",
+          "retained": "9",
+          "run_id": "744936-21593672717313",
+          "schema_version": 1,
+          "state": "failed",
+          "udp_port": 41002,
+          "userspace_dropped": "16"
+        },
+        "failed_window_facts": 1,
+        "family": 4,
+        "repaired": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-744923-1795776753919085907-client",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "5",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "5",
+          "retained": "5",
+          "run_id": "744945-21594818268448",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        }
+      }
+    },
+    {
+      "summary_file": "v4-terminal/summary.json",
+      "summary_sha256": "b6d885eab3ee8eb24ecf194de6f0f93d5e1223b6e7caaf23e27af680beab5d83",
+      "summary": {
+        "case": "terminal",
+        "error": "capture_status_write_failed",
+        "failed": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-744976-1795776755788444379-client",
+          "decode_rejected": "9",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "42",
+            "no_cookie": "0",
+            "ring_dropped": "8",
+            "unsupported": "0"
+          },
+          "received": "34",
+          "retained": "9",
+          "run_id": "744989-21595547388831",
+          "schema_version": 1,
+          "state": "failed",
+          "udp_port": 41002,
+          "userspace_dropped": "16"
+        },
+        "failed_window_facts": 1,
+        "family": 4,
+        "repaired": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-744976-1795776755788444379-client",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "5",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "5",
+          "retained": "5",
+          "run_id": "744998-21596521317980",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        }
+      }
+    },
+    {
+      "summary_file": "v4-running-api/summary.json",
+      "summary_sha256": "a13f96f62c594f1d62e878041d975bba618b4363750ce81431ba73c99d64864a",
+      "summary": {
+        "case": "running-api",
+        "error": "capture_status_write_failed",
+        "failed": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-745064-1795776757489591848-client",
+          "decode_rejected": "9",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "42",
+            "no_cookie": "0",
+            "ring_dropped": "8",
+            "unsupported": "0"
+          },
+          "received": "34",
+          "retained": "9",
+          "run_id": "745077-21597248405022",
+          "schema_version": 1,
+          "state": "failed",
+          "udp_port": 41002,
+          "userspace_dropped": "16"
+        },
+        "failed_window_facts": 1,
+        "family": 4,
+        "repaired": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-745064-1795776757489591848-client",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "5",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "5",
+          "retained": "5",
+          "run_id": "745126-21599134762497",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        }
+      }
+    },
+    {
+      "summary_file": "v4-terminal-api/summary.json",
+      "summary_sha256": "0b0ed133cb973ac12dea43ddbac50e959062c7f27d52b9dfce549d6888819cb7",
+      "summary": {
+        "case": "terminal-api",
+        "error": "capture_status_write_failed",
+        "failed": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-745159-1795776760847011897-client",
+          "decode_rejected": "9",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "42",
+            "no_cookie": "0",
+            "ring_dropped": "8",
+            "unsupported": "0"
+          },
+          "received": "34",
+          "retained": "9",
+          "run_id": "745172-21600600834909",
+          "schema_version": 1,
+          "state": "failed",
+          "udp_port": 41002,
+          "userspace_dropped": "16"
+        },
+        "failed_window_facts": 1,
+        "family": 4,
+        "repaired": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-745159-1795776760847011897-client",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "5",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "5",
+          "retained": "5",
+          "run_id": "745340-21602318479405",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        }
+      }
+    },
+    {
+      "summary_file": "v6-running/summary.json",
+      "summary_sha256": "338eff89b3755b7e157f699986b6be2db82d62537ee301a525219c12ac47a895",
+      "summary": {
+        "case": "running",
+        "error": "capture_status_write_failed",
+        "failed": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-745370-1795776764036485955-client",
+          "decode_rejected": "9",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "42",
+            "no_cookie": "0",
+            "ring_dropped": "8",
+            "unsupported": "0"
+          },
+          "received": "34",
+          "retained": "9",
+          "run_id": "745383-21603790453602",
+          "schema_version": 1,
+          "state": "failed",
+          "udp_port": 41002,
+          "userspace_dropped": "16"
+        },
+        "failed_window_facts": 1,
+        "family": 6,
+        "repaired": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-745370-1795776764036485955-client",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "5",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "5",
+          "retained": "5",
+          "run_id": "745440-21605982492697",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        }
+      }
+    },
+    {
+      "summary_file": "v6-terminal/summary.json",
+      "summary_sha256": "559ae5193e449c7dfcf6a6a8b789d7e7cf98e7a631a3e11afbcbf9f0194d2247",
+      "summary": {
+        "case": "terminal",
+        "error": "capture_status_write_failed",
+        "failed": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-745451-1795776766951927533-client",
+          "decode_rejected": "9",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "42",
+            "no_cookie": "0",
+            "ring_dropped": "8",
+            "unsupported": "0"
+          },
+          "received": "34",
+          "retained": "9",
+          "run_id": "745464-21606706326442",
+          "schema_version": 1,
+          "state": "failed",
+          "udp_port": 41002,
+          "userspace_dropped": "16"
+        },
+        "failed_window_facts": 1,
+        "family": 6,
+        "repaired": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-745451-1795776766951927533-client",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "5",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "5",
+          "retained": "5",
+          "run_id": "745547-21608701779353",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        }
+      }
+    },
+    {
+      "summary_file": "v6-running-api/summary.json",
+      "summary_sha256": "0d47d09698c2ca0a0a787ad00433df10a3e8df51919fa86a915f1e32d97d1ebe",
+      "summary": {
+        "case": "running-api",
+        "error": "capture_status_write_failed",
+        "failed": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-745558-1795776769673200095-client",
+          "decode_rejected": "9",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "42",
+            "no_cookie": "0",
+            "ring_dropped": "8",
+            "unsupported": "0"
+          },
+          "received": "34",
+          "retained": "9",
+          "run_id": "745571-21609426995628",
+          "schema_version": 1,
+          "state": "failed",
+          "udp_port": 41002,
+          "userspace_dropped": "16"
+        },
+        "failed_window_facts": 1,
+        "family": 6,
+        "repaired": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-745558-1795776769673200095-client",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "5",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "5",
+          "retained": "5",
+          "run_id": "745761-21612331414561",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        }
+      }
+    },
+    {
+      "summary_file": "v6-terminal-api/summary.json",
+      "summary_sha256": "138051c5c1096796d4a938db688507570503450c65524c80cefc5ed2a1854571",
+      "summary": {
+        "case": "terminal-api",
+        "error": "capture_status_write_failed",
+        "failed": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-745812-1795776774078534724-client",
+          "decode_rejected": "9",
+          "final_accounted": true,
+          "incomplete": true,
+          "kernel": {
+            "malformed": "0",
+            "matched": "42",
+            "no_cookie": "0",
+            "ring_dropped": "8",
+            "unsupported": "0"
+          },
+          "received": "34",
+          "retained": "9",
+          "run_id": "745825-21613832664763",
+          "schema_version": 1,
+          "state": "failed",
+          "udp_port": 41002,
+          "userspace_dropped": "16"
+        },
+        "failed_window_facts": 1,
+        "family": 6,
+        "repaired": {
+          "cgroup": "/sys/fs/cgroup/gewyvern-production-test-netns-expiry-745812-1795776774078534724-client",
+          "decode_rejected": "0",
+          "final_accounted": true,
+          "incomplete": false,
+          "kernel": {
+            "malformed": "0",
+            "matched": "5",
+            "no_cookie": "0",
+            "ring_dropped": "0",
+            "unsupported": "0"
+          },
+          "received": "5",
+          "retained": "5",
+          "run_id": "745858-21616546841857",
+          "schema_version": 1,
+          "state": "stopped",
+          "udp_port": 41002,
+          "userspace_dropped": "0"
+        }
+      }
+    }
+  ]
+}

@@ -180,12 +180,45 @@ The `standalone` query reports non-deferred, non-internal cells only after they
 reach at least stabilizing maturity. A planned or deferred standalone component
 remains visible in the catalog but is not reported as currently usable.
 
-For Leselang, frontend dependency independence and full runtime embedding are
-separate cells. `leselang/language-vm/host-neutral-embedding` is a planned target
-with no completed runtime proof; mature Leserpent VM integration must not be
-counted as that proof. Its [embedding contract](leselang-embedding.md) requires
-an unrelated headless consumer. The distant nuis OS / sirius kernel shell is a
-deferred direction, not implemented status or a Leserpent release gate.
+For Leselang, the [pinned native repository handoff](leselang-repository-handoff.md)
+and full runtime embedding are separate cells. The former covers independent
+source ownership and Git dependency consumption, not registry publication.
+`leselang/language-vm/host-neutral-embedding` is a **developing** target:
+individual headless examples and pinned consumer tests exist, but complete
+declared-language and host-neutral durable recovery acceptance do not. Mature
+Leserpent VM integration cannot substitute for the [embedding contract](leselang-embedding.md).
+The distant nuis OS / sirius kernel shell remains a deferred direction.
+
+## November 27 Calibration
+
+The release checkpoint and scoring model are unchanged. Two capabilities
+previously buried in wider cells are now independently judged:
+
+- **Linux UDP publication recovery:** the [field evidence](production-udp-offload-service.md#graceful-shutdown-with-an-occupied-ring)
+  covers five process/storage scenarios: graceful drain (6 runs),
+  forced stop (6), status-only write failure (8) and both CLI outputs read-only
+  (8), and [API state plus both CLI outputs read-only](production-udp-offload-service.md#api-state-and-both-cli-outputs-read-only)
+  (4). All use the original sockets and cover IPv4 and IPv6. Graceful drain
+  uses a new output directory; the other 26 runs restart on the original paths.
+  This closes the defined five-scenario matrix, not the wider durability
+  contract. Three subsequent [history writer interruptions](production-udp-offload-service.md#interrupted-history-publication)
+  cover a partially written archive. A [retention-limit check](production-udp-offload-service.md#repeated-interruption-at-the-retention-limit)
+  separately verifies nine post-rename, pre-index kills across three full shelves.
+  The [post-index prune check](production-udp-offload-service.md#interrupted-prune-after-index-replacement)
+  separately covers partial eviction and repeated interruption of the same
+  cleanup. A [multi-directory shrink and restart](production-udp-offload-service.md#changing-retention-between-evictions)
+  verifies that the old plan drains before a higher or lower limit is committed.
+  Concurrent publishers, power loss and independent kernels remain separate
+  gates. Maturity remains stabilizing.
+- **Leselang native foundation:** the independent MIT repository, exact Git pin,
+  resolved-source checks and retained product compatibility tests close the
+  repository handoff. They do not change the separate embedding judgment.
+
+The remaining cells keep their prior judgments. In particular, protocol-package
+breadth does not imply general production TCP capture; the four recovery
+fixtures are not new GewyLang, Leserpent GUI, shared I/O or release proofs.
+Etragon and the desktop account proof remain deferred. For current scores and
+rankings use the native summary rather than adding percentages across cells.
 
 ## Native Commands
 

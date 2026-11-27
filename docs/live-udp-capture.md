@@ -184,6 +184,22 @@ does not silently interpret exit 3 as complete evidence.
 
 SIGINT/SIGTERM detach, drain, publish and update status. Removing/replacing the
 scope or losing the output path fails closed and releases owned attachments.
+If the export remains writable but the status file cannot be replaced, the CLI
+returns 1 (`capture_status_write_failed`). It detaches, drains and tries to
+mark the writable export `failed` and `incomplete`; it does not remove the
+obstruction. The API does not archive a successful window before its export
+and status writes both succeed. These are separate atomic files, not one atomic
+transaction. See the [status repair field test](production-udp-offload-service.md#status-write-failure-and-repair).
+If both outputs become read-only after a successful window, exit 1 leaves
+both files stale, even if they still say `running`. Check stderr for
+`output_write_failed` and the secondary status write diagnostic. Repair the
+paths and restart; require a **new** `run_id` before treating the files as
+live. Only independently writable API storage can supply a terminal snapshot
+in the [tested configuration](production-udp-offload-service.md#both-outputs-read-only).
+If that API store is also read-only, the final error message includes
+`[snapshot_persist_failed]`. Persisted latest can still be an **older run's**
+clean stop: match its `run_id` rather than treating it as this run's terminal
+status. [Linux three-destination fault and repair](production-udp-offload-service.md#api-state-and-both-cli-outputs-read-only).
 An advisory inode lock excludes a second cooperating collector on the exact
 same cgroup, not overlapping ancestor/descendant scopes or unrelated BPF tools.
 Links are process-owned and unpinned: SIGKILL releases them, and a fresh run can

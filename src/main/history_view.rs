@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 const API_VERSION: &str = env!("CARGO_PKG_VERSION");
 const HISTORY_RETENTION_LIMIT: usize = 32;
+const MAX_HISTORY_RETENTION_LIMIT: usize = 1024;
 const HISTORY_RETENTION_ENV: &str = "GEWY_HISTORY_RETENTION";
 const MAX_HISTORY_INDEX_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_HISTORY_ROOT_ENTRIES: usize = 4096;
@@ -53,8 +54,11 @@ fn render_history_index_json(history_root: &Path) -> Result<String, String> {
 }
 
 fn render_history_index_text(history_root: &Path) -> Result<String, String> {
-    let entries = history_snapshot_dirs(history_root)?;
-    let retention = history_retention_limit();
+    let configured = history_retention_limit();
+    let (entries, retention) = match read_committed_index(history_root)? {
+        Some(index) => (index.entries, index.retention.unwrap_or(configured)),
+        None => (history_snapshot_dirs(history_root)?, configured),
+    };
     let minor_line = current_minor_line();
     let latest = entries.first().map(|(updated_unix_ms, _)| *updated_unix_ms);
     let oldest = entries.last().map(|(updated_unix_ms, _)| *updated_unix_ms);
@@ -65,6 +69,9 @@ fn render_history_index_text(history_root: &Path) -> Result<String, String> {
         retention,
         entries.len()
     );
+    if configured != retention {
+        text.push_str(&format!("local configured retention: {configured}\n"));
+    }
     match latest {
         Some(value) => text.push_str(&format!("latest: {value}\n")),
         None => text.push_str("latest: none\n"),
@@ -91,6 +98,68 @@ fn render_history_index_text(history_root: &Path) -> Result<String, String> {
         ));
     }
     Ok(text)
+}
+
+/// Do not trust path strings from disk or include an unindexed numeric directory.
+pub(crate) fn indexed_history_dirs(root: &Path) -> Result<Option<Vec<(u128, PathBuf)>>, String> {
+    Ok(read_committed_index(root)?.map(|index| index.entries))
+}
+
+struct CommittedIndex {
+    entries: Vec<(u128, PathBuf)>,
+    retention: Option<usize>,
+}
+
+fn read_committed_index(root: &Path) -> Result<Option<CommittedIndex>, String> {
+    if fs::symlink_metadata(root).is_ok_and(|m| !m.is_dir()) {
+        return Err(format!(
+            "history root must be a real directory: {}",
+            root.display()
+        ));
+    }
+    #[derive(serde::Deserialize)]
+    struct Index {
+        entries: Vec<Row>,
+        history_retention: Option<usize>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Row {
+        updated_unix_ms: u128,
+    }
+    let path = root.join("index.json");
+    if let Err(err) = fs::symlink_metadata(&path) {
+        if err.kind() == ErrorKind::NotFound {
+            return Ok(None);
+        }
+        return Err(format!("inspect history index: {err}"));
+    }
+    let data = read_bounded_utf8_regular_file(&path, MAX_HISTORY_INDEX_BYTES)
+        .map_err(|err| format!("read history index: {err}"))?;
+    let index: Index =
+        serde_json::from_str(&data).map_err(|err| format!("decode history index: {err}"))?;
+    if index.entries.len() > MAX_HISTORY_ROOT_ENTRIES
+        || index
+            .entries
+            .windows(2)
+            .any(|p| p[0].updated_unix_ms <= p[1].updated_unix_ms)
+    {
+        return Err("invalid history index size or timestamp order".into());
+    }
+    let mut entries = Vec::with_capacity(index.entries.len());
+    for row in index.entries {
+        let path = root.join(row.updated_unix_ms.to_string());
+        if !fs::symlink_metadata(&path).is_ok_and(|m| m.is_dir()) {
+            return Err(format!(
+                "indexed history entry is not a real directory: {}",
+                path.display()
+            ));
+        }
+        entries.push((row.updated_unix_ms, path));
+    }
+    Ok(Some(CommittedIndex {
+        entries,
+        retention: index.history_retention,
+    }))
 }
 
 fn empty_history_index_json(history_root: &Path) -> String {
@@ -168,11 +237,11 @@ fn history_snapshot_dirs(history_root: &Path) -> Result<Vec<(u128, PathBuf)>, St
     Ok(entries)
 }
 
-fn history_retention_limit() -> usize {
+pub(crate) fn history_retention_limit() -> usize {
     std::env::var(HISTORY_RETENTION_ENV)
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
-        .filter(|value| *value > 0)
+        .filter(|value| (1..=MAX_HISTORY_RETENTION_LIMIT).contains(value))
         .unwrap_or(HISTORY_RETENTION_LIMIT)
 }
 

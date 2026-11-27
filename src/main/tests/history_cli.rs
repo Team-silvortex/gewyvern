@@ -74,6 +74,25 @@ fn write_protocol_surface(
 }
 
 #[test]
+fn indexed_history_does_not_adopt_an_unindexed_numeric_directory() {
+    let root = temp_dir("uncommitted-number");
+    fs::create_dir_all(root.join("1000")).unwrap();
+    fs::create_dir(root.join("1001")).unwrap();
+    fs::write(
+        root.join("index.json"),
+        r#"{"entries":[{"updated_unix_ms":1000,"path":"../../outside"}]}"#,
+    )
+    .unwrap();
+    let entries = crate::history_view::indexed_history_dirs(&root)
+        .unwrap()
+        .unwrap();
+    assert_eq!(entries, vec![(1000, root.join("1000"))]);
+    fs::write(root.join("index.json"), b"broken").unwrap();
+    assert!(crate::history_view::indexed_history_dirs(&root).is_err());
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn cli_accepts_list_history_mode() {
     let cli = Cli::from_args(["--list-history".to_string(), "--json".to_string()]).unwrap();
     assert!(cli.list_history);
@@ -126,6 +145,34 @@ fn list_history_json_rejects_oversized_index() {
 
     assert!(error.contains("failed to securely read history index"));
     assert!(error.contains("size limit"));
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn history_view_distinguishes_committed_retention_from_local_policy() {
+    let _lock = env_test_lock().lock().unwrap_or_else(|e| e.into_inner());
+    let root = temp_dir("committed-cap");
+    let history = root.join("history/api/v1");
+    let _state = EnvGuard::set("GEWY_STATE_HOME", root.to_string_lossy());
+    let _cap = EnvGuard::set("GEWY_HISTORY_RETENTION", "1025");
+    fs::create_dir_all(&history).unwrap();
+    for stored in [None, Some(2), Some(32)] {
+        let mut index = serde_json::json!({"entries": []});
+        if let Some(cap) = stored {
+            index["history_retention"] = cap.into();
+        }
+        fs::write(history.join("index.json"), index.to_string()).unwrap();
+        let text = render_history_index(false).unwrap();
+        assert!(
+            text.lines()
+                .any(|s| s == format!("retention: {}", stored.unwrap_or(32)))
+        );
+        assert_eq!(
+            text.lines().any(|s| s == "local configured retention: 32"),
+            stored == Some(2)
+        );
+        assert_eq!(render_history_index(true).unwrap(), index.to_string());
+    }
     fs::remove_dir_all(&root).unwrap();
 }
 

@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "release_artifact": false,
+  "host": "Linux 7.0.0-44-generic x86_64",
+  "fault": "SIGKILL on IN_DELETE in the evicted numeric directory, verified after index replacement with at least one deletion and at least one remaining file",
+  "before_fix": {
+    "summary_file": "before/summary.json",
+    "summary_sha256": "1f508362f67db6250d064ee3596082cea4b60075853e11d568eb5aafeb31e4c3",
+    "summary": {
+      "final_index": [
+        "872613-25107906986411",
+        "872547-25106472091172"
+      ],
+      "final_numeric_dirs": 5,
+      "newer": "872339-25101707853670",
+      "oldest": "872292-25100324609815",
+      "retention": 2,
+      "rounds": [
+        {
+          "committed": "872367-25103128624529",
+          "retired_dirs_remaining": 1,
+          "retired_files_before": 474,
+          "retired_files_remaining": 472,
+          "survivor_sha256": "fc46fac54eee579ed485900e389ffbc5eb0278e69eaba6f892719f0aa6859dc8"
+        },
+        {
+          "committed": "872511-25104997257489",
+          "retired_dirs_remaining": 2,
+          "retired_files_before": 474,
+          "retired_files_remaining": 471,
+          "survivor_sha256": "eab7d8772d63934b7e10d92c790191af22a4986125a6fa23201d40037d9bbea3"
+        },
+        {
+          "committed": "872547-25106472091172",
+          "retired_dirs_remaining": 3,
+          "retired_files_before": 474,
+          "retired_files_remaining": 472,
+          "survivor_sha256": "ad3537e64b97762b428f68c8736dce4bf69e9d6f3ec444d7fce25d945fe06ea4"
+        }
+      ]
+    }
+  },
+  "fixed_binary_sha256": "29089636582ce073d28d33c919cd0191813eaff7f4855c599b093980f1269c78",
+  "fixed_test_binary_sha256": "b916fda8363e11ff8d840ed6d0783f6b79225048e9f2275939aa1a37df28c085",
+  "fixed_runs": [
+    {
+      "summary_file": "fixed-1/summary.json",
+      "summary_sha256": "015ac11e3f91fcf3955edcf5222a353aed3f6c4760a3aeca3814ceaac1673485",
+      "summary": {
+        "final_index": [
+          "878116-25268813695763",
+          "878005-25267334740071"
+        ],
+        "final_numeric_dirs": 2,
+        "newer": "877791-25262522476018",
+        "oldest": "877760-25261145559373",
+        "retention": 2,
+        "rounds": [
+          {
+            "committed": "877855-25264394891711",
+            "retired_dirs_remaining": 1,
+            "retired_files_before": 474,
+            "retired_files_remaining": 471,
+            "survivor_sha256": "9854881577e8d30e4db5c63d0cfb5e3206c5863ec5bfcb5898e418e268b9ac0a"
+          },
+          {
+            "committed": "877970-25265858950608",
+            "retired_dirs_remaining": 1,
+            "retired_files_before": 474,
+            "retired_files_remaining": 473,
+            "survivor_sha256": "087d2ce24cc4b89bb9fed61e986b774947471dd1a549af7530e129a9590d3f64"
+          },
+          {
+            "committed": "878005-25267334740071",
+            "retired_dirs_remaining": 1,
+            "retired_files_before": 474,
+            "retired_files_remaining": 473,
+            "survivor_sha256": "93d841068d67dab2231ba5cd101e138ab43922bc85342096b6f1707b4d7119f8"
+          }
+        ]
+      }
+    },
+    {
+      "summary_file": "fixed-2/summary.json",
+      "summary_sha256": "7413b5decc6fd7d5b0af0a346c689388bd5b50e7a64f73c2e46e7a70f678918a",
+      "summary": {
+        "final_index": [
+          "878457-25277905444708",
+          "878388-25276434370308"
+        ],
+        "final_numeric_dirs": 2,
+        "newer": "878181-25271736285693",
+        "oldest": "878132-25270335413319",
+        "retention": 2,
+        "rounds": [
+          {
+            "committed": "878251-25273510141228",
+            "retired_dirs_remaining": 1,
+            "retired_files_before": 474,
+            "retired_files_remaining": 472,
+            "survivor_sha256": "3b2b4e6691d9ea37587a7871eb9a96375f96938e00bd6e2fe1840f0a528146ab"
+          },
+          {
+            "committed": "878358-25274965592686",
+            "retired_dirs_remaining": 1,
+            "retired_files_before": 474,
+            "retired_files_remaining": 472,
+            "survivor_sha256": "72fcc383031f266d4ef691cdb279dfb474442113a1936be25148b2a2fb839099"
+          },
+          {
+            "committed": "878388-25276434370308",
+            "retired_dirs_remaining": 1,
+            "retired_files_before": 474,
+            "retired_files_remaining": 469,
+            "survivor_sha256": "283bb72b3bf9c6a2dbf0eb645a81cc70c110cb3dd22dff5e264e52e00766de2a"
+          }
+        ]
+      }
+    },
+    {
+      "summary_file": "fixed-3/summary.json",
+      "summary_sha256": "651ed4f93fb1c1445bc8dc67d05aefde4d76655e41c5a436eea83a9b21eb26b0",
+      "summary": {
+        "final_index": [
+          "878798-25287448642698",
+          "878767-25285644560938"
+        ],
+        "final_numeric_dirs": 2,
+        "newer": "878544-25280763480314",
+        "oldest": "878517-25279380838038",
+        "retention": 2,
+        "rounds": [
+          {
+            "committed": "878577-25282182507563",
+            "retired_dirs_remaining": 1,
+            "retired_files_before": 474,
+            "retired_files_remaining": 472,
+            "survivor_sha256": "9e1d052e74f627b6da55b8d2ee1828f01094663ca6eea802f01074746a66d3a5"
+          },
+          {
+            "committed": "878642-25283640579866",
+            "retired_dirs_remaining": 1,
+            "retired_files_before": 474,
+            "retired_files_remaining": 473,
+            "survivor_sha256": "24ba276cf8ae1417d4c5af6dc8aa1611bb229c61eb528b00f259d852e7f83dfc"
+          },
+          {
+            "committed": "878767-25285644560938",
+            "retired_dirs_remaining": 1,
+            "retired_files_before": 474,
+            "retired_files_remaining": 472,
+            "survivor_sha256": "f3dc36c92c838b8041281f7f0dacc9f60aa8b27eaff62d4a58b4419739167546"
+          }
+        ]
+      }
+    }
+  ],
+  "resume_run": {
+    "binary_sha256": "7c112abb2e33e8cbf9daed4ccd49a7e684b59b8891f155362d73df51cc68ebab",
+    "test_binary_sha256": "13f2a9dd15c44452cc8008b0006f99129fa452ca97ca6df287ebfa6d5844f043",
+    "summary_file": "resume/summary.json",
+    "summary_sha256": "bbdbb09f716d81a23b9790a833b306a7f6bea76e8b4fd7cb5e3dd4a83c123899",
+    "summary": {
+      "final_index": [
+        "885546-25481808323390",
+        "885398-25478434600035"
+      ],
+      "final_numeric_dirs": 2,
+      "newer": "885198-25473669445470",
+      "oldest": "885191-25472290339889",
+      "resume": [
+        {
+          "files_before": 471,
+          "files_remaining": 461,
+          "run": "885505-25479948708298"
+        },
+        {
+          "files_before": 461,
+          "files_remaining": 29,
+          "run": "885513-25480866197558"
+        }
+      ],
+      "retention": 2,
+      "rounds": [
+        {
+          "committed": "885282-25475509947475",
+          "retired_dirs_remaining": 1,
+          "retired_files_before": 474,
+          "retired_files_remaining": 473,
+          "survivor_sha256": "3c0a977e4f541321becc8c68b4b8b9cf267418d4daa8cd94738ee1cea908cb40"
+        },
+        {
+          "committed": "885368-25476954793137",
+          "retired_dirs_remaining": 1,
+          "retired_files_before": 474,
+          "retired_files_remaining": 472,
+          "survivor_sha256": "7c5a79e3dd73cd2eb580867087b7db122bb53b6cacc21652c2e80463f848ca68"
+        },
+        {
+          "committed": "885398-25478434600035",
+          "retired_dirs_remaining": 1,
+          "retired_files_before": 474,
+          "retired_files_remaining": 471,
+          "survivor_sha256": "7e6e049e847066a42c5b8a126aa7b3dbd4854c5afc036f2ebdb23011157b31f9"
+        }
+      ]
+    }
+  }
+}

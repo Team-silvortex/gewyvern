@@ -1,3 +1,4 @@
+use crate::history_view::history_retention_limit;
 use crate::render_utils::append_json_string;
 use gewyvern::protocol_profiles::protocol_summaries;
 use gewyvern::runtime_layout::runtime_layout;
@@ -30,12 +31,13 @@ use crate::history_catalog_delta::{
     protocol_catalog_delta_json, protocol_catalog_delta_markdown,
 };
 const API_VERSION: &str = env!("CARGO_PKG_VERSION");
-const HISTORY_RETENTION_LIMIT: usize = 32;
-const MAX_HISTORY_RETENTION_LIMIT: usize = 1024;
 const MAX_HISTORY_DIRECTORY_ENTRIES: usize = 4096;
 const MAX_TARGET_DIRECTORY_ENTRIES: usize = 4096;
 const MAX_PERSISTED_SNAPSHOT_FILE_BYTES: u64 = 64 * 1024 * 1024;
-const HISTORY_RETENTION_ENV: &str = "GEWY_HISTORY_RETENTION";
+const HISTORY_STAGE: &str = ".gewyvern-pending-v1";
+
+mod prune;
+mod publication;
 
 pub(super) fn persist_latest_snapshot(snapshot: &ApiSnapshot) -> Result<(), String> {
     let state_root = runtime_layout().state_root;
@@ -44,66 +46,100 @@ pub(super) fn persist_latest_snapshot(snapshot: &ApiSnapshot) -> Result<(), Stri
         .join("api")
         .join("v1")
         .join("latest");
-    persist_snapshot_tree(&latest_root, snapshot, true)?;
-    persist_history_snapshot(&state_root, snapshot)?;
-    write_protocol_catalog_delta_artifacts(&state_root, &latest_root, snapshot.updated_unix_ms)?;
-    Ok(())
-}
-
-fn persist_history_snapshot(state_root: &Path, snapshot: &ApiSnapshot) -> Result<(), String> {
-    if snapshot.updated_unix_ms == 0 || snapshot.kind.is_empty() {
-        return Ok(());
+    let history_root = state_root.join("history/api/v1");
+    fs::create_dir_all(&history_root)
+        .map_err(|e| format!("create {}: {e}", history_root.display()))?;
+    if !fs::symlink_metadata(&history_root).is_ok_and(|m| m.is_dir()) {
+        return Err("history root must be a real directory".into());
     }
-    let history_root = state_root.join("history").join("api").join("v1");
-    let snapshot_root = history_root.join(snapshot.updated_unix_ms.to_string());
-    persist_snapshot_tree(&snapshot_root, snapshot, false)?;
-    prune_history_snapshots(&history_root, history_retention_limit())?;
-    write_history_index(&history_root)
+    let lock = history_root.join(".gewyvern-writer-v1.lock");
+    let _writer =
+        silvortex_bounded_io::open_private_lock_file(&lock, std::time::Duration::from_secs(5))
+            .map_err(|e| format!("lock {}: {e}", lock.display()))?;
+    persist_snapshot_tree(&latest_root, snapshot, true)?;
+    persist_history_snapshot(&history_root, &latest_root, snapshot)
 }
 
-fn write_protocol_catalog_delta_artifacts(
-    state_root: &Path,
+fn persist_history_snapshot(
+    history_root: &Path,
     latest_root: &Path,
-    current_updated_unix_ms: u128,
+    snapshot: &ApiSnapshot,
 ) -> Result<(), String> {
-    let history_root = state_root.join("history").join("api").join("v1");
-    let entries = history_snapshot_dirs(&history_root)?;
-    let (delta_json, delta_markdown) = if let Some((_, current_root)) = entries
-        .iter()
-        .find(|(updated_unix_ms, _)| *updated_unix_ms == current_updated_unix_ms)
-    {
-        let delta = if let Some((previous_updated_unix_ms, previous_root)) = entries
-            .iter()
-            .filter(|(updated_unix_ms, _)| *updated_unix_ms != current_updated_unix_ms)
-            .max_by_key(|(updated_unix_ms, _)| *updated_unix_ms)
-        {
-            Some(protocol_catalog_delta_between_paths(
-                current_updated_unix_ms,
-                current_root,
-                *previous_updated_unix_ms,
-                previous_root,
-            )?)
-        } else {
-            None
-        };
-        let delta_json = protocol_catalog_delta_json(delta.as_ref());
-        let delta_markdown = protocol_catalog_delta_markdown(delta.as_ref());
-        write_text_file(&current_root.join("protocol-delta.json"), &delta_json)?;
-        write_text_file(&current_root.join("protocol-evolution.md"), &delta_markdown)?;
-        (delta_json, delta_markdown)
-    } else {
-        ("null".into(), protocol_catalog_delta_markdown(None))
+    if snapshot.updated_unix_ms == 0 || snapshot.kind.is_empty() {
+        return write_delta_pair(latest_root, "null", &protocol_catalog_delta_markdown(None));
+    }
+    let indexed = crate::history_view::indexed_history_dirs(history_root)?;
+    publication::recover(history_root, indexed.as_deref())?;
+    prune::recover(history_root, indexed.as_deref())?;
+    let mut entries = match indexed {
+        Some(entries) => entries,
+        None => {
+            let legacy = history_snapshot_dirs(history_root)?;
+            write_history_index(history_root, &legacy)?;
+            legacy
+        }
     };
-    write_text_file(&latest_root.join("protocol-delta.json"), &delta_json)?;
-    write_text_file(&latest_root.join("protocol-evolution.md"), &delta_markdown)
+    let previous = prune::index_id(&entries);
+    let ts = snapshot.updated_unix_ms;
+    let dest = history_root.join(ts.to_string());
+    if dest.try_exists().map_err(|e| e.to_string())? {
+        return Err(format!("history timestamp already exists: {ts}"));
+    }
+    let stage = prepare_history_stage(history_root)?;
+    persist_snapshot_tree(&stage, snapshot, false)?;
+    entries.push((ts, dest.clone()));
+    entries.sort_by_key(|row| std::cmp::Reverse(row.0));
+    let retired = entries.split_off(history_retention_limit().min(entries.len()));
+    let delta = entries
+        .iter()
+        .find(|(time, _)| *time < ts)
+        .map(|(prev, path)| protocol_catalog_delta_between_paths(ts, &stage, *prev, path))
+        .transpose()?;
+    let json = protocol_catalog_delta_json(delta.as_ref());
+    let md = protocol_catalog_delta_markdown(delta.as_ref());
+    write_delta_pair(&stage, &json, &md)?;
+    write_delta_pair(latest_root, &json, &md)?;
+    publication::record(history_root, &stage, ts)?;
+    fs::rename(&stage, &dest).map_err(|e| format!("publish history tree: {e}"))?;
+    let prune = prune::record(history_root, previous, &entries, &retired)?;
+    write_history_index(history_root, &entries)?;
+    if let Some(plan) = prune {
+        plan.finish(history_root, &entries)?;
+    }
+    publication::clear(history_root)
 }
 
-fn history_retention_limit() -> usize {
-    std::env::var(HISTORY_RETENTION_ENV)
-        .ok()
-        .and_then(|value| value.parse::<usize>().ok())
-        .filter(|value| (1..=MAX_HISTORY_RETENTION_LIMIT).contains(value))
-        .unwrap_or(HISTORY_RETENTION_LIMIT)
+fn write_delta_pair(root: &Path, json: &str, markdown: &str) -> Result<(), String> {
+    write_text_file(&root.join("protocol-delta.json"), json)?;
+    write_text_file(&root.join("protocol-evolution.md"), markdown)
+}
+
+// One reserved slot per shelf, reused only with the writer lock held. Never
+// remove a foreign nonempty directory or follow a symlink.
+fn prepare_history_stage(root: &Path) -> Result<PathBuf, String> {
+    let stage = root.join(HISTORY_STAGE);
+    let owner = stage.join(".gewyvern-stage-v1");
+    match fs::symlink_metadata(&stage) {
+        Ok(m) if m.is_dir() => {
+            if !fs::symlink_metadata(&owner).is_ok_and(|m| m.is_file() && m.len() == 0) {
+                fs::remove_dir(&stage)
+                    .map_err(|e| format!("refusing unowned history stage: {e}"))?;
+            } else {
+                fs::remove_dir_all(&stage)
+                    .map_err(|e| format!("clear interrupted history stage: {e}"))?;
+            }
+        }
+        Ok(_) => return Err("history stage must be a real directory".into()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(format!("inspect history stage: {e}")),
+    }
+    let mut dir = fs::DirBuilder::new();
+    #[cfg(unix)]
+    std::os::unix::fs::DirBuilderExt::mode(&mut dir, 0o700);
+    dir.create(&stage)
+        .map_err(|e| format!("create history stage: {e}"))?;
+    fs::File::create_new(owner).map_err(|e| format!("mark history stage: {e}"))?;
+    Ok(stage)
 }
 
 fn persist_snapshot_tree(
@@ -299,8 +335,7 @@ fn persist_target_snapshot(
     Ok(())
 }
 
-fn write_history_index(history_root: &Path) -> Result<(), String> {
-    let entries = history_snapshot_dirs(history_root)?;
+fn write_history_index(history_root: &Path, entries: &[(u128, PathBuf)]) -> Result<(), String> {
     let retention = history_retention_limit();
     let minor_line = current_minor_line();
     let latest_updated_unix_ms = entries.first().map(|(updated_unix_ms, _)| *updated_unix_ms);
@@ -324,7 +359,7 @@ fn write_history_index(history_root: &Path) -> Result<(), String> {
     }
     json.push_str(",\"catalog_artifacts\":[\"protocols.json\",\"protocol-clusters.json\",\"protocol-clusters/<cluster>.json\",\"protocols/<protocol>/summary.json\",\"protocols/<protocol>/entries/<entry>/surface.json\"]");
     json.push_str(",\"latest_protocol_catalog_delta\":");
-    let delta = latest_protocol_catalog_delta(&entries)?;
+    let delta = latest_protocol_catalog_delta(entries)?;
     json.push_str(&protocol_catalog_delta_json(delta.as_ref()));
     json.push_str(",\"latest_protocol_catalog_delta_path\":");
     match latest_updated_unix_ms {
@@ -387,19 +422,6 @@ fn current_minor_line() -> String {
     let major = parts.next().unwrap_or("0");
     let minor = parts.next().unwrap_or("0");
     format!("v{major}.{minor}.x")
-}
-
-fn prune_history_snapshots(history_root: &Path, keep: usize) -> Result<(), String> {
-    let entries = history_snapshot_dirs(history_root)?;
-    for (_, path) in entries.into_iter().skip(keep) {
-        fs::remove_dir_all(&path).map_err(|err| {
-            format!(
-                "failed to prune stale history snapshot directory '{}': {err}",
-                path.display()
-            )
-        })?;
-    }
-    Ok(())
 }
 
 fn history_snapshot_dirs(history_root: &Path) -> Result<Vec<(u128, PathBuf)>, String> {
@@ -562,6 +584,77 @@ mod tests {
                 .expect("system clock must follow the epoch")
                 .as_nanos()
         ))
+    }
+
+    #[test]
+    fn history_stage_reclaims_its_interrupted_tree_but_not_foreign_data() {
+        let root = temp_root("stage");
+        fs::create_dir(&root).unwrap();
+        let stage = super::prepare_history_stage(&root).unwrap();
+        fs::write(stage.join("partial"), b"interrupted").unwrap();
+        assert_eq!(super::prepare_history_stage(&root).unwrap(), stage);
+        assert!(!stage.join("partial").exists());
+        fs::remove_file(stage.join(".gewyvern-stage-v1")).unwrap();
+        fs::write(stage.join("foreign"), b"not ours").unwrap();
+        assert!(super::prepare_history_stage(&root).is_err());
+        assert_eq!(fs::read(stage.join("foreign")).unwrap(), b"not ours");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn prune_recovery_requires_the_recorded_index_and_retired_identity() {
+        use super::prune::{index_id, record, recover};
+        let root = temp_root("prune-index");
+        let old = [(1, root.join("1"))];
+        let new = [(2, root.join("2"))];
+        for (_, p) in old.iter().chain(&new) {
+            fs::create_dir_all(p).unwrap();
+        }
+        let meta = old[0].1.join("meta.json");
+        fs::write(&meta, br#"{"updated_unix_ms":1}"#).unwrap();
+        record(&root, index_id(&old), &new, &old).unwrap();
+        assert!(recover(&root, None).is_err());
+        assert!(recover(&root, Some(&[])).is_err());
+        recover(&root, Some(&old)).unwrap();
+        assert!(meta.is_file());
+        record(&root, index_id(&old), &new, &old).unwrap();
+        fs::write(&meta, br#"{"updated_unix_ms":1,"different":true}"#).unwrap();
+        assert!(recover(&root, Some(&new)).is_err());
+        assert!(meta.is_file());
+        fs::write(&meta, br#"{"updated_unix_ms":1}"#).unwrap();
+        recover(&root, Some(&new)).unwrap();
+        assert!(!old[0].1.exists() && new[0].1.is_dir());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn shrink_recovery_accepts_finished_and_empty_tail_work_without_sweeping() {
+        use super::prune::{index_id, record, recover};
+        let root = temp_root("prune-shrink");
+        let old: Vec<_> = (1..=4u128)
+            .rev()
+            .map(|ts| (ts, root.join(ts.to_string())))
+            .collect();
+        for (ts, p) in &old {
+            fs::create_dir_all(p).unwrap();
+            fs::write(
+                p.join("meta.json"),
+                format!(r#"{{"updated_unix_ms":{ts}}}"#),
+            )
+            .unwrap();
+        }
+        let foreign = root.join("99");
+        fs::create_dir(&foreign).unwrap();
+        record(&root, index_id(&old), &old[..1], &old[1..]).unwrap();
+        fs::remove_dir_all(&old[1].1).unwrap();
+        fs::remove_file(old[2].1.join("meta.json")).unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&foreign, old[3].1.join("link")).unwrap();
+        recover(&root, Some(&old[..1])).unwrap();
+        recover(&root, Some(&old[..1])).unwrap();
+        assert!(foreign.is_dir() && old[0].1.join("meta.json").is_file());
+        assert!(old[1..].iter().all(|(_, p)| !p.exists()));
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[cfg(unix)]

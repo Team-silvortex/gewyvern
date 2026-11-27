@@ -1,0 +1,306 @@
+{
+  "schema_version": 1,
+  "release_artifact": false,
+  "host": "Linux 7.0.0-44-generic x86_64",
+  "fault": "SIGKILL at FAN_OPEN_PERM on victim #2 after victim #1 is absent. Fixed runs also pause after journal recovery and before the next index switch.",
+  "fixed_binary_sha256": "d0671133fa3c93462b7f45364a7d1b936b687d8dc37629502c8178060a7f0633",
+  "fixed_test_binary_sha256": "e6901625978ec5d4926709b3f2648cf71c440b8209acc7aa439b55066662ce3a",
+  "runs": [
+    {
+      "fixed": false,
+      "summary_file": "before-up/summary.json",
+      "summary_sha256": "29a9af2bb965a0bd7b73109c037366fed3c9ec30f2fa72045a69af94e3e77bfe",
+      "summary": {
+        "committed_tree_sha256": "2b28ca9e4b5636becbbd82e23c05f219e49ea48d39599194b0473b5f7e5f85c6",
+        "final_directories": 3,
+        "final_ids": [
+          "918788-26461077507542",
+          "918739-26459595312432",
+          "918638-26458122644928"
+        ],
+        "gap_index_sha256": "ffe63efee1ef238c66d3a9b1f93172bdf352a0fc4ad5c7d5f02d65bd2e24cbba",
+        "gap_old_victims_remaining": 3,
+        "gap_victim_sha256": [
+          "7cb77ba48d37fe67dca8a6616bbfa2e76b754a952ab7c7228e864000d2ec573e",
+          "1d552bbedd12abe6956477fe73a69abe94793230b7ccfee9b41e23b9fb4c2480",
+          "08a9dc9c9128fe07eedc17ac2a8dad34f3ec062283e5080d73871a44bcf18762"
+        ],
+        "pending_prune": false,
+        "repair_id": "918788-26461077507542",
+        "restart_cap": 4,
+        "seed_cap": 5,
+        "seed_ids_newest_first": [
+          "918638-26458122644928",
+          "918585-26456224040954",
+          "918519-26454840781280",
+          "918475-26453448649943",
+          "918468-26452066103173"
+        ],
+        "shrink_cap": 2,
+        "shrink_id": "918739-26459595312432",
+        "text_retention_during_restart": "4"
+      }
+    },
+    {
+      "fixed": false,
+      "summary_file": "before-down/summary.json",
+      "summary_sha256": "57cbb45ddb0efcdcd95f1e96b0f0a074ea117ade842e2cb57065db6c3ab6f202",
+      "summary": {
+        "committed_tree_sha256": "ea22446ad4beb8344287246e13c082305b53609d317c2d1d76c8fc8674d9f15f",
+        "final_directories": 1,
+        "final_ids": [
+          "919140-26471198334096"
+        ],
+        "gap_index_sha256": "2cbf47ccd5f92893a4727efdadce41e8aab65078ad25da327e65ddf1b61dcb88",
+        "gap_old_victims_remaining": 3,
+        "gap_victim_sha256": [
+          "05f11d3839ffc130457f758dbd2a8896e76fa353cc565eb1b3cbf95027f014fc",
+          "90e22983b9bf01cdcefa296f7a87e49b5bb925e4f0ab9d6946ba2c30d38f9740",
+          "29605af9f8d455d612c018b4acfefbef0deff1ace66befa91d1b439d4902f3cd"
+        ],
+        "pending_prune": false,
+        "repair_id": "919140-26471198334096",
+        "restart_cap": 1,
+        "seed_cap": 5,
+        "seed_ids_newest_first": [
+          "918993-26468256767013",
+          "918986-26466869722069",
+          "918916-26465481932144",
+          "918849-26464094536132",
+          "918842-26462704060260"
+        ],
+        "shrink_cap": 2,
+        "shrink_id": "919092-26469728572112",
+        "text_retention_during_restart": "1"
+      }
+    },
+    {
+      "fixed": true,
+      "summary_file": "fixed-raise-1/summary.json",
+      "summary_sha256": "eb1ea2bc02e0afd94a515e29cfe1d3186a8908cf993316d190b37f533b6c42ab",
+      "summary": {
+        "committed_tree_sha256": "529a9948c6ea343f9cc3e634f2fbfc9133e7209d090bca25e2d937b60450b787",
+        "final_directories": 3,
+        "final_ids": [
+          "926180-26669299905544",
+          "926170-26667806387732",
+          "926066-26666328799522"
+        ],
+        "gap_index_sha256": "bb4024f25bfa67572770307e1a0bb8828f1bf76794b0141202e6a6b6103c0e50",
+        "gap_old_victims_remaining": 3,
+        "gap_victim_sha256": [
+          "91d10373d4f231cff0566951b230332e77f6baa0f15ba2b9618f593064587b4a",
+          "97b12b9dc0bbbf5adfa126fe59e612e9235dac57afc06dd6638ba6deb4bc9dde",
+          "28cf28c3e3b1ee9203d7947745dd83527e7548aea03cfec092558469771bd310"
+        ],
+        "pending_prune": false,
+        "post_replay_pre_commit_ids": [
+          "926170-26667806387732",
+          "926066-26666328799522"
+        ],
+        "repair_id": "926180-26669299905544",
+        "restart_cap": 4,
+        "seed_cap": 5,
+        "seed_ids_newest_first": [
+          "926066-26666328799522",
+          "926023-26664936733394",
+          "926016-26663534939113",
+          "925952-26662146951443",
+          "925922-26660764924510"
+        ],
+        "shrink_cap": 2,
+        "shrink_id": "926170-26667806387732",
+        "text_retention_during_restart": "2"
+      }
+    },
+    {
+      "fixed": true,
+      "summary_file": "fixed-raise-2/summary.json",
+      "summary_sha256": "e8e958b0a9d3b6ba0745a44a8725ec40cac2d5b29db54f3123359ddcd6d3a1af",
+      "summary": {
+        "committed_tree_sha256": "af1ce202ae30ec1a11a8373913dc084600028595291854e363553e08a6b80731",
+        "final_directories": 3,
+        "final_ids": [
+          "927137-26691330739086",
+          "927084-26689824024612",
+          "927003-26688336549076"
+        ],
+        "gap_index_sha256": "649eeeebf116cf0e95c7038f493e2907751ea528b11f9c7ec8f1129de43456ae",
+        "gap_old_victims_remaining": 3,
+        "gap_victim_sha256": [
+          "ef9eee6345264e9372bbb792b468cf4ba33d230653e3a1c5e26a0c1f9f30326f",
+          "b0e7fcf38b78b82fcf02c48fe484915cc9603fc9f6b25d74067c30693aa8c76e",
+          "81b2c2b3f23355efd8e74df991e24e0d60e1cbddcb63b383eabd2c3acdcb94db"
+        ],
+        "pending_prune": false,
+        "post_replay_pre_commit_ids": [
+          "927084-26689824024612",
+          "927003-26688336549076"
+        ],
+        "repair_id": "927137-26691330739086",
+        "restart_cap": 4,
+        "seed_cap": 5,
+        "seed_ids_newest_first": [
+          "927003-26688336549076",
+          "926938-26686645066179",
+          "926891-26685053302114",
+          "926884-26683522630195",
+          "926799-26682127789026"
+        ],
+        "shrink_cap": 2,
+        "shrink_id": "927084-26689824024612",
+        "text_retention_during_restart": "2"
+      }
+    },
+    {
+      "fixed": true,
+      "summary_file": "fixed-raise-3/summary.json",
+      "summary_sha256": "7304cf2c10bfa71e76c9a8f704bcf7a20f5bca250a7fed001105240fc4e9fdec",
+      "summary": {
+        "committed_tree_sha256": "d2f16ec68824c84f1df136248bacc6340763dcb96d1fd981de2d935fe48148bd",
+        "final_directories": 3,
+        "final_ids": [
+          "927903-26712540738822",
+          "927875-26711037290410",
+          "927751-26709571211922"
+        ],
+        "gap_index_sha256": "427c15579173dd6fdd23cac588ca9e11445702dd5834cb890d360ba3f93bc974",
+        "gap_old_victims_remaining": 3,
+        "gap_victim_sha256": [
+          "fe88b345e26472f5250125b8181ad25afeca45737285ebbcbc335f1dcc6a2e3b",
+          "37d4f81800bdb8593782fbaf014c4d206ce861c3271fc18c29a1bc6026ab21b2",
+          "52de32548a9e6e2ae22015b4c02bf7e7674a12c25206d87dd0da56269e999143"
+        ],
+        "pending_prune": false,
+        "post_replay_pre_commit_ids": [
+          "927875-26711037290410",
+          "927751-26709571211922"
+        ],
+        "repair_id": "927903-26712540738822",
+        "restart_cap": 4,
+        "seed_cap": 5,
+        "seed_ids_newest_first": [
+          "927751-26709571211922",
+          "927738-26708183686246",
+          "927669-26706792652933",
+          "927614-26705402324597",
+          "927607-26703613622308"
+        ],
+        "shrink_cap": 2,
+        "shrink_id": "927875-26711037290410",
+        "text_retention_during_restart": "2"
+      }
+    },
+    {
+      "fixed": true,
+      "summary_file": "fixed-lower-1/summary.json",
+      "summary_sha256": "112974ef8e8ce1b64b74fc4c56dfd9760e72dc2a68526b186fab7cbe9a441c74",
+      "summary": {
+        "committed_tree_sha256": "4997daedfc26a2f9ddfc7c80a68566efb4e3f820ea212bb210beec05c724526a",
+        "final_directories": 1,
+        "final_ids": [
+          "926719-26679984265632"
+        ],
+        "gap_index_sha256": "315669684d08d784db4cf5d5d978415c026c02a80ec837d330a53aa3fcba4a34",
+        "gap_old_victims_remaining": 3,
+        "gap_victim_sha256": [
+          "1815563fb32d06152d00d934cbf1797b47c1b8caa4264c5d1e02ea16a5c03841",
+          "c032873c9175fadbeec2d8a786034cfc012899d65d66d0bc2dfe78b8ad5cde80",
+          "df0f6507eb9ad9ab6e44cc240a11814913400191eac44725cb16c891ec6a0c3a"
+        ],
+        "pending_prune": false,
+        "post_replay_pre_commit_ids": [
+          "926610-26678487768961",
+          "926543-26677018934246"
+        ],
+        "repair_id": "926719-26679984265632",
+        "restart_cap": 1,
+        "seed_cap": 5,
+        "seed_ids_newest_first": [
+          "926543-26677018934246",
+          "926513-26675624154609",
+          "926485-26674233268189",
+          "926477-26672835351336",
+          "926314-26671443538072"
+        ],
+        "shrink_cap": 2,
+        "shrink_id": "926610-26678487768961",
+        "text_retention_during_restart": "2"
+      }
+    },
+    {
+      "fixed": true,
+      "summary_file": "fixed-lower-2/summary.json",
+      "summary_sha256": "a466a04208e7774f25602f394fd929f0d284ae9fd976579dcd60160439726d46",
+      "summary": {
+        "committed_tree_sha256": "acbba5f6fbef44a3dc25fbd376a91919e379a6975d25d5d816a5a31e6ada498e",
+        "final_directories": 1,
+        "final_ids": [
+          "927532-26701991147453"
+        ],
+        "gap_index_sha256": "462426f63c2a117258a9ace9107b209d7a196057ccbee1e71bf09ef799c7f042",
+        "gap_old_victims_remaining": 3,
+        "gap_victim_sha256": [
+          "4be298b0ec3ddff7377eec51bf895318e11a993e680b032689299d3ad922a3e2",
+          "9dd9788f5d0b6ad8c0a60e426d7ce4d333af13d7cf573192fe0e7a43be90d8c0",
+          "5962febd13ac68721a2f2883b4a01064ade17584f425afbb38b6ac160b85e5fe"
+        ],
+        "pending_prune": false,
+        "post_replay_pre_commit_ids": [
+          "927485-26700502138291",
+          "927377-26699025507279"
+        ],
+        "repair_id": "927532-26701991147453",
+        "restart_cap": 1,
+        "seed_cap": 5,
+        "seed_ids_newest_first": [
+          "927377-26699025507279",
+          "927314-26697636349873",
+          "927266-26696237616412",
+          "927238-26694846400838",
+          "927231-26693001864032"
+        ],
+        "shrink_cap": 2,
+        "shrink_id": "927485-26700502138291",
+        "text_retention_during_restart": "2"
+      }
+    },
+    {
+      "fixed": true,
+      "summary_file": "fixed-lower-3/summary.json",
+      "summary_sha256": "bcbfdc5f6102aff28a58f4a81fd353878c7db0c5e4d065d460f7eec3c8e61e33",
+      "summary": {
+        "committed_tree_sha256": "370da9ac292b0be2bf54ef671476cc610a4ea7976c109c995b21a29bb4937c9e",
+        "final_directories": 1,
+        "final_ids": [
+          "928336-26723648774919"
+        ],
+        "gap_index_sha256": "63d0a854db987e63db55d3404dbf441c8e65a7cc362e9e6273ad7c0cf45925b7",
+        "gap_old_victims_remaining": 3,
+        "gap_victim_sha256": [
+          "62ecc400c182c059fedddfe7786bed9f000ecd6293677141a41323da28487215",
+          "624c6aab43c672addd1ee0ee4c3b691f1016dde00d4ff74148b90b1fc22a0a6e",
+          "2691b1915bd0d753564e884d8a02006e897e204843ab486b2e8c2b3e7c194ad9"
+        ],
+        "pending_prune": false,
+        "post_replay_pre_commit_ids": [
+          "928270-26722151867251",
+          "928223-26720632267615"
+        ],
+        "repair_id": "928336-26723648774919",
+        "restart_cap": 1,
+        "seed_cap": 5,
+        "seed_ids_newest_first": [
+          "928223-26720632267615",
+          "928118-26718937754792",
+          "928055-26717487851657",
+          "928024-26716102820042",
+          "927996-26714726117835"
+        ],
+        "shrink_cap": 2,
+        "shrink_id": "928270-26722151867251",
+        "text_retention_during_restart": "2"
+      }
+    }
+  ]
+}

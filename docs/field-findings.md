@@ -1,5 +1,75 @@
 # Field Findings
 
+## `2026-11-27` Reconfigured History Reported A Limit Not Yet Committed
+
+After an interrupted shrink from five to two, the CLI text view immediately
+reported the reader's new limit (four or one); JSON still correctly reported
+two. [Native recovery tests](production-udp-offload-service.md#changing-retention-between-evictions)
+show that the old plan did not delete either indexed run. Both views now
+report the committed limit; text labels a different local setting separately.
+
+## `2026-11-27` Committed History Survived A Prune Crash But Retired Trees Accumulated
+
+At retention two, killing the Linux collector *after* the index switched and
+*during* old-file removal preserved both visible archives but stranded a new
+partial tree on every rotation. The [prune recovery proof](production-udp-offload-service.md#interrupted-prune-after-index-replacement)
+now verifies bounded residue, same-victim retry and exactly two physical
+archives after a clean stop.
+
+## `2026-11-27` A Full History Index Did Not Bound Disk Use After Repeated Kills
+
+At retention two, three pre-index kills left three unindexed complete archives.
+A later clean stop still left five numeric directories for two listed entries.
+The [native repeat test](production-udp-offload-service.md#repeated-interruption-at-the-retention-limit)
+now observes at most one in-flight archive between attempts and exactly two
+after normal rotation, without changing either indexed seed during interruption.
+
+## `2026-11-27` Interrupted History Could Report Protocols As Removed
+
+After latest export publication, SIGKILL during history-tree construction left
+text history counting a partial numeric directory and reporting spurious protocol
+removals; the JSON index still listed only the seed. [Three native repetitions](production-udp-offload-service.md#interrupted-history-publication)
+verify the fixed text/JSON views and fresh HTTP run identity on same-path restart.
+
+## `2026-11-27` An Older API Terminal Is Not A Receipt For A Failed Run
+
+With both CLI outputs and the API archive read-only, the last JSON error used
+to omit the archive failure. The [native check](production-udp-offload-service.md#api-state-and-both-cli-outputs-read-only)
+confirms the extra diagnostic without changing the primary exit code. On both
+address families the history stayed at one genuine entry through failure and
+gained only the newly restarted run after a clean stop.
+
+## `2026-11-27` Read-Only Capture Files Can Outlive Their Collector
+
+With both outputs on a read-only mount, the CLI reported export failure but
+silently lost the final status write error. The [dual-output repair check](production-udp-offload-service.md#both-outputs-read-only)
+verifies both diagnostics at exit 1, unchanged last-good files and clean
+same-path restart across eight native Linux cases. Only cases with separate
+writable API state preserved a terminal failure snapshot.
+
+## `2026-11-27` Broken Status Destination Must Not Announce Success
+
+The CLI could fail a status write but leave a running/stopped export, or erase
+the last reply while correcting the API snapshot. The [fault and repair test](production-udp-offload-service.md#status-write-failure-and-repair)
+now verifies the failed export, single API history entry, original error code
+and a fresh same-socket restart across eight Linux combinations.
+
+## `2026-11-27` A Forced Stop Preserves Only The Last Published Window
+
+In [six private-veth runs](production-udp-offload-service.md#forced-stop-with-an-occupied-ring),
+SIGKILL left both status and export unchanged with nine received group members
+still pending. Real UDP exchanges succeeded both while the reader was paused and
+while it was absent. Neither appeared in the restarted run, which reused the same
+sockets, cgroup and output paths but retained only the five new observations.
+
+## `2026-11-27` Graceful Stop Drains Queued UDP Before Expiry
+
+In [six native runs](production-udp-offload-service.md#graceful-shutdown-with-an-occupied-ring),
+the service received SIGTERM with a partial group reserved and 17 more records
+queued. The last export retained the ordinary reply exactly once; all prior
+loss remained accounted for at exit 3. A fresh collector on the original
+sockets then retained all 22 new observations and exited 0.
+
 ## `2026-11-27` Ring Loss And Userspace Refusal Remain Distinguishable
 
 Three [mixed-pressure runs](production-udp-offload-service.md#mixed-ring-and-budget-pressure)
